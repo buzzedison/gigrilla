@@ -5,7 +5,7 @@ import { ProtectedRoute } from "../../lib/protected-route";
 import { FanDashboard } from "./components/FanDashboard";
 
 export default function FanDashboardPage() {
-  const { user } = useAuth();
+  const { } = useAuth();
 
   return (
     <ProtectedRoute>

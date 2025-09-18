@@ -4,13 +4,15 @@ import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { useAuth } from "../../lib/auth-context";
 import { useRouter } from "next/navigation";
-import { createClient } from "../../lib/supabase/client";
+// import { createClient } from "../../lib/supabase/client";
 
 interface GenreSelectionPageProps {
   onNavigate: (page: "login" | "signup" | "genres") => void;
 }
 
-type Genre = { id: number; name: string };
+type Genre = { id: string; name: string };
+type DbGenre = { id: string | number; name: string; description?: string; parent_id?: string | number };
+type DbGenreNormalized = { id: string; name: string; description?: string; parent_id?: string };
 
 const defaultFamilies = [
   "Blues", "Classical", "Country", "Electronic", "Folk", "Gospel",
@@ -28,7 +30,7 @@ const defaultSubs = [
 ];
 
 export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
-  const { updateProfile, user, signOut } = useAuth();
+  const { updateProfile, user, session } = useAuth();
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<"family" | "main" | "sub">("main");
@@ -39,7 +41,7 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
   const [selectedFamily, setSelectedFamily] = useState<Genre | null>(null);
   const [selectedMain, setSelectedMain] = useState<Genre | null>(null);
 
-  const [allGenres, setAllGenres] = useState<any[]>([]);
+  const [allGenres, setAllGenres] = useState<DbGenreNormalized[]>([]);
   const [families, setFamilies] = useState<Genre[]>([]);
   const [mains, setMains] = useState<Genre[]>([]);
   const [subs, setSubs] = useState<Genre[]>([]);
@@ -50,7 +52,6 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
   
   // User role state
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [loadingUserRole, setLoadingUserRole] = useState(true);
 
   // Debug environment variables
   useEffect(() => {
@@ -64,16 +65,16 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
   useEffect(() => {
     const fetchUserRole = async () => {
       if (!user) {
-        setLoadingUserRole(false);
         return;
       }
 
       try {
+        const token = session?.access_token;
         const response = await fetch(`https://gpfjkgdwymwdmmrezecc.supabase.co/rest/v1/users?select=user_role&id=eq.${user.id}`, {
           headers: {
             'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdwZmprZ2R3eW13ZG1tcmV6ZWNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNjg0NTMsImV4cCI6MjA3MDg0NDQ1M30.UkLIsnIy4d77Ypf9PnladhjpDbYJnriRfUZm5epUg2Q',
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${user.access_token || ''}`
+            'Authorization': token ? `Bearer ${token}` : ''
           }
         });
 
@@ -87,63 +88,13 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
       } catch (error) {
         console.error("Error fetching user role:", error);
       } finally {
-        setLoadingUserRole(false);
       }
     };
 
     fetchUserRole();
-  }, [user]);
+  }, [user, session?.access_token]);
 
-  // Test function to check if we can access the database at all
-  const testDatabaseAccess = async () => {
-    console.log("Starting database access test...");
-    try {
-      console.log("Creating Supabase client...");
-      const supabase = createClient();
-      console.log("Supabase client created successfully");
-      
-      // Add timeout to session check
-      console.log("Getting session...");
-      const sessionPromise = supabase.auth.getSession();
-      const sessionTimeout = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Session check timeout")), 2000)
-      );
-      
-      const { data: { session } } = await Promise.race([sessionPromise, sessionTimeout]) as any;
-      console.log("Current session:", {
-        hasSession: !!session,
-        hasUser: !!session?.user,
-        userId: session?.user?.id
-      });
-
-      console.log("Creating Supabase query...");
-      const query = supabase
-        .from("genres")
-        .select("count", { count: "exact", head: true });
-
-      console.log("Executing query...");
-      const startTime = Date.now();
-      
-      // Add timeout to the query itself
-      const queryPromise = query;
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Query timeout after 2s")), 2000)
-      );
-      
-      const result = await Promise.race([queryPromise, timeoutPromise]);
-      const endTime = Date.now();
-
-      console.log("Database access test result:", {
-        result,
-        duration: `${endTime - startTime}ms`,
-        success: !result.error
-      });
-      return { success: !result.error, error: result.error };
-    } catch (e) {
-      console.error("Database access test failed:", e);
-      return { success: false, error: e };
-    }
-  };
+  // Removed unused testDatabaseAccess helper to satisfy ESLint and keep code lean
 
   // Fetch all genres hierarchically
   useEffect(() => {
@@ -159,18 +110,15 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
       // Force fallback after 10 seconds regardless
       const forceFallbackTimeout = setTimeout(() => {
         console.log("FORCED FALLBACK: Loading taking too long, using defaults");
-        setFamilies(defaultFamilies.map((n, i) => ({ id: i + 1, name: n })));
-        setMains(defaultMains.map((n, i) => ({ id: i + 100, name: n })));
-        setSubs(defaultSubs.map((n, i) => ({ id: i + 200, name: n })));
+        setFamilies(defaultFamilies.map((n, i) => ({ id: String(i + 1), name: n })));
+        setMains(defaultMains.map((n, i) => ({ id: String(i + 100), name: n })));
+        setSubs(defaultSubs.map((n, i) => ({ id: String(i + 200), name: n })));
         setGenresError("Loading timeout - using default genres");
         setLoadingFamilies(false);
       }, 10000);
 
       try {
         console.log("Fetching genres from database...");
-
-      // Create authenticated Supabase client
-      const supabase = createClient();
 
       // Use direct fetch since Supabase client is hanging
       console.log("Using direct fetch to bypass Supabase client...");
@@ -187,7 +135,7 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        const data = await response.json();
+        const data: DbGenre[] = await response.json();
         console.log("Direct fetch successful:", {
           dataLength: data.length,
           firstFew: data.slice(0, 3)
@@ -201,19 +149,25 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
         if (!data || data.length === 0) {
           console.log("No genres found in database, using defaults");
           // Fallback to defaults
-          setFamilies(defaultFamilies.map((n, i) => ({ id: i + 1, name: n })));
-          setMains(defaultMains.map((n, i) => ({ id: i + 100, name: n })));
-          setSubs(defaultSubs.map((n, i) => ({ id: i + 200, name: n })));
+          setFamilies(defaultFamilies.map((n, i) => ({ id: String(i + 1), name: n })));
+          setMains(defaultMains.map((n, i) => ({ id: String(i + 100), name: n })));
+          setSubs(defaultSubs.map((n, i) => ({ id: String(i + 200), name: n })));
           setGenresError("Using default genres (database appears empty)");
         } else {
           console.log("SUCCESS: Processing", data.length, "genres from database");
-          const genreMap = new Map(data.map((g: any) => [g.id, g]));
+          const normalized: DbGenreNormalized[] = data.map((g) => ({
+            id: String(g.id),
+            name: g.name,
+            description: g.description,
+            parent_id: g.parent_id !== undefined && g.parent_id !== null ? String(g.parent_id) : undefined,
+          }));
+          const genreMap = new Map<string, DbGenreNormalized>(normalized.map((g) => [g.id, g]));
 
           const familiesData: Genre[] = [];
           const mainsData: Genre[] = [];
           const subsData: Genre[] = [];
 
-          data.forEach((genre: any) => {
+          normalized.forEach((genre) => {
             if (!genre.parent_id) {
               familiesData.push({ id: genre.id, name: genre.name });
             } else {
@@ -239,7 +193,7 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
             sampleSubs: subsData.slice(0, 3)
           });
 
-          setAllGenres(data);
+          setAllGenres(normalized);
           setFamilies(familiesData);
           setMains(mainsData);
           setSubs(subsData);
@@ -248,18 +202,18 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
       } catch (fetchError) {
         console.error("Direct fetch failed:", fetchError);
         // Fallback to defaults
-        setFamilies(defaultFamilies.map((n, i) => ({ id: i + 1, name: n })));
-        setMains(defaultMains.map((n, i) => ({ id: i + 100, name: n })));
-        setSubs(defaultSubs.map((n, i) => ({ id: i + 200, name: n })));
-        setGenresError(`Failed to fetch genres: ${fetchError.message}`);
+        setFamilies(defaultFamilies.map((n, i) => ({ id: String(i + 1), name: n })));
+        setMains(defaultMains.map((n, i) => ({ id: String(i + 100), name: n })));
+        setSubs(defaultSubs.map((n, i) => ({ id: String(i + 200), name: n })));
+        setGenresError(`Failed to fetch genres: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
       }
       } catch (e) {
         console.error("Error fetching genres:", e);
         console.error("Error details:", e);
-        setFamilies(defaultFamilies.map((n, i) => ({ id: i + 1, name: n })));
-        setMains(defaultMains.map((n, i) => ({ id: i + 100, name: n })));
-        setSubs(defaultSubs.map((n, i) => ({ id: i + 200, name: n })));
-        setGenresError(`Failed to load genres: ${e.message || 'Unknown error'}, using defaults`);
+        setFamilies(defaultFamilies.map((n, i) => ({ id: String(i + 1), name: n })));
+        setMains(defaultMains.map((n, i) => ({ id: String(i + 100), name: n })));
+        setSubs(defaultSubs.map((n, i) => ({ id: String(i + 200), name: n })));
+        setGenresError(`Failed to load genres: ${e instanceof Error ? e.message : String(e)}, using defaults`);
       } finally {
         clearTimeout(forceFallbackTimeout);
         console.log("Setting loadingFamilies to false");
@@ -285,10 +239,14 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
       const filteredMains = allGenres.filter(genre =>
         genre.parent_id === selectedFamily.id
       );
-      setMains(filteredMains.length > 0 ? filteredMains : defaultMains.map((n, i) => ({ id: i + 100, name: n })));
+      setMains(filteredMains.length > 0 ? filteredMains : defaultMains.map((n, i) => ({ id: String(i + 100), name: n })));
     } else {
-      const allMains = allGenres.filter(genre => genre.parent_id && genre.parent_id > 0);
-      setMains(allMains.length > 0 ? allMains : defaultMains.map((n, i) => ({ id: i + 100, name: n })));
+      const allMains = allGenres.filter((genre) => {
+        if (!genre.parent_id) return false
+        const parent = allGenres.find((g) => g.id === genre.parent_id)
+        return !parent?.parent_id
+      })
+      setMains(allMains.length > 0 ? allMains : defaultMains.map((n, i) => ({ id: String(i + 100), name: n })));
     }
   }, [selectedFamily, allGenres]);
 
@@ -300,14 +258,14 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
       const filteredSubs = allGenres.filter(genre =>
         genre.parent_id === selectedMain.id
       );
-      setSubs(filteredSubs.length > 0 ? filteredSubs : defaultSubs.map((n, i) => ({ id: i + 200, name: n })));
+      setSubs(filteredSubs.length > 0 ? filteredSubs : defaultSubs.map((n, i) => ({ id: String(i + 200), name: n })));
     } else {
       const allSubs = allGenres.filter(genre => {
         if (!genre.parent_id) return false;
         const parent = allGenres.find(g => g.id === genre.parent_id);
         return parent && parent.parent_id;
       });
-      setSubs(allSubs.length > 0 ? allSubs : defaultSubs.map((n, i) => ({ id: i + 200, name: n })));
+      setSubs(allSubs.length > 0 ? allSubs : defaultSubs.map((n, i) => ({ id: String(i + 200), name: n })));
     }
   }, [selectedMain, allGenres]);
 

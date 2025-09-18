@@ -43,7 +43,7 @@ export function Features() {
             Why Choose The Gigrilla?
           </h2>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            We've built the most powerful platform to connect businesses with freelancers, 
+            We&apos;ve built the most powerful platform to connect businesses with freelancers, 
             making project collaboration seamless and efficient.
           </p>
         </div>

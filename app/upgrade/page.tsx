@@ -5,14 +5,12 @@ import { ProfileUpgrade } from "../components/ProfileUpgrade";
 import { FullFanUpgrade } from "../components/FullFanUpgrade";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../lib/auth-context";
-import { createClient } from "../../lib/supabase/client";
 
 export default function UpgradePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const [upgradeType, setUpgradeType] = useState<'full-fan' | 'industry' | null>(null);
-  const [currentAccountType, setCurrentAccountType] = useState<'guest' | 'full' | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,7 +46,6 @@ export default function UpgradePage() {
         console.log('UpgradePage: Skipping database queries due to timeout issues, defaulting to guest');
         
         const accountType = 'guest'; // Safe default
-        setCurrentAccountType(accountType);
 
         // Check URL params for specific upgrade type
         const type = searchParams.get('type');
@@ -72,7 +69,6 @@ export default function UpgradePage() {
         
       } catch (error) {
         console.error('UpgradePage: Error in checkUserStatus:', error);
-        setCurrentAccountType('guest');
         setUpgradeType('full-fan');
       } finally {
         console.log('UpgradePage: Setting loading to false');
@@ -109,7 +105,6 @@ export default function UpgradePage() {
   
   return (
     <ProfileUpgrade 
-      currentRole="fan"
       preSelectedRole={role}
       onClose={() => router.push('/dashboard')}
     />

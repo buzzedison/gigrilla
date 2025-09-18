@@ -80,7 +80,7 @@ export function MusicGenreSelector() {
 
       if (userGenres) {
         const genreNames = userGenres
-          .map(ug => ug.genres?.name)
+          .map(ug => typeof ug.genres === 'object' && ug.genres && 'name' in ug.genres ? String(ug.genres.name) : null)
           .filter(Boolean) as string[];
         setSelectedGenres(genreNames);
       }

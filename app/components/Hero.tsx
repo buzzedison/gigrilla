@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { Button } from "./ui/button";
-import { motion } from "framer-motion";
+import { motion, Variants } from "framer-motion";
 import { Play, Music, Users, Calendar } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "./ui/utils";
@@ -75,8 +75,7 @@ export function Hero() {
     y: [0, -20, 0],
     transition: {
       duration: 4,
-      repeat: Infinity,
-      ease: "easeInOut"
+      repeat: Infinity
     }
   };
 
@@ -85,12 +84,11 @@ export function Hero() {
     x: [0, 10, 0],
     transition: {
       duration: 6,
-      repeat: Infinity,
-      ease: "easeInOut"
+      repeat: Infinity
     }
   };
 
-  const containerVariants = {
+  const containerVariants: Variants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
@@ -101,7 +99,7 @@ export function Hero() {
     }
   };
 
-  const itemVariants = {
+  const itemVariants: Variants = {
     hidden: { y: 30, opacity: 0 },
     visible: {
       y: 0,

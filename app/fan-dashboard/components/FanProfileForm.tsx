@@ -192,7 +192,7 @@ export function FanProfileForm() {
               className="mr-2 accent-purple-600"
             />
             <label htmlFor="private-name" className="text-gray-400 text-sm">
-              Is Private (hidden from public; can't be searched by name)
+              Is Private (hidden from public; can&apos;t be searched by name)
             </label>
           </div>
         </div>

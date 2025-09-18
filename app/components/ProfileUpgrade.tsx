@@ -7,15 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { useAuth } from "../../lib/auth-context";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../lib/supabase/client";
-import { Music, Mic, Building2, Wrench } from "lucide-react";
+import { Music, Building2, Wrench } from "lucide-react";
 
 interface ProfileUpgradeProps {
-  currentRole?: string;
   preSelectedRole?: string | null;
   onClose?: () => void;
 }
 
-export function ProfileUpgrade({ currentRole = 'fan', preSelectedRole, onClose }: ProfileUpgradeProps) {
+export function ProfileUpgrade({ preSelectedRole, onClose }: ProfileUpgradeProps) {
   const { user } = useAuth();
   const router = useRouter();
   const [selectedRole, setSelectedRole] = useState<string>(preSelectedRole || "");
@@ -66,7 +65,7 @@ export function ProfileUpgrade({ currentRole = 'fan', preSelectedRole, onClose }
       }
 
       // Create user profile for the new role
-      const profileData: any = {
+      const profileData: Record<string, unknown> = {
         user_id: user.id,
         profile_type: selectedRole,
         is_public: true,

@@ -1,17 +1,14 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useAuth } from '../../lib/auth-context'
 import { ProtectedRoute } from '../../lib/protected-route'
 import { Button } from '../components/ui/button'
 import { useRouter } from 'next/navigation'
-import { createClient } from '../../lib/supabase/client'
 
 export default function Dashboard() {
   const { user, signOut } = useAuth()
   const router = useRouter()
-  const [accountType, setAccountType] = useState<'guest' | 'full'>('guest')
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!user) return
@@ -27,13 +24,7 @@ export default function Dashboard() {
     router.push('/')
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
+  // Loading state removed since we immediately redirect to fan-dashboard
 
   return (
     <ProtectedRoute>
@@ -74,35 +65,10 @@ export default function Dashboard() {
               gigs, and commerce in one place.
             </p>
 
-            {accountType !== 'full' && (
-              <div className="mb-6 rounded-lg border border-dashed border-purple-300 bg-gradient-to-r from-purple-50 to-pink-50 p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                    <span className="text-white font-bold text-lg">👑</span>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-purple-900">Upgrade to Full Fan</h3>
-                    <p className="text-sm text-purple-600">You're currently using a Basic Fan account</p>
-                  </div>
-                </div>
-                <p className="text-sm text-purple-700 mb-4">
-                  Unlock streaming, playlists, reviews, commerce, messaging, and all the features that make Gigrilla special!
-                </p>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <Button
-                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
-                    onClick={() => router.push('/upgrade?type=full-fan')}
-                  >
-                    Upgrade to Full Fan (Free!)
-                  </Button>
-                  <p className="text-xs text-purple-600">
-                    ✨ Free upgrade • Add Artist/Venue profiles later • Cancel anytime
-                  </p>
-                </div>
-              </div>
-            )}
+            {/* Upgrade prompt removed since this page redirects to fan-dashboard */}
 
-            {accountType === 'full' && (
+            {/* Industry profile prompt removed since this page redirects to fan-dashboard */}
+            {false && (
               <div className="mb-6 rounded-lg border border-dashed border-blue-300 bg-gradient-to-r from-blue-50 to-indigo-50 p-6">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center">
@@ -110,7 +76,7 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-blue-900">Ready for Industry Profiles?</h3>
-                    <p className="text-sm text-blue-600">You're a Full Fan - time to go professional!</p>
+                    <p className="text-sm text-blue-600">You&apos;re a Full Fan - time to go professional!</p>
                   </div>
                 </div>
                 <p className="text-sm text-blue-700 mb-4">

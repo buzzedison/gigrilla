@@ -58,7 +58,8 @@ export function SignUpPage({ onNavigate }: SignUpPageProps) {
     const result = await signUp(formData.email, formData.password, signupData);
 
     if (result.error) {
-      setError(result.error.message || "An error occurred during signup");
+      const msg = typeof result.error === 'object' && result.error && 'message' in result.error ? String((result.error as { message?: unknown }).message ?? '') : String(result.error)
+      setError(msg || "An error occurred during signup");
       setLoading(false);
     } else if (result.needsEmailVerification) {
       setNeedsEmailVerification(true);
@@ -82,7 +83,7 @@ export function SignUpPage({ onNavigate }: SignUpPageProps) {
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h2>
             <p className="text-gray-600">
-              We've sent a verification link to <strong>{signupEmail}</strong>
+              We&apos;ve sent a verification link to <strong>{signupEmail}</strong>
             </p>
           </div>
           
@@ -217,7 +218,7 @@ export function SignUpPage({ onNavigate }: SignUpPageProps) {
         <div className="mt-8 max-w-md">
           <p className="text-xs text-gray-500">
             By creating an account, you agree to our Terms of Service and Privacy Policy.
-            You'll start as a Basic Fan with browse and RSVP features. Upgrade anytime for full access!
+            You&apos;ll start as a Basic Fan with browse and RSVP features. Upgrade anytime for full access!
           </p>
         </div>
       </div>

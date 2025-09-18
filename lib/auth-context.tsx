@@ -34,10 +34,10 @@ type AuthContextType = {
   user: User | null
   session: Session | null
   loading: boolean
-  signUp: (email: string, password: string, userData: FanSignupData) => Promise<{ error: any; needsEmailVerification?: boolean }>
-  signIn: (email: string, password: string) => Promise<{ error: any }>
+  signUp: (email: string, password: string, userData: FanSignupData) => Promise<{ error: unknown; needsEmailVerification?: boolean }>
+  signIn: (email: string, password: string) => Promise<{ error: unknown }>
   signOut: () => Promise<void>
-  updateProfile: (profileData: any) => Promise<{ error: any }>
+  updateProfile: (profileData: Record<string, unknown>) => Promise<{ error: unknown }>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       paymentDetails: userData?.paymentDetails ?? (currentUser.user_metadata?.payment_details as string | undefined),
     }
 
-    const userUpsert: Record<string, any> = {
+    const userUpsert: Record<string, unknown> = {
       id: currentUser.id,
       email: currentUser.email ?? '',
       first_name: firstName,
@@ -117,21 +117,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Create basic fan profile for all fan users (guest or full)
     // This ensures all fans have a profile record for future upgrades
+    const fanProfileUpsert: {
+      user_id: string
+      profile_type: 'fan'
+      contact_details?: FanContactDetails | null
+      location_details?: FanLocationDetails | null
+    } = {
+      user_id: currentUser.id,
+      profile_type: 'fan',
+      contact_details:
+        accountType === 'full'
+          ? {
+              phoneNumber: fanDetails.phoneNumber,
+              paymentDetails: fanDetails.paymentDetails,
+            }
+          : null,
+      location_details:
+        accountType === 'full' && fanDetails.address
+          ? { address: fanDetails.address }
+          : null,
+    }
+
     const { error: fanProfileError } = await supabase
       .from('user_profiles')
-      .upsert(
-        {
-          user_id: currentUser.id,
-          profile_type: 'fan',
-          // Only add additional details if this is a full fan account
-          contact_details: accountType === 'full' ? {
-            phoneNumber: fanDetails.phoneNumber,
-            paymentDetails: fanDetails.paymentDetails,
-          } : null,
-          location_details: (accountType === 'full' && fanDetails.address) ? { address: fanDetails.address } : null,
-        } as any,
-        { onConflict: 'user_id,profile_type' }
-      )
+      .upsert(fanProfileUpsert, { onConflict: 'user_id,profile_type' })
 
     if (fanProfileError) {
       console.error('Error provisioning fan profile row:', fanProfileError)
@@ -139,17 +148,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Only create user_profiles for non-fan roles
     if (userRole !== 'fan') {
+      const roleProfileUpsert: {
+        user_id: string
+        profile_type: string
+        artist_type_id?: number
+      } = {
+        user_id: currentUser.id,
+        profile_type: userRole,
+        artist_type_id:
+          userRole === 'artist' && userData?.artistType
+            ? getArtistTypeId(userData.artistType)
+            : undefined,
+      }
+
       const { error: profileError } = await supabase
         .from('user_profiles')
-        .upsert(
-          {
-            user_id: currentUser.id,
-            profile_type: userRole,
-            // Only set artist_type_id for artist role and if provided
-            artist_type_id: (userRole === 'artist' && userData?.artistType) ? getArtistTypeId(userData.artistType) : undefined,
-          } as any,
-          { onConflict: 'user_id,profile_type' }
-        )
+        .upsert(roleProfileUpsert, { onConflict: 'user_id,profile_type' })
 
       if (profileError) {
         console.error('Error provisioning user profile row:', profileError)
@@ -234,7 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // No session yet: email confirmation likely required. Defer provisioning until first login
       return { error: null, needsEmailVerification: true }
-    } catch (error) {
+    } catch (error: unknown) {
       return { error }
     }
   }
@@ -258,7 +272,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       return { error }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Auth context: Sign in error", error);
       return { error }
     }
@@ -269,7 +283,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut()
   }
 
-  const updateProfile = async (profileData: any) => {
+  const updateProfile = async (profileData: Record<string, unknown>) => {
     try {
       console.log('Auth context: updateProfile called with:', profileData);
 
@@ -415,7 +429,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.log('Auth context: Profile updated successfully via RPC');
       return { error: null };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Auth context: Caught exception in updateProfile:', error);
       return { error };
     }

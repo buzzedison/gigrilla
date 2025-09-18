@@ -74,7 +74,10 @@ export function FullFanUpgrade({ onClose }: FullFanUpgradeProps) {
       if (result.error) {
         console.error('FullFanUpgrade: Update profile error:', result.error);
         // Check if the error indicates user is already upgraded
-        const errorMessage = result.error.message || result.error.toString() || "";
+        const errorMessage = typeof result.error === 'object' && result.error && 'message' in result.error
+          ? String((result.error as { message?: unknown }).message ?? '')
+          : String(result.error ?? '')
+        
         if (errorMessage.includes('already') || errorMessage.includes('exists')) {
           console.log('FullFanUpgrade: User appears to already be upgraded, redirecting to fan dashboard');
           router.push('/fan-dashboard');
@@ -157,7 +160,7 @@ export function FullFanUpgrade({ onClose }: FullFanUpgradeProps) {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Star className="w-5 h-5 text-yellow-500" />
-                What You'll Get
+                What You&apos;ll Get
               </CardTitle>
               <CardDescription>
                 Full Fan members enjoy all the features that make Gigrilla special

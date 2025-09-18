@@ -55,7 +55,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
       const timeout = setTimeout(() => {
         console.log("Login component: Auth state timeout, checking current session...");
         if (loginAttempted) {
-          setError("Login may have succeeded but authentication state didn't update. Please try refreshing the page.");
+          setError("Login may have succeeded but authentication state didn&apos;t update. Please try refreshing the page.");
           setLoading(false);
           setLoginAttempted(false);
         }
@@ -83,7 +83,8 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
 
     if (error) {
       console.error("Login error:", error);
-      setError(error.message || "An error occurred during login");
+      const msg = typeof error === 'object' && error && 'message' in error ? String((error as { message?: unknown }).message ?? '') : String(error)
+      setError(msg || "An error occurred during login");
       setLoading(false);
     } else {
       console.log("Login successful, waiting for auth state update...");
@@ -193,7 +194,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
       {/* Right Side - Purple Section */}
       <div className="flex-1 bg-gradient-to-br from-purple-800 to-purple-600 flex flex-col justify-center items-center text-white px-8">
         <div className="text-center max-w-md">
-          <h2 className="text-3xl mb-4">Don't Have an Account Yet?</h2>
+          <h2 className="text-3xl mb-4">Don&apos;t Have an Account Yet?</h2>
           <p className="text-purple-200 mb-8">
             Register in a few easy steps and experience freedom like never before
           </p>
