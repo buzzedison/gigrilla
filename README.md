@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Gigrilla Web App
 
-## Getting Started
+Gigrilla is a Next.js application that connects fans, artists, venues, and music services in one marketplace. The web app implements Supabase authentication, a protected fan dashboard, and onboarding flows that will expand to support other profile types.
 
-First, run the development server:
+## Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Node.js 20+
+- npm 10+ (the repo includes a lockfile for npm)
+- A Supabase project with the `users`, `user_profiles`, and `genres` tables expected by the SQL files in the repo
+
+## Environment Variables
+
+Authentication runs entirely in the browser with Supabase. Create an `.env.local` file in the project root that provides the following variables from your Supabase project:
+
+```
+NEXT_PUBLIC_SUPABASE_URL="https://YOUR-PROJECT.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="service anon key"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Restart `npm run dev` after changing environment variables.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Install & Run
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm install
+npm run dev
+```
 
-## Learn More
+The development server runs on `http://localhost:3000`.
 
-To learn more about Next.js, take a look at the following resources:
+## Auth Flow
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- All signups are provisioned as the `fan` role. Fans choose between a **Guest Pass** (basic) or **Full Fan Profile** at signup.
+- Guest passes (`user_metadata.account_type = "guest"`) can browse, search, and RSVP to invites. The dashboard surfaces an upgrade CTA at `/upgrade` so they can unlock streaming, commerce, messaging, and playlists later.
+- Full fan profiles capture legal details (username, DOB, address, payment preference, phone) and store them in `auth.user_metadata`, the `users` table, and a `user_profiles` record with `profile_type = 'fan'`.
+- On a successful login, fans are taken straight to `/dashboard`. The dashboard is wrapped in `ProtectedRoute` (`lib/protected-route.tsx`) and will redirect anonymous users to `/login`.
+- The Supabase session is managed by `AuthProvider` (`lib/auth-context.tsx`). It provisions the `users` table, maintains the fan profile record, and ensures future upgrades (artist/venue/service/pro) can be attached.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Project Structure Highlights
 
-## Deploy on Vercel
+- `app/` – Next.js App Router pages and UI components (login, signup, dashboard, genre selection prototype).
+- `lib/` – Supabase client helpers, authentication context, and route guards.
+- `public/` – Static assets such as the Gigrilla logos.
+- `*.sql` – Reference schema and data helpers for aligning Supabase tables with the application expectations.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Available Scripts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `npm run dev` – Start the Next.js dev server with Turbopack.
+- `npm run build` – Build production assets.
+- `npm run start` – Serve the production build.
+- `npm run lint` – Run ESLint across the project.
+
+## Next Steps
+
+- Flesh out the dashboard modules for artists, venues, and service providers.
+- Connect the genre selection flow to live data once Supabase policies are finalized.
+- Add end-to-end tests that exercise signup and login via Supabase's local emulator.
