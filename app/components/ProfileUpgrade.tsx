@@ -231,7 +231,7 @@ export function ProfileUpgrade({ preSelectedRole, onClose }: ProfileUpgradeProps
               onClick={() => router.push('/upgrade?type=full-fan')}
               className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-3"
             >
-              Upgrade to Full Fan First
+              Complete Full Fan Setup First
             </Button>
             <Button
               variant="outline"

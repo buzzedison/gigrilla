@@ -97,11 +97,18 @@ export function FanProfileForm() {
         console.log('FanProfileForm: Supabase session user confirmed for profile load:', sessionUserId);
       }
 
-      // Try to load enhanced data immediately (not in background)
+      // Try to load enhanced data with retry logic
       try {
         console.log('FanProfileForm: Attempting to load enhanced data...');
 
-        // Try regular database query
+        // First verify we have a valid session
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !sessionData.session) {
+          console.warn('FanProfileForm: No valid session found, using fallback data only:', sessionError);
+          return; // Use fallback data
+        }
+
+        // Try regular database query with better error handling
         console.log('FanProfileForm: Querying database for user_id:', user.id);
         const { data: profileData, error: profileError } = await supabase
           .from('user_profiles')
@@ -114,8 +121,11 @@ export function FanProfileForm() {
 
         if (profileError) {
           console.error('FanProfileForm: Error loading profile data:', profileError);
-          setErrorMessage('Unable to load your saved profile details right now. Refresh or try again in a moment.');
-          return;
+          // Don't set error message for common issues, just use fallback data
+          if (profileError.code !== 'PGRST116' && profileError.code !== '42501') {
+            setErrorMessage('Unable to load your saved profile details right now. Using default values.');
+          }
+          return; // Use fallback data
         }
 
         if (profileData) {
@@ -138,17 +148,24 @@ export function FanProfileForm() {
             }
           }
 
-          const enhancedData = {
-            username: profileData.username || profileData.display_name || fallbackData.username,
-            bio: profileData.bio || "",
-            ...locationData,
-            // Parse privacy settings
-            isPrivate: profileData.privacy_settings?.name_private ?? true,
-            isLocationPrivate: profileData.privacy_settings?.location_private ?? true,
-          };
-
-          console.log('FanProfileForm: Updating with enhanced data:', enhancedData);
-          setFormData(prev => ({ ...prev, ...enhancedData, realName: prev.realName, email: prev.email }));
+              setFormData(prev => {
+                const enhancedData: Partial<typeof prev> = {
+                  username: (profileData.username ?? profileData.display_name) || prev.username,
+                  bio: (profileData.bio ?? undefined) ?? prev.bio,
+                  ...(locationData.city ? { city: locationData.city } : {}),
+                  ...(locationData.county ? { county: locationData.county } : {}),
+                  ...(locationData.country ? { country: locationData.country } : {}),
+                  isPrivate: (profileData.privacy_settings?.name_private ?? prev.isPrivate ?? true) as boolean,
+                  isLocationPrivate: (profileData.privacy_settings?.location_private ?? prev.isLocationPrivate ?? true) as boolean,
+                };
+                console.log('FanProfileForm: Updating with enhanced data (null-safe):', enhancedData);
+                return {
+                  ...prev,
+                  ...enhancedData,
+                  realName: prev.realName,
+                  email: prev.email
+                };
+              });
         } else {
           console.log('FanProfileForm: No profile data loaded, using fallback data only');
         }

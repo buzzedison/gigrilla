@@ -1,20 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Settings, User, Image, Video, CreditCard, LogOut, RefreshCw, Eye, Edit3, Menu, Crown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../../lib/auth-context";
+import { createClient } from "../../../lib/supabase/client";
 
 export function FanSidebar() {
   const router = useRouter();
-  const { signOut } = useAuth();
-  const [accountType] = useState<string>('full'); // Assume full fan for now
-  // const [loading, setLoading] = useState(false); // No loading needed
+  const { user, signOut } = useAuth();
+  const [accountType, setAccountType] = useState<string>('guest');
+  const [completion, setCompletion] = useState<number>(0);
+  const [isComplete, setIsComplete] = useState<boolean>(false);
 
-  // Remove database check for now - assume user is full fan
-  // useEffect(() => {
-  //   // Database check removed to prevent spinner issues
-  // }, [user?.id]);
+  useEffect(() => {
+    let isMounted = true;
+    const loadAccountType = async () => {
+      try {
+        if (!user?.id) return;
+        const supabase = createClient();
+        const { data, error } = await supabase.rpc('get_fan_completion_status');
+        if (error) {
+          console.warn('FanSidebar: Failed to fetch completion status, defaulting to guest:', error);
+          if (isMounted) {
+            setAccountType('guest');
+            setCompletion(0);
+            setIsComplete(false);
+          }
+          return;
+        }
+        if (isMounted) {
+          setAccountType((data?.account_type as string) ?? 'guest');
+          setCompletion((data?.completion_percent as number) ?? 0);
+          setIsComplete((data?.is_complete as boolean) ?? false);
+        }
+      } catch (e) {
+        console.warn('FanSidebar: Exception fetching account_type, defaulting to guest:', e);
+        if (isMounted) setAccountType('guest');
+      }
+    };
+    loadAccountType();
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -61,7 +90,7 @@ export function FanSidebar() {
         <div className="mb-6 bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-2">
             <Crown className="w-4 h-4 text-yellow-400" />
-            <span className="text-white text-sm font-medium">Upgrade to Full Fan</span>
+            <span className="text-white text-sm font-medium">Complete Full Fan Setup</span>
           </div>
           <p className="text-gray-300 text-xs mb-3">
             Unlock streaming, playlists, commerce, and more!
@@ -70,7 +99,7 @@ export function FanSidebar() {
             onClick={handleUpgrade}
             className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-xs py-2 px-3 rounded transition-colors"
           >
-            Upgrade Now (Free!)
+            Upgrade Now (£1)
           </button>
         </div>
       )}

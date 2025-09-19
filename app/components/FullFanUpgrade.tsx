@@ -7,8 +7,8 @@ import { Textarea } from "./ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { useAuth } from "../../lib/auth-context";
 import { useRouter } from "next/navigation";
-import { Crown, Star, CreditCard, MapPin, Phone, User } from "lucide-react";
 import { createClient } from "../../lib/supabase/client";
+import { Crown, Star, CreditCard, MapPin, Phone, User } from "lucide-react";
 
 interface FullFanUpgradeProps {
   onClose?: () => void;
@@ -30,32 +30,61 @@ export function FullFanUpgrade({ onClose }: FullFanUpgradeProps) {
   useEffect(() => {
     const loadExistingData = async () => {
       if (!user) return;
-      
+      const supabase = createClient();
+
       try {
-        const supabase = createClient();
+        // Primary: read from user_profiles (RLS)
         const { data: profile, error } = await supabase
           .from('user_profiles')
-          .select('username, date_of_birth, contact_details, location_details')
+          .select('username, display_name, date_of_birth, contact_details, location_details')
           .eq('user_id', user.id)
           .eq('profile_type', 'fan')
           .single();
 
-        if (error) {
-          console.error('Error loading existing profile:', error);
+        if (!error && profile) {
+          console.log('FullFanUpgrade: Prefill from user_profiles:', profile);
+          setFormData({
+            username: (profile.username || profile.display_name || '') ?? '',
+            dateOfBirth: (profile.date_of_birth as string) ?? '',
+            address: ((profile.location_details as Record<string, unknown>)?.address as string) ?? '',
+            phoneNumber: ((profile.contact_details as Record<string, unknown>)?.phoneNumber as string) ?? ''
+          });
           return;
         }
 
-        if (profile) {
-          console.log('FullFanUpgrade: Loading existing profile data:', profile);
+        console.warn('FullFanUpgrade: user_profiles fetch failed, falling back to RPC:', error);
+
+        // Fallback: use debug RPC if available
+        const { data: rpcData, error: rpcError } = await supabase
+          .rpc('get_user_profile_debug', { p_user_id: user.id });
+
+        if (!rpcError && Array.isArray(rpcData) && rpcData[0]) {
+          const p = rpcData[0] as { username?: string; display_name?: string; date_of_birth?: string; location_details?: { address?: string }; contact_details?: { phoneNumber?: string } };
+          console.log('FullFanUpgrade: Prefill from RPC get_user_profile_debug:', p);
+          const loc = p.location_details || {};
+          const contact = p.contact_details || {};
           setFormData({
-            username: profile.username || "",
-            dateOfBirth: profile.date_of_birth || "",
-            address: (profile.location_details as Record<string, unknown>)?.address as string || "",
-            phoneNumber: (profile.contact_details as Record<string, unknown>)?.phoneNumber as string || ""
+            username: p.username || p.display_name || '',
+            dateOfBirth: p.date_of_birth || '',
+            address: loc.address || '',
+            phoneNumber: contact.phoneNumber || ''
           });
+          return;
         }
+
+        console.warn('FullFanUpgrade: RPC fallback failed:', rpcError);
+
+        // Last resort: auth metadata/email prefix
+        const fallbackName = (user.user_metadata?.username as string) || (user.user_metadata?.display_name as string) || (user.email?.split('@')[0] ?? '');
+        setFormData(prev => ({
+          ...prev,
+          username: prev.username || fallbackName,
+          dateOfBirth: prev.dateOfBirth,
+          address: prev.address,
+          phoneNumber: prev.phoneNumber
+        }));
       } catch (error) {
-        console.error('Error in loadExistingData:', error);
+        console.error('FullFanUpgrade: Error in loadExistingData:', error);
       }
     };
 
@@ -84,83 +113,53 @@ export function FullFanUpgrade({ onClose }: FullFanUpgradeProps) {
       console.log('FullFanUpgrade: Starting upgrade for user:', user.id);
       console.log('FullFanUpgrade: Form data:', formData);
       
-      // Update the user's fan profile to full fan
-      const profileData = {
-        user_id: user.id,
-        profile_type: 'fan',
-        contact_details: {
-          phoneNumber: formData.phoneNumber,
-        },
-        location_details: {
-          address: formData.address,
-        },
-        username: formData.username,
-        display_name: formData.username,
-        date_of_birth: formData.dateOfBirth,
-        account_type: 'full'
-      };
+      // Use the specific upgrade function to ensure proper full fan upgrade
+      const supabase = createClient();
+      const { data: result, error } = await supabase
+        .rpc('upgrade_to_full_fan', {
+          p_user_id: user.id,
+          p_username: formData.username,
+          p_display_name: formData.username,
+          p_bio: null,
+          p_location_details: {
+            address: formData.address,
+          },
+          p_privacy_settings: null,
+          p_date_of_birth: formData.dateOfBirth,
+          p_contact_details: {
+            phoneNumber: formData.phoneNumber,
+          }
+        });
       
-      console.log('FullFanUpgrade: Profile data to update:', profileData);
-      
-      const result = await updateProfile(profileData);
+      console.log('FullFanUpgrade: Upgrade RPC result:', { result, error });
       
       console.log('FullFanUpgrade: Update result:', result);
 
-      if (result.error) {
-        console.error('FullFanUpgrade: Update profile error:', result.error);
-        // Check if the error indicates user is already upgraded
-        const errorMessage = typeof result.error === 'object' && result.error && 'message' in result.error
-          ? String((result.error as { message?: unknown }).message ?? '')
-          : String(result.error ?? '')
-        
-        if (errorMessage.includes('already') || errorMessage.includes('exists')) {
-          console.log('FullFanUpgrade: User appears to already be upgraded, redirecting to fan dashboard');
-          router.push('/fan-dashboard');
-          return;
-        }
-        setError(`Update failed: ${errorMessage || "Failed to upgrade profile"}`);
+      if (error) {
+        console.error('FullFanUpgrade: RPC call error:', error);
+        setError(error.message || 'Failed to upgrade profile');
+        setLoading(false);
         return;
       }
 
-      console.log('FullFanUpgrade: Upgrade successful, proceeding to payment setup');
-      
-      // Show success message and prompt for payment setup
-      const setupPayments = window.confirm(
-        'Upgrade successful! Welcome to Full Fan status.\n\n' +
-        'To enable earning money and buying tickets/merchandise, would you like to set up payments now?\n\n' +
-        'Click OK to set up Stripe Connect, or Cancel to do it later in settings.'
-      );
-      
-      if (setupPayments) {
-        // Simulate Stripe Connect flow
-        setLoading(true);
-        setError('');
-        
-        // Simulate API call to create Stripe Connect account
-        setTimeout(() => {
-          const success = Math.random() > 0.1; // 90% success rate for demo
-          
-          if (success) {
-            alert('Payment setup successful! You can now earn money and make purchases on Gigrilla.');
-          } else {
-            setError('Payment setup failed. You can try again later in your settings.');
-          }
-          
-          setLoading(false);
-          
-          // Navigate to dashboard regardless
-          if (onClose) {
-            onClose();
-          }
-          router.push('/fan-dashboard');
-        }, 2000); // Simulate 2-second setup process
-      } else {
-        // Skip payment setup for now
-        if (onClose) {
-          onClose();
-        }
-        router.push('/fan-dashboard');
+      if (result && !result.success) {
+        console.error('FullFanUpgrade: Upgrade failed:', result.error);
+        setError(result.error || 'Failed to upgrade profile');
+        setLoading(false);
+        return;
       }
+
+      console.log('FullFanUpgrade: Upgrade successful, proceed to Stripe Connect simulation before confirming full access');
+      
+      // Auto-simulate Stripe Connect step BEFORE finalizing access (no blocking prompt)
+      setLoading(true);
+      setError('');
+      setTimeout(() => {
+        console.log('FullFanUpgrade: Stripe Connect simulation complete');
+        setLoading(false);
+        if (onClose) onClose();
+        router.push('/fan-dashboard');
+      }, 1000);
     } catch (error) {
       console.error('FullFanUpgrade: Caught error:', error);
       setError(`Upgrade error: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -212,7 +211,7 @@ export function FullFanUpgrade({ onClose }: FullFanUpgradeProps) {
           <div className="mx-auto w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
             <Crown className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-primary text-4xl font-bold">Upgrade to Full Fan</h1>
+          <h1 className="text-primary text-4xl font-bold">Finish Full Fan Setup</h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
             Unlock the complete Gigrilla experience with streaming, social features, commerce tools, and more!
           </p>
@@ -334,7 +333,7 @@ export function FullFanUpgrade({ onClose }: FullFanUpgradeProps) {
                     disabled={loading}
                     className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
                   >
-                    {loading ? "Upgrading..." : "Upgrade to Full Fan"}
+                    {loading ? "Saving..." : "Next"}
                   </Button>
                 </div>
               </form>

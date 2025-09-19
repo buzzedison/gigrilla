@@ -48,9 +48,9 @@ export default function UpgradePage() {
         // Use RPC function to get user status with timeout
         console.log('UpgradePage: About to call get_user_account_status RPC...');
         
-        const rpcPromise = supabase.rpc('get_user_account_status');
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('RPC timeout')), 5000)
+        const rpcPromise = supabase.rpc('get_user_account_type');
+        const timeoutPromise = new Promise(resolve => 
+          setTimeout(() => resolve({ data: null, error: new Error('RPC timeout') }), 3000)
         );
         
         try {
@@ -58,7 +58,9 @@ export default function UpgradePage() {
           const { data: userStatus, error: statusError } = result;
           
           if (statusError) {
-            console.error('UpgradePage: Error getting user status:', statusError);
+            if (statusError.message !== 'RPC timeout') {
+              console.error('UpgradePage: Error getting user status:', statusError);
+            }
             console.log('UpgradePage: Defaulting to guest due to error');
           } else {
             console.log('UpgradePage: User status from RPC:', userStatus);

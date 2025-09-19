@@ -115,16 +115,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: usersError }
     }
 
-    // Create basic fan profile for all fan users (guest or full)
-    // This ensures all fans have a profile record for future upgrades
+    // Create basic fan profile for all fan users - start as guest by default
+    // Only set as full if explicitly upgrading through the proper flow
     const fanProfileUpsert: {
       user_id: string
       profile_type: 'fan'
+      account_type: 'guest' | 'full'
       contact_details?: FanContactDetails | null
       location_details?: FanLocationDetails | null
     } = {
       user_id: currentUser.id,
       profile_type: 'fan',
+      account_type: 'guest', // Always start as guest - prevent premature upgrade
       contact_details:
         accountType === 'full'
           ? {
@@ -181,6 +183,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const getInitialSession = async () => {
       try {
         console.log("AuthContext: Getting initial session...")
+        console.log("AuthContext: Current URL:", typeof window !== 'undefined' ? window.location.href : 'SSR')
+        console.log("AuthContext: Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL)
+        console.log("AuthContext: Environment:", process.env.NODE_ENV)
         const { data: { session }, error } = await supabase.auth.getSession()
         
         if (error) {
@@ -282,13 +287,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       console.log("Auth context: Starting sign in for", email);
+      console.log("Auth context: Current environment:", {
+        url: typeof window !== 'undefined' ? window.location.href : 'SSR',
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+        hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        nodeEnv: process.env.NODE_ENV
+      });
+      
       const supabase = createClient()
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      console.log("Auth context: Sign in response", { data: !!data, error, hasUser: !!data?.user });
+      console.log("Auth context: Sign in response", { 
+        data: !!data, 
+        error: error ? { message: error.message, status: error.status } : null, 
+        hasUser: !!data?.user,
+        hasSession: !!data?.session 
+      });
 
       if (!error && data?.user) {
         console.log("Auth context: Provisioning user...");
@@ -305,8 +322,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    try {
+      const supabase = createClient()
+      await supabase.auth.signOut()
+    } catch (e) {
+      console.warn('Auth context: signOut error (ignored):', e)
+    } finally {
+      try { sessionStorage.removeItem('staging_authenticated') } catch {}
+      setUser(null)
+      setSession(null)
+      if (typeof window !== 'undefined') {
+        window.location.href = '/'
+      }
+    }
   }
 
   const updateProfile = async (profileData: Record<string, unknown>) => {
@@ -394,16 +422,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         console.log('Auth context: Profile data for RPC:', profileData);
         
-        // Call the RPC function
-        console.log('Auth context: Calling update_fan_profile RPC...');
-        const { data, error: profileRpcError } = await supabase
-          .rpc('update_fan_profile', { profile_data: profileData });
-        
-        console.log('Auth context: RPC result:', { data, error: profileRpcError });
-        
-        if (profileRpcError) {
-          console.error('Auth context: RPC update error:', profileRpcError);
-          return { error: profileRpcError };
+        // Use direct database update instead of RPC to avoid function signature issues
+        console.log('Auth context: Using direct database update...');
+        const { data, error: profileUpdateError } = await supabase
+          .from('user_profiles')
+          .upsert({
+            user_id: user.id,
+            profile_type: 'fan',
+            username: profileData.username as string,
+            display_name: profileData.display_name as string,
+            bio: profileData.bio as string,
+            contact_details: profileData.contact_details as Record<string, unknown>,
+            location_details: profileData.location_details as Record<string, unknown>,
+            date_of_birth: profileData.date_of_birth as string,
+            // Don't set account_type here to prevent premature upgrades
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id,profile_type',
+            ignoreDuplicates: false
+          });
+
+        console.log('Auth context: Database update result:', { data, error: profileUpdateError });
+
+        if (profileUpdateError) {
+          console.error('Auth context: Database update error:', profileUpdateError);
+          return { error: profileUpdateError };
         }
       } catch (error) {
         console.error('Auth context: Exception during database update:', error);
