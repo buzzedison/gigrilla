@@ -16,12 +16,12 @@ type FanSignupData = {
   dateOfBirth?: string
   address?: string
   phoneNumber?: string
-  paymentDetails?: string
+  // paymentDetails moved to settings/Stripe Connect
 }
 
 type FanContactDetails = {
   phoneNumber?: string | null
-  paymentDetails?: string | null
+  // paymentDetails handled separately via Stripe Connect
   [key: string]: unknown
 }
 
@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dateOfBirth: userData?.dateOfBirth ?? (currentUser.user_metadata?.date_of_birth as string | undefined),
       address: userData?.address ?? (currentUser.user_metadata?.address as string | undefined),
       phoneNumber: userData?.phoneNumber ?? (currentUser.user_metadata?.phone_number as string | undefined),
-      paymentDetails: userData?.paymentDetails ?? (currentUser.user_metadata?.payment_details as string | undefined),
+      // paymentDetails: handled separately via Stripe Connect
     }
 
     const userUpsert: Record<string, unknown> = {
@@ -129,7 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         accountType === 'full'
           ? {
               phoneNumber: fanDetails.phoneNumber,
-              paymentDetails: fanDetails.paymentDetails,
+              // paymentDetails handled separately via Stripe Connect
             }
           : null,
       location_details:
@@ -178,17 +178,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const supabase = createClient()
 
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log("Initial session check:", {
-        hasSession: !!session,
-        hasUser: !!session?.user,
-        userId: session?.user?.id,
-        userEmail: session?.user?.email
-      });
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
-    })
+    const getInitialSession = async () => {
+      try {
+        console.log("AuthContext: Getting initial session...")
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error("AuthContext: Session error:", error)
+          setSession(null)
+          setUser(null)
+        } else if (session) {
+          console.log("AuthContext: Session found:", {
+            hasSession: !!session,
+            hasUser: !!session?.user,
+            userId: session?.user?.id,
+            userEmail: session?.user?.email,
+            userMetadata: session?.user?.user_metadata
+          })
+          setSession(session)
+          setUser(session?.user ?? null)
+        } else {
+          console.log("AuthContext: No session found")
+          setSession(null)
+          setUser(null)
+        }
+      } catch (error) {
+        console.error("AuthContext: Exception getting session:", error)
+        setSession(null)
+        setUser(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    getInitialSession()
 
     // Listen for auth changes
     const {
@@ -198,7 +221,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         hasSession: !!session,
         hasUser: !!session?.user,
         userId: session?.user?.id,
-        userEmail: session?.user?.email
+        userEmail: session?.user?.email,
+        userMetadata: session?.user?.user_metadata
       });
       setSession(session)
       setUser(session?.user ?? null)
@@ -212,7 +236,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [])
 
   const signUp = async (email: string, password: string, userData: FanSignupData) => {
@@ -231,7 +257,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             date_of_birth: userData.dateOfBirth ?? null,
             address: userData.address ?? null,
             phone_number: userData.phoneNumber ?? null,
-            payment_details: userData.paymentDetails ?? null,
+            // payment_details: handled separately via Stripe Connect
             full_fan_profile: (userData.accountType ?? 'guest') === 'full',
           }
         }
@@ -316,13 +342,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const contactDetailsInput = profileData.contact_details ?? {
         phoneNumber: profileData.phoneNumber,
-        paymentDetails: profileData.paymentDetails,
+        // paymentDetails handled separately via Stripe Connect
       };
       const locationDetailsInput = profileData.location_details ?? {
         address: profileData.address,
       };
 
       const contactDetails = normalizeJson<FanContactDetails>(contactDetailsInput);
+      
+      // Remove any paymentDetails that might still be in the data
+      if (contactDetails && 'paymentDetails' in contactDetails) {
+        delete contactDetails.paymentDetails;
+        console.log('Auth context: Removed paymentDetails from contactDetails');
+      }
       const locationDetails = normalizeJson<FanLocationDetails>(locationDetailsInput);
 
       const dateOfBirthRaw =
@@ -336,21 +368,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const addressFromProfile =
         (locationDetails?.address as string | undefined) ?? (profileData.address as string | undefined) ?? null;
 
-      console.log('Auth context: Calling upsert_fan_profile RPC');
-      const { error: profileRpcError } = await supabase.rpc('upsert_fan_profile', {
-        p_user_id: user.id,
-        p_contact_details: contactDetails,
-        p_location_details: locationDetails,
-        p_date_of_birth: dateOfBirth,
-        p_account_type: accountType,
+      console.log('Auth context: Using direct database update instead of RPC to avoid timeout');
+      console.log('Auth context: Update data:', {
+        user_id: user.id,
+        contact_details: contactDetails,
+        location_details: locationDetails,
+        date_of_birth: dateOfBirth,
+        account_type: accountType,
       });
-
-      if (profileRpcError) {
-        console.error('Auth context: upsert_fan_profile RPC error:', profileRpcError);
-        return { error: profileRpcError };
+      
+      // Use RPC function to handle profile update with proper RLS context
+      try {
+        console.log('Auth context: About to execute profile update via RPC...');
+        
+        // Build profile data for RPC function
+        const profileData: Record<string, unknown> = {};
+        
+        // Add all the fields that need to be updated
+        if (contactDetails) profileData.contact_details = contactDetails;
+        if (locationDetails) profileData.location_details = locationDetails;
+        if (accountType) profileData.account_type = accountType;
+        if (dateOfBirth) profileData.date_of_birth = dateOfBirth;
+        if (username) profileData.username = username;
+        if (displayName) profileData.display_name = displayName;
+        
+        console.log('Auth context: Profile data for RPC:', profileData);
+        
+        // Call the RPC function
+        console.log('Auth context: Calling update_fan_profile RPC...');
+        const { data, error: profileRpcError } = await supabase
+          .rpc('update_fan_profile', { profile_data: profileData });
+        
+        console.log('Auth context: RPC result:', { data, error: profileRpcError });
+        
+        if (profileRpcError) {
+          console.error('Auth context: RPC update error:', profileRpcError);
+          return { error: profileRpcError };
+        }
+      } catch (error) {
+        console.error('Auth context: Exception during database update:', error);
+        return { error: error as Error };
       }
 
-      console.log('Auth context: upsert_fan_profile RPC complete');
+      console.log('Auth context: Direct database update complete');
 
       const userUpdate: Record<string, unknown> = {};
       if (username) {
@@ -396,9 +456,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (contactDetails?.phoneNumber) {
         metadataUpdate.phone_number = contactDetails.phoneNumber;
       }
-      if (contactDetails?.paymentDetails) {
-        metadataUpdate.payment_details = contactDetails.paymentDetails;
-      }
+      // paymentDetails handled separately via Stripe Connect
 
       console.log('Auth context: Updating local auth state with metadata:', metadataUpdate);
 

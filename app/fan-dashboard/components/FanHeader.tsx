@@ -14,7 +14,7 @@ export function FanHeader() {
   };
 
   const handleBackToDashboard = () => {
-    router.push('/dashboard');
+    router.push('/fan-dashboard');
   };
 
   return (

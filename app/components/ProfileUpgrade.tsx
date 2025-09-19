@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+// Removed Select components as they're not used in the current implementation
 import { useAuth } from "../../lib/auth-context";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../lib/supabase/client";
-import { Music, Building2, Wrench } from "lucide-react";
+import { Music, Building2, Wrench, AlertCircle } from "lucide-react";
 
 interface ProfileUpgradeProps {
   preSelectedRole?: string | null;
@@ -19,7 +19,11 @@ export function ProfileUpgrade({ preSelectedRole, onClose }: ProfileUpgradeProps
   const router = useRouter();
   const [selectedRole, setSelectedRole] = useState<string>(preSelectedRole || "");
   const [artistType, setArtistType] = useState<string>("");
+  // Removed artistSubType as it's not used in current implementation
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isFullFan, setIsFullFan] = useState<boolean | null>(null);
+  const [isCheckingFanStatus, setIsCheckingFanStatus] = useState(true);
 
   const roleOptions = [
     {
@@ -45,36 +49,128 @@ export function ProfileUpgrade({ preSelectedRole, onClose }: ProfileUpgradeProps
     }
   ];
 
-  const handleUpgrade = async () => {
-    if (!selectedRole || !user) return;
+  const artistTypeOptions = [
+    {
+      id: 1,
+      value: "live-gig-original-recording",
+      title: "Live Gig & Original Recording Artist",
+      description: "I/we record original music AND perform live gigs",
+      capabilities: ["Record original music", "Perform live gigs", "Venues can hire me", "Fans buy tickets", "Sell merchandise"]
+    },
+    {
+      id: 2,
+      value: "original-recording",
+      title: "Original Recording Artist",
+      description: "I/we record original music for streaming and download",
+      capabilities: ["Record original music", "Stream/download sales", "Sell merchandise"]
+    },
+    {
+      id: 3,
+      value: "live-gig-cover",
+      title: "Live Gig Artist (Cover/Tribute)",
+      description: "I/we perform other people's music at live gigs",
+      capabilities: ["Perform cover music", "Available for hire", "Fans buy tickets", "Sell merchandise"]
+    },
+    {
+      id: 4,
+      value: "vocalist-hire",
+      title: "Vocalist for Hire",
+      description: "I sing guest vocals, backing vocals, and session vocals",
+      capabilities: ["Guest vocals", "Live backing vocals", "Recording sessions", "Join other artists"]
+    },
+    {
+      id: 5,
+      value: "instrumentalist-hire",
+      title: "Instrumentalist for Hire",
+      description: "I am a live performance and recording session musician",
+      capabilities: ["Live performance", "Recording sessions", "Join other artists"]
+    },
+    {
+      id: 6,
+      value: "songwriter-hire",
+      title: "Songwriter for Hire",
+      description: "I write complete songs (lyrics + music) for other artists",
+      capabilities: ["Write original songs", "Work with artists/labels", "Genre specialization"]
+    },
+    {
+      id: 7,
+      value: "lyricist-hire",
+      title: "Lyricist for Hire",
+      description: "I write lyrics for other artists and media",
+      capabilities: ["Write song lyrics", "Work with artists/labels", "Genre specialization"]
+    },
+    {
+      id: 8,
+      value: "composer-hire",
+      title: "Composer for Hire",
+      description: "I compose music (melodies, harmonies, arrangements)",
+      capabilities: ["Compose music", "Work with artists/labels", "Genre specialization"]
+    }
+  ];
 
-    setLoading(true);
-    try {
-      const supabase = createClient();
-      
-      // Update user role
-      const { error: userError } = await supabase
-        .from('users')
-        .update({ user_role: selectedRole })
-        .eq('id', user.id);
-
-      if (userError) {
-        console.error('Error updating user role:', userError);
-        setLoading(false);
+  // Check if user is full fan on component mount
+  useEffect(() => {
+    const checkFullFanStatus = async () => {
+      if (!user) {
+        setIsCheckingFanStatus(false);
         return;
       }
 
-      // Create user profile for the new role
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('account_type')
+          .eq('user_id', user.id)
+          .eq('profile_type', 'fan')
+          .single();
+
+        if (error) {
+          console.error('Error checking fan status:', error);
+          setIsFullFan(false);
+        } else {
+          setIsFullFan(data?.account_type === 'full');
+        }
+      } catch (error) {
+        console.error('Error in checkFullFanStatus:', error);
+        setIsFullFan(false);
+      } finally {
+        setIsCheckingFanStatus(false);
+      }
+    };
+
+    checkFullFanStatus();
+  }, [user]);
+
+  const handleUpgrade = async () => {
+    if (!selectedRole || !user) return;
+
+    // For artist profiles, require artist type selection
+    if (selectedRole === 'artist' && !artistType) {
+      setError('Please select an artist type');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const supabase = createClient();
+      
+      // Create user profile for the new role (don't update user_role - keep it as 'fan')
       const profileData: Record<string, unknown> = {
         user_id: user.id,
         profile_type: selectedRole,
         is_public: true,
-        is_published: false
+        is_published: false,
+        created_at: new Date().toISOString()
       };
 
       // Add role-specific data
       if (selectedRole === 'artist' && artistType) {
-        profileData.artist_type_id = getArtistTypeId(artistType);
+        const selectedArtistType = artistTypeOptions.find(type => type.value === artistType);
+        profileData.artist_type_id = selectedArtistType?.id || 1;
+        profileData.artist_type = artistType;
       }
 
       const { error: profileError } = await supabase
@@ -83,38 +179,71 @@ export function ProfileUpgrade({ preSelectedRole, onClose }: ProfileUpgradeProps
 
       if (profileError) {
         console.error('Error creating profile:', profileError);
+        setError(`Failed to create ${selectedRole} profile: ${profileError.message}`);
         setLoading(false);
         return;
       }
 
       // Success! Navigate to appropriate page
       if (selectedRole === 'artist') {
-        router.push('/genres'); // Artists need to set genres
+        // Artists go to comprehensive profile setup
+        router.push('/artist-profile?section=biography');
       } else {
-        router.push('/dashboard'); // Venues/Specialists go straight to dashboard
+        router.push('/fan-dashboard'); // Other profiles go to dashboard
       }
 
     } catch (error) {
       console.error('Error upgrading profile:', error);
+      setError('An unexpected error occurred');
     } finally {
       setLoading(false);
     }
   };
 
-  // Helper function to map artist type strings to IDs (same as in auth-context)
-  const getArtistTypeId = (artistType: string): number => {
-    const mapping: Record<string, number> = {
-      'live-gig-original-recording': 1,
-      'original-recording': 2,
-      'live-gig': 3,
-      'vocalist-hire': 4,
-      'instrumentalist-hire': 5,
-      'songwriter-hire': 6,
-      'lyricist-hire': 7,
-      'composer-hire': 8,
-    };
-    return mapping[artistType] || 1;
-  };
+  // Helper function removed as it's handled in the handleUpgrade function directly
+
+  // Show loading while checking fan status
+  if (isCheckingFanStatus) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // Show Full Fan requirement if not full fan
+  if (isFullFan === false) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
+        <div className="w-full max-w-2xl space-y-8 text-center">
+          <div className="space-y-4">
+            <AlertCircle className="w-16 h-16 text-purple-600 mx-auto" />
+            <h1 className="text-3xl font-bold text-gray-900">Full Fan Required</h1>
+            <p className="text-lg text-gray-600">
+              You need to upgrade to Full Fan before creating industry profiles.
+            </p>
+            <p className="text-gray-500">
+              Full Fan unlocks streaming, playlists, commerce, social features, and the ability to create professional profiles.
+            </p>
+          </div>
+          <div className="space-y-4">
+            <Button
+              onClick={() => router.push('/upgrade?type=full-fan')}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-3"
+            >
+              Upgrade to Full Fan First
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => router.push('/fan-dashboard')}
+            >
+              Back to Dashboard
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
@@ -127,22 +256,10 @@ export function ProfileUpgrade({ preSelectedRole, onClose }: ProfileUpgradeProps
           </p>
         </div>
 
-        {/* Full Fan Upgrade Callout */}
-        {!preSelectedRole && (
-          <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-6 text-center">
-            <h3 className="text-lg font-semibold text-purple-900 mb-2">
-              Not a Full Fan yet?
-            </h3>
-            <p className="text-purple-700 mb-4">
-              Unlock streaming, playlists, commerce, and social features first with a Full Fan upgrade!
-            </p>
-            <Button
-              variant="outline"
-              onClick={() => window.location.href = '/upgrade?type=full-fan'}
-              className="border-purple-300 text-purple-700 hover:bg-purple-50"
-            >
-              Upgrade to Full Fan First
-            </Button>
+        {/* Error Display */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+            <p className="text-red-800">{error}</p>
           </div>
         )}
 
@@ -197,23 +314,47 @@ export function ProfileUpgrade({ preSelectedRole, onClose }: ProfileUpgradeProps
 
         {/* Artist Type Selection (only show if Artist is selected) */}
         {selectedRole === 'artist' && (
-          <div className="max-w-md mx-auto">
-            <label className="block text-sm text-gray-700 mb-2">Type of Artist</label>
-            <Select onValueChange={setArtistType}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select your artist type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="live-gig-original-recording">Live Gig & Original Recording Artist</SelectItem>
-                <SelectItem value="original-recording">Original Recording Artist</SelectItem>
-                <SelectItem value="live-gig">Live Gig Artist (Cover/Tribute/Classical)</SelectItem>
-                <SelectItem value="vocalist-hire">Vocalist for Hire</SelectItem>
-                <SelectItem value="instrumentalist-hire">Instrumentalist for Hire</SelectItem>
-                <SelectItem value="songwriter-hire">Songwriter for Hire</SelectItem>
-                <SelectItem value="lyricist-hire">Lyricist for Hire</SelectItem>
-                <SelectItem value="composer-hire">Composer for Hire</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="space-y-6">
+            <div className="text-center">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-2">Choose Your Artist Type</h2>
+              <p className="text-gray-600">Select the type that best describes your music activities</p>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+              {artistTypeOptions.map((type) => (
+                <Card 
+                  key={type.value}
+                  className={`cursor-pointer transition-all hover:shadow-md ${
+                    artistType === type.value 
+                      ? 'ring-2 ring-primary border-primary shadow-md bg-primary/5' 
+                      : 'hover:border-primary/50'
+                  }`}
+                  onClick={() => setArtistType(type.value)}
+                >
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">{type.title}</CardTitle>
+                    <CardDescription className="text-sm">
+                      {type.description}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-1">
+                      {type.capabilities.slice(0, 3).map((capability, idx) => (
+                        <li key={idx} className="text-sm text-gray-600 flex items-center">
+                          <span className="w-1.5 h-1.5 bg-primary rounded-full mr-2"></span>
+                          {capability}
+                        </li>
+                      ))}
+                      {type.capabilities.length > 3 && (
+                        <li className="text-sm text-gray-500">
+                          +{type.capabilities.length - 3} more capabilities
+                        </li>
+                      )}
+                    </ul>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         )}
 

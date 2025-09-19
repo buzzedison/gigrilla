@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { useAuth } from "../../lib/auth-context";
 import { useRouter } from "next/navigation";
 import { Crown, Star, CreditCard, MapPin, Phone, User } from "lucide-react";
+import { createClient } from "../../lib/supabase/client";
 
 interface FullFanUpgradeProps {
   onClose?: () => void;
@@ -22,9 +23,44 @@ export function FullFanUpgrade({ onClose }: FullFanUpgradeProps) {
     username: "",
     dateOfBirth: "",
     address: "",
-    phoneNumber: "",
-    paymentDetails: ""
+    phoneNumber: ""
   });
+
+  // Load existing profile data when component mounts
+  useEffect(() => {
+    const loadExistingData = async () => {
+      if (!user) return;
+      
+      try {
+        const supabase = createClient();
+        const { data: profile, error } = await supabase
+          .from('user_profiles')
+          .select('username, date_of_birth, contact_details, location_details')
+          .eq('user_id', user.id)
+          .eq('profile_type', 'fan')
+          .single();
+
+        if (error) {
+          console.error('Error loading existing profile:', error);
+          return;
+        }
+
+        if (profile) {
+          console.log('FullFanUpgrade: Loading existing profile data:', profile);
+          setFormData({
+            username: profile.username || "",
+            dateOfBirth: profile.date_of_birth || "",
+            address: (profile.location_details as Record<string, unknown>)?.address as string || "",
+            phoneNumber: (profile.contact_details as Record<string, unknown>)?.phoneNumber as string || ""
+          });
+        }
+      } catch (error) {
+        console.error('Error in loadExistingData:', error);
+      }
+    };
+
+    loadExistingData();
+  }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +90,6 @@ export function FullFanUpgrade({ onClose }: FullFanUpgradeProps) {
         profile_type: 'fan',
         contact_details: {
           phoneNumber: formData.phoneNumber,
-          paymentDetails: formData.paymentDetails || null,
         },
         location_details: {
           address: formData.address,
@@ -87,16 +122,45 @@ export function FullFanUpgrade({ onClose }: FullFanUpgradeProps) {
         return;
       }
 
-      console.log('FullFanUpgrade: Upgrade successful, navigating to dashboard');
+      console.log('FullFanUpgrade: Upgrade successful, proceeding to payment setup');
       
-      // Show success message
-      alert('Upgrade successful! Welcome to Full Fan status.');
+      // Show success message and prompt for payment setup
+      const setupPayments = window.confirm(
+        'Upgrade successful! Welcome to Full Fan status.\n\n' +
+        'To enable earning money and buying tickets/merchandise, would you like to set up payments now?\n\n' +
+        'Click OK to set up Stripe Connect, or Cancel to do it later in settings.'
+      );
       
-      // Navigate to Full Fan dashboard
-      if (onClose) {
-        onClose();
+      if (setupPayments) {
+        // Simulate Stripe Connect flow
+        setLoading(true);
+        setError('');
+        
+        // Simulate API call to create Stripe Connect account
+        setTimeout(() => {
+          const success = Math.random() > 0.1; // 90% success rate for demo
+          
+          if (success) {
+            alert('Payment setup successful! You can now earn money and make purchases on Gigrilla.');
+          } else {
+            setError('Payment setup failed. You can try again later in your settings.');
+          }
+          
+          setLoading(false);
+          
+          // Navigate to dashboard regardless
+          if (onClose) {
+            onClose();
+          }
+          router.push('/fan-dashboard');
+        }, 2000); // Simulate 2-second setup process
+      } else {
+        // Skip payment setup for now
+        if (onClose) {
+          onClose();
+        }
+        router.push('/fan-dashboard');
       }
-      router.push('/fan-dashboard');
     } catch (error) {
       console.error('FullFanUpgrade: Caught error:', error);
       setError(`Upgrade error: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -251,18 +315,7 @@ export function FullFanUpgrade({ onClose }: FullFanUpgradeProps) {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Payment Details (Optional)
-                  </label>
-                  <Textarea
-                    placeholder="Preferred payment method (PayPal, Card, Bank details, etc.)"
-                    value={formData.paymentDetails}
-                    onChange={(e) => setFormData(prev => ({ ...prev, paymentDetails: e.target.value }))}
-                    rows={2}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">You can add this later in your settings</p>
-                </div>
+                {/* Payment details removed - will be handled in settings with Stripe Connect */}
 
                 <div className="flex gap-3 pt-4">
                   {onClose && (

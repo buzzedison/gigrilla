@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Settings, User, Image, Video, CreditCard, LogOut, RefreshCw, Eye, Edit3, Menu, Crown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../../lib/auth-context";
@@ -7,6 +8,13 @@ import { useAuth } from "../../../lib/auth-context";
 export function FanSidebar() {
   const router = useRouter();
   const { signOut } = useAuth();
+  const [accountType] = useState<string>('full'); // Assume full fan for now
+  // const [loading, setLoading] = useState(false); // No loading needed
+
+  // Remove database check for now - assume user is full fan
+  // useEffect(() => {
+  //   // Database check removed to prevent spinner issues
+  // }, [user?.id]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -18,7 +26,7 @@ export function FanSidebar() {
   };
 
   const menuItems = [
-    { icon: Menu, label: "Main Dashboard", active: false, onClick: () => router.push('/dashboard') },
+    { icon: Menu, label: "Main Dashboard", active: false, onClick: () => router.push('/fan-dashboard') },
   ];
 
   const activities = [
@@ -48,22 +56,37 @@ export function FanSidebar() {
         />
       </div>
 
-      {/* Upgrade Prompt */}
-      <div className="mb-6 bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 rounded-lg p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Crown className="w-4 h-4 text-yellow-400" />
-          <span className="text-white text-sm font-medium">Upgrade to Full Fan</span>
+            {/* Upgrade Prompt - Only show for guest users */}
+            {accountType === 'guest' && (
+        <div className="mb-6 bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Crown className="w-4 h-4 text-yellow-400" />
+            <span className="text-white text-sm font-medium">Upgrade to Full Fan</span>
+          </div>
+          <p className="text-gray-300 text-xs mb-3">
+            Unlock streaming, playlists, commerce, and more!
+          </p>
+          <button
+            onClick={handleUpgrade}
+            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-xs py-2 px-3 rounded transition-colors"
+          >
+            Upgrade Now (Free!)
+          </button>
         </div>
-        <p className="text-gray-300 text-xs mb-3">
-          Unlock streaming, playlists, commerce, and more!
-        </p>
-        <button
-          onClick={handleUpgrade}
-          className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-xs py-2 px-3 rounded transition-colors"
-        >
-          Upgrade Now (Free!)
-        </button>
-      </div>
+      )}
+
+            {/* Full Fan Status - Show for full fans */}
+            {accountType === 'full' && (
+        <div className="mb-6 bg-gradient-to-r from-green-600/20 to-emerald-600/20 border border-green-500/30 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Crown className="w-4 h-4 text-yellow-400" />
+            <span className="text-white text-sm font-medium">Full Fan Status</span>
+          </div>
+          <p className="text-gray-300 text-xs">
+            You have access to all fan features!
+          </p>
+        </div>
+      )}
 
       {/* Navigation */}
       <div className="mb-6">

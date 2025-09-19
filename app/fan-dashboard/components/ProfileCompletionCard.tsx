@@ -25,49 +25,114 @@ export function ProfileCompletionCard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Always try to load, will handle no user gracefully
     loadProfileData();
   }, [user]);
 
+  // Reload data when component becomes visible (user navigates back)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && user) {
+        console.log('ProfileCompletionCard: Page became visible, reloading profile...');
+        loadProfileData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [user]);
+
   const loadProfileData = async () => {
-    if (!user) return;
+    setLoading(true);
+
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    console.log('ProfileCompletionCard: Starting to load profile data for user:', user.id);
 
     try {
-      const supabase = createClient();
-      
-      // Load user data
-      const { data: userData } = await supabase
-        .from('users')
-        .select('username, display_name, email, location')
-        .eq('id', user.id)
-        .single();
-
-      // Load fan profile data
-      const { data: profileData } = await supabase
-        .from('user_profiles')
-        .select('bio')
-        .eq('user_id', user.id)
-        .eq('profile_type', 'fan')
-        .single();
-
-      // Load genre preferences count
-      const { data: genreData, count: genreCount } = await supabase
-        .from('user_genre_preferences')
-        .select('*', { count: 'exact' })
-        .eq('user_id', user.id);
-
-      const profile = {
-        username: userData?.username || userData?.display_name || "",
-        email: userData?.email || "",
-        location: userData?.location || "",
-        bio: profileData?.bio || "",
-        genreCount: genreCount || 0
+      const fallbackProfile: ProfileData = {
+        username: user.user_metadata?.username ||
+          user.user_metadata?.display_name ||
+          (user.user_metadata?.first_name ? `${user.user_metadata.first_name} ${user.user_metadata?.last_name || ''}`.trim() : '') ||
+          user.email?.split('@')[0] || "Fan",
+        email: user.email || "",
+        location: user.user_metadata?.city || user.user_metadata?.address || "",
+        bio: user.user_metadata?.bio || "",
+        genreCount: 0
       };
 
-      setProfileData(profile);
-      calculateCompletion(profile);
+      console.log('ProfileCompletionCard: Setting fallback data first:', fallbackProfile);
+      setProfileData(fallbackProfile);
+      calculateCompletion(fallbackProfile);
+      setLoading(false);
+
+      const supabase = createClient();
+      console.log('ProfileCompletionCard: Attempting to load enhanced profile data from user_profiles...');
+
+      const loadEnhancedProfile = async () => {
+        try {
+          const { data: profileData, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('username, display_name, bio, location_details')
+            .eq('user_id', user.id)
+            .eq('profile_type', 'fan')
+            .maybeSingle();
+
+          if (profileError) {
+            console.error('ProfileCompletionCard: Error loading enhanced profile data:', profileError);
+            return;
+          }
+
+          if (!profileData) {
+            console.log('ProfileCompletionCard: No enhanced profile data found, keeping fallback data');
+            return;
+          }
+
+          const { count: genreCount, error: genreError } = await supabase
+            .from('user_genre_preferences')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id);
+
+          if (genreError) {
+            console.error('ProfileCompletionCard: Unable to load genre preferences count:', genreError);
+          }
+
+          const locationDetails = profileData.location_details as Record<string, string> | null | undefined;
+          const inferredLocation = locationDetails?.address || '';
+
+          const enhancedProfile: ProfileData = {
+            username: profileData.username || profileData.display_name || fallbackProfile.username,
+            email: user.email || '',
+            location: inferredLocation,
+            bio: profileData.bio || '',
+            genreCount: genreCount ?? fallbackProfile.genreCount
+          };
+
+          console.log('ProfileCompletionCard: Updating with enhanced profile data:', enhancedProfile);
+          setProfileData(enhancedProfile);
+          calculateCompletion(enhancedProfile);
+        } catch (enhancedError) {
+          console.error('ProfileCompletionCard: Enhanced data loading failed, keeping fallback data:', enhancedError);
+        }
+      };
+
+      void loadEnhancedProfile();
     } catch (error) {
-      console.error('Error loading profile data:', error);
-    } finally {
+      console.error('ProfileCompletionCard: Error in loadProfileData:', error);
+
+      const emergencyProfile: ProfileData = {
+        username: user.email?.split('@')[0] || "Fan",
+        email: user.email || "",
+        location: "",
+        bio: "",
+        genreCount: 0
+      };
+
+      setProfileData(emergencyProfile);
+      calculateCompletion(emergencyProfile);
       setLoading(false);
     }
   };
@@ -110,8 +175,9 @@ export function ProfileCompletionCard() {
   if (loading) {
     return (
       <div className="bg-[#e8d5e8] p-6 rounded-2xl w-80">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-gray-600">Loading profile data...</div>
+        <div className="flex flex-col items-center justify-center h-64">
+          <div className="w-2 h-2 bg-purple-600 rounded-full animate-pulse mb-4"></div>
+          <div className="text-gray-600 text-sm">Loading profile...</div>
         </div>
       </div>
     );
@@ -234,4 +300,3 @@ export function ProfileCompletionCard() {
     </div>
   );
 }
-

@@ -5,6 +5,7 @@ import { ProfileUpgrade } from "../components/ProfileUpgrade";
 import { FullFanUpgrade } from "../components/FullFanUpgrade";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../lib/auth-context";
+import { createClient } from "../../lib/supabase/client";
 
 export default function UpgradePage() {
   const router = useRouter();
@@ -41,11 +42,51 @@ export default function UpgradePage() {
       try {
         console.log('UpgradePage: Checking user status for:', user.id);
         
-        // For now, skip database queries that are timing out
-        // Default to guest and let the user upgrade if needed
-        console.log('UpgradePage: Skipping database queries due to timeout issues, defaulting to guest');
+        // Create Supabase client
+        const supabase = createClient();
         
-        const accountType = 'guest'; // Safe default
+        // Use RPC function to get user status with timeout
+        console.log('UpgradePage: About to call get_user_account_status RPC...');
+        
+        const rpcPromise = supabase.rpc('get_user_account_status');
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('RPC timeout')), 5000)
+        );
+        
+        try {
+          const result = await Promise.race([rpcPromise, timeoutPromise]) as { data: { account_type?: string } | null; error: Error | null };
+          const { data: userStatus, error: statusError } = result;
+          
+          if (statusError) {
+            console.error('UpgradePage: Error getting user status:', statusError);
+            console.log('UpgradePage: Defaulting to guest due to error');
+          } else {
+            console.log('UpgradePage: User status from RPC:', userStatus);
+            console.log('UpgradePage: Account type:', userStatus?.account_type || 'guest');
+          }
+        } catch (timeoutError) {
+          console.error('UpgradePage: RPC timed out:', timeoutError);
+          console.log('UpgradePage: Falling back to direct table query...');
+          
+          // Fallback to direct table query
+          console.log('UpgradePage: Executing direct query...');
+          const { data: profile, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('account_type')
+            .eq('user_id', user.id)
+            .eq('profile_type', 'fan')
+            .single();
+            
+          console.log('UpgradePage: Direct query completed:', { profile, error: profileError });
+            
+          if (profileError) {
+            console.error('UpgradePage: Direct query error:', profileError);
+            console.log('UpgradePage: Defaulting to guest due to direct query error');
+          } else {
+            console.log('UpgradePage: Direct query result - account_type:', profile?.account_type);
+            console.log('UpgradePage: Final accountType from direct query:', profile?.account_type || 'guest');
+          }
+        }
 
         // Check URL params for specific upgrade type
         const type = searchParams.get('type');
@@ -56,11 +97,14 @@ export default function UpgradePage() {
         let finalUpgradeType: 'full-fan' | 'industry';
         
         if (type === 'full-fan') {
+          // Skip account type check for now - let the upgrade flow handle it
+          console.log('UpgradePage: Processing full-fan upgrade request');
           finalUpgradeType = 'full-fan';
         } else if (type === 'industry') {
           finalUpgradeType = 'industry';
         } else {
-          // Default to full-fan upgrade for new/guest users
+          // Default to full-fan upgrade if no specific type is provided
+          console.log('UpgradePage: No specific upgrade type provided, defaulting to full-fan');
           finalUpgradeType = 'full-fan';
         }
 
@@ -98,7 +142,7 @@ export default function UpgradePage() {
   }
 
   if (upgradeType === 'full-fan') {
-    return <FullFanUpgrade onClose={() => router.push('/dashboard')} />;
+    return <FullFanUpgrade onClose={() => router.push('/fan-dashboard')} />;
   }
 
   const role = searchParams.get('role');
@@ -106,7 +150,7 @@ export default function UpgradePage() {
   return (
     <ProfileUpgrade 
       preSelectedRole={role}
-      onClose={() => router.push('/dashboard')}
+      onClose={() => router.push('/fan-dashboard')}
     />
   );
 }
