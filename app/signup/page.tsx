@@ -6,7 +6,7 @@ import { SignUpPage } from "../components/SignUpPage";
 export default function SignUp() {
   const router = useRouter();
 
-  const handleNavigate = (page: "login" | "signup" | "genres" | "dashboard") => {
+  const handleNavigate = (page: "login" | "signup" | "genres" | "dashboard" | "fan-dashboard") => {
     switch (page) {
       case "login":
         router.push("/login");
@@ -18,7 +18,8 @@ export default function SignUp() {
         router.push("/genres");
         break;
       case "dashboard":
-        router.push("/dashboard");
+      case "fan-dashboard":
+        router.push("/fan-dashboard");
         break;
     }
   };

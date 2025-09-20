@@ -26,21 +26,33 @@ export function MusicGenreSelector() {
     if (!user) return;
 
     try {
-      // For now, just start with empty selection
-      // We can implement database loading later when the schema is stable
-      console.log('MusicGenreSelector: Starting with empty genre selection');
-      setSelectedGenres([]);
+      console.log('MusicGenreSelector: Loading user genres from API...');
+      const response = await fetch('/api/user-genres');
+      const result = await response.json();
+
+      if (result.error) {
+        console.log('MusicGenreSelector: No existing genres found, starting fresh');
+        setSelectedGenres([]);
+        return;
+      }
+
+      if (result.data && Array.isArray(result.data)) {
+        console.log('MusicGenreSelector: Loaded saved genres:', result.data);
+        setSelectedGenres(result.data);
+      } else {
+        console.log('MusicGenreSelector: No saved genres, starting fresh');
+        setSelectedGenres([]);
+      }
     } catch (error) {
       console.error('Error loading user genres:', error);
       setSelectedGenres([]);
     }
   };
 
-  const toggleGenre = (genre: string) => {
+  const toggleGenre = async (genre: string) => {
     console.log('MusicGenreSelector: toggleGenre called for:', genre, 'user:', !!user);
     
-    // Allow selection even if user is still loading - optimistic UI
-    // if (!user) return;
+    if (!user) return;
 
     const isSelected = selectedGenres.includes(genre);
     const newSelection = isSelected 
@@ -50,7 +62,29 @@ export function MusicGenreSelector() {
     console.log('MusicGenreSelector: Updating selection from:', selectedGenres, 'to:', newSelection);
     setSelectedGenres(newSelection);
     
-    // TODO: Save to database when schema is stable
+    // Save to database immediately
+    try {
+      const response = await fetch('/api/user-genres', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ genres: newSelection }),
+      });
+
+      const result = await response.json();
+      if (result.error) {
+        console.error('MusicGenreSelector: Error saving genres:', result.error);
+        // Revert the optimistic update
+        setSelectedGenres(isSelected ? [...selectedGenres, genre] : selectedGenres.filter(g => g !== genre));
+      } else {
+        console.log('MusicGenreSelector: Successfully saved genres');
+      }
+    } catch (error) {
+      console.error('MusicGenreSelector: Error saving genres:', error);
+      // Revert the optimistic update
+      setSelectedGenres(isSelected ? [...selectedGenres, genre] : selectedGenres.filter(g => g !== genre));
+    }
   };
 
 

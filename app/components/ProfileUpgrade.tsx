@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 // Removed Select components as they're not used in the current implementation
 import { useAuth } from "../../lib/auth-context";
 import { useRouter } from "next/navigation";
-import { createClient } from "../../lib/supabase/client";
+// No longer using direct Supabase client
 import { Music, Building2, Wrench, AlertCircle } from "lucide-react";
 
 interface ProfileUpgradeProps {
@@ -117,19 +117,14 @@ export function ProfileUpgrade({ preSelectedRole, onClose }: ProfileUpgradeProps
       }
 
       try {
-        const supabase = createClient();
-        const { data, error } = await supabase
-          .from('user_profiles')
-          .select('account_type')
-          .eq('user_id', user.id)
-          .eq('profile_type', 'fan')
-          .single();
+        const response = await fetch('/api/fan-status');
+        const result = await response.json();
 
-        if (error) {
-          console.error('Error checking fan status:', error);
+        if (result.error) {
+          console.error('Error checking fan status:', result);
           setIsFullFan(false);
         } else {
-          setIsFullFan(data?.account_type === 'full');
+          setIsFullFan(result.data?.account_type === 'full');
         }
       } catch (error) {
         console.error('Error in checkFullFanStatus:', error);
@@ -155,31 +150,31 @@ export function ProfileUpgrade({ preSelectedRole, onClose }: ProfileUpgradeProps
     setError(null);
 
     try {
-      const supabase = createClient();
-      
-      // Create user profile for the new role (don't update user_role - keep it as 'fan')
+      // Create user profile for the new role via API
       const profileData: Record<string, unknown> = {
-        user_id: user.id,
-        profile_type: selectedRole,
-        is_public: true,
-        is_published: false,
-        created_at: new Date().toISOString()
+        profile_type: selectedRole
       };
 
       // Add role-specific data
       if (selectedRole === 'artist' && artistType) {
         const selectedArtistType = artistTypeOptions.find(type => type.value === artistType);
-        profileData.artist_type_id = selectedArtistType?.id || 1;
         profileData.artist_type = artistType;
+        profileData.artist_type_id = selectedArtistType?.id || 1;
       }
 
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .insert(profileData);
+      const response = await fetch('/api/profiles', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profileData)
+      });
 
-      if (profileError) {
-        console.error('Error creating profile:', profileError);
-        setError(`Failed to create ${selectedRole} profile: ${profileError.message}`);
+      const result = await response.json();
+
+      if (result.error) {
+        console.error('Error creating profile:', result.error);
+        setError(`Failed to create ${selectedRole} profile. Please try again.`);
         setLoading(false);
         return;
       }

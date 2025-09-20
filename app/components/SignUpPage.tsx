@@ -6,7 +6,7 @@ import { Button } from "./ui/button";
 import { useAuth } from "../../lib/auth-context";
 
 interface SignUpPageProps {
-  onNavigate: (page: "login" | "signup" | "genres" | "dashboard") => void;
+  onNavigate: (page: "login" | "signup" | "genres" | "dashboard" | "fan-dashboard") => void;
 }
 
 export function SignUpPage({ onNavigate }: SignUpPageProps) {
@@ -47,27 +47,18 @@ export function SignUpPage({ onNavigate }: SignUpPageProps) {
       return;
     }
 
-    // Sign up as Basic Fan
-    const signupData = {
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-      userRole: "fan",
-      accountType: "guest" as const
-    };
-
-    const result = await signUp(formData.email, formData.password, signupData);
+    const result = await signUp(formData.email, formData.password, formData.firstName, formData.lastName);
 
     if (result.error) {
-      const msg = typeof result.error === 'object' && result.error && 'message' in result.error ? String((result.error as { message?: unknown }).message ?? '') : String(result.error)
-      setError(msg || "An error occurred during signup");
+      setError(result.error || "An error occurred during signup");
       setLoading(false);
     } else if (result.needsEmailVerification) {
       setNeedsEmailVerification(true);
       setSignupEmail(formData.email);
       setLoading(false);
     } else {
-      // Success! Navigate to genres page
-      onNavigate("genres");
+      // Success! Navigate to fan dashboard
+      onNavigate("fan-dashboard");
     }
   };
 

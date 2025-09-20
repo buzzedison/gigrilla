@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../../lib/auth-context";
 import { ProtectedRoute } from "../../lib/protected-route";
 import { useRouter } from "next/navigation";
-import { createClient } from "../../lib/supabase/client";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
@@ -50,37 +49,81 @@ export default function ArtistSetup() {
 
     const loadArtistProfile = async () => {
       try {
-        const supabase = createClient();
-        
-        // Get the artist profile
-        const { data: profile, error } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('profile_type', 'artist')
-          .single();
+        console.log('Loading artist profile from API...');
 
-        if (error) {
-          console.error('Error loading artist profile:', error);
-          // If no artist profile found, redirect to upgrade
-          router.push('/upgrade?type=industry');
+        // First check if user is authenticated and has fan status
+        const fanStatusResponse = await fetch('/api/fan-status');
+        const fanStatusResult = await fanStatusResponse.json();
+
+        console.log('Fan status API response:', {
+          status: fanStatusResponse.status,
+          statusText: fanStatusResponse.statusText,
+          result: fanStatusResult
+        });
+
+        if (fanStatusResult.error) {
+          console.error('Error checking fan status:', fanStatusResult);
+          // If it's an auth error or empty error, redirect to login instead
+          if (fanStatusResult.error === 'No user authenticated' ||
+              fanStatusResult.error === 'Unauthorized' ||
+              fanStatusResult.error === 'Internal server error' ||
+              !fanStatusResult.error) {
+            router.push('/login');
+          } else {
+            router.push('/upgrade?type=full-fan');
+          }
           return;
         }
 
-        setArtistProfile(profile);
+        if (fanStatusResult.data?.account_type !== 'full') {
+          console.log('User is not a full fan, redirecting to upgrade');
+          router.push('/upgrade?type=full-fan');
+          return;
+        }
 
-        // Load available genres
-        const { data: genres } = await supabase
-          .from('genres')
-          .select('id, name')
-          .order('name');
+        // Get the artist profile from API
+        const response = await fetch('/api/artist-profile');
+        const result = await response.json();
 
-        if (genres) {
-          setAvailableGenres(genres.map(g => ({ id: String(g.id), name: g.name })));
+        console.log('Artist profile API response:', {
+          status: response.status,
+          statusText: response.statusText,
+          result: result
+        });
+
+        if (result.error) {
+          console.error('Error loading artist profile:', result);
+          // Handle various "not found" scenarios
+          if (result.error === 'No artist profile found for user' ||
+              result.message === 'No artist profile found for user' ||
+              result.error === 'No user authenticated' ||
+              result.error === 'Unauthorized' ||
+              !result.error) { // Empty error object case
+            // No artist profile found - this is normal, we'll create one
+            console.log('No artist profile found or auth issue, will create new one');
+            setArtistProfile(null);
+          } else {
+            // Actual error - redirect to artist dashboard
+            console.log('Actual error detected, redirecting to dashboard:', result.error);
+            router.push('/artist-dashboard');
+            return;
+          }
+        } else {
+          setArtistProfile(result.data);
+        }
+
+        // Load available genres from API
+        const genresResponse = await fetch('/api/genres');
+        const genresResult = await genresResponse.json();
+
+        if (genresResult.data && Array.isArray(genresResult.data)) {
+          setAvailableGenres(genresResult.data.map((g: { id: number; name: string }) => ({ id: String(g.id), name: g.name })));
         }
 
       } catch (error) {
         console.error('Error in loadArtistProfile:', error);
+        // On error, redirect to artist dashboard
+        router.push('/artist-dashboard');
       }
     };
 
@@ -89,61 +132,57 @@ export default function ArtistSetup() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !artistProfile) return;
+    if (!user) return;
 
     setLoading(true);
 
     try {
-      const supabase = createClient();
+      // Save artist profile via API
+      const response = await fetch('/api/artist-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          stage_name: formData.stage_name,
+          bio: formData.bio,
+          established_date: formData.established_date,
+          base_location: formData.base_location,
+          members: formData.members,
+          website: formData.website,
+          social_links: formData.social_links
+        })
+      });
 
-      // Update artist profile with setup data
-      const updateData = {
-        stage_name: formData.stage_name || null,
-        bio: formData.bio || null,
-        established_date: formData.established_date || null,
-        base_location: formData.base_location || null,
-        members: formData.members ? formData.members.split(',').map(m => m.trim()) : null,
-        website: formData.website || null,
-        social_links: formData.social_links,
-        is_published: true, // Mark as published once setup is complete
-        updated_at: new Date().toISOString()
-      };
+      const result = await response.json();
 
-      const { error: updateError } = await supabase
-        .from('user_profiles')
-        .update(updateData)
-        .eq('id', artistProfile.id);
-
-      if (updateError) {
-        console.error('Error updating artist profile:', updateError);
+      if (result.error) {
+        console.error('Error saving artist profile:', result.error);
         return;
       }
 
-      // Save selected genres
+      // Save selected genres via API
       if (selectedGenres.length > 0) {
-        // First delete existing genre preferences for this profile
-        await supabase
-          .from('user_genre_preferences')
-          .delete()
-          .eq('user_id', user.id);
+        const genresResponse = await fetch('/api/user-genres', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ genres: selectedGenres })
+        });
 
-        // Insert new genre preferences
-        const genreInserts = selectedGenres.map(genreId => ({
-          user_id: user.id,
-          genre_id: parseInt(genreId)
-        }));
+        const genresResult = await genresResponse.json();
 
-        const { error: genreError } = await supabase
-          .from('user_genre_preferences')
-          .insert(genreInserts);
-
-        if (genreError) {
-          console.error('Error saving genres:', genreError);
+        if (genresResult.error) {
+          console.error('Error saving genres:', genresResult.error);
         }
       }
 
-      // Redirect to comprehensive artist profile editor
-      router.push('/artist-profile?section=basic-details');
+      // Refresh the artist profile data after creation/update
+      await loadArtistProfile();
+
+      // Redirect to artist dashboard
+      router.push('/artist-dashboard');
 
     } catch (error) {
       console.error('Error saving artist setup:', error);
@@ -174,7 +213,8 @@ export default function ArtistSetup() {
     return types[artistType] || artistType;
   };
 
-  if (!artistProfile) {
+  // Show loading while checking for artist profile
+  if (!user) {
     return (
       <ProtectedRoute>
         <div className="min-h-screen flex items-center justify-center">
@@ -190,14 +230,35 @@ export default function ArtistSetup() {
         <div className="max-w-4xl mx-auto px-4">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Complete Your Artist Profile</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              {artistProfile ? 'Update Your Artist Profile' : 'Create Your Artist Profile'}
+            </h1>
             <p className="text-gray-600 mb-4">
-              Set up your {getArtistTypeDisplay(artistProfile.artist_type)} profile
+              {artistProfile
+                ? `Update your ${getArtistTypeDisplay(artistProfile.artist_type)} profile`
+                : 'Set up your artist profile to get started'
+              }
             </p>
-            <Badge variant="secondary" className="text-sm">
-              {getArtistTypeDisplay(artistProfile.artist_type)}
-            </Badge>
+            {artistProfile && (
+              <Badge variant="secondary" className="text-sm">
+                {getArtistTypeDisplay(artistProfile.artist_type)}
+              </Badge>
+            )}
           </div>
+
+          {/* Info message for users who expected to go to dashboard */}
+          {!artistProfile && (
+            <div className="mb-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Music className="w-5 h-5 text-blue-600" />
+                <h3 className="text-blue-800 font-medium">Create Your Artist Profile</h3>
+              </div>
+              <p className="text-blue-700 text-sm">
+                It looks like you don&apos;t have an artist profile yet. Fill out the form below to create your first artist profile,
+                then you&apos;ll be able to access the artist dashboard.
+              </p>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-8">
             {/* Basic Information */}
@@ -262,23 +323,19 @@ export default function ArtistSetup() {
                   </div>
                 </div>
 
-                {/* Members field for bands/groups */}
-                {(artistProfile.artist_type === 'live-gig-original-recording' || 
-                  artistProfile.artist_type === 'original-recording' ||
-                  artistProfile.artist_type === 'live-gig-cover') && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      <Users className="w-4 h-4 inline mr-1" />
-                      Band Members (optional)
-                    </label>
-                    <Input
-                      value={formData.members}
-                      onChange={(e) => setFormData(prev => ({ ...prev, members: e.target.value }))}
-                      placeholder="Member 1, Member 2, Member 3..."
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Separate multiple members with commas</p>
-                  </div>
-                )}
+                {/* Members field for bands/groups - shown for all since we don't know the type yet */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Users className="w-4 h-4 inline mr-1" />
+                    Band Members (optional)
+                  </label>
+                  <Input
+                    value={formData.members}
+                    onChange={(e) => setFormData(prev => ({ ...prev, members: e.target.value }))}
+                    placeholder="Member 1, Member 2, Member 3..."
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Separate multiple members with commas (leave empty for solo artists)</p>
+                </div>
               </CardContent>
             </Card>
 

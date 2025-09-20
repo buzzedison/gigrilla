@@ -22,7 +22,7 @@ export function FanDashboard() {
           <div className="flex-1 min-w-0">
             <FanProfileForm />
           </div>
-          
+
           {/* Profile Completion Card */}
           <div className="flex-shrink-0">
             <ProfileCompletionCard />

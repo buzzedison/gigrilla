@@ -5,7 +5,7 @@ import { ProfileUpgrade } from "../components/ProfileUpgrade";
 import { FullFanUpgrade } from "../components/FullFanUpgrade";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../lib/auth-context";
-import { createClient } from "../../lib/supabase/client";
+import { getClient } from "../../lib/supabase/client";
 
 export default function UpgradePage() {
   const router = useRouter();
@@ -43,11 +43,11 @@ export default function UpgradePage() {
         console.log('UpgradePage: Checking user status for:', user.id);
         
         // Create Supabase client
-        const supabase = createClient();
         
         // Use RPC function to get user status with timeout
         console.log('UpgradePage: About to call get_user_account_status RPC...');
         
+        const supabase = getClient();
         const rpcPromise = supabase.rpc('get_user_account_type');
         const timeoutPromise = new Promise(resolve => 
           setTimeout(() => resolve({ data: null, error: new Error('RPC timeout') }), 3000)
@@ -73,10 +73,9 @@ export default function UpgradePage() {
           // Fallback to direct table query
           console.log('UpgradePage: Executing direct query...');
           const { data: profile, error: profileError } = await supabase
-            .from('user_profiles')
+            .from('fan_profiles')
             .select('account_type')
             .eq('user_id', user.id)
-            .eq('profile_type', 'fan')
             .single();
             
           console.log('UpgradePage: Direct query completed:', { profile, error: profileError });

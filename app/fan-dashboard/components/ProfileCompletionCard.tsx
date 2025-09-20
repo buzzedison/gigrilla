@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "../../../lib/auth-context";
-import { createClient } from "../../../lib/supabase/client";
+import { getClient } from "../../../lib/supabase/client";
 
 interface ProfileData {
   username: string;
@@ -22,7 +22,7 @@ export function ProfileCompletionCard() {
     genreCount: 0
   });
   const [completionPercentage, setCompletionPercentage] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     // Always try to load, will handle no user gracefully
@@ -43,8 +43,6 @@ export function ProfileCompletionCard() {
   }, [user]);
 
   const loadProfileData = async () => {
-    setLoading(true);
-
     if (!user) {
       setLoading(false);
       return;
@@ -67,38 +65,79 @@ export function ProfileCompletionCard() {
       console.log('ProfileCompletionCard: Setting fallback data first:', fallbackProfile);
       setProfileData(fallbackProfile);
       calculateCompletion(fallbackProfile);
+      
+      // Set loading to false AFTER setting the fallback data
       setLoading(false);
 
-      const supabase = createClient();
-      console.log('ProfileCompletionCard: Attempting to load enhanced profile data from user_profiles...');
+        console.log('ProfileCompletionCard: Attempting to load enhanced profile data from fan_profiles...');
+        console.log('ProfileCompletionCard: User ID for query:', user.id);
 
-      const loadEnhancedProfile = async () => {
-        try {
-          const { data: profileData, error: profileError } = await supabase
-            .from('user_profiles')
-            .select('username, display_name, bio, location_details')
-            .eq('user_id', user.id)
-            .eq('profile_type', 'fan')
-            .maybeSingle();
+        const loadEnhancedProfile = async () => {
+          try {
+            console.log('ProfileCompletionCard: Starting fan_profiles query...');
+
+            // Use API endpoint instead of direct database query
+            console.log('ProfileCompletionCard: Fetching data from API endpoint...');
+            const apiPromise = fetch('/api/fan-profile')
+              .then(response => response.json())
+              .then(result => {
+                console.log('ProfileCompletionCard: API response:', result);
+
+                // Transform API response to match expected format
+                if (result.data) {
+                  return {
+                    data: result.data,
+                    error: null
+                  };
+                } else {
+                  return {
+                    data: null,
+                    error: { code: 'PGRST116', message: result.message || 'No profile found' }
+                  };
+                }
+              })
+              .catch(error => {
+                console.log('ProfileCompletionCard: API error:', error);
+                return {
+                  data: null,
+                  error: {
+                    code: 'API_ERROR',
+                    message: error.message || 'API call failed'
+                  }
+                };
+              });
+            
+            const timeoutPromise = new Promise(resolve =>
+              setTimeout(() => resolve({ data: null, error: { code: 'TIMEOUT', message: 'Profile query timeout' } }), 10000)
+            );
+            
+            const queryResult = await Promise.race([
+              apiPromise,
+              timeoutPromise
+            ]) as { data: unknown; error: unknown };
+
+            const { data: profileData, error: profileError } = queryResult;
+
+            console.log('ProfileCompletionCard: Query result:', {
+              data: profileData,
+              error: profileError,
+              errorType: typeof profileError,
+              isTimeout: profileError?.code === 'TIMEOUT'
+            });
 
           if (profileError) {
-            console.error('ProfileCompletionCard: Error loading enhanced profile data:', profileError);
+            console.log('ProfileCompletionCard: Profile load fallback (no data or timeout):', profileError.message || profileError);
+            // This is normal for new users - don't log as error
             return;
           }
 
-          if (!profileData) {
-            console.log('ProfileCompletionCard: No enhanced profile data found, keeping fallback data');
+          if (!profileData || (!profileData.username && !profileData.display_name && !profileData.bio && !profileData.location_details)) {
+            console.log('ProfileCompletionCard: No meaningful profile data found (all fields null), keeping fallback data');
             return;
           }
 
-          const { count: genreCount, error: genreError } = await supabase
-            .from('user_genre_preferences')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id);
-
-          if (genreError) {
-            console.error('ProfileCompletionCard: Unable to load genre preferences count:', genreError);
-          }
+          // Get genre count from the fan_profiles preferred_genres array
+          const genreCount = profileData.preferred_genres?.length || 0;
 
           const locationDetails = profileData.location_details as Record<string, string> | null | undefined;
           const inferredLocation = locationDetails?.address || '';

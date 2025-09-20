@@ -4,12 +4,14 @@ import { useAuth } from "../../../lib/auth-context";
 import { FanSidebar } from "../components/FanSidebar";
 import { FanHeader } from "../components/FanHeader";
 import { MusicGenreSelector } from "../components/MusicGenreSelector";
+import { StripeConnectPayment } from "../../components/StripeConnectPayment";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function GenresPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const [showPayment, setShowPayment] = useState(false);
 
   useEffect(() => {
     // Only redirect if we're sure there's no user (not during loading)
@@ -17,6 +19,52 @@ export default function GenresPage() {
       router.push('/login');
     }
   }, [user, loading, router]);
+
+  const handlePaymentSuccess = async () => {
+    console.log('GenresPage: Payment successful, upgrading user to full fan');
+    
+    try {
+      // Call API to upgrade user to full fan
+      const response = await fetch('/api/upgrade-to-full-fan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      if (result.error) {
+        console.error('Error upgrading user:', result.error);
+        alert('Payment successful but there was an error upgrading your account. Please contact support.');
+      } else {
+        console.log('User upgraded successfully');
+      }
+    } catch (error) {
+      console.error('Error upgrading user:', error);
+      alert('Payment successful but there was an error upgrading your account. Please contact support.');
+    }
+
+    // Navigate to dashboard
+    router.push('/fan-dashboard');
+  };
+
+  const handlePaymentCancel = () => {
+    console.log('GenresPage: Payment cancelled');
+    setShowPayment(false);
+  };
+
+  // Show payment screen if payment flow is active
+  if (showPayment) {
+    return (
+      <StripeConnectPayment
+        amount={100} // £1 in pence
+        currency="gbp"
+        description="Upgrade to Full Fan Account"
+        onSuccess={handlePaymentSuccess}
+        onCancel={handlePaymentCancel}
+      />
+    );
+  }
 
   // Show content immediately, even during loading
   // The middleware will handle auth protection at server level
@@ -51,12 +99,12 @@ export default function GenresPage() {
                 </button>
                 <button 
                   onClick={() => {
-                    console.log('GenresPage: Complete Setup clicked, navigating to fan-dashboard');
-                    router.push('/fan-dashboard');
+                    console.log('GenresPage: Proceed to Payment clicked');
+                    setShowPayment(true);
                   }}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-lg transition-colors"
+                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-3 rounded-lg transition-colors"
                 >
-                  Complete Setup
+                  Complete Setup - £1
                 </button>
               </div>
             </div>

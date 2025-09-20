@@ -9,6 +9,23 @@
 -- Run migration 005: Add user genre preferences
 \i database/migrations/005_add_user_genre_preferences.sql
 
+-- Run migration 006: Add fan profile columns
+\i database/migrations/006_add_fan_profile_columns.sql
+
+-- Run migration 007: Add comprehensive artist fields
+\i database/migrations/007_add_comprehensive_artist_fields.sql
+
+-- Run migration 008: Add essential fan columns
+\i database/migrations/008_add_essential_fan_columns.sql
+
+-- Run migration 009: Fix user profiles RLS
+\i database/migrations/009_fix_user_profiles_rls.sql
+
+-- Run migration 010: Add fan_profiles RLS policies
+\i database/migrations/010_add_fan_profiles_rls_policies.sql
+\i database/migrations/011_fix_user_genre_storage.sql
+\i database/migrations/012_add_artist_basic_fields.sql
+
 -- Verify tables were created
 SELECT 'Migration Status:' as info;
 SELECT 

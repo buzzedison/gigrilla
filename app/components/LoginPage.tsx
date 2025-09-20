@@ -5,11 +5,11 @@ import { Checkbox } from "./ui/checkbox";
 import { useAuth } from "../../lib/auth-context";
 
 interface LoginPageProps {
-  onNavigate: (page: "login" | "signup" | "genres" | "dashboard") => void;
+  onNavigate: (page: "login" | "signup" | "genres" | "dashboard" | "fan-dashboard") => void;
 }
 
 export function LoginPage({ onNavigate }: LoginPageProps) {
-  const { signIn, user } = useAuth();
+  const { signIn, user, loading: authLoading } = useAuth();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -17,59 +17,19 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [loginAttempted, setLoginAttempted] = useState(false);
 
-  // Navigate immediately if a user session exists (covers refresh/HMR and normal flow)
+  // Navigate to dashboard if user exists
   useEffect(() => {
-    if (user?.id) {
-      onNavigate("dashboard");
+    if (user && user.id) {
+      console.log("Login component: User found, navigating to dashboard...");
+      onNavigate("fan-dashboard");
     }
   }, [user, onNavigate]);
-
-  // Navigate to the dashboard when user becomes authenticated
-  useEffect(() => {
-    console.log("Login component: useEffect triggered", {
-      loginAttempted,
-      userType: typeof user,
-      userValue: user,
-      hasUser: !!user,
-      userId: user?.id
-    });
-
-    if (loginAttempted && user && user.id) {
-      console.log("Login component: All conditions met, navigating to dashboard...");
-      console.log("Login component: User ID:", user.id);
-      onNavigate("dashboard");
-    } else if (loginAttempted) {
-      console.log("Login component: Conditions not met", {
-        loginAttempted,
-        hasUser: !!user,
-        userId: user?.id
-      });
-    }
-  }, [user, loginAttempted, onNavigate]);
-
-  // Fallback timeout in case auth state doesn't update
-  useEffect(() => {
-    if (loginAttempted && !user) {
-      const timeout = setTimeout(() => {
-        console.log("Login component: Auth state timeout, checking current session...");
-        if (loginAttempted) {
-          setError("Login may have succeeded but authentication state didn&apos;t update. Please try refreshing the page.");
-          setLoading(false);
-          setLoginAttempted(false);
-        }
-      }, 10000);
-
-      return () => clearTimeout(timeout);
-    }
-  }, [loginAttempted, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    setLoginAttempted(false);
 
     if (!formData.email || !formData.password) {
       setError("Please enter your email and password");
@@ -77,20 +37,37 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
       return;
     }
 
+    console.log("Login: Starting sign in process...");
     const { error } = await signIn(formData.email, formData.password);
-
-    console.log("Sign in result:", { error, hasError: !!error });
 
     if (error) {
       console.error("Login error:", error);
-      const msg = typeof error === 'object' && error && 'message' in error ? String((error as { message?: unknown }).message ?? '') : String(error)
-      setError(msg || "An error occurred during login");
+      setError(error);
       setLoading(false);
     } else {
-      console.log("Login successful, waiting for auth state update...");
-      setLoginAttempted(true);
+      console.log("Login successful");
+      setLoading(false);
     }
   };
+
+  const handleInputChange = (field: keyof typeof formData) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (field === 'rememberMe') {
+      setFormData(prev => ({ ...prev, [field]: e.target.checked }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: e.target.value }));
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex">
@@ -105,88 +82,77 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
           />
         </div>
 
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl mb-2">Log in to Your Account</h1>
-          <p className="text-gray-600">Where your talent gets rewarded.</p>
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm max-w-md">
-            {error}
-          </div>
-        )}
-
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6 max-w-md">
-          <div>
-            <label className="block text-sm text-gray-700 mb-2">Email</label>
-            <div className="relative">
+        <div className="max-w-md w-full">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
+          <p className="text-gray-600 mb-8">Sign in to your Gigrilla account</p>
+
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="block text-sm text-gray-700 mb-2">Email Address</label>
               <Input
                 type="email"
-                placeholder="admin@company.com"
+                placeholder="Enter your email"
                 value={formData.email}
-                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                className="w-full bg-gray-100 border-none pr-10"
+                onChange={handleInputChange('email')}
+                className="w-full bg-gray-100 border-none"
+                required
               />
-              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-700 mb-2">Password</label>
+              <Input
+                type="password"
+                placeholder="Enter your password"
+                value={formData.password}
+                onChange={handleInputChange('password')}
+                className="w-full bg-gray-100 border-none"
+                required
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <Checkbox
+                  id="rememberMe"
+                  checked={formData.rememberMe}
+                  onCheckedChange={(checked) => 
+                    setFormData(prev => ({ ...prev, rememberMe: Boolean(checked) }))
+                  }
+                />
+                <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-600">
+                  Remember me
+                </label>
               </div>
+              <button
+                type="button"
+                className="text-sm text-purple-600 hover:text-purple-500"
+              >
+                Forgot password?
+              </button>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm text-gray-700 mb-2">Password</label>
-            <Input
-              type="password"
-              value={formData.password}
-              onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-              className="w-full bg-gray-100 border-none"
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="remember-login"
-                checked={formData.rememberMe}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, rememberMe: checked as boolean }))}
-              />
-              <label htmlFor="remember-login" className="text-sm text-gray-600">Remember me</label>
-            </div>
-            <button
-              type="button"
-              className="text-sm text-primary hover:underline"
+            <Button
+              type="submit"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3"
+              disabled={loading}
             >
-              Forgot password?
-            </button>
-          </div>
+              {loading ? "Signing In..." : "SIGN IN"}
+            </Button>
+          </form>
 
-          <Button
-            type="submit"
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3"
-            disabled={loading}
-          >
-            {loading ? (loginAttempted ? "Authenticating..." : "Logging In...") : "LOG IN"}
-          </Button>
-        </form>
-
-        {/* Social Login */}
-        <div className="mt-8 max-w-md">
-          <p className="text-center text-sm text-gray-600 mb-4">Or log in using</p>
-          <div className="flex justify-center space-x-4">
-            <button className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center hover:bg-gray-200">
-              <span className="text-sm">G+</span>
-            </button>
-            <button className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center hover:bg-gray-200">
-              <span className="text-sm">Tw</span>
-            </button>
-            <button className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center hover:bg-gray-200">
-              <span className="text-sm">Fb</span>
-            </button>
+          {/* Info */}
+          <div className="mt-8">
+            <p className="text-xs text-gray-500">
+              New to Gigrilla? Create an account to discover live music, connect with artists, and build your music community.
+            </p>
           </div>
         </div>
       </div>
@@ -194,15 +160,15 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
       {/* Right Side - Purple Section */}
       <div className="flex-1 bg-gradient-to-br from-purple-800 to-purple-600 flex flex-col justify-center items-center text-white px-8">
         <div className="text-center max-w-md">
-          <h2 className="text-3xl mb-4">Don&apos;t Have an Account Yet?</h2>
+          <h2 className="text-3xl mb-4">New to Gigrilla?</h2>
           <p className="text-purple-200 mb-8">
-            Register in a few easy steps and experience freedom like never before
+            Join thousands of music lovers discovering live performances, connecting with artists, and building their music community
           </p>
           <Button
             onClick={() => onNavigate("signup")}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3"
+            className="bg-white text-purple-600 hover:bg-gray-100 px-8 py-3"
           >
-            SIGN UP
+            CREATE ACCOUNT
           </Button>
         </div>
       </div>

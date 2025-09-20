@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "../../../lib/auth-context";
-import { createClient } from "../../../lib/supabase/client";
-import { MusicGenreSelector } from "./MusicGenreSelector";
+import { getClient } from "../../../lib/supabase/client";
+// Genres moved to dedicated page: /fan-dashboard/genres
 
 export function FanProfileForm() {
   const { user } = useAuth();
@@ -24,9 +24,20 @@ export function FanProfileForm() {
   });
 
   useEffect(() => {
-    // Always try to load profile, even if user is still loading
-    loadUserProfile();
-  }, [user]);
+    console.log('FanProfileForm: useEffect triggered with user:', user);
+    console.log('FanProfileForm: User ID:', user?.id);
+    console.log('FanProfileForm: Loading state:', loading);
+
+    // Load profile when user becomes available
+    if (user?.id) {
+      console.log('FanProfileForm: User available, loading profile...');
+      loadUserProfile();
+    } else if (!loading) {
+      console.log('FanProfileForm: No user available and not loading, showing fallback');
+      // Set fallback data immediately when no user
+      setLoading(false);
+    }
+  }, [user, loading]);
 
   // Add effect to reload data when component becomes visible (user navigates back)
   useEffect(() => {
@@ -43,18 +54,26 @@ export function FanProfileForm() {
 
   const loadUserProfile = async () => {
     console.log('=== FanProfileForm: loadUserProfile START ===');
-    setLoading(true);
     setErrorMessage("");
     console.log('FanProfileForm: User exists:', !!user);
     console.log('FanProfileForm: User ID:', user?.id);
     console.log('FanProfileForm: User email:', user?.email);
     console.log('FanProfileForm: User metadata:', JSON.stringify(user?.user_metadata, null, 2));
     
-    if (!user) {
-      console.log('FanProfileForm: No user, returning early');
+    if (!user || !user.id) {
+      console.log('FanProfileForm: No user or user ID, returning early');
+      console.log('FanProfileForm: User object:', user);
       setLoading(false);
       return;
     }
+
+    console.log('FanProfileForm: User is authenticated, proceeding with database query:', {
+      userId: user.id,
+      userEmail: user.email,
+      userMetadata: user.user_metadata
+    });
+
+    setLoading(true);
 
     try {
       // Set up immediate fallback data from auth - be more aggressive about showing data
@@ -77,58 +96,109 @@ export function FanProfileForm() {
 
       console.log('FanProfileForm: Setting fallback data initially:', fallbackData);
       setFormData(fallbackData);
-
-      const supabase = createClient();
-      let sessionUserId: string | null = null;
-
-      try {
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) {
-          console.error('FanProfileForm: Failed to fetch session before profile load:', sessionError);
-        }
-        sessionUserId = sessionData?.session?.user?.id ?? null;
-      } catch (sessionCatchError) {
-        console.error('FanProfileForm: Exception while fetching session before profile load:', sessionCatchError);
-      }
-
-      if (!sessionUserId) {
-        console.warn('FanProfileForm: No active Supabase session detected before profile query; proceeding with auth context user only (RLS may block data).');
-      } else {
-        console.log('FanProfileForm: Supabase session user confirmed for profile load:', sessionUserId);
-      }
+      // Immediately unblock UI after fallback so refresh doesn't show loader
+      setLoading(false);
 
       // Try to load enhanced data with retry logic
       try {
         console.log('FanProfileForm: Attempting to load enhanced data...');
 
-        // First verify we have a valid session
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError || !sessionData.session) {
-          console.warn('FanProfileForm: No valid session found, using fallback data only:', sessionError);
-          return; // Use fallback data
-        }
-
-        // Try regular database query with better error handling
+        // Try regular database query with timeout and better error handling
         console.log('FanProfileForm: Querying database for user_id:', user.id);
-        const { data: profileData, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('bio, username, display_name, contact_details, location_details, privacy_settings, account_type')
-          .eq('user_id', user.id)
-          .eq('profile_type', 'fan')
-          .maybeSingle();
+        console.log('FanProfileForm: User auth state:', { userId: user.id, userEmail: user.email });
 
-        console.log('FanProfileForm: Database query result:', { profileData, profileError });
+        console.log('FanProfileForm: Using Supabase client to query database...');
+        console.log('FanProfileForm: Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+        console.log('FanProfileForm: Supabase client details:', {
+          client: 'configured'
+        });
+        console.log('FanProfileForm: Starting database query for user:', user.id);
+        console.log('FanProfileForm: User session details:', {
+          id: user.id,
+          email: user.email,
+          metadata: user.user_metadata,
+          session: !!user // Check if user object exists
+        });
+        const startTime = Date.now();
+
+        // First, let's verify the user is properly authenticated by checking session
+        const supabase = getClient();
+        const sessionCheck = await supabase.auth.getSession();
+        console.log('FanProfileForm: Session check result:', {
+          hasSession: !!sessionCheck.data.session,
+          userId: sessionCheck.data.session?.user?.id,
+          matches: sessionCheck.data.session?.user?.id === user.id
+        });
+
+        console.log('FanProfileForm: Using API endpoint for data fetching...');
+
+        // Use API endpoint instead of direct database query
+        console.log('FanProfileForm: Fetching data from API endpoint...');
+        const apiPromise = fetch('/api/fan-profile')
+          .then(response => response.json())
+          .then(result => {
+            const endTime = Date.now();
+            console.log('FanProfileForm: API call completed in', endTime - startTime, 'ms:', result);
+
+            // Transform API response to match expected format
+            if (result.data) {
+              return {
+                data: result.data,
+                error: null
+              };
+            } else {
+              return {
+                data: null,
+                error: { code: 'PGRST116', message: result.message || 'No profile found' }
+              };
+            }
+          })
+          .catch(error => {
+            const endTime = Date.now();
+            console.log('FanProfileForm: API call failed in', endTime - startTime, 'ms:', error);
+
+            return {
+              data: null,
+              error: {
+                code: 'API_ERROR',
+                message: error.message || 'API call failed'
+              }
+            };
+          });
+
+        const timeoutPromise = new Promise(resolve =>
+          setTimeout(() => resolve({ data: null, error: { code: 'TIMEOUT', message: 'Profile query timeout' } }), 10000)
+        );
+
+        const { data: profileData, error: profileError } = await Promise.race([
+          apiPromise,
+          timeoutPromise
+        ]) as { data: unknown; error: unknown };
+
+        console.log('FanProfileForm: Database query result:', {
+          profileData,
+          profileError,
+          errorType: typeof profileError,
+          errorKeys: profileError ? Object.keys(profileError) : 'no error object'
+        });
 
         if (profileError) {
           console.error('FanProfileForm: Error loading profile data:', profileError);
+          console.log('FanProfileForm: Error details:', {
+            errorType: typeof profileError,
+            hasCode: !!profileError?.code,
+            hasMessage: !!profileError?.message,
+            errorKeys: profileError ? Object.keys(profileError) : 'no error object'
+          });
+
           // Don't set error message for common issues, just use fallback data
-          if (profileError.code !== 'PGRST116' && profileError.code !== '42501') {
+          if (profileError?.code !== 'PGRST116' && profileError?.code !== '42501' && profileError?.code !== 'TIMEOUT') {
             setErrorMessage('Unable to load your saved profile details right now. Using default values.');
           }
           return; // Use fallback data
         }
 
-        if (profileData) {
+        if (profileData && (profileData.username || profileData.display_name || profileData.bio || profileData.location_details)) {
           console.log('FanProfileForm: Enhanced data loaded:', profileData);
 
           // Parse location details more safely
@@ -167,7 +237,7 @@ export function FanProfileForm() {
                 };
               });
         } else {
-          console.log('FanProfileForm: No profile data loaded, using fallback data only');
+          console.log('FanProfileForm: No meaningful profile data (record exists but fields are null), using fallback data only');
         }
       } catch (enhancedError) {
         console.error('FanProfileForm: Enhanced data loading failed:', enhancedError);
@@ -178,7 +248,7 @@ export function FanProfileForm() {
       console.error('FanProfileForm: Error in loadUserProfile:', error);
       setErrorMessage('Unexpected error loading your profile. Refresh the page or sign in again.');
     } finally {
-      setLoading(false);
+      // keep loading as already set false after fallback
     }
   };
 
@@ -194,13 +264,11 @@ export function FanProfileForm() {
     setErrorMessage("");
 
     try {
-      const supabase = createClient();
       console.log('FanProfileForm: Saving profile, publish:', publish);
       
-      // Only update user_profiles table (skip users table that might not exist)
+      // Only update fan_profiles table (skip users table that might not exist)
       const profileData = {
         user_id: user.id,
-        profile_type: 'fan' as const,
         bio: formData.bio,
         username: formData.username,
         display_name: formData.username,
@@ -224,7 +292,8 @@ export function FanProfileForm() {
       console.log('FanProfileForm: Fetching session to verify auth...');
       let sessionUserId: string | null = null;
       try {
-        const sessionPromise = supabase.auth.getSession();
+        const supabaseClient = getClient();
+        const sessionPromise = supabaseClient.auth.getSession();
         const sessionResult = await Promise.race([
           sessionPromise,
           new Promise((_, reject) => setTimeout(() => reject(new Error('Session fetch timeout')), 2000))
@@ -253,34 +322,32 @@ export function FanProfileForm() {
         try {
           console.log('FanProfileForm: Background update starting...');
           const { error: updateError } = await supabase
-            .from('user_profiles')
+            .from('fan_profiles')
             .update({
               bio: profileData.bio,
               username: profileData.username,
               display_name: profileData.display_name,
               location_details: profileData.location_details,
               privacy_settings: profileData.privacy_settings,
-              is_published: profileData.is_published,
+              is_public: profileData.is_published,
               updated_at: profileData.updated_at
             })
-            .eq('user_id', user.id)
-            .eq('profile_type', 'fan');
+            .eq('user_id', user.id);
           
           if (updateError) {
             console.warn('FanProfileForm: Background update failed, trying upsert fallback:', updateError);
             const { error: upsertError } = await supabase
-              .from('user_profiles')
+              .from('fan_profiles')
               .upsert({
                 user_id: user.id,
-                profile_type: 'fan',
                 bio: profileData.bio,
                 username: profileData.username,
                 display_name: profileData.display_name,
                 location_details: profileData.location_details,
                 privacy_settings: profileData.privacy_settings,
-                is_published: profileData.is_published,
+                is_public: profileData.is_published,
                 updated_at: profileData.updated_at
-              }, { onConflict: 'user_id,profile_type' });
+              }, { onConflict: 'user_id' });
 
             if (upsertError) {
               console.error('FanProfileForm: upsert fallback failed:', upsertError);
@@ -445,8 +512,7 @@ export function FanProfileForm() {
       </div>
 
 
-      {/* Music Genres */}
-      <MusicGenreSelector />
+      {/* Music Genres moved to /fan-dashboard/genres */}
 
       {/* Action Buttons */}
       <div className="flex justify-between pt-6">

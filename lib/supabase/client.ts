@@ -7,4 +7,13 @@ export function createClient() {
   )
 }
 
+// Create a singleton client instance
+let client: ReturnType<typeof createBrowserClient>
+export function getClient() {
+  if (!client) {
+    client = createClient()
+  }
+  return client
+}
+
 

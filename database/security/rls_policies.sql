@@ -13,6 +13,7 @@ ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fan_profiles ENABLE ROW LEVEL SECURITY;
 
 -- Music Content Tables
 ALTER TABLE tracks ENABLE ROW LEVEL SECURITY;
@@ -152,6 +153,19 @@ CREATE POLICY "user_profiles_update_own" ON user_profiles
   FOR UPDATE USING (auth.uid() = user_id);
 
 CREATE POLICY "user_profiles_delete_own" ON user_profiles
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Fan Profiles: Own data only (users can only access their own fan profile)
+CREATE POLICY "fan_profiles_select_own" ON fan_profiles
+  FOR SELECT USING (auth.uid() = user_id OR is_admin(auth.uid()));
+
+CREATE POLICY "fan_profiles_insert_own" ON fan_profiles
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "fan_profiles_update_own" ON fan_profiles
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "fan_profiles_delete_own" ON fan_profiles
   FOR DELETE USING (auth.uid() = user_id);
 
 -- User Sessions: Own sessions only

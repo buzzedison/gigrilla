@@ -6,7 +6,7 @@ import { LoginPage } from "../components/LoginPage";
 export default function Login() {
   const router = useRouter();
 
-  const handleNavigate = (page: "login" | "signup" | "genres" | "dashboard") => {
+  const handleNavigate = (page: "login" | "signup" | "genres" | "dashboard" | "fan-dashboard") => {
     switch (page) {
       case "login":
         // Already on login page
@@ -18,7 +18,8 @@ export default function Login() {
         router.push("/genres");
         break;
       case "dashboard":
-        router.push("/dashboard");
+      case "fan-dashboard":
+        router.push("/fan-dashboard");
         break;
     }
   };
