@@ -35,7 +35,9 @@ export function ArtistProfileForm() {
     booking_agent_email: "",
     social_facebook: "",
     social_twitter: "",
-    social_youtube: ""
+    social_youtube: "",
+    bio: "",
+    base_location: ""
   });
 
   const handleInputChange = (field: string, value: string) => {

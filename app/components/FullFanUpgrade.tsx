@@ -14,7 +14,7 @@ interface FullFanUpgradeProps {
 }
 
 export function FullFanUpgrade({ onClose }: FullFanUpgradeProps) {
-  const { user, updateProfile } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

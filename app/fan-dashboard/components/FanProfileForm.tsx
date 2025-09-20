@@ -186,24 +186,34 @@ export function FanProfileForm() {
           console.error('FanProfileForm: Error loading profile data:', profileError);
           console.log('FanProfileForm: Error details:', {
             errorType: typeof profileError,
-            hasCode: !!profileError?.code,
-            hasMessage: !!profileError?.message,
+            hasCode: !!(profileError as unknown as { code?: string })?.code,
+            hasMessage: !!(profileError as unknown as { message?: string })?.message,
             errorKeys: profileError ? Object.keys(profileError) : 'no error object'
           });
 
           // Don't set error message for common issues, just use fallback data
-          if (profileError?.code !== 'PGRST116' && profileError?.code !== '42501' && profileError?.code !== 'TIMEOUT') {
+          const errorWithCode = profileError as unknown as { code?: string };
+          if (errorWithCode?.code !== 'PGRST116' && errorWithCode?.code !== '42501' && errorWithCode?.code !== 'TIMEOUT') {
             setErrorMessage('Unable to load your saved profile details right now. Using default values.');
           }
           return; // Use fallback data
         }
 
-        if (profileData && (profileData.username || profileData.display_name || profileData.bio || profileData.location_details)) {
+        if (profileData) {
           console.log('FanProfileForm: Enhanced data loaded:', profileData);
+          
+          const typedProfileData = profileData as unknown as { 
+            username?: string; 
+            display_name?: string; 
+            bio?: string; 
+            location_details?: Record<string, string>; 
+            contact_details?: Record<string, string>; 
+            privacy_settings?: Record<string, boolean>;
+          };
 
           // Parse location details more safely
           let locationData = {} as { city?: string; county?: string; country?: string };
-          const rawLocation = profileData.location_details as Record<string, string> | null | undefined;
+          const rawLocation = typedProfileData.location_details;
           if (rawLocation) {
             const { city = '', county = '', country = '', address = '' } = rawLocation;
             if (!city && !county && !country && address) {
@@ -220,13 +230,13 @@ export function FanProfileForm() {
 
               setFormData(prev => {
                 const enhancedData: Partial<typeof prev> = {
-                  username: (profileData.username ?? profileData.display_name) || prev.username,
-                  bio: (profileData.bio ?? undefined) ?? prev.bio,
+                  username: (typedProfileData.username ?? typedProfileData.display_name) || prev.username,
+                  bio: (typedProfileData.bio ?? undefined) ?? prev.bio,
                   ...(locationData.city ? { city: locationData.city } : {}),
                   ...(locationData.county ? { county: locationData.county } : {}),
                   ...(locationData.country ? { country: locationData.country } : {}),
-                  isPrivate: (profileData.privacy_settings?.name_private ?? prev.isPrivate ?? true) as boolean,
-                  isLocationPrivate: (profileData.privacy_settings?.location_private ?? prev.isLocationPrivate ?? true) as boolean,
+                  isPrivate: (typedProfileData.privacy_settings?.name_private ?? prev.isPrivate ?? true) as boolean,
+                  isLocationPrivate: (typedProfileData.privacy_settings?.location_private ?? prev.isLocationPrivate ?? true) as boolean,
                 };
                 console.log('FanProfileForm: Updating with enhanced data (null-safe):', enhancedData);
                 return {
@@ -321,16 +331,25 @@ export function FanProfileForm() {
       const backgroundUpdate = async () => {
         try {
           console.log('FanProfileForm: Background update starting...');
+          const supabase = getClient();
           const { error: updateError } = await supabase
             .from('fan_profiles')
             .update({
-              bio: profileData.bio,
-              username: profileData.username,
-              display_name: profileData.display_name,
-              location_details: profileData.location_details,
-              privacy_settings: profileData.privacy_settings,
-              is_public: profileData.is_published,
-              updated_at: profileData.updated_at
+              bio: formData.bio,
+              username: formData.username,
+              display_name: formData.username,
+              location_details: {
+                city: formData.city,
+                county: formData.county,
+                country: formData.country,
+                address: `${formData.city}, ${formData.county}, ${formData.country}`
+              },
+              privacy_settings: {
+                name_private: formData.isPrivate,
+                location_private: formData.isLocationPrivate
+              },
+              is_public: publish,
+              updated_at: new Date().toISOString()
             })
             .eq('user_id', user.id);
           
@@ -340,13 +359,21 @@ export function FanProfileForm() {
               .from('fan_profiles')
               .upsert({
                 user_id: user.id,
-                bio: profileData.bio,
-                username: profileData.username,
-                display_name: profileData.display_name,
-                location_details: profileData.location_details,
-                privacy_settings: profileData.privacy_settings,
-                is_public: profileData.is_published,
-                updated_at: profileData.updated_at
+                bio: formData.bio,
+                username: formData.username,
+                display_name: formData.username,
+                location_details: {
+                  city: formData.city,
+                  county: formData.county,
+                  country: formData.country,
+                  address: `${formData.city}, ${formData.county}, ${formData.country}`
+                },
+                privacy_settings: {
+                  name_private: formData.isPrivate,
+                  location_private: formData.isLocationPrivate
+                },
+                is_public: publish,
+                updated_at: new Date().toISOString()
               }, { onConflict: 'user_id' });
 
             if (upsertError) {

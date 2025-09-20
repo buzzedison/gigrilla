@@ -122,31 +122,38 @@ export function ProfileCompletionCard() {
               data: profileData,
               error: profileError,
               errorType: typeof profileError,
-              isTimeout: profileError?.code === 'TIMEOUT'
+              isTimeout: (profileError as unknown as { code?: string })?.code === 'TIMEOUT'
             });
 
           if (profileError) {
-            console.log('ProfileCompletionCard: Profile load fallback (no data or timeout):', profileError.message || profileError);
+            console.log('ProfileCompletionCard: Profile load fallback (no data or timeout):', (profileError as unknown as { message?: string })?.message || profileError);
             // This is normal for new users - don't log as error
             return;
           }
 
-          if (!profileData || (!profileData.username && !profileData.display_name && !profileData.bio && !profileData.location_details)) {
+          const typedProfileData = profileData as unknown as { 
+            username?: string; 
+            display_name?: string; 
+            bio?: string; 
+            location_details?: Record<string, string>; 
+          };
+          
+          if (!profileData || (!typedProfileData.username && !typedProfileData.display_name && !typedProfileData.bio && !typedProfileData.location_details)) {
             console.log('ProfileCompletionCard: No meaningful profile data found (all fields null), keeping fallback data');
             return;
           }
 
           // Get genre count from the fan_profiles preferred_genres array
-          const genreCount = profileData.preferred_genres?.length || 0;
+          const genreCount = (profileData as unknown as { preferred_genres?: string[] })?.preferred_genres?.length || 0;
 
-          const locationDetails = profileData.location_details as Record<string, string> | null | undefined;
+          const locationDetails = typedProfileData.location_details;
           const inferredLocation = locationDetails?.address || '';
 
           const enhancedProfile: ProfileData = {
-            username: profileData.username || profileData.display_name || fallbackProfile.username,
+            username: typedProfileData.username || typedProfileData.display_name || fallbackProfile.username,
             email: user.email || '',
             location: inferredLocation,
-            bio: profileData.bio || '',
+            bio: typedProfileData.bio || '',
             genreCount: genreCount ?? fallbackProfile.genreCount
           };
 

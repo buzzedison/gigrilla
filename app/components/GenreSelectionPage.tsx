@@ -30,7 +30,7 @@ const defaultSubs = [
 ];
 
 export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
-  const { updateProfile, user, session } = useAuth();
+  const { user, session } = useAuth();
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<"family" | "main" | "sub">("main");
@@ -284,16 +284,25 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
     }
 
     setLoading(true);
-    const { error } = await updateProfile({
-      genres: selectedGenres,
-      is_public: true,
-    });
+    
+    try {
+      const response = await fetch('/api/user-genres', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ genres: selectedGenres })
+      });
 
-    if (error) {
+      const result = await response.json();
+
+      if (result.error) {
+        console.error("Error saving profile:", result.error);
+        setLoading(false);
+      } else {
+        router.push("/dashboard");
+      }
+    } catch (error) {
       console.error("Error saving profile:", error);
       setLoading(false);
-    } else {
-      router.push("/dashboard");
     }
   };
 

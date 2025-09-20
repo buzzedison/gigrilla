@@ -178,9 +178,6 @@ export default function ArtistSetup() {
         }
       }
 
-      // Refresh the artist profile data after creation/update
-      await loadArtistProfile();
-
       // Redirect to artist dashboard
       router.push('/artist-dashboard');
 
