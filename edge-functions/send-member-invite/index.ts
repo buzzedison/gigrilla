@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 
-import Resend from "https://esm.sh/resend@3.2.0"
+import ResendModule from "https://esm.sh/resend@3.2.0"
 
 declare const Deno:
   | {
@@ -85,7 +85,8 @@ Deno.serve(async (request: Request) => {
       })
     }
 
-    const resend = new Resend(apiKey)
+    const ResendCtor = (ResendModule as any).Resend ?? ResendModule
+    const resend = new ResendCtor(apiKey)
 
     const emailContent = buildInviteEmail(payload)
 

@@ -127,7 +127,7 @@ export default function UpgradePage() {
     };
 
     checkUserStatus();
-  }, [user, authLoading, router, searchParams]);
+  }, [user, authLoading, router, searchParams, upgradeType]);
 
   console.log('UpgradePage: Render check - upgradeType:', upgradeType, 'loading:', loading, 'authLoading:', authLoading);
 
