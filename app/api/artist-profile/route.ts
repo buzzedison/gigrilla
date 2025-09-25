@@ -44,7 +44,7 @@ export async function GET() {
 
     const { data: profileData, error: profileError } = await supabase
       .from('user_profiles')
-      .select('id, user_id, profile_type, artist_type_id, artist_sub_types, company_name, job_title, years_experience, hourly_rate, daily_rate, monthly_retainer, availability_status, preferred_genres, location_details, contact_details, social_links, verification_documents, bio, stage_name, established_date, base_location, members, website, created_at, updated_at')
+      .select('id, user_id, profile_type, artist_type_id, artist_sub_types, company_name, job_title, years_experience, hourly_rate, daily_rate, monthly_retainer, availability_status, preferred_genre_ids, location_details, contact_details, social_links, verification_documents, bio, stage_name, established_date, base_location, members, website, created_at, updated_at')
       .eq('user_id', user.id)
       .eq('profile_type', 'artist')
       .maybeSingle()
@@ -137,25 +137,77 @@ export async function POST(request: NextRequest) {
       website,
       social_links,
       artist_type_id,
-      artist_sub_types
+      artist_sub_types,
+      preferred_genre_ids,
+      is_published
     } = body
 
     console.log('API: Creating/updating artist profile for user:', user.id)
 
-    const profileData = {
+    const profileData: Record<string, unknown> = {
       user_id: user.id,
       profile_type: 'artist',
-      stage_name: stage_name || null,
-      bio: bio || null,
-      established_date: established_date || null,
-      base_location: base_location || null,
-      members: members ? members.split(',').map((m: string) => m.trim()) : null,
-      website: website || null,
-      social_links: social_links || {},
-      artist_type_id: artist_type_id || null,
-      artist_sub_types: artist_sub_types || null,
-      is_published: true,
       updated_at: new Date().toISOString()
+    }
+
+    if (stage_name !== undefined) {
+      profileData.stage_name = stage_name || null
+    }
+
+    if (bio !== undefined) {
+      profileData.bio = bio || null
+    }
+
+    if (established_date !== undefined) {
+      profileData.established_date = established_date || null
+    }
+
+    if (base_location !== undefined) {
+      profileData.base_location = base_location || null
+    }
+
+    if (members !== undefined) {
+      if (Array.isArray(members)) {
+        profileData.members = members
+      } else if (typeof members === 'string') {
+        profileData.members = members
+          .split(',')
+          .map((m: string) => m.trim())
+          .filter(Boolean)
+      } else {
+        profileData.members = null
+      }
+    }
+
+    if (website !== undefined) {
+      profileData.website = website || null
+    }
+
+    if (social_links !== undefined) {
+      profileData.social_links = social_links || {}
+    }
+
+    if (artist_type_id !== undefined) {
+      profileData.artist_type_id = artist_type_id || null
+    }
+
+    if (artist_sub_types !== undefined) {
+      profileData.artist_sub_types = artist_sub_types || null
+    }
+
+    if (preferred_genre_ids !== undefined) {
+      profileData.preferred_genre_ids = preferred_genre_ids
+    }
+
+    if (is_published !== undefined) {
+      profileData.is_published = !!is_published
+    }
+
+    if (artist_sub_types !== undefined && artist_sub_types && typeof artist_sub_types === 'object' && !Array.isArray(artist_sub_types)) {
+      profileData.artist_sub_types = Object.entries(artist_sub_types).flatMap(([groupId, values]) => {
+        if (!Array.isArray(values)) return []
+        return values.map((val) => `${groupId}:${val}`)
+      })
     }
 
     const { data, error } = await supabase

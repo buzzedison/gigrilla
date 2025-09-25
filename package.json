@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test:auth": "node scripts/test-auth.js",
     "test:api": "node scripts/test-api.js",
-    "test:health": "node scripts/health-check.js"
+    "test:health": "node scripts/health-check.js",
+    "generate:genre-seed": "tsx scripts/generate-genre-seed.ts"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",
@@ -57,6 +58,7 @@
     "react-leaflet": "^5.0.0",
     "react-resizable-panels": "^3.0.6",
     "recharts": "^3.2.1",
+    "resend": "^3.2.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
     "vaul": "^1.1.2"
@@ -72,6 +74,7 @@
     "eslint-config-next": "15.5.2",
     "supabase": "^2.40.7",
     "tailwindcss": "^4",
+    "tsx": "^4.19.1",
     "typescript": "^5"
   }
 }

@@ -143,8 +143,8 @@ export function ProfileCompletionCard() {
             return;
           }
 
-          // Get genre count from the fan_profiles preferred_genres array
-          const genreCount = (profileData as unknown as { preferred_genres?: string[] })?.preferred_genres?.length || 0;
+          // Get genre count from the fan_profiles preferred_genre_ids array
+          const genreCount = (profileData as unknown as { preferred_genre_ids?: string[] })?.preferred_genre_ids?.length || 0;
 
           const locationDetails = typedProfileData.location_details;
           const inferredLocation = locationDetails?.address || '';

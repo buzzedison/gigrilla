@@ -25,6 +25,15 @@
 \i database/migrations/010_add_fan_profiles_rls_policies.sql
 \i database/migrations/011_fix_user_genre_storage.sql
 \i database/migrations/012_add_artist_basic_fields.sql
+\i database/migrations/013_create_genre_taxonomy.sql
+\i database/migrations/014_seed_genre_taxonomy.sql
+\i database/migrations/015_backfill_preferred_genre_ids.sql
+\i database/migrations/016_normalize_preferred_genre_ids.sql
+\i database/migrations/017_drop_legacy_preferred_genres.sql
+\i database/migrations/018_refine_genre_normalization.sql
+\i database/migrations/019_change_artist_sub_types_to_text.sql
+\i database/migrations/020_create_artist_member_invitations.sql
+\i database/migrations/021_add_invitation_expiry.sql
 
 -- Verify tables were created
 SELECT 'Migration Status:' as info;

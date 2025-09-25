@@ -46,7 +46,7 @@ export async function GET() {
     // Query the fan_profiles table
     const { data: profileData, error: profileError } = await supabase
       .from('fan_profiles')
-      .select('bio, username, display_name, contact_details, location_details, privacy_settings, account_type, preferred_genres')
+      .select('bio, username, display_name, contact_details, location_details, privacy_settings, account_type, preferred_genre_ids')
       .eq('user_id', user.id)
       .maybeSingle()
 

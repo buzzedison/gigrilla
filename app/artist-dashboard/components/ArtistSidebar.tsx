@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, type ComponentType } from "react";
 import {
   User,
   Users,
@@ -19,23 +19,49 @@ import {
   ChevronRight,
   FileText,
   Palette,
-  Camera
+  CheckCircle2
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../../lib/auth-context";
-import { Button } from "../../components/ui/button";
+import { ArtistTypeCapabilities } from "../../../data/artist-types";
+
+export type ArtistDashboardSection =
+  | 'profile'
+  | 'members'
+  | 'bio'
+  | 'genres'
+  | 'maps'
+  | 'logo'
+  | 'photos'
+  | 'videos'
+  | 'type'
 
 interface ArtistSidebarProps {
-  activeSection?: string;
-  onSectionChange?: (section: string) => void;
+  activeSection?: ArtistDashboardSection
+  onSectionChange?: (section: ArtistDashboardSection) => void
+  capabilities?: ArtistTypeCapabilities | null
+  completedSections?: string[]
 }
 
-export function ArtistSidebar({ activeSection = 'profile', onSectionChange }: ArtistSidebarProps) {
+function isSectionEnabled(section: ArtistDashboardSection, capabilities: ArtistTypeCapabilities | null | undefined) {
+  if (!capabilities) {
+    // Only allow type selection until artist type is saved
+    return section === 'type'
+  }
+
+  switch (section) {
+    case 'maps':
+      return capabilities.showGigAbility
+    default:
+      return true
+  }
+}
+
+export function ArtistSidebar({ activeSection = 'profile', onSectionChange, capabilities, completedSections = [] }: ArtistSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, signOut } = useAuth();
-  const [accountType, setAccountType] = useState<string>('artist');
+  const { signOut } = useAuth();
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     activities: true,
     administration: true
@@ -44,27 +70,31 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange }: Ar
   const handleSignOut = async () => {
     const nav = () => router.replace('/login');
     const timeout = setTimeout(nav, 500);
-    try { await signOut() } finally { clearTimeout(timeout); nav() }
+    try {
+      await signOut();
+    } finally {
+      clearTimeout(timeout);
+      nav();
+    }
   };
 
   const toggleSection = (section: string) => {
-    setExpandedSections(prev => ({
+    setExpandedSections((prev) => ({
       ...prev,
       [section]: !prev[section]
     }));
   };
 
   const handleSectionChange = (section: string) => {
-    if (onSectionChange) {
-      onSectionChange(section);
-    }
+    if (!isSectionEnabled(section as ArtistDashboardSection, capabilities)) return;
+    onSectionChange?.(section as ArtistDashboardSection);
   };
 
-  const mainMenuItems = [
-    { icon: FileText, label: "Main Dashboard", section: "profile" },
-  ];
+  const mainMenuItems: { icon: typeof FileText; label: string; section: ArtistDashboardSection }[] = [
+    { icon: FileText, label: "Main Dashboard", section: "profile" }
+  ]
 
-  const activitiesItems = [
+  const activitiesItems: { icon: ComponentType<{ className?: string }>; label: string; section: ArtistDashboardSection }[] = [
     { icon: User, label: "Basic Artist Details", section: "profile" },
     { icon: Users, label: "Artist Members", section: "members" },
     { icon: BookOpen, label: "Artist Biography", section: "bio" },
@@ -73,8 +103,8 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange }: Ar
     { icon: Palette, label: "Logo/Profile Artwork", section: "logo" },
     { icon: ImageIcon, label: "Photos", section: "photos" },
     { icon: Video, label: "Videos", section: "videos" },
-    { icon: Settings, label: "Change Artist Type", section: "type" },
-  ];
+    { icon: Settings, label: "Artist Type & Config", section: "type" }
+  ]
 
   const administrationItems = [
     { icon: Eye, label: "View Profile", path: "/artist-dashboard?section=view" },
@@ -82,13 +112,12 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange }: Ar
     { icon: User, label: "Manage Admins", path: "/artist-dashboard?section=admins" },
     { icon: CreditCard, label: "Billing & Payments", path: "/artist-dashboard?section=billing" },
     { icon: Settings, label: "Settings", path: "/artist-dashboard?section=settings" },
-    { icon: RefreshCw, label: "Switch Accounts", path: "/profile-setup" },
-    { icon: LogOut, label: "Log Out", path: "/login", onClick: handleSignOut },
+    { icon: RefreshCw, label: "Switch Profile", path: "/profile-setup" },
+    { icon: LogOut, label: "Log Out", path: "/login", onClick: handleSignOut }
   ];
 
   return (
-    <div className="w-64 bg-[#2a1b3d] h-full flex flex-col p-6 overflow-y-auto">
-      {/* Logo */}
+    <aside className="w-64 bg-[#2a1b3d] h-full flex flex-col p-6 overflow-y-auto">
       <div className="flex items-center mb-8">
         <img
           src="/logos/Gigrilla Logo-Word alongside Logo-Head Dark Pruple Cerise Clear-PNG 3556 x 1086.png"
@@ -97,33 +126,46 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange }: Ar
         />
       </div>
 
-      {/* EDIT PROFILE Section */}
       <div className="mb-6">
         <h3 className="text-purple-300 text-sm uppercase tracking-wider mb-3 font-medium">EDIT PROFILE</h3>
+        {!capabilities && (
+          <div className="bg-purple-900/40 border border-purple-400/40 rounded-lg p-3 text-xs text-purple-100">
+            Select your official Artist Type to unlock the rest of the dashboard.
+          </div>
+        )}
       </div>
 
-      {/* Main Menu */}
       <div className="mb-6">
         <h3 className="text-gray-400 text-sm uppercase tracking-wider mb-3">Main Menu</h3>
         <div className="space-y-1">
-          {mainMenuItems.map((item, index) => (
-            <button
-              key={index}
-              onClick={() => handleSectionChange(item.section)}
-              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                activeSection === item.section
-                  ? "bg-purple-600/20 text-white"
-                  : "text-gray-400 hover:text-white hover:bg-purple-600/10"
-              }`}
-            >
-              <item.icon className="w-4 h-4" />
-              <span className="text-sm">{item.label}</span>
-            </button>
-          ))}
+          {mainMenuItems.map((item, index) => {
+            const disabled = !isSectionEnabled(item.section as ArtistDashboardSection, capabilities)
+            return (
+              <button
+                key={index}
+                onClick={() => handleSectionChange(item.section)}
+                disabled={disabled}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left ${
+                  disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+                } ${
+                  activeSection === item.section && !disabled
+                    ? "bg-purple-600/20 text-white"
+                    : "text-gray-400 hover:text-white hover:bg-purple-600/10"
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <item.icon className="w-4 h-4" />
+                  <span className="text-sm">{item.label}</span>
+                </div>
+                {!disabled && completedSections.includes(item.section) && (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      {/* ACTIVITIES Section */}
       <div className="mb-6">
         <button
           onClick={() => toggleSection('activities')}
@@ -138,25 +180,35 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange }: Ar
         </button>
         {expandedSections.activities && (
           <div className="space-y-1">
-            {activitiesItems.map((item, index) => (
+            {activitiesItems.map((item, index) => {
+              const disabled = !isSectionEnabled(item.section as ArtistDashboardSection, capabilities)
+              return (
               <button
                 key={index}
                 onClick={() => handleSectionChange(item.section)}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                  activeSection === item.section
+                disabled={disabled}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left ${
+                  disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+                } ${
+                  activeSection === item.section && !disabled
                     ? "bg-purple-600/20 text-white"
                     : "text-gray-400 hover:text-white hover:bg-purple-600/10"
                 }`}
               >
-                <item.icon className="w-4 h-4" />
-                <span className="text-sm">{item.label}</span>
+                <div className="flex items-center space-x-2">
+                  <item.icon className="w-4 h-4" />
+                  <span className="text-sm">{item.label}</span>
+                </div>
+                {!disabled && completedSections.includes(item.section) && (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+                )}
               </button>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
 
-      {/* ADMINISTRATION Section */}
       <div className="flex-1">
         <button
           onClick={() => toggleSection('administration')}
@@ -177,7 +229,7 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange }: Ar
                   key={index}
                   href={item.path}
                   onClick={item.onClick}
-                  className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg relative z-10 pointer-events-auto text-gray-400 hover:text-white hover:bg-purple-600/10"
+                  className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-purple-600/10"
                 >
                   <item.icon className="w-4 h-4" />
                   <span className="text-sm">{item.label}</span>
@@ -186,7 +238,7 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange }: Ar
                 <Link
                   key={index}
                   href={item.path}
-                  className={`flex items-center space-x-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                  className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
                     pathname === item.path
                       ? "bg-purple-600/20 text-white"
                       : "text-gray-400 hover:text-white hover:bg-purple-600/10"
@@ -200,6 +252,6 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange }: Ar
           </div>
         )}
       </div>
-    </div>
+    </aside>
   );
 }

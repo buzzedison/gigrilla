@@ -1,19 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useAuth } from "../../../lib/auth-context";
-import { useRouter } from "next/navigation";
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
-import { Textarea } from "../../components/ui/textarea";
-import { Badge } from "../../components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
-import { Save, Rocket } from "lucide-react";
+import { useState, useEffect } from "react"
+import { useAuth } from "../../../lib/auth-context"
+import { useRouter } from "next/navigation"
+import { Button } from "../../components/ui/button"
+import { Input } from "../../components/ui/input"
+import { Textarea } from "../../components/ui/textarea"
+import { Badge } from "../../components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select"
+import { Save, Rocket, Loader2 } from "lucide-react"
 
-export function ArtistProfileForm() {
-  const { user } = useAuth();
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
+interface ArtistProfileFormProps {
+  onProfileSaved?: () => void
+}
+
+export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
+  const { user } = useAuth()
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [existingSocialLinks, setExistingSocialLinks] = useState<Record<string, string | null>>({})
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null)
   const [formData, setFormData] = useState({
     stage_name: "",
     established_date: "",
@@ -38,87 +45,210 @@ export function ArtistProfileForm() {
     social_youtube: "",
     bio: "",
     base_location: ""
-  });
+  })
+
+  useEffect(() => {
+    if (!user) {
+      setInitialLoading(false)
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+
+    const loadProfile = async () => {
+      setInitialLoading(true)
+      try {
+        const response = await fetch('/api/artist-profile')
+        const result = await response.json()
+
+        if (!response.ok || !result?.data) {
+          setInitialLoading(false)
+          return
+        }
+
+        const profile = result.data as {
+          stage_name?: string | null
+          established_date?: string | null
+          base_location?: string | null
+          bio?: string | null
+          social_links?: Record<string, string | null> | null
+        }
+
+        const baseLocation = profile.base_location ?? ""
+        const [city = "", county = "", country = ""] = baseLocation
+          .split(',')
+          .map(part => part.trim())
+
+        const socialLinks = profile.social_links ?? {}
+
+        setExistingSocialLinks(socialLinks)
+        setFormData(prev => ({
+          ...prev,
+          stage_name: profile.stage_name ?? "",
+          established_date: profile.established_date ?? "",
+          base_location: baseLocation,
+          hometown_city: city,
+          hometown_county: county,
+          hometown_country: country,
+          bio: profile.bio ?? "",
+          social_facebook: socialLinks.facebook ?? "",
+          social_twitter: socialLinks.twitter ?? "",
+          social_youtube: socialLinks.youtube ?? ""
+        }))
+      } catch (error) {
+        console.error('Error loading artist profile for form:', error)
+      } finally {
+        setInitialLoading(false)
+      }
+    }
+
+    loadProfile()
+  }, [user])
+
+  useEffect(() => {
+    if (!feedback) return
+
+    const timer = setTimeout(() => setFeedback(null), 4000)
+    return () => clearTimeout(timer)
+  }, [feedback])
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const buildBaseLocation = () => {
+    if (formData.base_location.trim()) {
+      return formData.base_location.trim()
+    }
+
+    const parts = [formData.hometown_city, formData.hometown_county, formData.hometown_country]
+      .map(part => part.trim())
+      .filter(Boolean)
+
+    return parts.join(', ')
+  }
+
+  const buildSocialLinks = () => ({
+    ...existingSocialLinks,
+    facebook: formData.social_facebook?.trim() || null,
+    twitter: formData.social_twitter?.trim() || null,
+    youtube: formData.social_youtube?.trim() || null
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+    e.preventDefault()
+    setLoading(true)
 
     try {
-      // Save the profile data via API
       const response = await fetch('/api/artist-profile', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           stage_name: formData.stage_name,
+          bio: formData.bio,
           established_date: formData.established_date,
-          base_location: `${formData.hometown_city}, ${formData.hometown_county}, ${formData.hometown_country}`,
-          social_links: {
-            facebook: formData.social_facebook,
-            twitter: formData.social_twitter,
-            youtube: formData.social_youtube
-          }
+          base_location: buildBaseLocation(),
+          social_links: buildSocialLinks()
         })
-      });
+      })
 
-      const result = await response.json();
+      const result = await response.json()
 
       if (result.error) {
-        console.error('Error saving artist profile:', result.error);
-        return;
+        console.error('Error saving artist profile:', result.error)
+        setFeedback({ type: 'error', message: 'Something went wrong while saving. Please try again.' })
+        return
       }
 
-      console.log('Artist profile saved successfully');
-      router.push('/artist-dashboard');
+      console.log('Artist profile saved successfully')
+      setExistingSocialLinks(buildSocialLinks())
+      setFormData(prev => ({
+        ...prev,
+        base_location: buildBaseLocation()
+      }))
+      setFeedback({ type: 'success', message: 'Basic artist details saved.' })
+      onProfileSaved?.()
 
     } catch (error) {
-      console.error('Error saving artist profile:', error);
+      console.error('Error saving artist profile:', error)
+      setFeedback({ type: 'error', message: 'Unable to save artist details. Please check your connection and try again.' })
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handlePublish = async () => {
-    setLoading(true);
+    setLoading(true)
 
     try {
       const response = await fetch('/api/artist-profile', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          ...formData,
+          stage_name: formData.stage_name,
+          bio: formData.bio,
+          established_date: formData.established_date,
+          base_location: buildBaseLocation(),
+          social_links: buildSocialLinks(),
           is_published: true
         })
-      });
+      })
 
-      const result = await response.json();
+      const result = await response.json()
 
       if (result.error) {
-        console.error('Error publishing artist profile:', result.error);
-        return;
+        console.error('Error publishing artist profile:', result.error)
+        setFeedback({ type: 'error', message: 'Publishing failed. Please try again.' })
+        return
       }
 
-      console.log('Artist profile published successfully');
-      router.push('/artist-dashboard');
+      console.log('Artist profile published successfully')
+      setExistingSocialLinks(buildSocialLinks())
+      setFormData(prev => ({
+        ...prev,
+        base_location: buildBaseLocation()
+      }))
+      setFeedback({ type: 'success', message: 'Artist profile published.' })
+      onProfileSaved?.()
 
     } catch (error) {
-      console.error('Error publishing artist profile:', error);
+      console.error('Error publishing artist profile:', error)
+      setFeedback({ type: 'error', message: 'Unable to publish right now. Please try again later.' })
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
+
+  if (initialLoading) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+        <div className="p-6 text-sm text-gray-600 flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+          Loading artist profile…
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100">
       <div className="p-6">
+        {feedback && (
+          <div
+            className={`mb-4 rounded-lg px-4 py-3 text-sm ${
+              feedback.type === 'success'
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : 'bg-rose-50 text-rose-700 border border-rose-200'
+            }`}
+          >
+            {feedback.message}
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Artist Stage Name */}
           <div className="bg-gray-50 rounded-lg p-4 space-y-2">

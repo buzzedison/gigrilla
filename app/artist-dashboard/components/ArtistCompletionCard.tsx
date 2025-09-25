@@ -1,112 +1,183 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
-import { useAuth } from "../../../lib/auth-context";
-import { HelpCircle, CheckCircle2, Circle } from "lucide-react";
-import { Badge } from "../../components/ui/badge";
+import { useState, useEffect, useMemo } from "react"
+import { useAuth } from "../../../lib/auth-context"
+import { HelpCircle, CheckCircle2, Circle } from "lucide-react"
+import { Badge } from "../../components/ui/badge"
+import { useSearchParams } from "next/navigation"
 
-interface CompletionItem {
-  id: string;
-  label: string;
-  completed: boolean;
-  required?: boolean;
+export type CompletionSection =
+  | 'profile'
+  | 'members'
+  | 'bio'
+  | 'genres'
+  | 'maps'
+  | 'logo'
+  | 'photos'
+  | 'videos'
+  | 'type'
+
+export interface CompletionItemDefinition {
+  id: string
+  label: string
+  required?: boolean
+  dependsOn?: string[]
+  section: CompletionSection
 }
 
-export function ArtistCompletionCard() {
-  const { user } = useAuth();
-  const [completionItems, setCompletionItems] = useState<CompletionItem[]>([
-    { id: 'stage_name', label: 'Artist Name', completed: true, required: true }, // Kendrick Lamar
-    { id: 'artist_type', label: 'Artist Type (A)', completed: true, required: true }, // Recording Artist (Band)
-    { id: 'established_date', label: 'Artist Formed', completed: true, required: true }, // Est. May 2022
-    { id: 'genres', label: 'Artist Genre(s)', completed: true, required: true }, // Industrial/Gothic/Industrial Rock/Metal
-    { id: 'record_label', label: 'Record Label', completed: true }, // Soundwave Studios
-    { id: 'music_publisher', label: 'Music Publisher', completed: true }, // Peny Barton
-    { id: 'artist_manager', label: 'Artist Manager', completed: true }, // Self-Managed
-    { id: 'booking_agent', label: 'Booking Agent', completed: true }, // Self-Booking
-    { id: 'gig_fee', label: 'Basic Gig Fee', completed: true, required: true }, // £ 100.00
-    { id: 'logo_artwork', label: 'Logo/Artwork', completed: false, required: true }, // This is what we're working on
-    { id: 'photos', label: 'Photos', completed: true, required: true }, // Now completed!
-    { id: 'videos', label: 'Videos', completed: true, required: true }, // Videos completed!
-  ]);
+export interface CompletionItemState extends CompletionItemDefinition {
+  completed: boolean
+}
 
-  const completedCount = completionItems.filter(item => item.completed).length;
-  const totalCount = completionItems.length;
-  const percentage = 90; // Match screenshot
+interface ArtistProfileData {
+  stage_name?: string | null
+  artist_type_id?: number | null
+  artist_sub_types?: string[] | null
+  established_date?: string | null
+  preferred_genre_ids?: string[] | null
+  bio?: string | null
+  social_links?: Record<string, string | null> | null
+  base_location?: string | null
+  members?: string[] | null
+  members_count?: number | null
+}
+
+interface ArtistCompletionCardProps {
+  onCompletionStateChange?: (items: CompletionItemState[]) => void
+  refreshKey?: number
+}
+
+export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }: ArtistCompletionCardProps) {
+  const { user } = useAuth()
+  const searchParams = useSearchParams()
+  const [profile, setProfile] = useState<ArtistProfileData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [recentlyCompleted, setRecentlyCompleted] = useState<string | null>(null)
+
+  const completionDefinitions = useMemo<CompletionItemDefinition[]>(() => ([
+    { id: 'stage_name', label: 'Artist Name', required: true, section: 'profile' },
+    { id: 'artist_type', label: 'Artist Type', required: true, section: 'type' },
+    { id: 'artist_sub_types', label: 'Artist Sub-Type', required: true, dependsOn: ['artist_type'], section: 'type' },
+    { id: 'established_date', label: 'Artist Formed', required: true, section: 'profile' },
+    { id: 'genres', label: 'Artist Genre(s)', required: true, section: 'genres' },
+    { id: 'members', label: 'Artist Members', section: 'members' },
+    { id: 'record_label', label: 'Record Label', section: 'profile' },
+    { id: 'music_publisher', label: 'Music Publisher', section: 'profile' },
+    { id: 'artist_manager', label: 'Artist Manager', section: 'profile' },
+    { id: 'booking_agent', label: 'Booking Agent', section: 'profile' },
+    { id: 'gig_fee', label: 'Basic Gig Fee', required: true, section: 'maps', dependsOn: ['artist_type'] },
+    { id: 'logo_artwork', label: 'Logo/Artwork', required: true, section: 'logo' },
+    { id: 'photos', label: 'Photos', required: true, section: 'photos' },
+    { id: 'videos', label: 'Videos', required: true, section: 'videos' }
+  ]), [])
+
+  const evaluatedItems = useMemo<CompletionItemState[]>(() => {
+    const membersCount = profile?.members?.length ?? profile?.members_count ?? 0
+    const profileMetrics: Record<string, boolean> = {
+      stage_name: !!profile?.stage_name,
+      artist_type: !!profile?.artist_type_id,
+      artist_sub_types: Array.isArray(profile?.artist_sub_types) && profile!.artist_sub_types!.length > 0,
+      established_date: !!profile?.established_date,
+      genres: Array.isArray(profile?.preferred_genre_ids) && profile!.preferred_genre_ids!.length > 0,
+      members: membersCount > 0,
+      record_label: !!profile?.bio && /label/i.test(profile!.bio ?? ''),
+      music_publisher: !!profile?.bio && /publisher/i.test(profile!.bio ?? ''),
+      artist_manager: !!profile?.social_links?.facebook,
+      booking_agent: !!profile?.social_links?.twitter,
+      gig_fee: !!profile?.base_location,
+      logo_artwork: !!profile?.social_links?.instagram,
+      photos: !!profile?.social_links?.tiktok,
+      videos: !!profile?.social_links?.youtube
+    }
+
+    return completionDefinitions.map(def => {
+      const depsMet = (def.dependsOn ?? []).every(id => profileMetrics[id])
+      return {
+        ...def,
+        completed: depsMet && profileMetrics[def.id]
+      }
+    })
+  }, [completionDefinitions, profile])
 
   useEffect(() => {
-    if (!user) return;
+    onCompletionStateChange?.(evaluatedItems)
+  }, [evaluatedItems, onCompletionStateChange])
+
+  const completedCount = useMemo(() => evaluatedItems.filter(item => item.completed).length, [evaluatedItems])
+  const totalCount = evaluatedItems.length
+  const percentage = totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100)
+
+  useEffect(() => {
+    const recent = searchParams.get('completed')
+    if (recent) setRecentlyCompleted(recent)
+  }, [searchParams])
+
+  useEffect(() => {
+    if (!user) return
 
     const loadCompletionStatus = async () => {
+      setLoading(true)
       try {
-        // Get artist profile from API
-        const response = await fetch('/api/artist-profile');
-        const result = await response.json();
+        const response = await fetch('/api/artist-profile')
+        const result = await response.json()
 
         if (result.data) {
-          const profile = result.data;
-          console.log('Artist profile data for completion:', profile);
+          const rawProfile = result.data as ArtistProfileData & { members?: string[] | null }
+          const membersArray = Array.isArray(rawProfile.members) ? rawProfile.members : null
+          const membersCount = membersArray?.length ?? rawProfile.members_count ?? null
 
-          // Update completion status based on actual profile data
-          setCompletionItems(prev => prev.map(item => {
-            switch (item.id) {
-              case 'stage_name':
-                return { ...item, completed: !!profile.stage_name };
-              case 'artist_type':
-                return { ...item, completed: !!profile.profile_type };
-              case 'established_date':
-                return { ...item, completed: !!profile.established_date };
-              case 'genres':
-                return { ...item, completed: !!profile.preferred_genres && profile.preferred_genres.length > 0 };
-              case 'record_label':
-                return { ...item, completed: !!profile.bio && profile.bio.includes('label') };
-              case 'music_publisher':
-                return { ...item, completed: !!profile.bio && profile.bio.includes('publisher') };
-              case 'artist_manager':
-                return { ...item, completed: !!profile.social_links?.facebook };
-              case 'booking_agent':
-                return { ...item, completed: !!profile.social_links?.twitter };
-              case 'gig_fee':
-                return { ...item, completed: !!profile.base_location };
-              case 'logo_artwork':
-                return { ...item, completed: false }; // TODO: Check for uploaded logo/artwork
-              case 'photos':
-                return { ...item, completed: false }; // TODO: Check for photos
-              case 'videos':
-                return { ...item, completed: !!profile.social_links?.youtube };
-              default:
-                return item;
-            }
-          }));
+          setProfile({
+            ...rawProfile,
+            members: membersArray,
+            members_count: membersCount
+          })
         } else {
-          console.log('No artist profile data found');
+          setProfile(null)
         }
       } catch (error) {
-        console.error('Error loading completion status:', error);
+        console.error('Error loading completion status:', error)
+      } finally {
+        setLoading(false)
       }
-    };
+    }
 
-    loadCompletionStatus();
-  }, [user]);
+    loadCompletionStatus()
+  }, [user, refreshKey])
+
+  const lastCompletedLabel = useMemo(() => {
+    if (!recentlyCompleted) return null
+    const item = evaluatedItems.find(i => i.id === recentlyCompleted)
+    return item?.label ?? null
+  }, [recentlyCompleted, evaluatedItems])
 
   return (
     <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-xl shadow-sm">
       <div className="flex flex-col">
-        {/* Header Section */}
         <div className="p-6 flex-shrink-0">
           <div className="text-center">
-            <div className="w-20 h-20 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-20 h-20 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center mx-auto mb-4 relative">
               <HelpCircle className="w-10 h-10 text-white" />
+              <span className="absolute -bottom-1 right-0 text-xs font-semibold bg-white text-purple-600 px-2 py-0.5 rounded-full">
+                {percentage}%
+              </span>
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               Your Profile is {percentage}% complete
             </h3>
+            <p className="text-sm text-gray-600">
+              {completedCount} of {totalCount} items completed
+            </p>
+            {lastCompletedLabel && (
+              <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs">
+                Nice! You just completed {lastCompletedLabel}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Completion Items */}
         <div className="px-6 pb-1">
           <div className="space-y-1.5">
-            {completionItems.map((item) => (
+            {evaluatedItems.map((item) => (
               <div key={item.id} className="flex items-center justify-between py-0.5">
                 <div className="flex items-center space-x-2.5">
                   {item.completed ? (
@@ -119,7 +190,7 @@ export function ArtistCompletionCard() {
                       {item.label}
                     </span>
                     {item.required && (
-                      <Badge variant="outline" className="text-xs px-1.5 py-0 bg-orange-50 text-orange-600 border-orange-200">
+                      <Badge variant="outline" className="text-xs px-1.5 py-0 border-transparent bg-orange-50 text-orange-600">
                         Required
                       </Badge>
                     )}
@@ -130,21 +201,27 @@ export function ArtistCompletionCard() {
           </div>
         </div>
 
-        {/* Progress Section */}
         <div className="flex-shrink-0 px-6 pt-4 pb-4 border-t border-purple-200 mt-2">
           <div className="text-center">
-            <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-              <div
-                className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${percentage}%` }}
-              ></div>
-            </div>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Complete all required fields to publish your profile
-            </p>
+            {loading ? (
+              <p className="text-sm text-gray-500">Checking your profile status…</p>
+            ) : (
+              <>
+                <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                  <div
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${percentage}%` }}
+                  ></div>
+                </div>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  Complete all required fields to publish your profile
+                </p>
+              </>
+            )}
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }
+

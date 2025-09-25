@@ -1,272 +1,237 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { Button } from "../../components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
-import { Badge } from "../../components/ui/badge";
-import { Save, Plus, Edit2, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react"
+import { Button } from "../../components/ui/button"
+import { GENRE_FAMILIES, GenreFamily, GenreType, GenreSubType } from "../../../data/genres"
+import { Plus, Trash2, Save } from "lucide-react"
 
-interface GenreEntry {
-  id: string;
-  genreFamily: string;
-  genreGroup: string;
-  subGenre: string;
+interface ArtistGenrePath {
+  familyId: string
+  typeId: string
+  subId?: string
 }
 
-interface ExistingGenre {
-  id: string;
-  name: string;
-  genreGroup: string;
-  subGenre: string;
+function formatPathLabel(family: GenreFamily, type: GenreType, sub?: GenreSubType) {
+  if (sub) return `${family.name} > ${type.name} > ${sub.name}`
+  return `${family.name} > ${type.name}`
 }
 
 export function ArtistGenresManager() {
-  const [genreEntries, setGenreEntries] = useState<GenreEntry[]>([
-    { id: "1", genreFamily: "", genreGroup: "", subGenre: "" },
-    { id: "2", genreFamily: "", genreGroup: "", subGenre: "" },
-    { id: "3", genreFamily: "", genreGroup: "", subGenre: "" },
-  ]);
+  const [selectedGenres, setSelectedGenres] = useState<ArtistGenrePath[]>([])
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
 
-  const [existingGenres, setExistingGenres] = useState<ExistingGenre[]>([
-    {
-      id: "1",
-      name: "Industrial/Gothic",
-      genreGroup: "Industrial Rock",
-      subGenre: "Metal"
-    },
-    {
-      id: "2",
-      name: "Industrial/Gothic",
-      genreGroup: "Industrial Rock",
-      subGenre: "Metal"
+  useEffect(() => {
+    const loadGenres = async () => {
+      setLoading(true)
+      try {
+        const response = await fetch('/api/artist-profile')
+        const result = await response.json()
+        if (result?.data?.preferred_genre_ids && Array.isArray(result.data.preferred_genre_ids)) {
+          const paths: ArtistGenrePath[] = result.data.preferred_genre_ids
+            .map((entry: string) => entry.split(':'))
+            .filter((parts: string[]) => parts.length >= 2)
+            .map((parts: string[]) => ({
+              familyId: parts[0],
+              typeId: parts[1],
+              subId: parts[2]
+            }))
+          setSelectedGenres(paths)
+        }
+      } catch (error) {
+        console.error('Error loading artist genres:', error)
+      } finally {
+        setLoading(false)
+      }
     }
-  ]);
+    loadGenres()
+  }, [])
 
-  const genreFamilies = [
-    "Rock", "Pop", "Hip Hop", "Electronic", "Jazz", "Classical",
-    "Country", "Folk", "Reggae", "Blues", "Soul", "Funk"
-  ];
+  const handleSave = async (paths: ArtistGenrePath[]) => {
+    setSaving(true)
+    try {
+      const payload = paths.map((path) => path.subId ? `${path.familyId}:${path.typeId}:${path.subId}` : `${path.familyId}:${path.typeId}`)
+      const response = await fetch('/api/artist-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ preferred_genre_ids: payload })
+      })
+      const result = await response.json()
+      if (result.error) {
+        console.error('Failed to save artist genres', result.error)
+      }
+    } catch (error) {
+      console.error('Error saving artist genres:', error)
+    } finally {
+      setSaving(false)
+    }
+  }
 
-  const genreGroups: Record<string, string[]> = {
-    "Rock": ["Alternative Rock", "Classic Rock", "Hard Rock", "Indie Rock", "Progressive Rock", "Punk Rock", "Industrial Rock"],
-    "Pop": ["Dance Pop", "Synth Pop", "Teen Pop", "Adult Contemporary"],
-    "Hip Hop": ["Rap", "Trap", "Conscious Hip Hop", "Gangsta Rap"],
-    "Electronic": ["House", "Techno", "Trance", "Drum & Bass", "Dubstep", "Ambient"],
-    "Jazz": ["Smooth Jazz", "Bebop", "Fusion", "Acid Jazz"],
-    "Classical": ["Baroque", "Classical Period", "Romantic", "Modern Classical"]
-  };
+  const addGenre = (path: ArtistGenrePath) => {
+    setSelectedGenres((prev) => {
+      const exists = prev.some((item) => item.familyId === path.familyId && item.typeId === path.typeId && item.subId === path.subId)
+      if (exists) return prev
+      const next = [...prev, path]
+      handleSave(next)
+      return next
+    })
+  }
 
-  const subGenres: Record<string, string[]> = {
-    "Alternative Rock": ["Grunge", "Post-Grunge", "Indie Rock", "Alternative Metal"],
-    "Hard Rock": ["Heavy Metal", "Thrash Metal", "Glam Metal", "Industrial Metal"],
-    "Industrial Rock": ["Industrial Metal", "Gothic Metal", "Nu Metal"],
-    "Rap": ["Gangsta Rap", "Conscious Rap", "Trap", "Drill"],
-    "House": ["Deep House", "Tech House", "Progressive House", "Electro House"],
-    "Techno": ["Minimal Techno", "Detroit Techno", "Acid Techno", "Industrial Techno"]
-  };
-
-  const updateGenreEntry = (id: string, field: keyof GenreEntry, value: string) => {
-    setGenreEntries(prev =>
-      prev.map(entry =>
-        entry.id === id ? { ...entry, [field]: value } : entry
-      )
-    );
-  };
-
-  const addGenreEntry = () => {
-    const newEntry: GenreEntry = {
-      id: Date.now().toString(),
-      genreFamily: "",
-      genreGroup: "",
-      subGenre: ""
-    };
-    setGenreEntries(prev => [...prev, newEntry]);
-  };
-
-  const removeGenreEntry = (id: string) => {
-    setGenreEntries(prev => prev.filter(entry => entry.id !== id));
-  };
-
-  const addGenreToList = (entry: GenreEntry) => {
-    if (!entry.genreFamily || !entry.genreGroup || !entry.subGenre) return;
-
-    const newGenre: ExistingGenre = {
-      id: Date.now().toString(),
-      name: `${entry.genreGroup}/${entry.subGenre}`,
-      genreGroup: entry.genreGroup,
-      subGenre: entry.subGenre
-    };
-
-    setExistingGenres(prev => [...prev, newGenre]);
-  };
-
-  const removeExistingGenre = (id: string) => {
-    setExistingGenres(prev => prev.filter(genre => genre.id !== id));
-  };
+  const removeGenre = (index: number) => {
+    setSelectedGenres((prev) => {
+      const next = prev.filter((_, i) => i !== index)
+      handleSave(next)
+      return next
+    })
+  }
 
   return (
     <div className="space-y-6">
-      {/* Add Genres Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Add Your Music Genres</h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">Artist Genres</h2>
+        <p className="text-sm text-gray-600 mb-4">
+          Select the main genres and sub-genres that define your artistry. These choices power discovery, search, and matching across Gigrilla.
+        </p>
 
-        <div className="space-y-4">
-          {genreEntries.map((entry, index) => (
-            <div key={entry.id} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Add Genre Family
-                </label>
-                <Select
-                  value={entry.genreFamily}
-                  onValueChange={(value) => updateGenreEntry(entry.id, 'genreFamily', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Family" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {genreFamilies.map((family) => (
-                      <SelectItem key={family} value={family}>
-                        {family}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+        {loading ? (
+          <div className="text-sm text-gray-500">Loading genres...</div>
+        ) : (
+          <div className="space-y-4">
+            <GenreSelectionForm onSelect={addGenre} />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Select Genre Group
-                </label>
-                <Select
-                  value={entry.genreGroup}
-                  onValueChange={(value) => updateGenreEntry(entry.id, 'genreGroup', value)}
-                  disabled={!entry.genreFamily}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Group" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {entry.genreFamily && genreGroups[entry.genreFamily]?.map((group) => (
-                      <SelectItem key={group} value={group}>
-                        {group}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Select Sub-Genre
-                </label>
-                <Select
-                  value={entry.subGenre}
-                  onValueChange={(value) => updateGenreEntry(entry.id, 'subGenre', value)}
-                  disabled={!entry.genreGroup}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Sub-Genre" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {entry.genreGroup && subGenres[entry.genreGroup]?.map((subGenre) => (
-                      <SelectItem key={subGenre} value={subGenre}>
-                        {subGenre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Button
-                  onClick={() => addGenreToList(entry)}
-                  disabled={!entry.genreFamily || !entry.genreGroup || !entry.subGenre}
-                  className="bg-purple-600 hover:bg-purple-700 text-white"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Genre
-                </Button>
-                {genreEntries.length > 1 && (
-                  <Button
-                    onClick={() => removeGenreEntry(entry.id)}
-                    variant="outline"
-                    size="sm"
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
+            <div className="border-t border-gray-200 pt-4">
+              <h3 className="text-sm font-medium text-gray-900 mb-3">Selected Genres</h3>
+              {selectedGenres.length === 0 ? (
+                <div className="text-sm text-gray-500">No genres selected yet.</div>
+              ) : (
+                <ul className="space-y-2">
+                  {selectedGenres.map((path, index) => {
+                    const family = GENRE_FAMILIES.find((f) => f.id === path.familyId)
+                    const type = family?.types.find((t) => t.id === path.typeId)
+                    const sub = type?.subs?.find((s) => s.id === path.subId)
+                    if (!family || !type) return null
+                    return (
+                      <li key={`${path.familyId}-${path.typeId}-${path.subId ?? 'none'}`} className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+                        <div className="text-sm text-gray-800">
+                          {formatPathLabel(family, type, sub)}
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={() => removeGenre(index)}>
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </Button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
             </div>
-          ))}
-        </div>
-
-        <div className="mt-4">
-          <Button
-            onClick={addGenreEntry}
-            variant="outline"
-            className="w-full border-dashed border-purple-300 text-purple-600 hover:bg-purple-50"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            + Add Genres
-          </Button>
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Existing Genres List */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Artist Genres</h3>
-
-        <div className="space-y-4">
-          {existingGenres.map((genre) => (
-            <div key={genre.id} className="border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-medium text-gray-900">{genre.name}</h4>
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                  >
-                    <Edit2 className="w-4 h-4 mr-1" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => removeExistingGenre(genre.id)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-600">Genre Group: </span>
-                  <span className="font-medium">{genre.genreGroup}</span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Sub-Genre: </span>
-                  <span className="font-medium">{genre.subGenre}</span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Action Buttons */}
-      <div className="flex justify-center space-x-4">
-        <Button variant="outline" className="px-8">
+      <div className="flex justify-end gap-3">
+        <Button variant="outline" onClick={() => handleSave(selectedGenres)} disabled={saving}>
           <Save className="w-4 h-4 mr-2" />
           Save Genres
         </Button>
-        <Button className="bg-orange-500 hover:bg-orange-600 text-white px-8">
-          Publish Genres
+        {saving && <span className="text-sm text-gray-500">Saving…</span>}
+      </div>
+    </div>
+  )
+}
+
+interface GenreSelectionFormProps {
+  onSelect: (path: ArtistGenrePath) => void
+}
+
+function GenreSelectionForm({ onSelect }: GenreSelectionFormProps) {
+  const [familyId, setFamilyId] = useState<string>('')
+  const [typeId, setTypeId] = useState<string>('')
+  const [subId, setSubId] = useState<string>('')
+
+  const reset = () => {
+    setFamilyId('')
+    setTypeId('')
+    setSubId('')
+  }
+
+  const selectedFamily = GENRE_FAMILIES.find((family) => family.id === familyId)
+  const selectedType = selectedFamily?.types.find((type) => type.id === typeId)
+
+  const handleAdd = () => {
+    if (!selectedFamily || !selectedType) return
+    onSelect({ familyId: selectedFamily.id, typeId: selectedType.id, subId: subId || undefined })
+    reset()
+  }
+
+  return (
+    <div className="space-y-3 bg-white border border-gray-200 rounded-lg p-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-gray-700 uppercase tracking-wide">Genre Family</label>
+          <select
+            value={familyId}
+            onChange={(event) => {
+              setFamilyId(event.target.value)
+              setTypeId('')
+              setSubId('')
+            }}
+            className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+          >
+            <option value="">Select a family…</option>
+            {GENRE_FAMILIES.map((family) => (
+              <option key={family.id} value={family.id}>
+                {family.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-gray-700 uppercase tracking-wide">Main Genre</label>
+          <select
+            value={typeId}
+            onChange={(event) => {
+              setTypeId(event.target.value)
+              setSubId('')
+            }}
+            className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            disabled={!selectedFamily}
+          >
+            <option value="">Select a main genre…</option>
+            {selectedFamily?.types.map((type) => (
+              <option key={type.id} value={type.id}>
+                {type.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-gray-700 uppercase tracking-wide">Sub-Genre (optional)</label>
+          <select
+            value={subId}
+            onChange={(event) => setSubId(event.target.value)}
+            className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            disabled={!selectedType || !selectedType.subs?.length}
+          >
+            <option value="">Select a sub-genre…</option>
+            {selectedType?.subs?.map((sub) => (
+              <option key={sub.id} value={sub.id}>
+                {sub.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="flex justify-end">
+        <Button onClick={handleAdd} disabled={!selectedFamily || !selectedType}>
+          <Plus className="w-4 h-4 mr-2" />
+          Add Genre
         </Button>
       </div>
     </div>
-  );
+  )
 }

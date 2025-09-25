@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       daily_rate,
       monthly_retainer,
       availability_status,
-      preferred_genres,
+      preferred_genre_ids,
       location_details,
       contact_details,
       social_links,
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     // Add common fields
     if (location_details) profileData.location_details = location_details
     if (contact_details) profileData.contact_details = contact_details
-    if (preferred_genres) profileData.preferred_genres = preferred_genres
+    if (preferred_genre_ids) profileData.preferred_genre_ids = preferred_genre_ids
     if (verification_documents) profileData.verification_documents = verification_documents
 
     const { data, error } = await supabase

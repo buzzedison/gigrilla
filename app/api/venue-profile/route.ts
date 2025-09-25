@@ -44,7 +44,7 @@ export async function GET() {
 
     const { data: profileData, error: profileError } = await supabase
       .from('user_profiles')
-      .select('id, user_id, profile_type, venue_type_id, venue_sub_types, company_name, description, years_experience, hourly_rate, daily_rate, monthly_retainer, availability_status, preferred_genres, location_details, contact_details, social_links, verification_documents, venue_name, established_date, address, capacity, website, created_at, updated_at')
+      .select('id, user_id, profile_type, venue_type_id, venue_sub_types, company_name, description, years_experience, hourly_rate, daily_rate, monthly_retainer, availability_status, preferred_genre_ids, location_details, contact_details, social_links, verification_documents, venue_name, established_date, address, capacity, website, created_at, updated_at')
       .eq('user_id', user.id)
       .eq('profile_type', 'venue')
       .maybeSingle()
