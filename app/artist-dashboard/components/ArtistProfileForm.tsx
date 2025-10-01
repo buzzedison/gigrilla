@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useAuth } from "../../../lib/auth-context"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
+import { LocationAutocompleteInput, type LocationSuggestion } from "../../components/ui/location-autocomplete"
 import { Textarea } from "../../components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select"
 import { Save, Rocket, Loader2 } from "lucide-react"
@@ -270,6 +271,36 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
+  const applyLocationSuggestion = (suggestion: LocationSuggestion) => {
+    const city = suggestion.city?.trim() ?? ''
+    const state = suggestion.state?.trim() ?? ''
+    const country = suggestion.country?.trim() ?? ''
+    const formatted = suggestion.formatted?.trim()
+
+    setFormData(prev => ({
+      ...prev,
+      base_location: formatted || [city, state, country].filter(Boolean).join(', '),
+      hometown_city: city || prev.hometown_city,
+      hometown_county: state || prev.hometown_county,
+      hometown_country: country || prev.hometown_country
+    }))
+  }
+
+  const applyHometownSuggestion = (suggestion: LocationSuggestion) => {
+    const city = suggestion.city?.trim() ?? ''
+    const state = suggestion.state?.trim() ?? ''
+    const country = suggestion.country?.trim() ?? ''
+    const formatted = suggestion.formatted?.trim()
+
+    setFormData(prev => ({
+      ...prev,
+      hometown_city: city || prev.hometown_city,
+      hometown_county: state || prev.hometown_county,
+      hometown_country: country || prev.hometown_country,
+      base_location: prev.base_location || formatted || [city, state, country].filter(Boolean).join(', ')
+    }))
+  }
+
   const buildBaseLocation = () => {
     if (formData.base_location.trim()) {
       return formData.base_location.trim()
@@ -490,10 +521,11 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
               </div>
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700">Base Location</label>
-                <Input
+                <LocationAutocompleteInput
                   value={formData.base_location}
-                  onChange={(e) => handleInputChange('base_location', e.target.value)}
-                  placeholder="City, Country"
+                  onInputChange={(val) => handleInputChange('base_location', val)}
+                  onSelect={applyLocationSuggestion}
+                  placeholder="Search for your base location"
                   className="max-w-md"
                 />
               </div>
@@ -514,6 +546,23 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">Hometown</label>
+              <LocationAutocompleteInput
+                value={[formData.hometown_city, formData.hometown_county, formData.hometown_country]
+                  .filter(Boolean)
+                  .join(', ')}
+                onInputChange={(val) => {
+                  const parts = val.split(',').map(part => part.trim())
+                  setFormData(prev => ({
+                    ...prev,
+                    hometown_city: parts[0] ?? '',
+                    hometown_county: parts[1] ?? '',
+                    hometown_country: parts[2] ?? ''
+                  }))
+                }}
+                onSelect={applyHometownSuggestion}
+                placeholder="Search for hometown"
+                className="w-full"
+              />
               <div className="grid grid-cols-3 gap-2">
                 <Input
                   value={formData.hometown_city}
