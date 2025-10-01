@@ -18,7 +18,7 @@ export async function GET() {
               cookiesToSet.forEach(({ name, value, options }) => {
                 cookieStore.set(name, value, options)
               })
-            } catch (error) {
+            } catch {
               // ignored - handled by middleware
             }
           },
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
               cookiesToSet.forEach(({ name, value, options }) => {
                 cookieStore.set(name, value, options)
               })
-            } catch (error) {
+            } catch {
               // ignored - handled by middleware
             }
           },

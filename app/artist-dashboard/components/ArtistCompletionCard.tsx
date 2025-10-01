@@ -38,6 +38,14 @@ interface ArtistProfileData {
   bio?: string | null
   social_links?: Record<string, string | null> | null
   base_location?: string | null
+  record_label_status?: string | null
+  record_label_name?: string | null
+  music_publisher_status?: string | null
+  music_publisher_name?: string | null
+  artist_manager_status?: string | null
+  artist_manager_name?: string | null
+  booking_agent_status?: string | null
+  booking_agent_name?: string | null
   members?: string[] | null
   members_count?: number | null
 }
@@ -80,10 +88,10 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
       established_date: !!profile?.established_date,
       genres: Array.isArray(profile?.preferred_genre_ids) && profile!.preferred_genre_ids!.length > 0,
       members: membersCount > 0,
-      record_label: !!profile?.bio && /label/i.test(profile!.bio ?? ''),
-      music_publisher: !!profile?.bio && /publisher/i.test(profile!.bio ?? ''),
-      artist_manager: !!profile?.social_links?.facebook,
-      booking_agent: !!profile?.social_links?.twitter,
+      record_label: !!profile?.record_label_status && !!profile?.record_label_name,
+      music_publisher: !!profile?.music_publisher_status && !!profile?.music_publisher_name,
+      artist_manager: !!profile?.artist_manager_status && !!profile?.artist_manager_name,
+      booking_agent: !!profile?.booking_agent_status && !!profile?.booking_agent_name,
       gig_fee: !!profile?.base_location,
       logo_artwork: !!profile?.social_links?.instagram,
       photos: !!profile?.social_links?.tiktok,

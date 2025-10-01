@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Upload, Image as ImageIcon, X, Edit2, Trash2, Star, Plus } from 'lucide-react';
+import { Upload, Image as ImageIcon, Edit2, Trash2, Star } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Badge } from '../../components/ui/badge';
@@ -118,11 +118,6 @@ export function ArtistPhotosManager() {
     ));
   };
 
-  const handleUpload = () => {
-    // TODO: Implement actual upload to storage
-    console.log('Uploading photos:', photos);
-  };
-
   return (
     <div className="space-y-6">
       {/* Upload Section */}
@@ -219,7 +214,7 @@ export function ArtistPhotosManager() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {photos.map((photo, index) => (
+          {photos.map((photo) => (
             <div key={photo.id} className="relative group">
               <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
                 <img

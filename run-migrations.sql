@@ -34,6 +34,8 @@
 \i database/migrations/019_change_artist_sub_types_to_text.sql
 \i database/migrations/020_create_artist_member_invitations.sql
 \i database/migrations/021_add_invitation_expiry.sql
+\i database/migrations/022_extend_artist_industry_contacts.sql
+\i database/migrations/023_add_artist_primary_roles.sql
 
 -- Verify tables were created
 SELECT 'Migration Status:' as info;
@@ -67,4 +69,3 @@ SELECT
 
 -- Show current database version
 SELECT version, description, applied_at FROM db_version ORDER BY version DESC LIMIT 5;
-

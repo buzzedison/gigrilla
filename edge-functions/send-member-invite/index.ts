@@ -15,9 +15,11 @@ interface InvitePayload {
   email: string
   name?: string
   role?: string
+  roles?: string[]
   token: string
   artistName?: string
   invitedBy?: string
+  ownerRoles?: string[]
   expiresAt?: string
 }
 
@@ -27,6 +29,16 @@ const fromEmail = Deno?.env?.get("RESEND_FROM_EMAIL") ?? "no-reply@gigrilla.com"
 function buildInviteEmail(payload: InvitePayload) {
   const inviteUrl = `${appUrl}/invite/artist-member?token=${encodeURIComponent(payload.token)}`
   const previewText = `${payload.invitedBy ?? "A Gigrilla artist"} invited you to join their team.`
+
+  const rolesLine = Array.isArray(payload.roles) && payload.roles.length > 0
+    ? `<p style="margin:0 0 12px 0;line-height:1.5">They'd love to have you join as <strong>${payload.roles.join(', ')}</strong>.</p>`
+    : payload.role
+      ? `<p style="margin:0 0 12px 0;line-height:1.5">They'd love to have you join as <strong>${payload.role}</strong>.</p>`
+      : ''
+
+  const ownerRolesLine = Array.isArray(payload.ownerRoles) && payload.ownerRoles.length > 0
+    ? `<p style="margin:0 0 16px 0;line-height:1.5">${payload.invitedBy ?? 'This artist'} currently leads as ${payload.ownerRoles.join(', ')}.</p>`
+    : ''
 
   const expiryNote = payload.expiresAt
     ? `<p style="margin:16px 0 0 0;color:#6b7280;font-size:13px">This invitation expires on <strong>${new Date(payload.expiresAt).toLocaleString()}</strong>.</p>`
@@ -43,7 +55,8 @@ function buildInviteEmail(payload: InvitePayload) {
           <div style="background:#111827;border-radius:16px;padding:32px;border:1px solid #1f2937">
             <p style="margin:0 0 16px 0;color:#cbd5f5;font-size:14px">${previewText}</p>
             <h1 style="margin:0 0 16px 0;font-size:24px;color:#f8fafc">You're invited to join ${payload.artistName ?? "a Gigrilla artist"}</h1>
-            <p style="margin:0 0 24px 0;line-height:1.6">${payload.invitedBy ?? "One of our artists"} wants you on their team as <strong>${payload.role ?? "a collaborator"}</strong>.</p>
+            ${rolesLine}
+            ${ownerRolesLine}
             <p style="margin:0 0 32px 0">Use the secure link below to review the invitation and finish setting up your profile.</p>
             <a href="${inviteUrl}" style="display:inline-block;background:linear-gradient(135deg,#a855f7,#ec4899);color:white;padding:12px 24px;border-radius:999px;text-decoration:none;font-weight:600">Review invitation</a>
             ${expiryNote}
@@ -55,7 +68,7 @@ function buildInviteEmail(payload: InvitePayload) {
     `,
     text: `${previewText}
 
-Join ${payload.artistName ?? "a Gigrilla artist"} as ${payload.role ?? "a collaborator"}.
+Join ${payload.artistName ?? "a Gigrilla artist"} as ${payload.roles?.join(', ') || payload.role || "a collaborator"}.
 
 Review your invitation: ${inviteUrl}
 

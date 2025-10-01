@@ -17,7 +17,7 @@ import { ArtistVideosManager } from "./components/ArtistVideosManager"
 import { ArtistTypeSelectorV2, ArtistTypeSelection } from "./components/ArtistTypeSelectorV2"
 import { Badge } from "../components/ui/badge"
 import { Music, Info } from "lucide-react"
-import { ARTIST_TYPES, getArtistTypeConfig, ArtistTypeCapabilities } from "../../data/artist-types"
+import { getArtistTypeConfig, ArtistTypeCapabilities } from "../../data/artist-types"
 
 interface ArtistProfileResponse {
   data: {

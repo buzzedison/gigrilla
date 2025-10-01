@@ -1,58 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import { randomUUID } from 'crypto'
 
-async function createSupabaseClient() {
-  const cookieStore = await cookies()
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options)
-            })
-          } catch (error) {
-            // setAll called from a Server Component; middleware will refresh session cookies.
-          }
-        }
-      }
-    }
-  )
-}
-
-async function getAuthenticatedUser() {
-  const supabase = await createSupabaseClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
-
-  if (error) {
-    return { supabase, user: null, error }
-  }
-
-  return { supabase, user, error: null }
-}
-
-async function getArtistProfileId(supabase: ReturnType<typeof createServerClient>, userId: string) {
-  const { data, error } = await supabase
-    .from('user_profiles')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('profile_type', 'artist')
-    .maybeSingle()
-
-  if (error) {
-    return { profileId: null, error }
-  }
-
-  return { profileId: data?.id ?? null, error: null }
-}
+import { getAuthenticatedUser, getArtistProfile } from './utils'
 
 export async function GET() {
   const { supabase, user, error: authError } = await getAuthenticatedUser()
@@ -61,20 +10,22 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { profileId, error: profileError } = await getArtistProfileId(supabase, user.id)
+  const { profile, error: profileError } = await getArtistProfile(supabase, user.id)
 
   if (profileError) {
     console.error('Artist members GET: failed to load artist profile', profileError)
     return NextResponse.json({ error: 'Failed to load artist profile' }, { status: 500 })
   }
 
-  if (!profileId) {
-    return NextResponse.json({ data: [], artistProfileId: null })
+  if (!profile) {
+    return NextResponse.json({ invitations: [], activeMembers: [], artistProfileId: null, primaryRoles: [] })
   }
+
+  const { id: profileId, artist_primary_roles: primaryRoles, stage_name } = profile
 
   const { data, error } = await supabase
     .from('artist_member_invitations')
-    .select('id, name, email, role, status, invited_at, responded_at, metadata')
+    .select('id, name, email, role, roles, status, invited_at, responded_at, metadata')
     .eq('user_id', user.id)
     .eq('artist_profile_id', profileId)
     .order('invited_at', { ascending: false })
@@ -84,7 +35,24 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to fetch member invitations' }, { status: 500 })
   }
 
-  return NextResponse.json({ data: data ?? [], artistProfileId: profileId })
+  const { data: activeMembers, error: activeError } = await supabase
+    .from('artist_members_active')
+    .select('id, invitation_id, name, email, roles, metadata, joined_at')
+    .eq('artist_profile_id', profileId)
+    .order('joined_at', { ascending: true })
+
+  if (activeError) {
+    console.error('Artist members GET: failed to fetch active members', activeError)
+  }
+
+  return NextResponse.json({
+    invitations: data ?? [],
+    data: data ?? [],
+    activeMembers: activeMembers ?? [],
+    artistProfileId: profileId,
+    primaryRoles: primaryRoles ?? [],
+    artistName: stage_name ?? null
+  })
 }
 
 export async function POST(request: NextRequest) {
@@ -94,14 +62,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { profileId, error: profileError } = await getArtistProfileId(supabase, user.id)
+  const { profile, error: profileError } = await getArtistProfile(supabase, user.id)
 
   if (profileError) {
     console.error('Artist members POST: failed to load artist profile', profileError)
     return NextResponse.json({ error: 'Failed to load artist profile' }, { status: 500 })
   }
 
-  if (!profileId) {
+  if (!profile) {
     return NextResponse.json({ error: 'Artist profile not found' }, { status: 400 })
   }
 
@@ -112,6 +80,7 @@ export async function POST(request: NextRequest) {
     nickname,
     email,
     role,
+    roles,
     dateOfBirth,
     incomeShare,
     displayAge
@@ -153,16 +122,19 @@ export async function POST(request: NextRequest) {
     .from('artist_member_invitations')
     .insert({
       user_id: user.id,
-      artist_profile_id: profileId,
+      artist_profile_id: profile.id,
       name: fullName || null,
       email: email.trim().toLowerCase(),
       role: role ?? null,
+      roles: Array.isArray(roles)
+        ? roles.filter((val: unknown): val is string => typeof val === 'string' && val.trim().length > 0)
+        : [],
       status: 'pending',
-      invitation_token: invitationToken,
-      invitation_token_expires_at: invitationExpiresAt.toISOString(),
+    invitation_token: invitationToken,
+    invitation_token_expires_at: invitationExpiresAt.toISOString(),
       metadata
     })
-    .select('id, name, email, role, status, invited_at, responded_at, metadata')
+    .select('id, name, email, role, roles, status, invited_at, responded_at, metadata')
     .single()
 
   if (error) {
@@ -170,29 +142,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create member invitation' }, { status: 500 })
   }
 
-  const edgeUrlBase = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL
-  if (!edgeUrlBase) {
-    console.warn('Artist members POST: NEXT_PUBLIC_SITE_URL not set, skipping email send')
-  } else {
-    const edgeResponse = await fetch(`${edgeUrlBase}/functions/v1/send-member-invite`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
+  const ownerRoles = Array.isArray(profile.artist_primary_roles)
+    ? profile.artist_primary_roles.filter((val: unknown): val is string => typeof val === 'string' && val.trim().length > 0)
+    : []
+
+  const rolesPayload = Array.isArray(roles)
+    ? roles.filter((val: unknown): val is string => typeof val === 'string' && val.trim().length > 0)
+    : undefined
+
+  const { error: functionError } = await supabase.functions.invoke('send-member-invite', {
+    body: {
       email: email.trim().toLowerCase(),
       token: invitationToken,
       role: role ?? null,
+      roles: rolesPayload,
       name: fullName || null,
-      artistName: data?.name ?? null,
+      artistName: profile.stage_name ?? null,
       invitedBy: user.email ?? undefined,
+      ownerRoles,
       expiresAt: invitationExpiresAt.toISOString()
-    })
+    }
   })
 
-    if (!edgeResponse.ok) {
-      console.warn('Artist members POST: send-member-invite edge function returned non-200', edgeResponse.status)
-    }
+  if (functionError) {
+    console.warn('Artist members POST: failed to trigger send-member-invite', functionError)
   }
 
   return NextResponse.json({ success: true, data })
@@ -224,5 +197,86 @@ export async function DELETE(request: NextRequest) {
   }
 
   return NextResponse.json({ success: true })
+}
+
+export async function PATCH(request: NextRequest) {
+  const { supabase, user, error: authError } = await getAuthenticatedUser()
+
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const body = await request.json()
+  const publishIds = Array.isArray(body?.invitationIds)
+    ? body.invitationIds.filter((val: unknown): val is string => typeof val === 'string')
+    : []
+
+  if (publishIds.length === 0) {
+    return NextResponse.json({ error: 'No invitation IDs provided' }, { status: 400 })
+  }
+
+  const { profile, error: profileError } = await getArtistProfile(supabase, user.id)
+
+  if (profileError) {
+    console.error('Artist members PATCH: failed to load artist profile', profileError)
+    return NextResponse.json({ error: 'Failed to load artist profile' }, { status: 500 })
+  }
+
+  if (!profile) {
+    return NextResponse.json({ error: 'Artist profile not found' }, { status: 400 })
+  }
+
+  const { data: invitations, error: fetchError } = await supabase
+    .from('artist_member_invitations')
+    .select('*')
+    .in('id', publishIds)
+    .eq('user_id', user.id)
+    .eq('artist_profile_id', profile.id)
+
+  if (fetchError) {
+    console.error('Artist members PATCH: failed to fetch invitations', fetchError)
+    return NextResponse.json({ error: 'Failed to load invitations' }, { status: 500 })
+  }
+
+  const acceptedInvites = (invitations ?? []).filter(invite => invite.status === 'accepted')
+
+  if (acceptedInvites.length === 0) {
+    return NextResponse.json({ error: 'No accepted invitations to publish' }, { status: 400 })
+  }
+
+  const activeRecords = acceptedInvites.map(invite => ({
+    artist_profile_id: profile.id,
+    invitation_id: invite.id,
+    name: invite.name ?? null,
+    email: invite.email,
+    roles: Array.isArray(invite.roles)
+      ? invite.roles.filter((val: unknown): val is string => typeof val === 'string')
+      : invite.role
+        ? [invite.role]
+        : [],
+    metadata: invite.metadata ?? {}
+  }))
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('artist_members_active')
+    .insert(activeRecords)
+    .select('*')
+
+  if (insertError) {
+    console.error('Artist members PATCH: failed to insert active members', insertError)
+    return NextResponse.json({ error: 'Failed to publish members' }, { status: 500 })
+  }
+
+  const { error: updateError } = await supabase
+    .from('artist_member_invitations')
+    .update({ status: 'active' })
+    .in('id', acceptedInvites.map(invite => invite.id))
+
+  if (updateError) {
+    console.error('Artist members PATCH: failed to update invitation status', updateError)
+    return NextResponse.json({ error: 'Failed to finalize published members' }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true, data: inserted })
 }
 

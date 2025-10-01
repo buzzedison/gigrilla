@@ -18,7 +18,7 @@ export async function GET() {
               cookiesToSet.forEach(({ name, value, options }) => {
                 cookieStore.set(name, value, options)
               })
-            } catch (error) {
+            } catch {
               // The `setAll` method was called from a Server Component.
               // This can be ignored if you have middleware refreshing
               // user sessions.
@@ -44,7 +44,7 @@ export async function GET() {
 
     const { data: profileData, error: profileError } = await supabase
       .from('user_profiles')
-      .select('id, user_id, profile_type, artist_type_id, artist_sub_types, company_name, job_title, years_experience, hourly_rate, daily_rate, monthly_retainer, availability_status, preferred_genre_ids, location_details, contact_details, social_links, verification_documents, bio, stage_name, established_date, base_location, members, website, created_at, updated_at')
+      .select('id, user_id, profile_type, artist_type_id, artist_sub_types, artist_primary_roles, company_name, job_title, years_experience, hourly_rate, daily_rate, monthly_retainer, availability_status, preferred_genre_ids, location_details, contact_details, social_links, verification_documents, bio, stage_name, established_date, base_location, hometown_city, hometown_state, hometown_country, gigs_performed, record_label_status, record_label_name, record_label_contact_name, record_label_email, record_label_phone, music_publisher_status, music_publisher_name, music_publisher_contact_name, music_publisher_email, music_publisher_phone, artist_manager_status, artist_manager_name, artist_manager_contact_name, artist_manager_email, artist_manager_phone, booking_agent_status, booking_agent_name, booking_agent_contact_name, booking_agent_email, booking_agent_phone, website, created_at, updated_at')
       .eq('user_id', user.id)
       .eq('profile_type', 'artist')
       .maybeSingle()
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
               cookiesToSet.forEach(({ name, value, options }) => {
                 cookieStore.set(name, value, options)
               })
-            } catch (error) {
+            } catch {
               // The `setAll` method was called from a Server Component.
               // This can be ignored if you have middleware refreshing
               // user sessions.
@@ -133,12 +133,37 @@ export async function POST(request: NextRequest) {
       bio,
       established_date,
       base_location,
+      hometown_city,
+      hometown_state,
+      hometown_country,
+      gigs_performed,
       members,
       website,
       social_links,
       artist_type_id,
       artist_sub_types,
       preferred_genre_ids,
+      record_label_status,
+      record_label_name,
+      record_label_contact_name,
+      record_label_email,
+      record_label_phone,
+      music_publisher_status,
+      music_publisher_name,
+      music_publisher_contact_name,
+      music_publisher_email,
+      music_publisher_phone,
+      artist_manager_status,
+      artist_manager_name,
+      artist_manager_contact_name,
+      artist_manager_email,
+      artist_manager_phone,
+      booking_agent_status,
+      booking_agent_name,
+      booking_agent_contact_name,
+      booking_agent_email,
+      booking_agent_phone,
+      artist_primary_roles,
       is_published
     } = body
 
@@ -166,6 +191,29 @@ export async function POST(request: NextRequest) {
       profileData.base_location = base_location || null
     }
 
+    if (hometown_city !== undefined) {
+      profileData.hometown_city = hometown_city || null
+    }
+
+    if (hometown_state !== undefined) {
+      profileData.hometown_state = hometown_state || null
+    }
+
+    if (hometown_country !== undefined) {
+      profileData.hometown_country = hometown_country || null
+    }
+
+    if (gigs_performed !== undefined) {
+      if (typeof gigs_performed === 'number') {
+        profileData.gigs_performed = gigs_performed
+      } else if (typeof gigs_performed === 'string' && gigs_performed.trim()) {
+        const parsed = parseInt(gigs_performed, 10)
+        profileData.gigs_performed = Number.isNaN(parsed) ? null : parsed
+      } else {
+        profileData.gigs_performed = null
+      }
+    }
+
     if (members !== undefined) {
       if (Array.isArray(members)) {
         profileData.members = members
@@ -185,6 +233,98 @@ export async function POST(request: NextRequest) {
 
     if (social_links !== undefined) {
       profileData.social_links = social_links || {}
+    }
+
+    const normalizeContactStatus = (val: unknown) => {
+      if (typeof val !== 'string') return val
+      const normalized = val.trim().toLowerCase()
+      if (!normalized) return null
+      if (['signed', 'signed to label', 'signed to publisher'].includes(normalized)) return 'signed'
+      if ([
+        'unsigned',
+        'seeking',
+        'unsigned - seeking label',
+        'unsigned - seeking publisher',
+        'unsigned_seeking'
+      ].includes(normalized)) return 'unsigned_seeking'
+      if ([
+        'independent',
+        'self signed - independent',
+        'self publishing - independent',
+        'self-signed',
+        'self_signed'
+      ].includes(normalized)) return 'independent'
+      return normalized
+    }
+
+    const normalizeManagerStatus = (val: unknown) => {
+      if (typeof val !== 'string') return val
+      const normalized = val.trim().toLowerCase()
+      if (!normalized) return null
+      if (['signed', 'managed', 'signed to manager'].includes(normalized)) return 'signed'
+      if (['seeking', 'unsigned', 'unsigned - seeking manager'].includes(normalized)) return 'seeking'
+      if ([
+        'self_managed',
+        'self-managed',
+        'self managed',
+        'self managed - independent',
+        'self booking',
+        'self-booking'
+      ].includes(normalized)) return 'self_managed'
+      return normalized
+    }
+
+    const normalizeBookingStatus = (val: unknown) => {
+      if (typeof val !== 'string') return val
+      const normalized = val.trim().toLowerCase()
+      if (!normalized) return null
+      if (['signed', 'managed', 'signed to booking agent'].includes(normalized)) return 'signed'
+      if (['seeking', 'unsigned', 'unsigned - seeking booking agent'].includes(normalized)) return 'seeking'
+      if ([
+        'self_managed',
+        'self-managed',
+        'self managed',
+        'self booking',
+        'self-booking',
+        'self booking - independent'
+      ].includes(normalized)) return 'self_managed'
+      return normalized
+    }
+
+    const assignIfDefined = (key: string, value: unknown, transform?: (val: unknown) => unknown) => {
+      if (value === undefined) return
+      if (transform) {
+        profileData[key] = transform(value)
+        return
+      }
+      profileData[key] = value || null
+    }
+
+    assignIfDefined('record_label_status', record_label_status, normalizeContactStatus)
+    assignIfDefined('record_label_name', record_label_name)
+    assignIfDefined('record_label_contact_name', record_label_contact_name)
+    assignIfDefined('record_label_email', record_label_email)
+    assignIfDefined('record_label_phone', record_label_phone)
+    assignIfDefined('music_publisher_status', music_publisher_status, normalizeContactStatus)
+    assignIfDefined('music_publisher_name', music_publisher_name)
+    assignIfDefined('music_publisher_contact_name', music_publisher_contact_name)
+    assignIfDefined('music_publisher_email', music_publisher_email)
+    assignIfDefined('music_publisher_phone', music_publisher_phone)
+    assignIfDefined('artist_manager_status', artist_manager_status, normalizeManagerStatus)
+    assignIfDefined('artist_manager_name', artist_manager_name)
+    assignIfDefined('artist_manager_contact_name', artist_manager_contact_name)
+    assignIfDefined('artist_manager_email', artist_manager_email)
+    assignIfDefined('artist_manager_phone', artist_manager_phone)
+    assignIfDefined('booking_agent_status', booking_agent_status, normalizeBookingStatus)
+    assignIfDefined('booking_agent_name', booking_agent_name)
+    assignIfDefined('booking_agent_contact_name', booking_agent_contact_name)
+    assignIfDefined('booking_agent_email', booking_agent_email)
+    assignIfDefined('booking_agent_phone', booking_agent_phone)
+
+    if (artist_primary_roles !== undefined) {
+      profileData.artist_primary_roles = Array.isArray(artist_primary_roles)
+        ? artist_primary_roles.filter((val: unknown): val is string => typeof val === 'string' && val.trim().length > 0)
+        : artist_primary_roles
     }
 
     if (artist_type_id !== undefined) {
