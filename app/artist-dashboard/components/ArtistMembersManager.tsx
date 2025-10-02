@@ -201,11 +201,20 @@ export function ArtistMembersManager() {
 
       const newInvite = result.data as ArtistMemberInvitation
       setMembers(prev => [newInvite, ...prev])
-      setFeedback({ type: 'success', message: `Invitation queued for ${draft.email}.` })
+      setFeedback({
+        type: 'success',
+        message: typeof result.message === 'string' && result.message.trim().length > 0
+          ? result.message
+          : `Invitation sent to ${draft.email}.`
+      })
       resetDraft()
     } catch (error) {
       console.error('ArtistMembersManager: send invitation error', error)
-      setFeedback({ type: 'error', message: 'Could not send invitation. Please try again.' })
+      const fallbackMessage = error instanceof Error && error.message ? error.message : null
+      setFeedback({
+        type: 'error',
+        message: fallbackMessage ?? 'Could not send invitation. Please try again.'
+      })
     } finally {
       setSubmitting(false)
     }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 
 import { getAuthenticatedUser, getArtistProfile } from './utils'
+import { sendArtistMemberInviteEmail } from '../../../lib/send-member-invite'
 
 export async function GET() {
   const { supabase, user, error: authError } = await getAuthenticatedUser()
@@ -150,25 +151,33 @@ export async function POST(request: NextRequest) {
     ? roles.filter((val: unknown): val is string => typeof val === 'string' && val.trim().length > 0)
     : undefined
 
-  const { error: functionError } = await supabase.functions.invoke('send-member-invite', {
-    body: {
+  try {
+    const emailResult = await sendArtistMemberInviteEmail({
       email: email.trim().toLowerCase(),
       token: invitationToken,
       role: role ?? null,
-      roles: rolesPayload,
+      roles: rolesPayload ?? null,
       name: fullName || null,
       artistName: profile.stage_name ?? null,
       invitedBy: user.email ?? undefined,
       ownerRoles,
       expiresAt: invitationExpiresAt.toISOString()
-    }
-  })
+    })
+    console.log('📬 Email send result:', emailResult)
+  } catch (functionError) {
+    console.error('❌ Artist members POST: failed to send invite email via Resend', functionError)
 
-  if (functionError) {
-    console.warn('Artist members POST: failed to trigger send-member-invite', functionError)
+    await supabase
+      .from('artist_member_invitations')
+      .delete()
+      .eq('id', data.id)
+      .eq('user_id', user.id)
+      .eq('artist_profile_id', profile.id)
+
+    return NextResponse.json({ error: 'Failed to send invitation email. Please try again.' }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true, data })
+  return NextResponse.json({ success: true, data, message: 'Invitation sent' })
 }
 
 export async function DELETE(request: NextRequest) {

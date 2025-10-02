@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, Bell, ArrowLeft } from "lucide-react";
+import { Search, Bell, ArrowLeft, Menu } from "lucide-react";
 import { useAuth } from "../../../lib/auth-context";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getClient } from "../../../lib/supabase/client";
 
-export function FanHeader() {
+interface FanHeaderProps {
+  onOpenSidebar?: () => void
+}
+
+export function FanHeader({ onOpenSidebar }: FanHeaderProps) {
   const { user, signOut, loading } = useAuth();
   const [displayName, setDisplayName] = useState<string>("");
   const [initial, setInitial] = useState<string>("U");
@@ -159,56 +163,80 @@ export function FanHeader() {
   }
 
   return (
-    <div className="flex items-center justify-between p-6 bg-[#2a1b3d]">
-      {/* Back Button */}
-      <Link
-        href="/fan-dashboard"
-        className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        <span className="text-sm">Back to Dashboard</span>
-      </Link>
-
-      {/* Search */}
-      <div className="flex-1 max-w-md mx-8">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <input
-            type="text"
-            placeholder="Search"
-            className="w-full bg-[#1a1a2e] border border-gray-600 rounded-full pl-10 pr-4 py-2 text-white placeholder-gray-400 focus:border-purple-500 focus:outline-none"
-          />
-        </div>
-      </div>
-      
-      <div className="flex items-center space-x-4">
-        <button className="p-2 text-gray-400 hover:text-white">
-          <Bell className="w-5 h-5" />
-        </button>
-        <div className="flex items-center space-x-3">
-          <label className="relative cursor-pointer">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt={displayName} className="w-8 h-8 rounded-full object-cover" />
-            ) : (
-              <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center">
-                <span className="text-white text-sm">{initial}</span>
-              </div>
-            )}
-            <input type="file" accept="image/*" className="absolute inset-0 opacity-0" onChange={onAvatarFileChange} disabled={uploading} />
-          </label>
-          <span className="text-white text-sm">{displayName}</span>
+    <div className="bg-[#2a1b3d]">
+      <div className="flex flex-wrap items-center gap-4 p-4 md:p-6">
+        <div className="flex items-center gap-3">
+          {onOpenSidebar && (
+            <button
+              type="button"
+              onClick={onOpenSidebar}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#1a1a2e] text-gray-200 hover:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-[#2a1b3d] lg:hidden"
+              aria-label="Open navigation"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+          )}
           <Link
-            href="/login"
-            onClick={async (e) => {
-              e.preventDefault()
-              const nav = () => router.replace('/login')
-              const timeout = setTimeout(nav, 500)
-              try { await signOut() } finally { clearTimeout(timeout); nav() }
-            }}
-            className="text-gray-400 hover:text-white text-sm transition-colors relative z-10 pointer-events-auto"
+            href="/fan-dashboard"
+            className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
           >
-            Sign Out
+            <ArrowLeft className="h-4 w-4" />
+            <span className="text-sm">Back to Dashboard</span>
           </Link>
+        </div>
+
+        {/* Search */}
+        <div className="order-3 w-full flex-1 md:order-none md:w-auto md:max-w-md md:flex md:justify-center">
+          <div className="relative w-full">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search"
+              className="w-full rounded-full border border-gray-600 bg-[#1a1a2e] py-2 pl-10 pr-4 text-sm text-white placeholder-gray-400 focus:border-purple-500 focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <div className="ml-auto flex items-center gap-3">
+          <button className="rounded-full p-2 text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-[#2a1b3d]">
+            <Bell className="h-5 w-5" />
+          </button>
+          <div className="flex items-center gap-3">
+            <label className="relative cursor-pointer">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={displayName} className="h-9 w-9 rounded-full object-cover" />
+              ) : (
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-600">
+                  <span className="text-sm text-white">{initial}</span>
+                </div>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                className="absolute inset-0 opacity-0"
+                onChange={onAvatarFileChange}
+                disabled={uploading}
+              />
+            </label>
+            <span className="text-sm text-white">{displayName}</span>
+            <Link
+              href="/login"
+              onClick={async (e) => {
+                e.preventDefault();
+                const nav = () => router.replace('/login');
+                const timeout = setTimeout(nav, 500);
+                try {
+                  await signOut();
+                } finally {
+                  clearTimeout(timeout);
+                  nav();
+                }
+              }}
+              className="relative z-10 text-sm text-gray-400 transition-colors hover:text-white"
+            >
+              Sign Out
+            </Link>
+          </div>
         </div>
       </div>
     </div>

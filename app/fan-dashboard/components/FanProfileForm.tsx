@@ -420,7 +420,7 @@ export function FanProfileForm() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {errorMessage && (
         <div className="p-3 rounded-lg text-sm bg-red-500/20 text-red-300 border border-red-500/30">
           {errorMessage}
@@ -438,8 +438,8 @@ export function FanProfileForm() {
       )}
 
       {/* Name Section */}
-      <div className="grid grid-cols-2 gap-6">
-        <div>
+      <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
+        <div className="space-y-2">
           <label className="block text-white mb-2">Your Name</label>
           <input
             type="text"
@@ -448,7 +448,7 @@ export function FanProfileForm() {
             onChange={(e) => handleInputChange("realName", e.target.value)}
             className="w-full bg-[#1a1a2e] border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:border-purple-500 focus:outline-none"
           />
-          <div className="flex items-center mt-2">
+          <div className="flex items-center gap-2 text-sm text-gray-400">
             <input
               type="checkbox"
               id="private-name"
@@ -456,13 +456,13 @@ export function FanProfileForm() {
               onChange={(e) => handleInputChange("isPrivate", e.target.checked)}
               className="mr-2 accent-purple-600"
             />
-            <label htmlFor="private-name" className="text-gray-400 text-sm">
+            <label htmlFor="private-name">
               Is Private (hidden from public; can&apos;t be searched by name)
             </label>
           </div>
         </div>
 
-        <div>
+        <div className="space-y-2">
           <label className="block text-white mb-2">Your Username</label>
           <input
             type="text"
@@ -475,7 +475,7 @@ export function FanProfileForm() {
       </div>
 
       {/* Bio Section */}
-      <div>
+      <div className="space-y-2">
         <label className="block text-white mb-2">Write Your Bio</label>
         <textarea
           placeholder="Start writing your bio here..."
@@ -487,7 +487,7 @@ export function FanProfileForm() {
       </div>
 
       {/* Email Section */}
-      <div>
+      <div className="space-y-2">
         <label className="block text-white mb-2">Email Address</label>
         <input
           type="email"
@@ -499,9 +499,9 @@ export function FanProfileForm() {
       </div>
 
       {/* Location Section */}
-      <div>
+      <div className="space-y-2">
         <label className="block text-white mb-2">Home Location</label>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid gap-4 sm:grid-cols-3">
           <input
             type="text"
             placeholder="City/Village/Town"
@@ -524,7 +524,7 @@ export function FanProfileForm() {
             className="bg-[#1a1a2e] border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:border-purple-500 focus:outline-none"
           />
         </div>
-        <div className="flex items-center mt-2">
+        <div className="flex items-center gap-2 text-sm text-gray-400">
           <input
             type="checkbox"
             id="private-location"
@@ -532,7 +532,7 @@ export function FanProfileForm() {
             onChange={(e) => handleInputChange("isLocationPrivate", e.target.checked)}
             className="mr-2 accent-purple-600"
           />
-          <label htmlFor="private-location" className="text-gray-400 text-sm">
+          <label htmlFor="private-location">
             Is Private (hidden from public) Location is used for distances in Gigs
           </label>
         </div>
@@ -542,18 +542,18 @@ export function FanProfileForm() {
       {/* Music Genres moved to /fan-dashboard/genres */}
 
       {/* Action Buttons */}
-      <div className="flex justify-between pt-6">
-        <button 
+      <div className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <button
           onClick={() => saveProfile(false)}
           disabled={saving}
-          className="text-purple-400 hover:text-purple-300 transition-colors disabled:opacity-50"
+          className="text-sm text-purple-300 transition-colors hover:text-purple-200 disabled:opacity-50"
         >
           {saving ? "Saving..." : "Save Details"}
         </button>
-        <button 
+        <button
           onClick={() => saveProfile(true)}
           disabled={saving}
-          className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-lg transition-colors disabled:opacity-50"
+          className="inline-flex w-full items-center justify-center rounded-lg bg-purple-600 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-purple-700 disabled:opacity-50 sm:w-auto"
         >
           {saving ? "Saving..." : "Next"}
         </button>

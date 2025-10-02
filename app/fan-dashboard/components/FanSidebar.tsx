@@ -5,8 +5,14 @@ import { Settings, User, Image, Video, CreditCard, LogOut, RefreshCw, Eye, Edit3
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../../lib/auth-context";
+import { cn } from "../../components/ui/utils";
 
-export function FanSidebar() {
+interface FanSidebarProps {
+  onNavigate?: () => void
+  className?: string
+}
+
+export function FanSidebar({ onNavigate, className }: FanSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, signOut } = useAuth();
@@ -64,11 +70,18 @@ export function FanSidebar() {
   const handleSignOut = async () => {
     const nav = () => router.replace('/login');
     const timeout = setTimeout(nav, 500);
-    try { await signOut() } finally { clearTimeout(timeout); nav() }
+    try {
+      await signOut()
+    } finally {
+      clearTimeout(timeout);
+      nav();
+      onNavigate?.();
+    }
   };
 
   const handleUpgrade = () => {
     router.push('/upgrade?type=full-fan');
+    onNavigate?.();
   };
 
   const handleSwitchProfile = async () => {
@@ -94,6 +107,7 @@ export function FanSidebar() {
       // Fallback to profile setup on error
       router.push('/profile-setup');
     }
+    onNavigate?.();
   };
 
   const menuItems = [
@@ -116,8 +130,19 @@ export function FanSidebar() {
     { icon: LogOut, label: "Log Out", active: false, onClick: handleSignOut },
   ];
 
+  const runNavigate = (callback: () => void | Promise<void>) => {
+    return () => {
+      const result = callback();
+      if (result && typeof (result as Promise<unknown>).then === 'function') {
+        (result as Promise<unknown>).finally(() => onNavigate?.());
+      } else {
+        onNavigate?.();
+      }
+    };
+  };
+
   return (
-    <div className="w-64 bg-[#2a1b3d] h-full flex flex-col p-6">
+    <div className={cn("w-64 bg-[#2a1b3d] h-full flex flex-col p-6 overflow-y-auto", className)}>
       {/* Logo */}
       <div className="flex items-center mb-8">
         <img
@@ -184,7 +209,7 @@ export function FanSidebar() {
           {menuItems.map((item, index) => (
             <div
               key={index}
-              onClick={item.onClick}
+              onClick={runNavigate(item.onClick)}
               className={`flex items-center space-x-3 px-3 py-2 rounded-lg cursor-pointer ${
                 item.active ? "bg-purple-600/20 text-white" : "text-gray-400 hover:text-white hover:bg-purple-600/10"
               }`}
@@ -203,7 +228,7 @@ export function FanSidebar() {
           {activities.map((item, index) => (
             <div
               key={index}
-              onClick={item.onClick}
+              onClick={runNavigate(item.onClick)}
               className={`flex items-center space-x-3 px-3 py-2 rounded-lg cursor-pointer ${
                 item.active ? "bg-purple-600/20 text-white" : "text-gray-400 hover:text-white hover:bg-purple-600/10"
               }`}
@@ -224,7 +249,10 @@ export function FanSidebar() {
               <Link
                 key={index}
                 href="/login"
-                onClick={async (e) => { e.preventDefault(); await handleSignOut() }}
+                onClick={async (e) => {
+                  e.preventDefault();
+                  await handleSignOut();
+                }}
                 className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg relative z-10 pointer-events-auto ${
                   item.active ? "bg-purple-600/20 text-white" : "text-gray-400 hover:text-white hover:bg-purple-600/10"
                 }`}
@@ -236,7 +264,7 @@ export function FanSidebar() {
               <button
                 key={index}
                 type="button"
-                onClick={item.onClick}
+                onClick={runNavigate(item.onClick)}
                 className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg ${
                   item.active ? "bg-purple-600/20 text-white" : "text-gray-400 hover:text-white hover:bg-purple-600/10"
                 }`}

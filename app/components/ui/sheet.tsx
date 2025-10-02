@@ -81,25 +81,29 @@ function SheetContent({
   );
 }
 
-function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return (
+const SheetHeader = React.forwardRef<HTMLDivElement, React.ComponentProps<"div">>(
+  ({ className, ...props }, ref) => (
     <div
+      ref={ref}
       data-slot="sheet-header"
       className={cn("flex flex-col gap-1.5 p-4", className)}
       {...props}
     />
-  );
-}
+  ),
+);
+SheetHeader.displayName = "SheetHeader";
 
-function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
-  return (
+const SheetFooter = React.forwardRef<HTMLDivElement, React.ComponentProps<"div">>(
+  ({ className, ...props }, ref) => (
     <div
+      ref={ref}
       data-slot="sheet-footer"
       className={cn("mt-auto flex flex-col gap-2 p-4", className)}
       {...props}
     />
-  );
-}
+  ),
+);
+SheetFooter.displayName = "SheetFooter";
 
 function SheetTitle({
   className,

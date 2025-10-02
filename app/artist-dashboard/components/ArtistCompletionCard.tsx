@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useAuth } from "../../../lib/auth-context"
-import { HelpCircle, CheckCircle2, Circle } from "lucide-react"
+import { HelpCircle, CheckCircle2, Circle, Paintbrush } from "lucide-react"
 import { Badge } from "../../components/ui/badge"
 import { useSearchParams } from "next/navigation"
 
@@ -160,6 +160,7 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
 
   return (
     <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-xl shadow-sm">
+      <h2 className="sr-only">Artist profile completion</h2>
       <div className="flex flex-col">
         <div className="p-6 flex-shrink-0">
           <div className="text-center">

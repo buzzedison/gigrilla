@@ -16,7 +16,8 @@ import { ArtistPhotosManager } from "./components/ArtistPhotosManager"
 import { ArtistVideosManager } from "./components/ArtistVideosManager"
 import { ArtistTypeSelectorV2, ArtistTypeSelection } from "./components/ArtistTypeSelectorV2"
 import { Badge } from "../components/ui/badge"
-import { Music, Info } from "lucide-react"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet"
+import { Music, Info, Menu } from "lucide-react"
 import { getArtistTypeConfig, ArtistTypeCapabilities } from "../../data/artist-types"
 
 interface ArtistProfileResponse {
@@ -47,6 +48,7 @@ export default function ArtistDashboard() {
   const [isSavingArtistType, setIsSavingArtistType] = useState(false)
   const [completionState, setCompletionState] = useState<CompletionItemState[]>([])
   const [completionRefreshKey, setCompletionRefreshKey] = useState(0)
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
 
   const selectedTypeConfig = useMemo(() => {
     if (!artistTypeSelection) return undefined
@@ -303,43 +305,74 @@ export default function ArtistDashboard() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-[#4a2c5a] flex">
-        <div className="fixed left-0 top-0 h-full z-10">
+      <Sheet open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
+        <SheetContent side="left" className="w-full max-w-xs p-0 sm:max-w-sm">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Artist dashboard navigation</SheetTitle>
+          </SheetHeader>
           <ArtistSidebar
             activeSection={activeSection}
-            onSectionChange={setActiveSection}
+            onSectionChange={(section) => {
+              setActiveSection(section)
+              setIsMobileNavOpen(false)
+            }}
             capabilities={capabilities}
             completedSections={completionState.filter(item => item.completed).map(item => item.section)}
           />
-        </div>
+        </SheetContent>
 
-        <div className="flex-1 ml-64 overflow-y-auto">
-          <div className="p-6">
-            <div className="max-w-6xl mx-auto">
-              <div className="mb-6">
-                <div className="flex items-center justify-between flex-wrap gap-4">
-                  <div>
-                    <h1 className="text-3xl font-bold text-white mb-2">
+        <div className="min-h-screen bg-[#4a2c5a] lg:flex">
+          <div className="hidden lg:block">
+            <div className="fixed left-0 top-0 z-10 h-full w-64">
+              <ArtistSidebar
+                activeSection={activeSection}
+                onSectionChange={setActiveSection}
+                capabilities={capabilities}
+                completedSections={completionState.filter(item => item.completed).map(item => item.section)}
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto lg:ml-64">
+            <div className="p-4 sm:p-6">
+              <div className="mx-auto max-w-6xl">
+                <div className="mb-6">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex w-full items-center gap-3 lg:w-auto">
+                      <button
+                        type="button"
+                        onClick={() => setIsMobileNavOpen(true)}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#2a1b3d] text-white transition hover:bg-[#3a2550] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-[#4a2c5a] lg:hidden"
+                        aria-label="Open navigation"
+                      >
+                        <Menu className="h-5 w-5" />
+                      </button>
+                      <div>
+                        <h1 className="text-2xl font-bold text-white sm:text-3xl">
+                          {headerTitleMap[activeSection]}
+                        </h1>
+                        <p className="text-sm text-gray-300 sm:text-base">
+                          {headerSubtitleMap[activeSection]}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="bg-purple-600/20 text-purple-200 border-purple-500/30">
+                      <Music className="mr-2 h-4 w-4" />
                       {headerTitleMap[activeSection]}
-                    </h1>
-                    <p className="text-gray-300">
-                      {headerSubtitleMap[activeSection]}
-                    </p>
+                    </Badge>
                   </div>
-                  <Badge variant="secondary" className="bg-purple-600/20 text-purple-200 border-purple-500/30">
-                    <Music className="w-4 h-4 mr-2" />
-                    {headerTitleMap[activeSection]}
-                  </Badge>
                 </div>
+
+                <div className="space-y-6 lg:space-y-8">
+                  {renderContent(activeSection)}
+                </div>
+
+                <div className="h-20" />
               </div>
-
-              {renderContent(activeSection)}
-
-              <div className="h-20" />
             </div>
           </div>
         </div>
-      </div>
+      </Sheet>
     </ProtectedRoute>
   )
 }

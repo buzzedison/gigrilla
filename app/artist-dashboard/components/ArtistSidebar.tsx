@@ -42,6 +42,7 @@ interface ArtistSidebarProps {
   onSectionChange?: (section: ArtistDashboardSection) => void
   capabilities?: ArtistTypeCapabilities | null
   completedSections?: string[]
+  className?: string
 }
 
 function isSectionEnabled(section: ArtistDashboardSection, capabilities: ArtistTypeCapabilities | null | undefined) {
@@ -58,7 +59,7 @@ function isSectionEnabled(section: ArtistDashboardSection, capabilities: ArtistT
   }
 }
 
-export function ArtistSidebar({ activeSection = 'profile', onSectionChange, capabilities, completedSections = [] }: ArtistSidebarProps) {
+export function ArtistSidebar({ activeSection = 'profile', onSectionChange, capabilities, completedSections = [], className }: ArtistSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { signOut } = useAuth();
@@ -117,7 +118,7 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange, capa
   ];
 
   return (
-    <aside className="w-64 bg-[#2a1b3d] h-full flex flex-col p-6 overflow-y-auto">
+    <aside className={`w-64 bg-[#2a1b3d] h-full flex flex-col p-6 overflow-y-auto ${className ?? ''}`}>
       <div className="flex items-center mb-8">
         <img
           src="/logos/Gigrilla Logo-Word alongside Logo-Head Dark Pruple Cerise Clear-PNG 3556 x 1086.png"
