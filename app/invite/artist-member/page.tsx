@@ -1,3 +1,15 @@
+import { NextRequest, NextResponse } from 'next/server'
+
+export const runtime = 'edge'
+
+export function GET(request: NextRequest) {
+  const targetUrl = new URL(request.url)
+  targetUrl.protocol = 'https:'
+  targetUrl.host = process.env.NEXT_PUBLIC_APP_URL?.replace(/^https?:\/\//, '') || 'www.gigrilla.com'
+
+  return NextResponse.redirect(targetUrl, { headers: { 'Cache-Control': 'no-store' } })
+}
+
 import { AlertTriangle, CheckCircle2, Clock, Mail } from 'lucide-react'
 import Link from 'next/link'
 
