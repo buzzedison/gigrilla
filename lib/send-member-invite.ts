@@ -19,15 +19,9 @@ const verifiedDomain = 'updates.gigrilla.com'
 const configuredFromEmail = process.env.RESEND_FROM_EMAIL?.trim()
 const defaultFromEmail = `noreply@${verifiedDomain}`
 
-const fromEmail = configuredFromEmail && configuredFromEmail.toLowerCase().endsWith(`@${verifiedDomain}`)
+const fromEmail = configuredFromEmail && configuredFromEmail.length > 0
   ? configuredFromEmail
   : defaultFromEmail
-
-if (configuredFromEmail && !configuredFromEmail.toLowerCase().endsWith(`@${verifiedDomain}`)) {
-  console.warn(
-    `⚠️ RESEND_FROM_EMAIL (${configuredFromEmail}) is not using the verified domain ${verifiedDomain}; falling back to ${defaultFromEmail}`
-  )
-}
 
 function buildInviteEmail(payload: InviteEmailPayload) {
   const inviteUrl = `${appUrl.replace(/\/$/, '')}/invite/artist-member?token=${encodeURIComponent(payload.token)}`
