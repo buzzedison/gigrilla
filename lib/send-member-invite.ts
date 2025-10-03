@@ -12,7 +12,7 @@ interface InviteEmailPayload {
   expiresAt?: string
 }
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.gigrilla.com'
+const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://gigrilla.vercel.app'
 const resendApiKey = process.env.RESEND_API_KEY?.trim()
 
 const verifiedDomain = 'updates.gigrilla.com'
