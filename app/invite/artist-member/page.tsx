@@ -68,13 +68,13 @@ function formatDate(value: string | null) {
 }
 
 export const revalidate = 0
-
 export default async function ArtistMemberInvitePage({
   searchParams
 }: {
-  searchParams?: Record<string, string | string[] | undefined>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const tokenParam = searchParams?.token
+  const resolvedParams = searchParams ? await searchParams : undefined
+  const tokenParam = resolvedParams?.token
   const token = typeof tokenParam === 'string' ? tokenParam : null
 
   const missingServiceKey = !process.env.SUPABASE_SERVICE_ROLE_KEY
