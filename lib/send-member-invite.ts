@@ -13,11 +13,11 @@ interface InviteEmailPayload {
 }
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.gigrilla.com'
-const resendApiKey = process.env.RESEND_API_KEY
+const resendApiKey = process.env.RESEND_API_KEY?.trim()
 
 const verifiedDomain = 'updates.gigrilla.com'
 const configuredFromEmail = process.env.RESEND_FROM_EMAIL?.trim()
-const defaultFromEmail = `invites@${verifiedDomain}`
+const defaultFromEmail = `noreply@${verifiedDomain}`
 
 const fromEmail = configuredFromEmail && configuredFromEmail.toLowerCase().endsWith(`@${verifiedDomain}`)
   ? configuredFromEmail
