@@ -12,7 +12,7 @@ interface InviteEmailPayload {
   expiresAt?: string
 }
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://gigrilla.com'
+const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.gigrilla.com'
 const resendApiKey = process.env.RESEND_API_KEY
 
 const verifiedDomain = 'updates.gigrilla.com'
@@ -30,7 +30,7 @@ if (configuredFromEmail && !configuredFromEmail.toLowerCase().endsWith(`@${verif
 }
 
 function buildInviteEmail(payload: InviteEmailPayload) {
-  const inviteUrl = `${appUrl}/invite/artist-member?token=${encodeURIComponent(payload.token)}`
+  const inviteUrl = `${appUrl.replace(/\/$/, '')}/invite/artist-member?token=${encodeURIComponent(payload.token)}`
   const previewText = `${payload.invitedBy ?? 'A Gigrilla artist'} invited you to join their team.`
 
   const rolesLine = Array.isArray(payload.roles) && payload.roles.length > 0
