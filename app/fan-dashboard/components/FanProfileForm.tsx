@@ -121,13 +121,13 @@ export function FanProfileForm() {
         });
         const startTime = Date.now();
 
-        // First, let's verify the user is properly authenticated by checking session
+        // First, let's verify the user is properly authenticated
         const supabase = getClient();
-        const sessionCheck = await supabase.auth.getSession();
-        console.log('FanProfileForm: Session check result:', {
-          hasSession: !!sessionCheck.data.session,
-          userId: sessionCheck.data.session?.user?.id,
-          matches: sessionCheck.data.session?.user?.id === user.id
+        const userCheck = await supabase.auth.getUser();
+        console.log('FanProfileForm: User check result:', {
+          hasUser: !!userCheck.data.user,
+          userId: userCheck.data.user?.id,
+          matches: userCheck.data.user?.id === user.id
         });
 
         console.log('FanProfileForm: Using API endpoint for data fetching...');
@@ -299,24 +299,24 @@ export function FanProfileForm() {
       console.log('FanProfileForm: Profile data to save:', profileData);
 
       // Check authentication state first with a short timeout; fallback to user context
-      console.log('FanProfileForm: Fetching session to verify auth...');
+      console.log('FanProfileForm: Fetching user to verify auth...');
       let sessionUserId: string | null = null;
       try {
         const supabaseClient = getClient();
-        const sessionPromise = supabaseClient.auth.getSession();
-        const sessionResult = await Promise.race([
-          sessionPromise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Session fetch timeout')), 2000))
-        ]) as { data?: { session?: { user?: { id?: string } } } };
-        if (sessionResult?.data?.session?.user?.id) {
-          sessionUserId = sessionResult.data.session.user.id as string;
+        const userPromise = supabaseClient.auth.getUser();
+        const userResult = await Promise.race([
+          userPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('User fetch timeout')), 2000))
+        ]) as { data?: { user?: { id?: string } } };
+        if (userResult?.data?.user?.id) {
+          sessionUserId = userResult.data.user.id as string;
           console.log('FanProfileForm: Authentication verified, user ID:', sessionUserId);
         } else {
-          console.warn('FanProfileForm: No session returned, proceeding with auth context user');
+          console.warn('FanProfileForm: No user returned, proceeding with auth context user');
           sessionUserId = user.id;
         }
       } catch (e) {
-        console.warn('FanProfileForm: Session fetch failed/timeout, proceeding with auth context user:', e);
+        console.warn('FanProfileForm: User fetch failed/timeout, proceeding with auth context user:', e);
         sessionUserId = user.id;
       }
 

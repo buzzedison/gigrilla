@@ -28,17 +28,17 @@ export async function GET() {
       }
     )
 
-    const { data: { session }, error } = await supabase.auth.getSession()
+    const { data: { user }, error } = await supabase.auth.getUser()
 
     if (error) {
-      console.error('Session API: Error getting session:', error)
+      console.error('Session API: Error getting user:', error)
       return NextResponse.json(
         { error: error.message },
         { status: 500 }
       )
     }
 
-    if (!session) {
+    if (!user) {
       return NextResponse.json(
         { 
           user: null, 
@@ -48,11 +48,11 @@ export async function GET() {
       )
     }
 
-    console.log('Session API: Session found for user:', session.user.id)
+    console.log('Session API: User authenticated:', user.id)
 
     return NextResponse.json({
-      user: session.user,
-      session: session,
+      user: user,
+      session: { user }, // Maintain backward compatibility
       authenticated: true
     })
 
