@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useAuth } from "../../../lib/auth-context"
-import { HelpCircle, CheckCircle2, Circle, Paintbrush } from "lucide-react"
+import { HelpCircle, CheckCircle2, Circle } from "lucide-react"
 import { Badge } from "../../components/ui/badge"
 import { useSearchParams } from "next/navigation"
 
@@ -233,4 +233,3 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
     </div>
   )
 }
-

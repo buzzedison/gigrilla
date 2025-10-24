@@ -3,6 +3,7 @@ import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
 import { useAuth } from "../../lib/auth-context";
+import Image from "next/image";
 
 interface LoginPageProps {
   onNavigate: (page: "login" | "signup" | "genres" | "dashboard" | "fan-dashboard") => void;
@@ -75,10 +76,13 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
       <div className="flex-1 flex flex-col justify-center px-8 bg-white">
         {/* Logo */}
         <div className="mb-8">
-          <img
+          <Image
             src="/logos/Gigrilla Logo-Word alongside Logo-Head Dark Pruple Cerise Clear-PNG 3556 x 1086.png"
             alt="Gigrilla Logo"
+            width={200}
+            height={60}
             className="h-12 w-auto"
+            priority
           />
         </div>
 

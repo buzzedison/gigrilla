@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { useAuth } from "../../lib/auth-context";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 // import { createClient } from "../../lib/supabase/client";
 
@@ -327,10 +328,13 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
       <div className="w-full max-w-2xl space-y-8">
         {/* Logo */}
         <div className="flex justify-center">
-          <img
+          <Image
             src="/logos/Gigrilla Logo-Word alongside Logo-Head Dark Pruple Cerise Clear-PNG 3556 x 1086.png"
             alt="Gigrilla Logo"
+            width={200}
+            height={60}
             className="h-12 w-auto"
+            priority
           />
         </div>
 

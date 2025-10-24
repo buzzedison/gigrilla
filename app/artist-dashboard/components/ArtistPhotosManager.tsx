@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { Upload, Image as ImageIcon, Edit2, Trash2, Star } from 'lucide-react';
+import Image from 'next/image';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Badge } from '../../components/ui/badge';
@@ -216,11 +217,13 @@ export function ArtistPhotosManager() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {photos.map((photo) => (
             <div key={photo.id} className="relative group">
-              <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
-                <img
+              <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                <Image
                   src={photo.url}
                   alt={photo.caption}
-                  className="w-full h-full object-cover"
+                  fill
+                  sizes="(min-width: 768px) 25vw, 50vw"
+                  className="object-cover"
                 />
                 {/* Overlay controls */}
                 <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 flex items-center justify-center">

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Search, Bell, ArrowLeft, Menu } from "lucide-react";
+import Image from "next/image";
 import { useAuth } from "../../../lib/auth-context";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -18,11 +19,6 @@ export function FanHeader({ onOpenSidebar }: FanHeaderProps) {
   const [avatarUrl, setAvatarUrl] = useState<string>("");
   const [uploading, setUploading] = useState<boolean>(false);
   const router = useRouter();
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.replace('/login');
-  };
 
   useEffect(() => {
     let isMounted = true;
@@ -204,7 +200,7 @@ export function FanHeader({ onOpenSidebar }: FanHeaderProps) {
           <div className="flex items-center gap-3">
             <label className="relative cursor-pointer">
               {avatarUrl ? (
-                <img src={avatarUrl} alt={displayName} className="h-9 w-9 rounded-full object-cover" />
+                <Image src={avatarUrl} alt={displayName} width={36} height={36} className="h-9 w-9 rounded-full object-cover" />
               ) : (
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-600">
                   <span className="text-sm text-white">{initial}</span>
@@ -242,4 +238,3 @@ export function FanHeader({ onOpenSidebar }: FanHeaderProps) {
     </div>
   );
 }
-

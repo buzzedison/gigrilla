@@ -12,18 +12,17 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return
     
-    // Immediately redirect all logged-in users to fan dashboard
-    console.log('Dashboard: Redirecting logged-in user to fan-dashboard')
-    router.replace('/fan-dashboard')
+    console.log('Dashboard: Redirecting logged-in user to control-panel')
+    router.replace('/control-panel')
   }, [user, router])
 
   // Show minimal loading state while redirecting
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-slice-azure/40">
         <div className="text-center">
-          <div className="w-2 h-2 bg-purple-600 rounded-full animate-pulse mx-auto mb-4"></div>
-          <p className="text-gray-600">Redirecting to your dashboard...</p>
+          <div className="mx-auto mb-4 h-2 w-2 animate-pulse rounded-full bg-primary"></div>
+          <p className="text-foreground/70">Redirecting to your control panel...</p>
         </div>
       </div>
     </ProtectedRoute>

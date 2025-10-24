@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ComponentType } from "react";
+import Image from "next/image";
 import {
   User,
   Users,
@@ -120,9 +121,11 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange, capa
   return (
     <aside className={`w-64 bg-[#2a1b3d] h-full flex flex-col p-6 overflow-y-auto ${className ?? ''}`}>
       <div className="flex items-center mb-8">
-        <img
+        <Image
           src="/logos/Gigrilla Logo-Word alongside Logo-Head Dark Pruple Cerise Clear-PNG 3556 x 1086.png"
           alt="Gigrilla Logo"
+          width={160}
+          height={48}
           className="h-8 w-auto"
         />
       </div>

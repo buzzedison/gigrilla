@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Upload, Video, X, Edit2, Trash2, Star, Play, Plus, Youtube } from 'lucide-react';
+import { useState } from 'react';
+import { Video, Edit2, Trash2, Star, Play, Youtube } from 'lucide-react';
+import Image from 'next/image';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Badge } from '../../components/ui/badge';
@@ -43,8 +44,8 @@ export function ArtistVideosManager() {
     }
   ]);
 
-  const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
-  const [newVideo, setNewVideo] = useState<VideoItem | null>(null);
+const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
+const [newVideo, setNewVideo] = useState<VideoItem | null>(null);
 
   const handleYoutubeEmbed = () => {
     if (newYoutubeUrl.trim()) {
@@ -81,16 +82,6 @@ export function ArtistVideosManager() {
     setVideos(prev => prev.map(video =>
       video.id === id ? { ...video, title: newTitle } : video
     ));
-  };
-
-  const handleUpload = () => {
-    // TODO: Implement actual video processing
-    console.log('Processing videos:', videos);
-  };
-
-  const getYoutubeThumbnail = (url: string) => {
-    const videoId = extractVideoId(url);
-    return videoId ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` : '';
   };
 
   return (
@@ -146,11 +137,13 @@ export function ArtistVideosManager() {
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="space-y-3">
                   <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden">
-                    <img
-                      src={newVideo.thumbnail}
-                      alt={newVideo.title}
-                      className="w-full h-full object-cover"
-                    />
+                <Image
+                  src={newVideo.thumbnail}
+                  alt={newVideo.title}
+                  fill
+                  sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+                  className="object-cover"
+                />
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg">
                         <Play className="w-6 h-6 text-gray-900 ml-1" />
@@ -196,10 +189,12 @@ export function ArtistVideosManager() {
           {videos.map((video) => (
             <div key={video.id} className="relative group">
               <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden relative">
-                <img
+                <Image
                   src={video.thumbnail}
                   alt={video.title}
-                  className="w-full h-full object-cover"
+                  fill
+                  sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+                  className="object-cover"
                 />
                 {/* Play button overlay */}
                 <div className="absolute inset-0 flex items-center justify-center">

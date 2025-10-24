@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Settings, User, Image, Video, CreditCard, LogOut, RefreshCw, Eye, Edit3, Menu, Crown, ArrowRightLeft } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Settings, User, Image as ImageIcon, Video, CreditCard, LogOut, RefreshCw, Eye, Edit3, Menu, Crown, ArrowRightLeft } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../../lib/auth-context";
 import { cn } from "../../components/ui/utils";
+import NextImage from "next/image";
 
 interface FanSidebarProps {
   onNavigate?: () => void
@@ -18,7 +19,7 @@ export function FanSidebar({ onNavigate, className }: FanSidebarProps) {
   const { user, signOut } = useAuth();
   const [accountType, setAccountType] = useState<string>('guest');
 
-  const loadAccountType = async () => {
+  const loadAccountType = useCallback(async () => {
     try {
       if (!user?.id) return;
       console.log('FanSidebar: Fetching fan status from API...');
@@ -42,11 +43,11 @@ export function FanSidebar({ onNavigate, className }: FanSidebarProps) {
       console.warn('FanSidebar: Exception fetching account_type, defaulting to guest:', e);
       setAccountType('guest');
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     loadAccountType();
-  }, [user?.id]);
+  }, [user?.id, loadAccountType]);
 
   // Refresh account type when pathname changes (e.g., returning from payment)
   useEffect(() => {
@@ -54,13 +55,13 @@ export function FanSidebar({ onNavigate, className }: FanSidebarProps) {
       console.log('FanSidebar: Returned to dashboard, refreshing account type...');
       loadAccountType();
     }
-  }, [pathname]);
+  }, [pathname, loadAccountType]);
 
   // Listen for page focus to refresh account type (when user returns from payment)
   useEffect(() => {
     const handleFocus = () => {
       console.log('FanSidebar: Page focused, refreshing account type...');
-      loadAccountType();
+        loadAccountType();
     };
 
     window.addEventListener('focus', handleFocus);
@@ -84,40 +85,14 @@ export function FanSidebar({ onNavigate, className }: FanSidebarProps) {
     onNavigate?.();
   };
 
-  const handleSwitchProfile = async () => {
-    try {
-      if (!user?.id) return;
-
-      // Check if user already has an artist profile
-      console.log('FanSidebar: Checking for existing artist profile...');
-      const response = await fetch('/api/artist-profile');
-      const result = await response.json();
-
-      if (result.data) {
-        // User has an artist profile, go directly to artist dashboard
-        console.log('FanSidebar: Artist profile found, redirecting to artist dashboard');
-        router.push('/artist-dashboard');
-      } else {
-        // No artist profile found, go to profile setup
-        console.log('FanSidebar: No artist profile found, redirecting to profile setup');
-        router.push('/profile-setup');
-      }
-    } catch (error) {
-      console.error('FanSidebar: Error checking artist profile:', error);
-      // Fallback to profile setup on error
-      router.push('/profile-setup');
-    }
-    onNavigate?.();
-  };
-
   const menuItems = [
     { icon: Menu, label: "Main Dashboard", active: false, onClick: () => router.replace('/fan-dashboard') },
   ];
 
   const activities = [
     { icon: User, label: "About You", active: true, onClick: () => {} },
-    { icon: Image, label: "Profile Pictures", active: false, onClick: () => {} },
-    { icon: Image, label: "Photos", active: false, onClick: () => {} },
+    { icon: ImageIcon, label: "Profile Pictures", active: false, onClick: () => {} },
+    { icon: ImageIcon, label: "Photos", active: false, onClick: () => {} },
     { icon: Video, label: "Videos", active: false, onClick: () => {} },
   ];
 
@@ -145,10 +120,13 @@ export function FanSidebar({ onNavigate, className }: FanSidebarProps) {
     <div className={cn("w-64 bg-[#2a1b3d] h-full flex flex-col p-6 overflow-y-auto", className)}>
       {/* Logo */}
       <div className="flex items-center mb-8">
-        <img
+        <NextImage
           src="/logos/Gigrilla Logo-Word alongside Logo-Head Dark Pruple Cerise Clear-PNG 3556 x 1086.png"
           alt="Gigrilla Logo"
+          width={160}
+          height={48}
           className="h-8 w-auto"
+          priority
         />
       </div>
 
@@ -279,4 +257,3 @@ export function FanSidebar({ onNavigate, className }: FanSidebarProps) {
     </div>
   );
 }
-

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Lexend } from "next/font/google";
+import { Geist, Geist_Mono, Lexend, Rajdhani } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../lib/auth-context";
 import PasswordProtection from './components/PasswordProtection';
@@ -17,6 +17,13 @@ const geistMono = Geist_Mono({
 const lexend = Lexend({
   variable: "--font-lexend",
   subsets: ["latin"],
+  display: "swap",
+});
+
+const rajdhani = Rajdhani({
+  variable: "--font-rajdhani",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
@@ -51,7 +58,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${lexend.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${lexend.variable} ${rajdhani.variable} antialiased`}
       >
         <AuthProvider>
           <PasswordProtection>

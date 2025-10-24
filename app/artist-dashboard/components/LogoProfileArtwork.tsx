@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { Upload, Image as ImageIcon, X } from 'lucide-react';
 import { Button } from '../../components/ui/button';
-import { Badge } from '../../components/ui/badge';
+import Image from 'next/image';
 
 export function LogoProfileArtwork() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -123,9 +123,11 @@ export function LogoProfileArtwork() {
             {logoPreview ? (
               <div className="space-y-4">
                 <div className="relative inline-block">
-                  <img
+                  <Image
                     src={logoPreview}
                     alt="Logo preview"
+                    width={128}
+                    height={128}
                     className="w-32 h-32 object-cover rounded-lg border-2 border-gray-200"
                   />
                   <button
@@ -216,9 +218,11 @@ export function LogoProfileArtwork() {
             {artworkPreview ? (
               <div className="space-y-4">
                 <div className="relative inline-block">
-                  <img
+                  <Image
                     src={artworkPreview}
                     alt="Artwork preview"
+                    width={256}
+                    height={170}
                     className="w-48 h-32 object-cover rounded-lg border-2 border-gray-200"
                   />
                   <button

@@ -1,9 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Radio, Music, Mic, Headphones, Users, Palette } from 'lucide-react';
+import { ChevronDown, ChevronUp, Music, Mic, Headphones, Users, Palette } from 'lucide-react';
 import { Button } from '../../components/ui/button';
-import { Badge } from '../../components/ui/badge';
 
 interface ArtistType {
   id: number;
