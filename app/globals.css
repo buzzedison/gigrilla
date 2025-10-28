@@ -5,8 +5,9 @@
 
 :root {
   --font-size: 16px;
-  --font-family-base: var(--font-lexend), system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-  --font-family-heading: var(--font-rajdhani), var(--font-lexend), system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-family-base: var(--font-lexend);
+  --font-family-heading: var(--font-rajdhani);
+  --font-family-ui: var(--font-rajdhani);
   --background: #ffffff;
   --foreground: #3B5B79; /* Lapis Lazuli */
   --foreground-alt: #A73C7A; /* Magenta Haze */
@@ -29,6 +30,8 @@
   --input: rgba(59, 91, 121, 0.08);
   --input-background: rgba(220, 244, 250, 0.32);
   --switch-background: rgba(59, 91, 121, 0.18);
+  --font-weight-bold: 700;
+  --font-weight-semi-bold: 600;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
   --ring: rgba(167, 60, 122, 0.35);
@@ -109,6 +112,9 @@
 }
 
 @theme inline {
+  --font-sans: var(--font-family-base);
+  --font-heading: var(--font-family-heading);
+  --font-ui: var(--font-family-ui);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -166,79 +172,95 @@
     @apply border-border outline-ring/50;
   }
 
+  html {
+    font-family: var(--font-family-base);
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-family-base);
   }
-}
 
-/**
- * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
- */
-@layer base {
-:where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) {
-    h1 {
-      font-family: var(--font-family-heading);
-      font-size: var(--text-3xl);
-      font-weight: 700;
-      letter-spacing: 0.02em;
-      line-height: 1.2;
-    }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-family-heading);
+    font-weight: var(--font-weight-bold);
+  }
 
-    h2 {
-      font-family: var(--font-family-heading);
-      font-size: var(--text-2xl);
-      font-weight: 600;
-      letter-spacing: 0.015em;
-      line-height: 1.3;
-    }
+  h1 {
+    font-size: var(--text-3xl);
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+  }
 
-    h3 {
-      font-size: var(--text-lg);
-      font-family: var(--font-family-heading);
-      font-weight: 600;
-      letter-spacing: 0.01em;
-      line-height: 1.4;
-    }
+  h2 {
+    font-size: var(--text-2xl);
+    letter-spacing: 0.015em;
+    line-height: 1.3;
+  }
 
-    h4 {
-      font-size: var(--text-base);
-      font-family: var(--font-family-heading);
-      font-weight: 600;
-      letter-spacing: 0.01em;
-      line-height: 1.4;
-    }
+  h3 {
+    font-size: var(--text-lg);
+    letter-spacing: 0.01em;
+    line-height: 1.4;
+  }
 
-    p {
-      font-size: var(--text-base);
-      font-weight: var(--font-weight-normal);
-      line-height: 1.5;
-      color: var(--foreground);
-    }
+  h4 {
+    font-size: var(--text-base);
+    letter-spacing: 0.01em;
+    line-height: 1.4;
+  }
 
-    a {
-      font-family: var(--font-family-base);
-      font-weight: var(--font-weight-medium);
-      color: inherit;
-    }
+  h5 {
+    font-family: var(--font-family-heading);
+    font-weight: var(--font-weight-medium);
+    font-size: var(--text-base);
+    letter-spacing: 0.005em;
+    line-height: 1.4;
+  }
 
-    label {
-      font-size: var(--text-base);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
-    }
+  p,
+  li,
+  span,
+  div {
+    font-family: var(--font-family-base);
+  }
 
-    button {
-      font-size: var(--text-base);
-      font-weight: var(--font-weight-medium);
-      line-height: 1.5;
-    }
+  strong,
+  b,
+  .body-highlight {
+    font-family: var(--font-family-base);
+    font-weight: var(--font-weight-bold);
+  }
 
-    input {
-      font-size: var(--text-base);
-      font-weight: var(--font-weight-normal);
-      line-height: 1.5;
-    }
+  a {
+    font-family: var(--font-family-base);
+    font-weight: var(--font-weight-medium);
+    color: inherit;
+  }
+
+  label,
+  nav,
+  nav a,
+  button,
+  input,
+  select,
+  textarea,
+  th,
+  td {
+    font-family: var(--font-family-ui);
+    font-weight: var(--font-weight-semi-bold);
+  }
+
+  blockquote,
+  .text-help,
+  .help-text,
+  .quote-text {
+    font-family: var(--font-family-ui);
+    font-weight: var(--font-weight-medium);
+    font-style: italic;
   }
 }
 

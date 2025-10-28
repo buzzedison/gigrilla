@@ -40,7 +40,7 @@ export function Header() {
           href={item.href}
           onClick={onNavigate}
           className={cn(
-            "uppercase tracking-[0.18em] text-[0.7rem] font-medium transition-colors duration-200",
+            "uppercase tracking-[0.12em] text-sm lg:text-base font-semibold transition-colors duration-200",
             isActive(item.href)
               ? "text-primary"
               : "text-foreground/70 hover:text-primary",

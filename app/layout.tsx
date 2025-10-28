@@ -17,6 +17,8 @@ const geistMono = Geist_Mono({
 const lexend = Lexend({
   variable: "--font-lexend",
   subsets: ["latin"],
+  weight: ["400", "700"],
+  style: ["normal"],
   display: "swap",
 });
 
@@ -24,6 +26,7 @@ const rajdhani = Rajdhani({
   variable: "--font-rajdhani",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
+  style: ["normal"],
   display: "swap",
 });
 
@@ -56,10 +59,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} ${lexend.variable} ${rajdhani.variable} antialiased`}
-      >
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} ${lexend.variable} ${rajdhani.variable}`}
+    >
+      <body className="antialiased">
         <AuthProvider>
           <PasswordProtection>
             {children}

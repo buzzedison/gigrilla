@@ -622,6 +622,12 @@ export function SignUpWizard() {
     }
   }, [selectedMemberType]);
 
+  useEffect(() => {
+    if (selectedMemberType === "artist" && accountChoice !== "fan") {
+      setAccountChoice("fan");
+    }
+  }, [selectedMemberType, accountChoice]);
+
   const currentStep = steps[stepIndex] ?? steps[0];
   const isLastStep = stepIndex === steps.length - 1;
   const progressValue = steps.length ? ((stepIndex + 1) / steps.length) * 100 : 0;
@@ -1128,75 +1134,86 @@ export function SignUpWizard() {
     </div>
   );
 
-  const renderMembership = () => (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <Card
-        className={cn(
-          "border-border/60 transition hover:-translate-y-1 hover:shadow-lg",
-          accountChoice === "guest" && "border-primary shadow-lg",
-        )}
-      >
-        <CardHeader>
-          <Badge className="mb-3 w-fit rounded-full bg-accent px-3 py-1 text-[0.65rem] uppercase tracking-[0.2em] text-accent-foreground">
-            Guest Access
-          </Badge>
-          <CardTitle className="text-2xl text-foreground">Proceed as Guest</CardTitle>
-          <CardDescription className="text-sm text-foreground/80">
-            Limited free trial with view-only access to explore the platform.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <ul className="space-y-2 text-sm text-foreground/75">
-            {GUEST_LIMITATIONS.map((item) => (
-              <li key={item} className="pl-4">
-                • {item}
-              </li>
-            ))}
-          </ul>
-          <Button
-            onClick={() => setAccountChoice("guest")}
-            variant={accountChoice === "guest" ? "default" : "outline"}
-            className="mt-4 rounded-full px-4 py-2 text-[0.7rem] uppercase tracking-[0.18em]"
-          >
-            {accountChoice === "guest" ? "Selected" : "Choose Guest"}
-          </Button>
-        </CardContent>
-      </Card>
+  const renderMembership = () => {
+    const guestAllowed = selectedMemberType !== "artist";
 
-      <Card
+    return (
+      <div
         className={cn(
-          "border-border/60 transition hover:-translate-y-1 hover:shadow-lg",
-          accountChoice === "fan" && "border-primary shadow-lg",
+          "grid gap-6",
+          guestAllowed ? "lg:grid-cols-2" : "max-w-xl mx-auto",
         )}
       >
-        <CardHeader>
-          <Badge className="mb-3 w-fit rounded-full bg-primary/10 px-3 py-1 text-[0.65rem] uppercase tracking-[0.2em] text-primary">
-            Full Membership
-          </Badge>
-          <CardTitle className="text-2xl text-foreground">Proceed as Fan</CardTitle>
-          <CardDescription className="text-sm text-foreground/80">
-            £1 per year membership unlocks the full Fair Trade Music experience.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <ul className="space-y-2 text-sm text-foreground/75">
-            {FAN_MEMBERSHIP_BENEFITS.map((item) => (
-              <li key={item} className="pl-4">
-                • {item}
-              </li>
-            ))}
-          </ul>
-          <Button
-            onClick={() => setAccountChoice("fan")}
-            variant={accountChoice === "fan" ? "default" : "outline"}
-            className="mt-4 rounded-full px-4 py-2 text-[0.7rem] uppercase tracking-[0.18em]"
+        {guestAllowed && (
+          <Card
+            className={cn(
+              "border-border/60 transition hover:-translate-y-1 hover:shadow-lg",
+              accountChoice === "guest" && "border-primary shadow-lg",
+            )}
           >
-            {accountChoice === "fan" ? "Selected" : "Choose Fan"}
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
-  );
+            <CardHeader>
+              <Badge className="mb-3 w-fit rounded-full bg-accent px-3 py-1 text-[0.65rem] uppercase tracking-[0.2em] text-accent-foreground">
+                Guest Access
+              </Badge>
+              <CardTitle className="text-2xl text-foreground">Proceed as Guest</CardTitle>
+              <CardDescription className="text-sm text-foreground/80">
+                Limited free trial with view-only access to explore the platform.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <ul className="space-y-2 text-sm text-foreground/75">
+                {GUEST_LIMITATIONS.map((item) => (
+                  <li key={item} className="pl-4">
+                    • {item}
+                  </li>
+                ))}
+              </ul>
+              <Button
+                onClick={() => setAccountChoice("guest")}
+                variant={accountChoice === "guest" ? "default" : "outline"}
+                className="mt-4 rounded-full px-4 py-2 text-[0.7rem] uppercase tracking-[0.18em]"
+              >
+                {accountChoice === "guest" ? "Selected" : "Choose Guest"}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card
+          className={cn(
+            "border-border/60 transition hover:-translate-y-1 hover:shadow-lg",
+            accountChoice === "fan" && "border-primary shadow-lg",
+          )}
+        >
+          <CardHeader>
+            <Badge className="mb-3 w-fit rounded-full bg-primary/10 px-3 py-1 text-[0.65rem] uppercase tracking-[0.2em] text-primary">
+              Full Membership
+            </Badge>
+            <CardTitle className="text-2xl text-foreground">Proceed as Fan</CardTitle>
+            <CardDescription className="text-sm text-foreground/80">
+              £1 per year membership unlocks the full Fair Trade Music experience.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <ul className="space-y-2 text-sm text-foreground/75">
+              {FAN_MEMBERSHIP_BENEFITS.map((item) => (
+                <li key={item} className="pl-4">
+                  • {item}
+                </li>
+              ))}
+            </ul>
+            <Button
+              onClick={() => setAccountChoice("fan")}
+              variant={accountChoice === "fan" ? "default" : "outline"}
+              className="mt-4 rounded-full px-4 py-2 text-[0.7rem] uppercase tracking-[0.18em]"
+            >
+              {accountChoice === "fan" ? "Selected" : "Choose Fan"}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
 
   const renderFanAccountBasics = () => (
     <div className="space-y-6">

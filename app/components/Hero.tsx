@@ -112,7 +112,7 @@ export function Hero() {
   };
 
   return (
-    <section className="relative min-h-[90vh] overflow-hidden"
+    <section className="relative min-h-[75vh] overflow-hidden"
       style={{
         background:
           "radial-gradient(60rem 30rem at 80% -10%, rgba(200,146,199,0.35), transparent 70%), radial-gradient(50rem 25rem at 0% 110%, rgba(237, 0, 140, 0.25), transparent 70%), linear-gradient(180deg, #FFFFFF 0%, #F8F1F8 100%)",
@@ -225,7 +225,7 @@ export function Hero() {
             >
               <motion.h1
                 key={`heading-${active}`} // Re-animate heading on tab change
-                className="text-5xl lg:text-7xl font-bold leading-tight"
+                className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-snug tracking-tight"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
