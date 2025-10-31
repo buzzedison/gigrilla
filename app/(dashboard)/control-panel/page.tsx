@@ -42,7 +42,6 @@ const PROFILE_LINKS: ProfileLink[] = [
     description:
       "Add artist members, set royalty splits, publish releases, and manage gig bookings.",
     href: "/artist-dashboard",
-    disabled: true,
   },
   {
     key: "venue",
