@@ -2,13 +2,41 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
+const validatePassword = (password: string): { valid: boolean; error?: string } => {
+  if (password.length < 9) {
+    return { valid: false, error: 'Password must be at least 9 characters long' }
+  }
+  
+  if (!/[A-Z]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one capital letter' }
+  }
+  
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one number' }
+  }
+  
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one special character' }
+  }
+  
+  return { valid: true }
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, firstName, lastName } = await request.json()
+    const { email, password, firstName, lastName, memberType } = await request.json()
 
     if (!email || !password) {
       return NextResponse.json(
         { error: 'Email and password are required' },
+        { status: 400 }
+      )
+    }
+
+    const passwordValidation = validatePassword(password)
+    if (!passwordValidation.valid) {
+      return NextResponse.json(
+        { error: passwordValidation.error },
         { status: 400 }
       )
     }
@@ -37,6 +65,11 @@ export async function POST(request: NextRequest) {
       }
     )
 
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || request.nextUrl.origin
+    // Redirect to signup page with onboarding param to continue the flow after email verification
+    const onboardingType = memberType || 'fan'
+    const onboardingRedirect = `${siteUrl}/signup?onboarding=${onboardingType}`
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -45,8 +78,11 @@ export async function POST(request: NextRequest) {
           first_name: firstName,
           last_name: lastName,
           user_role: 'fan',
-          account_type: 'guest'
-        }
+          account_type: 'guest',
+          onboarding_member_type: memberType || 'fan',
+          onboarding_completed: false
+        },
+        emailRedirectTo: onboardingRedirect
       }
     })
 

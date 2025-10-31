@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 
 type AuthContextType = {
@@ -9,7 +9,7 @@ type AuthContextType = {
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<{ error: string | null }>
-  signUp: (email: string, password: string, firstName?: string, lastName?: string) => Promise<{ error: string | null; needsEmailVerification?: boolean }>
+  signUp: (email: string, password: string, firstName?: string, lastName?: string, memberType?: string) => Promise<{ error: string | null; needsEmailVerification?: boolean }>
   checkSession: () => Promise<void>
 }
 
@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   // Check session on mount
-  const checkSession = async () => {
+  const checkSession = useCallback(async () => {
     try {
       setLoading(true)
       const response = await fetch('/api/auth/session')
@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     checkSession()
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const signUp = async (email: string, password: string, firstName?: string, lastName?: string) => {
+  const signUp = async (email: string, password: string, firstName?: string, lastName?: string, memberType?: string) => {
     try {
       setLoading(true)
       const response = await fetch('/api/auth/signup', {
@@ -106,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password, firstName, lastName }),
+        body: JSON.stringify({ email, password, firstName, lastName, memberType }),
       })
 
       const data = await response.json()

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 import { Badge } from "../../components/ui/badge";
@@ -27,6 +27,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "../../components/ui/accordion";
 import { Textarea } from "../../components/ui/textarea";
 import { cn } from "../../components/ui/utils";
 import { useAuth } from "../../../lib/auth-context";
@@ -437,11 +443,38 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
 
+const validatePassword = (password: string): { valid: boolean; errors: string[] } => {
+  const errors: string[] = []
+  
+  if (password.length < 9) {
+    errors.push("Password must be at least 9 characters long")
+  }
+  
+  if (!/[A-Z]/.test(password)) {
+    errors.push("Password must contain at least one capital letter")
+  }
+  
+  if (!/[0-9]/.test(password)) {
+    errors.push("Password must contain at least one number")
+  }
+  
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    errors.push("Password must contain at least one special character")
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors
+  }
+}
+
 export function SignUpWizard() {
   const router = useRouter();
-  const { signUp, checkSession, user } = useAuth();
+  const searchParams = useSearchParams();
+  const { signUp, checkSession, user, loading: authLoading } = useAuth();
+  const onboardingParam = searchParams?.get('onboarding') as MemberType | null;
   const [isRegistered, setIsRegistered] = useState<boolean>(() => Boolean(user));
-  const [selectedMemberType, setSelectedMemberType] = useState<MemberType | null>(null);
+  const [selectedMemberType, setSelectedMemberType] = useState<MemberType | null>(onboardingParam || null);
   const [accountChoice, setAccountChoice] = useState<AccountChoice | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [selectedExtendedProfiles, setSelectedExtendedProfiles] = useState<AdditionalProfileKey[]>([]);
@@ -457,6 +490,9 @@ export function SignUpWizard() {
   });
   const [photoUploadError, setPhotoUploadError] = useState("");
   const [videoFormError, setVideoFormError] = useState("");
+  const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
+  const [hasCheckedEmailVerification, setHasCheckedEmailVerification] = useState(false);
+  const [hasResumedOnboarding, setHasResumedOnboarding] = useState(false);
 
   const [fanDetails, setFanDetails] = useState({
     firstName: "",
@@ -516,11 +552,114 @@ export function SignUpWizard() {
     hostSessions: true,
   });
 
+  // Handle email verification callback and check session when returning
+  useEffect(() => {
+    // Run if we have onboarding param but either:
+    // 1. No user yet (need to check session)
+    // 2. User exists but not registered (session might be set but state not updated)
+    if (onboardingParam && !authLoading && !hasCheckedEmailVerification && (!user || !isRegistered)) {
+      // User came back from email verification
+      // The middleware should have already processed the code and set the session
+      const handleEmailVerification = async () => {
+        setHasCheckedEmailVerification(true);
+        try {
+          const supabase = getClient();
+          
+          // Check for code parameter (Supabase email verification uses this)
+          // The middleware should have already processed it, but we need to clean up the URL
+          const queryParams = new URLSearchParams(window.location.search);
+          const code = queryParams.get('code');
+          
+          if (code) {
+            console.log('Found verification code in URL - middleware should have processed it');
+            // Clean up URL immediately - remove code param, keep onboarding param
+            const cleanUrl = window.location.pathname + (onboardingParam ? `?onboarding=${onboardingParam}` : '');
+            window.history.replaceState({}, '', cleanUrl);
+            
+            // Give middleware a moment to process, then check session
+            // The middleware should have already exchanged the code for a session
+            await new Promise(resolve => setTimeout(resolve, 100));
+            await checkSession();
+            // Mark as registered if we have a user
+            return;
+          }
+          
+          // Fallback: Check if there are tokens in the URL hash (older Supabase behavior)
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const accessToken = hashParams.get('access_token');
+          const refreshToken = hashParams.get('refresh_token');
+          
+          // Also check query params for tokens
+          const queryAccessToken = queryParams.get('access_token');
+          const queryRefreshToken = queryParams.get('refresh_token');
+          
+          const token = accessToken || queryAccessToken;
+          const refresh = refreshToken || queryRefreshToken;
+          
+          if (token && refresh) {
+            console.log('Found tokens in URL, exchanging for session...');
+            // Exchange tokens for session
+            const { data, error } = await supabase.auth.setSession({
+              access_token: token,
+              refresh_token: refresh,
+            });
+            
+            if (error) {
+              console.error('Error setting session from email verification:', error);
+            } else if (data.session) {
+              console.log('Session established from email verification tokens');
+              // Session established, refresh auth context
+              await checkSession();
+              // Mark as registered since we have a session
+              setIsRegistered(true);
+              // Clean up URL hash and query params
+              const cleanUrl = window.location.pathname + (onboardingParam ? `?onboarding=${onboardingParam}` : '');
+              window.history.replaceState({}, '', cleanUrl);
+            }
+          } else {
+            // No code or tokens in URL, might already be in cookies via middleware
+            // Just check session once
+            console.log('No code or tokens in URL, checking existing session...');
+            await checkSession();
+            // If we have a user after checkSession, mark as registered
+            // This will be handled by the useEffect that watches for user changes
+          }
+        } catch (error) {
+          console.error('Error handling email verification:', error);
+        }
+      };
+      
+      handleEmailVerification();
+    }
+  }, [onboardingParam, user, authLoading, hasCheckedEmailVerification, isRegistered, checkSession]);
+
   useEffect(() => {
     if (user && !isRegistered) {
+      console.log('User detected, setting isRegistered to true');
       setIsRegistered(true);
     }
-  }, [user, isRegistered]);
+    // Also set isRegistered if we have a user and onboarding param (came back from email verification)
+    if (user && onboardingParam && !isRegistered) {
+      console.log('User with onboarding param detected, setting isRegistered to true');
+      setIsRegistered(true);
+    }
+  }, [user, isRegistered, onboardingParam]);
+
+  // When onboarding param is present, initialize member type and account choice immediately
+  useEffect(() => {
+    if (onboardingParam) {
+      if (!selectedMemberType) {
+        console.log('Setting member type from onboarding param:', onboardingParam);
+        setSelectedMemberType(onboardingParam);
+      }
+      
+      // Artists must use "fan" membership - set this immediately so steps are built correctly
+      if (onboardingParam === "artist" && accountChoice !== "fan") {
+        console.log('Setting account choice to fan for artist (required)');
+        setAccountChoice("fan");
+      }
+    }
+  }, [onboardingParam, selectedMemberType, accountChoice]);
 
   useEffect(() => {
     const loadGenres = async () => {
@@ -594,10 +733,86 @@ export function SignUpWizard() {
     [baseSteps, personaStep],
   );
 
+  // Resume onboarding after email verification - run this after user is loaded AND steps are built
+  useEffect(() => {
+    const conditions = {
+      authReady: !authLoading,
+      hasUser: !!user,
+      hasOnboardingParam: !!onboardingParam,
+      hasSelectedMemberType: !!selectedMemberType,
+      accountChoiceIsFan: accountChoice === "fan",
+      registered: isRegistered,
+      notProcessing: !isProcessingStep,
+      hasSteps: steps.length > 0,
+    };
+
+    console.log('🔍 Resume check:', {
+      conditions,
+      hasResumedOnboarding,
+      currentStepIndex: stepIndex,
+      currentStepKey: steps[stepIndex]?.key,
+      allSteps: steps.map(s => s.key),
+    });
+
+    const allConditionsMet = Object.values(conditions).every(Boolean);
+
+    if (!allConditionsMet) {
+      if (onboardingParam && !authLoading) {
+        const missing = Object.entries(conditions)
+          .filter(([, value]) => !value)
+          .map(([key]) => key);
+        console.log('⏳ Waiting for resume conditions:', missing);
+      }
+      return;
+    }
+
+    // Only resume once we have everything AND we haven't already done it
+    if (hasResumedOnboarding) {
+      console.log('⏭️ Already resumed, skipping');
+      return;
+    }
+
+    if (selectedMemberType === "artist") {
+      const targetStepIndex = steps.findIndex((step) => step.key === "fan-music-preferences");
+      console.log('🎯 Looking for music preferences step:', {
+        found: targetStepIndex !== -1,
+        targetStepIndex,
+        allSteps: steps.map((s, i) => `${i}: ${s.key}`),
+      });
+      
+      if (targetStepIndex !== -1) {
+        console.log('✅ Artist email verified! Jumping to Music Preferences:', {
+          from: stepIndex,
+          to: targetStepIndex,
+          targetKey: steps[targetStepIndex]?.key,
+        });
+        setStepIndex(targetStepIndex);
+        setHasResumedOnboarding(true);
+      } else {
+        console.error('⚠️ Could not find fan-music-preferences step in steps array!');
+      }
+      return;
+    }
+
+    // For other member types, go to profile details
+    const profileDetailsIndex = steps.findIndex((step) => step.key === "fan-profile-details");
+    if (profileDetailsIndex !== -1) {
+      console.log('✅ Resuming onboarding at Fan Profile Details');
+      setStepIndex(profileDetailsIndex);
+      setHasResumedOnboarding(true);
+    }
+  }, [authLoading, user, onboardingParam, selectedMemberType, accountChoice, isRegistered, isProcessingStep, steps, hasResumedOnboarding, stepIndex]);
+
   useEffect(() => {
     if (steps.length === 0) return;
+    // Don't reset step if we're resuming onboarding - let the resume logic handle it
+    if (user && onboardingParam && selectedMemberType && isRegistered) {
+      // We're in resume mode, don't reset the step
+      return;
+    }
+    // Normal flow: make sure step index is within bounds
     setStepIndex((prev) => Math.min(prev, steps.length - 1));
-  }, [steps.length]);
+  }, [steps.length, user, onboardingParam, selectedMemberType, isRegistered]);
 
   useEffect(() => {
     if (!selectedMemberType) return;
@@ -649,6 +864,7 @@ export function SignUpWizard() {
       case "fan-account-basics": {
         const emailMatches = fanDetails.email === fanDetails.confirmEmail;
         const passwordsMatch = fanDetails.password === fanDetails.confirmPassword;
+        const passwordValidation = validatePassword(fanDetails.password);
         return (
           fanDetails.firstName.trim() &&
           fanDetails.lastName.trim() &&
@@ -657,7 +873,8 @@ export function SignUpWizard() {
           fanDetails.password.trim() &&
           fanDetails.confirmPassword.trim() &&
           emailMatches &&
-          passwordsMatch
+          passwordsMatch &&
+          passwordValidation.valid
         );
       }
       case "fan-profile-details":
@@ -673,14 +890,8 @@ export function SignUpWizard() {
           fanDetails.mainGenres.length >= 3
         );
       case "fan-payment":
-        return (
-          fanDetails.cardholderName.trim() &&
-          fanDetails.cardNumber.trim() &&
-          fanDetails.cardExpiry.trim() &&
-          fanDetails.cardCvc.trim() &&
-          fanDetails.termsAccepted &&
-          fanDetails.privacyAccepted
-        );
+        // Simulated payment - accept any input or empty fields
+        return true;
       case "fan-profile-picture":
         return Boolean(fanProfile.profilePictureUrl);
       case "fan-photos":
@@ -796,6 +1007,7 @@ export function SignUpWizard() {
           fanDetails.password,
           fanDetails.firstName,
           fanDetails.lastName,
+          selectedMemberType || undefined,
         );
 
         if (result.error) {
@@ -829,8 +1041,14 @@ export function SignUpWizard() {
 
     try {
       const supabase = getClient();
+      
+      if (!user?.id) {
+        throw new Error("User must be authenticated to upload profile picture");
+      }
+      
       const extension = file.name.split(".").pop() || "jpg";
-      const path = `fan-profile/${user?.id ?? "guest"}-${Date.now()}.${extension}`;
+      // Upload to userId/filename structure to match storage policy
+      const path = `${user.id}/${Date.now()}.${extension}`;
 
       const { error: uploadError } = await supabase.storage
         .from(PROFILE_PICTURE_BUCKET)
@@ -892,13 +1110,20 @@ export function SignUpWizard() {
     }
 
     const supabase = getClient();
+    
+    if (!user?.id) {
+      setPhotoUploadError("User must be authenticated to upload photos");
+      return;
+    }
+    
     const newPhotos: { name: string; url: string }[] = [];
     setPhotoUploadError("");
 
     for (const file of Array.from(fileList)) {
       try {
         const sanitisedName = file.name.replace(/\s+/g, "-");
-        const path = `fan-gallery/${user?.id ?? "guest"}/${Date.now()}-${sanitisedName}`;
+        // Upload to userId/filename structure to match storage policy
+        const path = `${user.id}/${Date.now()}-${sanitisedName}`;
 
         const { error: uploadError } = await supabase.storage
           .from(FAN_GALLERY_BUCKET)
@@ -1000,16 +1225,42 @@ export function SignUpWizard() {
         case "fan-profile-details":
         case "fan-music-preferences":
         case "fan-payment": {
-          stepCompleted = await submitFanDetails();
+          if (currentStep.key === "fan-payment") {
+            // Simulated payment - no actual payment processing
+            console.log('💰 Payment step: Simulated payment processing (accepting any input)');
+            stepCompleted = true;
+          } else {
+            // Try to save but don't block progression on errors
+            try {
+              stepCompleted = await submitFanDetails();
+              if (!stepCompleted) {
+                console.warn(`Failed to save ${currentStep.key}, but allowing advancement`);
+                stepCompleted = true;
+              }
+            } catch (error) {
+              console.error(`Error saving ${currentStep.key}, but allowing advancement:`, error);
+              stepCompleted = true; // Always allow progression
+            }
+          }
           break;
         }
         case "fan-videos": {
-          stepCompleted = await saveFanProfile();
+          // Videos are optional - try to save but don't block progression
+          try {
+            await saveFanProfile();
+          } catch (error) {
+            console.warn("SignUpWizard: Failed to save videos, but allowing progression", error);
+          }
+          stepCompleted = true; // Always allow progression
           break;
         }
         default:
           break;
       }
+    } catch (error) {
+      console.error('Error in handleNext:', error);
+      // Allow advancement even if there's an error - don't block user progress
+      stepCompleted = true;
     } finally {
       setIsProcessingStep(false);
     }
@@ -1019,6 +1270,7 @@ export function SignUpWizard() {
     }
 
     if (stepIndex < steps.length - 1) {
+      console.log(`Advancing from step ${stepIndex} (${currentStep.key}) to step ${stepIndex + 1} (${steps[stepIndex + 1]?.key})`);
       setStepIndex((prev) => Math.min(prev + 1, steps.length - 1));
     }
   };
@@ -1028,12 +1280,16 @@ export function SignUpWizard() {
   };
 
   const resetFlow = () => {
-    setSelectedMemberType(null);
+    // Don't reset selectedMemberType if we're resuming onboarding
+    if (!onboardingParam) {
+      setSelectedMemberType(null);
+    }
     setAccountChoice(null);
     setSelectedExtendedProfiles([]);
     setRegistrationError("");
     setNeedsEmailVerification(false);
     setIsProcessingStep(false);
+    setHasCheckedEmailVerification(false);
     setFanDetails({
       firstName: "",
       lastName: "",
@@ -1069,6 +1325,7 @@ export function SignUpWizard() {
     setProfilePictureState({ uploading: false, error: "" });
     setPhotoUploadError("");
     setVideoFormError("");
+    setPasswordErrors([]);
     setArtistSelection({ typeId: "", subType: "" });
     setVenueSelection({ typeId: "", subType: "" });
     setServiceDetails({
@@ -1290,12 +1547,28 @@ export function SignUpWizard() {
                 id="password"
                 type="password"
                 value={fanDetails.password}
-                onChange={(event) =>
-                  setFanDetails((prev) => ({ ...prev, password: event.target.value }))
-                }
+                onChange={(event) => {
+                  const newPassword = event.target.value
+                  setFanDetails((prev) => ({ ...prev, password: newPassword }))
+                  if (newPassword.length === 0) {
+                    setPasswordErrors([])
+                  } else {
+                    const validation = validatePassword(newPassword)
+                    setPasswordErrors(validation.errors)
+                  }
+                }}
                 placeholder="At least 9 characters inc. capital, number, special"
                 required
               />
+              {passwordErrors.length > 0 && (
+                <div className="space-y-1">
+                  {passwordErrors.map((error, index) => (
+                    <p key={index} className="text-xs text-destructive">
+                      {error}
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="space-y-1">
               <Label htmlFor="confirm-password">Confirm Password *</Label>
@@ -1430,114 +1703,300 @@ export function SignUpWizard() {
     </div>
   );
 
-  const renderFanMusicPreferences = () => (
-    <div className="mx-auto w-full max-w-3xl space-y-5">
-      <Card className="border-border/60">
-        <CardHeader>
-          <CardTitle className="text-xl text-foreground">Music Preferences</CardTitle>
-          <CardDescription className="text-sm text-foreground/75">
-            Pick the genres you love so we can tailor your recommendations.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {genreLookupError && (
-            <p className="text-xs text-foreground/60">{genreLookupError}</p>
-          )}
-          <section className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground/60">
-              Favourite Genre Families (pick at least 1)
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {GENRE_FAMILY_OPTIONS.map((family) => {
-                const id = `genre-family-${slugify(family)}`;
-                const checked = fanDetails.genreFamilies.includes(family);
-                return (
-                  <div key={family} className="flex items-center gap-2">
-                    <Checkbox
-                      id={id}
-                      checked={checked}
-                      onCheckedChange={() =>
+  const renderFanMusicPreferences = () => {
+    // Helper to get available main genres for a selected genre family
+    // For now, show all main genres (ideally this would be filtered by family)
+    const getMainGenresForFamily = (family: string) => MAIN_GENRE_OPTIONS;
+    
+    // Helper to get available sub genres for a selected main genre
+    // For now, show all sub genres (ideally this would be filtered by main genre)
+    const getSubGenresForMainGenre = (mainGenre: string) => SUB_GENRE_OPTIONS;
+
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-5">
+        <Card className="border-border/60">
+          <CardHeader>
+            <CardTitle className="text-xl text-foreground">Music Preferences</CardTitle>
+            <CardDescription className="text-sm text-foreground/75">
+              Pick at least 1 favourite Genre Family, and at least 3 Main Genres. Feel free to add your favourite Sub-Genres while you&apos;re here too…
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {genreLookupError && (
+              <p className="text-xs text-foreground/60">{genreLookupError}</p>
+            )}
+
+            {/* STEP 1: All Genre Families */}
+            <section className="space-y-3">
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground/60">
+                  All Genre Families
+                </p>
+                <span className="text-xs text-foreground/50">ℹ️</span>
+              </div>
+              <p className="text-xs text-foreground/70">- click on a Genre Family to select it as a favourite</p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {GENRE_FAMILY_OPTIONS.map((family) => {
+                  const id = `genre-family-${slugify(family)}`;
+                  const checked = fanDetails.genreFamilies.includes(family);
+                  return (
+                    <Card
+                      key={family}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() =>
                         setFanDetails((prev) => ({
                           ...prev,
                           genreFamilies: toggleFromArray(prev.genreFamilies, family),
                         }))
                       }
-                    />
-                    <Label htmlFor={id} className="text-sm font-medium">
-                      {family}
-                    </Label>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setFanDetails((prev) => ({
+                            ...prev,
+                            genreFamilies: toggleFromArray(prev.genreFamilies, family),
+                          }));
+                        }
+                      }}
+                      className={cn(
+                        "cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                        checked
+                          ? "border-primary bg-primary/5 shadow-sm"
+                          : "border-border/60 hover:border-primary/50"
+                      )}
+                    >
+                      <CardContent className="flex items-center gap-3 p-3">
+                        <Checkbox
+                          id={id}
+                          checked={checked}
+                          onCheckedChange={() =>
+                            setFanDetails((prev) => ({
+                              ...prev,
+                              genreFamilies: toggleFromArray(prev.genreFamilies, family),
+                            }))
+                          }
+                          className="pointer-events-none"
+                        />
+                        <Label
+                          htmlFor={id}
+                          className={cn(
+                            "flex-1 cursor-pointer text-sm font-medium",
+                            checked ? "text-primary font-semibold" : "text-foreground"
+                          )}
+                        >
+                          {family}
+                        </Label>
+                        {checked && (
+                          <div className="h-2 w-2 rounded-full bg-primary" />
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </section>
 
-          <section className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground/60">
-              Favourite Main Genres (pick at least 3)
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {MAIN_GENRE_OPTIONS.map((genre) => {
-                const id = `main-genre-${slugify(genre)}`;
-                const checked = fanDetails.mainGenres.includes(genre);
-                return (
-                  <div key={genre} className="flex items-center gap-2">
-                    <Checkbox
-                      id={id}
-                      checked={checked}
-                      onCheckedChange={() =>
-                        setFanDetails((prev) => ({
-                          ...prev,
-                          mainGenres: toggleFromArray(prev.mainGenres, genre),
-                        }))
-                      }
-                    />
-                    <Label htmlFor={id} className="text-sm font-medium">
-                      {genre}
-                    </Label>
-                  </div>
-                );
-              })}
-            </div>
-            {fanDetails.mainGenres.length > 0 && (
-              <p className="mt-2 text-xs text-foreground/60">
-                Selected: {fanDetails.mainGenres.join(", ")}
-              </p>
-            )}
-          </section>
+            {/* STEP 2: Your Favourite Genre Families (with expandable sections for Main Genres) */}
+            <section className="space-y-3">
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground/60">
+                  Your Favourite Genre Families
+                </p>
+                <span className="text-xs text-foreground/50">ℹ️</span>
+              </div>
+              <p className="text-xs text-foreground/70">- expand a Genre Family if you&apos;d like to select Main Genres from that Genre Family</p>
+              
+              {fanDetails.genreFamilies.length === 0 ? (
+                <p className="text-xs italic text-foreground/60 py-4">
+                  Choose a Genre Family above.
+                </p>
+              ) : (
+                <Accordion type="multiple" className="space-y-2">
+                  {fanDetails.genreFamilies.map((family) => {
+                    const availableMainGenres = getMainGenresForFamily(family).filter(
+                      (mainGenre) => !fanDetails.mainGenres.includes(mainGenre)
+                    );
+                    
+                    return (
+                      <AccordionItem
+                        key={family}
+                        value={family}
+                        className="border border-border/60 rounded-lg px-4 mb-2"
+                      >
+                        <AccordionTrigger className="text-sm font-semibold text-primary hover:no-underline py-3">
+                          {family} Genre Family
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-4">
+                          <div className="space-y-2">
+                            <Label className="text-xs text-foreground/70">Select Main Genre:</Label>
+                            <Select
+                              onValueChange={(value) => {
+                                if (value && !fanDetails.mainGenres.includes(value)) {
+                                  setFanDetails((prev) => ({
+                                    ...prev,
+                                    mainGenres: [...prev.mainGenres, value],
+                                  }));
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Choose a Main Genre..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableMainGenres.length > 0 ? (
+                                  availableMainGenres.map((mainGenre) => (
+                                    <SelectItem key={mainGenre} value={mainGenre}>
+                                      {mainGenre}
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <SelectItem value="" disabled>
+                                    All Main Genres selected
+                                  </SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    );
+                  })}
+                </Accordion>
+              )}
+            </section>
 
-          <section className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground/60">
-              Optional Sub-Genres
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {SUB_GENRE_OPTIONS.map((sub) => {
-                const id = `sub-genre-${slugify(sub)}`;
-                const checked = fanDetails.subGenres.includes(sub);
-                return (
-                  <div key={sub} className="flex items-center gap-2">
-                    <Checkbox
-                      id={id}
-                      checked={checked}
-                      onCheckedChange={() =>
-                        setFanDetails((prev) => ({
-                          ...prev,
-                          subGenres: toggleFromArray(prev.subGenres, sub),
-                        }))
-                      }
-                    />
-                    <Label htmlFor={id} className="text-sm font-medium">
-                      {sub}
-                    </Label>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        </CardContent>
-      </Card>
-    </div>
-  );
+            {/* STEP 3: Your Favourite Main Genres (with expandable sections for Sub-Genres) */}
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground/60">
+                    Your Favourite Main Genres
+                  </p>
+                  <span className="text-xs text-foreground/50">ℹ️</span>
+                </div>
+                {fanDetails.mainGenres.length > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {fanDetails.mainGenres.length} selected
+                    {fanDetails.mainGenres.length < 3 && ` (need ${3 - fanDetails.mainGenres.length} more)`}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-foreground/70">- expand a Main Genre if you&apos;d like to select Sub-Genres from that Main Genre</p>
+              
+              {fanDetails.mainGenres.length === 0 ? (
+                <p className="text-xs italic text-foreground/60 py-4">
+                  Choose a Main Genre from your Favourite Genre Families above.
+                </p>
+              ) : (
+                <Accordion type="multiple" className="space-y-2">
+                  {fanDetails.mainGenres.map((mainGenre) => {
+                    const availableSubGenres = getSubGenresForMainGenre(mainGenre).filter(
+                      (subGenre) => !fanDetails.subGenres.includes(subGenre)
+                    );
+                    
+                    return (
+                      <AccordionItem
+                        key={mainGenre}
+                        value={mainGenre}
+                        className="border border-border/60 rounded-lg px-4 mb-2"
+                      >
+                        <AccordionTrigger className="text-sm font-semibold text-primary hover:no-underline py-3">
+                          {mainGenre} Main Genre
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-4">
+                          <div className="space-y-2">
+                            <Label className="text-xs text-foreground/70">Select Sub-Genre:</Label>
+                            <Select
+                              onValueChange={(value) => {
+                                if (value && !fanDetails.subGenres.includes(value)) {
+                                  setFanDetails((prev) => ({
+                                    ...prev,
+                                    subGenres: [...prev.subGenres, value],
+                                  }));
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Choose a Sub-Genre..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableSubGenres.length > 0 ? (
+                                  availableSubGenres.map((subGenre) => (
+                                    <SelectItem key={subGenre} value={subGenre}>
+                                      {subGenre}
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <SelectItem value="" disabled>
+                                    All Sub-Genres selected
+                                  </SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    );
+                  })}
+                </Accordion>
+              )}
+            </section>
+
+            {/* STEP 4: Your Favourite Sub-Genres */}
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground/60">
+                    Your Favourite Sub-Genres
+                  </p>
+                  <span className="text-xs text-foreground/50">ℹ️</span>
+                </div>
+                {fanDetails.subGenres.length > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {fanDetails.subGenres.length} selected
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-foreground/70">- Charts cover Genre Families & Main Genres, but you can search and discover music by Genre Family, Main Genre, and Sub-Genre, and Gigrilla will recommend music based on all three levels of Genre ID.</p>
+              
+              {fanDetails.subGenres.length === 0 ? (
+                <p className="text-xs italic text-foreground/60 py-4">
+                  Choose a Sub-Genre from your Favourite Main Genres above.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {fanDetails.subGenres.map((subGenre) => (
+                    <Card key={subGenre} className="border-primary/50 bg-primary/5">
+                      <CardContent className="flex items-center justify-between p-3">
+                        <Label className="text-sm font-medium text-primary">
+                          {subGenre} Sub-Genre
+                        </Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-xs"
+                          onClick={() => {
+                            setFanDetails((prev) => ({
+                              ...prev,
+                              subGenres: prev.subGenres.filter((sg) => sg !== subGenre),
+                            }));
+                          }}
+                        >
+                          ×
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </section>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
 
   const renderFanPayment = () => (
     <div className="mx-auto w-full max-w-3xl space-y-5">
@@ -1553,7 +2012,7 @@ export function SignUpWizard() {
             <Label htmlFor="cardholder-name">Cardholder Name *</Label>
             <Input
               id="cardholder-name"
-              value={fanDetails.cardholderName}
+              value={fanDetails.cardholderName || ""}
               onChange={(event) =>
                 setFanDetails((prev) => ({
                   ...prev,
@@ -1569,7 +2028,7 @@ export function SignUpWizard() {
               <Label htmlFor="card-number">Card Number *</Label>
               <Input
                 id="card-number"
-                value={fanDetails.cardNumber}
+                value={fanDetails.cardNumber || ""}
                 onChange={(event) =>
                   setFanDetails((prev) => ({
                     ...prev,
@@ -1584,7 +2043,7 @@ export function SignUpWizard() {
               <Label htmlFor="card-expiry">Expiry (MM/YY) *</Label>
               <Input
                 id="card-expiry"
-                value={fanDetails.cardExpiry}
+                value={fanDetails.cardExpiry || ""}
                 onChange={(event) =>
                   setFanDetails((prev) => ({
                     ...prev,
@@ -1601,7 +2060,7 @@ export function SignUpWizard() {
               <Label htmlFor="card-cvc">CVC *</Label>
               <Input
                 id="card-cvc"
-                value={fanDetails.cardCvc}
+                value={fanDetails.cardCvc || ""}
                 onChange={(event) =>
                   setFanDetails((prev) => ({
                     ...prev,
@@ -2399,15 +2858,8 @@ export function SignUpWizard() {
         <div className="flex flex-col gap-3">
           <div className="flex flex-col justify-between gap-2 text-xs uppercase tracking-[0.2em] text-foreground/60 sm:flex-row sm:items-center">
             <span>
-              Step {stepIndex + 1} of {steps.length}: {currentStep?.label}
+              {currentStep?.label}
             </span>
-            <button
-              type="button"
-              onClick={resetFlow}
-              className="text-primary underline-offset-4 hover:underline"
-            >
-              Start over
-            </button>
           </div>
           <Progress value={progressValue} />
         </div>
@@ -2458,7 +2910,7 @@ export function SignUpWizard() {
               {isProcessingStep ? (
                 <span className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving
+                  Next
                 </span>
               ) : (
                 "Next"

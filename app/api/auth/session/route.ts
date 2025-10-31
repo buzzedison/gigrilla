@@ -31,10 +31,26 @@ export async function GET() {
     const { data: { user }, error } = await supabase.auth.getUser()
 
     if (error) {
+      // AuthSessionMissingError is expected when no session exists - not an error
+      if (error.message?.includes('Auth session missing')) {
+        return NextResponse.json(
+          { 
+            user: null, 
+            session: null,
+            authenticated: false 
+          },
+          { status: 200 }
+        )
+      }
       console.error('Session API: Error getting user:', error)
       return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
+        { 
+          user: null,
+          session: null,
+          authenticated: false,
+          error: error.message 
+        },
+        { status: 200 }
       )
     }
 

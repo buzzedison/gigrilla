@@ -19,11 +19,20 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Navigate to dashboard if user exists
+  // Navigate to appropriate page after login
   useEffect(() => {
     if (user && user.id) {
-      console.log("Login component: User found, navigating to dashboard...");
-      onNavigate("fan-dashboard");
+      // Check if user needs to complete onboarding
+      const onboardingMemberType = user.user_metadata?.onboarding_member_type;
+      const onboardingCompleted = user.user_metadata?.onboarding_completed;
+      
+      if (onboardingMemberType && !onboardingCompleted) {
+        console.log("Login component: User needs to complete onboarding, redirecting to signup...");
+        window.location.href = `/signup?onboarding=${onboardingMemberType}`;
+      } else {
+        console.log("Login component: User found, navigating to dashboard...");
+        onNavigate("fan-dashboard");
+      }
     }
   }, [user, onNavigate]);
 

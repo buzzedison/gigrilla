@@ -39,6 +39,37 @@ export async function middleware(request: NextRequest) {
   // supabase.auth.getUser(). A simple mistake could make it very hard to debug
   // issues with users being randomly logged out.
 
+  const code = request.nextUrl.searchParams.get('code')
+  if (code) {
+    try {
+      const { error } = await supabase.auth.exchangeCodeForSession(code)
+      if (error) {
+        console.error('Middleware: Failed to exchange code for session', error.message)
+      } else {
+        console.log('Middleware: Successfully exchanged code for session')
+        // Remove the code parameter from URL to prevent header size issues
+        const url = request.nextUrl.clone()
+        url.searchParams.delete('code')
+        // Create redirect response and copy cookies from supabaseResponse (which was updated by exchangeCodeForSession)
+        const redirectResponse = NextResponse.redirect(url)
+        // Copy all cookies from supabaseResponse to redirectResponse
+        supabaseResponse.cookies.getAll().forEach((cookie) => {
+          redirectResponse.cookies.set(cookie.name, cookie.value, {
+            path: cookie.path,
+            domain: cookie.domain,
+            secure: cookie.secure,
+            httpOnly: cookie.httpOnly,
+            sameSite: cookie.sameSite,
+            maxAge: cookie.maxAge,
+          })
+        })
+        return redirectResponse
+      }
+    } catch (error) {
+      console.error('Middleware: Unexpected error exchanging code for session', error)
+    }
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser()

@@ -202,9 +202,18 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
+      console.error('fan-profile POST: Database upsert error:', {
+        error: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        user_id: user.id,
+        payload_keys: Object.keys(payload)
+      })
       return NextResponse.json({
         error: 'Database error',
         details: error.message,
+        code: error.code,
       }, { status: 500 })
     }
 
@@ -230,6 +239,7 @@ export async function POST(request: NextRequest) {
       message: 'Fan profile saved',
     })
   } catch (error) {
+    console.error('fan-profile POST: Unexpected error:', error)
     return NextResponse.json({
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error',
