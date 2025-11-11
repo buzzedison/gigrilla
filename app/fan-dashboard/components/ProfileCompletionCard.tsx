@@ -220,17 +220,17 @@ export function ProfileCompletionCard() {
 
   if (loading) {
     return (
-      <div className="bg-[#e8d5e8] p-6 rounded-2xl w-80">
-        <div className="flex flex-col items-center justify-center h-64">
-          <div className="w-2 h-2 bg-purple-600 rounded-full animate-pulse mb-4"></div>
-          <div className="text-gray-600 text-sm">Loading profile...</div>
+      <div className="w-full rounded-2xl bg-[#e8d5e8] p-5 font-ui shadow-lg sm:p-6">
+        <div className="flex h-64 flex-col items-center justify-center">
+          <div className="mb-4 h-2 w-2 animate-pulse rounded-full bg-purple-600"></div>
+          <div className="text-sm text-gray-600">Loading profile...</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-[#e8d5e8] p-6 rounded-2xl w-80">
+    <div className="w-full rounded-2xl bg-[#e8d5e8] p-5 font-ui shadow-lg sm:p-6 lg:sticky lg:top-8">
       {/* Progress Circle */}
       <div className="flex flex-col items-center mb-6">
         <div className="relative w-24 h-24 mb-4">

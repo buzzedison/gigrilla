@@ -82,12 +82,36 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const genres = Array.isArray(body.genres) ? body.genres : []
+    const genreIds = Array.isArray(body.genreIds) ? body.genreIds : []
+    const genreFamilies = Array.isArray(body.genreFamilies) ? body.genreFamilies : []
+    const mainGenres = Array.isArray(body.mainGenres) ? body.mainGenres : []
+    const subGenres = Array.isArray(body.subGenres) ? body.subGenres : []
+
+    // Use genreIds if provided, otherwise fall back to genres (for backward compatibility)
+    const preferredGenreIds = genreIds.length > 0 ? genreIds : genres
+
+    // Get existing profile to preserve music_preferences structure
+    const { data: existingProfile } = await supabase
+      .from('fan_profiles')
+      .select('music_preferences')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    const musicPreferences = (existingProfile?.music_preferences as Record<string, unknown> | null) ?? {}
+    
+    // Update music_preferences with hierarchical genre data
+    if (genreFamilies.length > 0 || mainGenres.length > 0 || subGenres.length > 0) {
+      musicPreferences.genre_families = genreFamilies
+      musicPreferences.main_genres = mainGenres
+      musicPreferences.sub_genres = subGenres
+    }
 
     const { error: updateError } = await supabase
       .from('fan_profiles')
       .upsert({
         user_id: user.id,
-        preferred_genre_ids: genres,
+        preferred_genre_ids: preferredGenreIds,
+        music_preferences: musicPreferences,
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'user_id'
@@ -97,7 +121,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Database error updating genres', details: updateError.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, data: genres, user_id: user.id })
+    return NextResponse.json({ 
+      success: true, 
+      data: {
+        genreIds: preferredGenreIds,
+        genreFamilies,
+        mainGenres,
+        subGenres
+      },
+      user_id: user.id 
+    })
   } catch (error) {
     return NextResponse.json({ error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
   }

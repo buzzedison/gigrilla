@@ -159,8 +159,8 @@ export function FanHeader({ onOpenSidebar }: FanHeaderProps) {
   }
 
   return (
-    <div className="bg-[#2a1b3d]">
-      <div className="flex flex-wrap items-center gap-4 p-4 md:p-6">
+    <div className="bg-[#2a1b3d] font-ui">
+      <div className="mx-auto flex w-full flex-col gap-4 px-4 py-4 sm:px-6 lg:max-w-6xl lg:flex-row lg:items-center lg:justify-between lg:py-6">
         <div className="flex items-center gap-3">
           {onOpenSidebar && (
             <button
@@ -174,15 +174,14 @@ export function FanHeader({ onOpenSidebar }: FanHeaderProps) {
           )}
           <Link
             href="/fan-dashboard"
-            className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+            className="flex items-center gap-2 text-gray-300 transition-colors hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
             <span className="text-sm">Back to Dashboard</span>
           </Link>
         </div>
 
-        {/* Search */}
-        <div className="order-3 w-full flex-1 md:order-none md:w-auto md:max-w-md md:flex md:justify-center">
+        <div className="w-full md:max-w-md lg:flex-1 lg:max-w-xl">
           <div className="relative w-full">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
@@ -193,14 +192,20 @@ export function FanHeader({ onOpenSidebar }: FanHeaderProps) {
           </div>
         </div>
 
-        <div className="ml-auto flex items-center gap-3">
-          <button className="rounded-full p-2 text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-[#2a1b3d]">
+        <div className="flex items-center justify-end gap-3">
+          <button className="rounded-full p-2 text-gray-400 transition hover:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-[#2a1b3d]">
             <Bell className="h-5 w-5" />
           </button>
           <div className="flex items-center gap-3">
             <label className="relative cursor-pointer">
               {avatarUrl ? (
-                <Image src={avatarUrl} alt={displayName} width={36} height={36} className="h-9 w-9 rounded-full object-cover" />
+                <Image
+                  src={avatarUrl}
+                  alt={displayName}
+                  width={36}
+                  height={36}
+                  className="h-9 w-9 rounded-full object-cover"
+                />
               ) : (
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-600">
                   <span className="text-sm text-white">{initial}</span>
@@ -228,7 +233,7 @@ export function FanHeader({ onOpenSidebar }: FanHeaderProps) {
                   nav();
                 }
               }}
-              className="relative z-10 text-sm text-gray-400 transition-colors hover:text-white"
+              className="relative z-10 text-sm text-gray-300 transition-colors hover:text-white"
             >
               Sign Out
             </Link>

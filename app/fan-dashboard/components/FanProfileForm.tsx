@@ -420,7 +420,7 @@ export function FanProfileForm() {
   }
 
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="space-y-6 rounded-2xl border border-white/10 bg-[#201233]/70 p-4 font-ui shadow-xl backdrop-blur-sm sm:space-y-8 sm:p-6 lg:p-8">
       {errorMessage && (
         <div className="p-3 rounded-lg text-sm bg-red-500/20 text-red-300 border border-red-500/30">
           {errorMessage}

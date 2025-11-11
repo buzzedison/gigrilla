@@ -61,12 +61,12 @@ export function FanSidebar({ onNavigate, className }: FanSidebarProps) {
   useEffect(() => {
     const handleFocus = () => {
       console.log('FanSidebar: Page focused, refreshing account type...');
-        loadAccountType();
+      loadAccountType();
     };
 
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [user?.id]);
+  }, [user?.id, loadAccountType]);
 
   const handleSignOut = async () => {
     const nav = () => router.replace('/login');
@@ -117,9 +117,14 @@ export function FanSidebar({ onNavigate, className }: FanSidebarProps) {
   };
 
   return (
-    <div className={cn("w-64 bg-[#2a1b3d] h-full flex flex-col p-6 overflow-y-auto", className)}>
+    <div
+      className={cn(
+        "flex h-full w-full flex-col overflow-y-auto bg-[#2a1b3d] p-4 text-white sm:p-6 lg:w-72 lg:min-w-[18rem] font-ui",
+        className
+      )}
+    >
       {/* Logo */}
-      <div className="flex items-center mb-8">
+      <div className="mb-6 flex items-center gap-3 sm:mb-8">
         <NextImage
           src="/logos/Gigrilla Logo-Word alongside Logo-Head Dark Pruple Cerise Clear-PNG 3556 x 1086.png"
           alt="Gigrilla Logo"

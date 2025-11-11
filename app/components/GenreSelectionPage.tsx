@@ -36,6 +36,7 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
 
   const [activeTab, setActiveTab] = useState<"family" | "main" | "sub">("main");
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [selectedGenreIds, setSelectedGenreIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Selection state for filtering
@@ -97,7 +98,7 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
 
   // Removed unused testDatabaseAccess helper to satisfy ESLint and keep code lean
 
-  // Fetch all genres hierarchically
+  // Fetch all genres hierarchically from new API
   useEffect(() => {
     const fetchAllGenres = async () => {
       if (!user) {
@@ -119,15 +120,10 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
       }, 10000);
 
       try {
-        console.log("Fetching genres from database...");
-
-      // Use direct fetch since Supabase client is hanging
-      console.log("Using direct fetch to bypass Supabase client...");
-      
-      try {
-        const response = await fetch('https://gpfjkgdwymwdmmrezecc.supabase.co/rest/v1/genres?select=id,name,parent_id&is_active=eq.true&order=name', {
+        console.log("Fetching hierarchical genres from API...");
+        
+        const response = await fetch('/api/genres', {
           headers: {
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdwZmprZ2R3eW13ZG1tcmV6ZWNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyNjg0NTMsImV4cCI6MjA3MDg0NDQ1M30.UkLIsnIy4d77Ypf9PnladhjpDbYJnriRfUZm5epUg2Q',
             'Content-Type': 'application/json'
           }
         });
@@ -136,85 +132,84 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        const data: DbGenre[] = await response.json();
-        console.log("Direct fetch successful:", {
-          dataLength: data.length,
-          firstFew: data.slice(0, 3)
-        });
+        const result = await response.json();
+        
+        if (result.error) {
+          throw new Error(result.details || result.error);
+        }
 
-        const error = null;
-
-        console.log("Query completed - error:", error);
-        console.log("Query completed - data length:", data?.length);
-
-        if (!data || data.length === 0) {
+        const { data } = result;
+        
+        if (!data || !data.families || data.families.length === 0) {
           console.log("No genres found in database, using defaults");
-          // Fallback to defaults
           setFamilies(defaultFamilies.map((n, i) => ({ id: String(i + 1), name: n })));
           setMains(defaultMains.map((n, i) => ({ id: String(i + 100), name: n })));
           setSubs(defaultSubs.map((n, i) => ({ id: String(i + 200), name: n })));
           setGenresError("Using default genres (database appears empty)");
         } else {
-          console.log("SUCCESS: Processing", data.length, "genres from database");
-          const normalized: DbGenreNormalized[] = data.map((g) => ({
-            id: String(g.id),
-            name: g.name,
-            description: g.description,
-            parent_id: g.parent_id !== undefined && g.parent_id !== null ? String(g.parent_id) : undefined,
+          console.log("SUCCESS: Processing hierarchical genres from API");
+          
+          // Extract families
+          const familiesData: Genre[] = data.families.map((f: { id: string; name: string }) => ({
+            id: f.id,
+            name: f.name
           }));
-          const genreMap = new Map<string, DbGenreNormalized>(normalized.map((g) => [g.id, g]));
-
-          const familiesData: Genre[] = [];
-          const mainsData: Genre[] = [];
-          const subsData: Genre[] = [];
-
-          normalized.forEach((genre) => {
-            if (!genre.parent_id) {
-              familiesData.push({ id: genre.id, name: genre.name });
-            } else {
-              const parent = genreMap.get(genre.parent_id);
-              if (parent) {
-                if (!parent.parent_id) {
-                  mainsData.push({ id: genre.id, name: genre.name });
-                } else {
-                  subsData.push({ id: genre.id, name: genre.name });
-                }
-              } else {
-                mainsData.push({ id: genre.id, name: genre.name });
+          
+          // Extract all main genres (types)
+          const allMainsData: Genre[] = [];
+          data.families.forEach((family: { mainGenres: Array<{ id: string; name: string }> }) => {
+            family.mainGenres.forEach((main: { id: string; name: string }) => {
+              if (!allMainsData.find(m => m.id === main.id)) {
+                allMainsData.push({ id: main.id, name: main.name });
               }
-            }
+            });
+          });
+          
+          // Extract all sub-genres (subtypes)
+          const allSubsData: Genre[] = [];
+          data.families.forEach((family: { mainGenres: Array<{ subGenres: Array<{ id: string; name: string }> }> }) => {
+            family.mainGenres.forEach((main: { subGenres: Array<{ id: string; name: string }> }) => {
+              main.subGenres.forEach((sub: { id: string; name: string }) => {
+                if (!allSubsData.find(s => s.id === sub.id)) {
+                  allSubsData.push({ id: sub.id, name: sub.name });
+                }
+              });
+            });
+          });
+
+          // Build normalized structure for filtering
+          const normalized: DbGenreNormalized[] = [];
+          data.families.forEach((family: { id: string; name: string; mainGenres: Array<{ id: string; name: string; subGenres: Array<{ id: string; name: string }> }> }) => {
+            normalized.push({ id: family.id, name: family.name, parent_id: undefined });
+            family.mainGenres.forEach((main: { id: string; name: string; subGenres: Array<{ id: string; name: string }> }) => {
+              normalized.push({ id: main.id, name: main.name, parent_id: family.id });
+              main.subGenres.forEach((sub: { id: string; name: string }) => {
+                normalized.push({ id: sub.id, name: sub.name, parent_id: main.id });
+              });
+            });
           });
 
           console.log("ORGANIZED GENRES:", {
             familiesCount: familiesData.length,
-            mainsCount: mainsData.length,
-            subsCount: subsData.length,
+            mainsCount: allMainsData.length,
+            subsCount: allSubsData.length,
             sampleFamilies: familiesData.slice(0, 3),
-            sampleMains: mainsData.slice(0, 3),
-            sampleSubs: subsData.slice(0, 3)
+            sampleMains: allMainsData.slice(0, 3),
+            sampleSubs: allSubsData.slice(0, 3)
           });
 
           setAllGenres(normalized);
           setFamilies(familiesData);
-          setMains(mainsData);
-          setSubs(subsData);
+          setMains(allMainsData);
+          setSubs(allSubsData);
           setGenresError(""); // Clear any previous errors
         }
       } catch (fetchError) {
-        console.error("Direct fetch failed:", fetchError);
-        // Fallback to defaults
+        console.error("Failed to fetch genres:", fetchError);
         setFamilies(defaultFamilies.map((n, i) => ({ id: String(i + 1), name: n })));
         setMains(defaultMains.map((n, i) => ({ id: String(i + 100), name: n })));
         setSubs(defaultSubs.map((n, i) => ({ id: String(i + 200), name: n })));
         setGenresError(`Failed to fetch genres: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
-      }
-      } catch (e) {
-        console.error("Error fetching genres:", e);
-        console.error("Error details:", e);
-        setFamilies(defaultFamilies.map((n, i) => ({ id: String(i + 1), name: n })));
-        setMains(defaultMains.map((n, i) => ({ id: String(i + 100), name: n })));
-        setSubs(defaultSubs.map((n, i) => ({ id: String(i + 200), name: n })));
-        setGenresError(`Failed to load genres: ${e instanceof Error ? e.message : String(e)}, using defaults`);
       } finally {
         clearTimeout(forceFallbackTimeout);
         console.log("Setting loadingFamilies to false");
@@ -270,11 +265,20 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
     }
   }, [selectedMain, allGenres]);
 
-  const toggleGenre = (genre: string) => {
+  const toggleGenre = (genre: Genre) => {
+    const genreName = genre.name;
+    const genreId = genre.id;
+    
     setSelectedGenres(prev =>
-      prev.includes(genre)
-        ? prev.filter(g => g !== genre)
-        : [...prev, genre]
+      prev.includes(genreName)
+        ? prev.filter(g => g !== genreName)
+        : [...prev, genreName]
+    );
+    
+    setSelectedGenreIds(prev =>
+      prev.includes(genreId)
+        ? prev.filter(id => id !== genreId)
+        : [...prev, genreId]
     );
   };
 
@@ -287,10 +291,49 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
     setLoading(true);
     
     try {
+      // Extract genre IDs from selected genres
+      // Map selected genre names to their IDs from allGenres
+      const genreIdsToSave = selectedGenres
+        .map(genreName => {
+          const genre = allGenres.find(g => g.name === genreName);
+          return genre?.id;
+        })
+        .filter((id): id is string => !!id);
+
+      // Also include any directly selected genre IDs
+      const allGenreIds = [...new Set([...selectedGenreIds, ...genreIdsToSave])];
+
+      // Determine which are families, main genres, and sub-genres
+      const genreFamilies: string[] = [];
+      const mainGenres: string[] = [];
+      const subGenres: string[] = [];
+
+      allGenreIds.forEach(genreId => {
+        const genre = allGenres.find(g => g.id === genreId);
+        if (genre) {
+          if (!genre.parent_id) {
+            genreFamilies.push(genreId);
+          } else {
+            const parent = allGenres.find(g => g.id === genre.parent_id);
+            if (parent && !parent.parent_id) {
+              mainGenres.push(genreId);
+            } else {
+              subGenres.push(genreId);
+            }
+          }
+        }
+      });
+
       const response = await fetch('/api/user-genres', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ genres: selectedGenres })
+        body: JSON.stringify({ 
+          genres: selectedGenres, // Keep for backward compatibility
+          genreIds: allGenreIds,
+          genreFamilies,
+          mainGenres,
+          subGenres
+        })
       });
 
       const result = await response.json();
@@ -443,7 +486,7 @@ export function GenreSelectionPage({ onNavigate }: GenreSelectionPageProps) {
                   } else if (activeTab === "main") {
                     setSelectedMain(genre);
                   } else {
-                    toggleGenre(genre.name);
+                    toggleGenre(genre);
                   }
                 }}
                 className={`p-3 rounded-lg text-sm transition-colors ${
