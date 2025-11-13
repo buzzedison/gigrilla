@@ -84,6 +84,12 @@ export async function GET() {
       }, { status: 500 })
     }
 
+    console.log('API: Subtypes fetched:', {
+      totalSubtypes: subtypesData?.length || 0,
+      newAgeSubtypes: subtypesData?.filter(s => s.type_id === 'new-age').length || 0,
+      sampleSubtypes: subtypesData?.slice(0, 3).map(s => ({ id: s.id, name: s.name, type_id: s.type_id }))
+    })
+
     // Organize into hierarchical structure
     const families = (familiesData || []).map(family => {
       const matchingTypes = (typesData || []).filter(type => type.family_id === family.id)

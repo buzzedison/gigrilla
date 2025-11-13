@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "../../components/ui/button"
-import { GENRE_FAMILIES, GenreFamily, GenreType, GenreSubType } from "../../../data/genres"
+import { useGenreTaxonomy } from "../../../lib/hooks/useGenreTaxonomy"
+import type { GenreFamily, GenreType, GenreSubType } from "../../../types/genres"
 import { Plus, Trash2, Save } from "lucide-react"
 
 interface ArtistGenrePath {
@@ -18,12 +19,13 @@ function formatPathLabel(family: GenreFamily, type: GenreType, sub?: GenreSubTyp
 
 export function ArtistGenresManager() {
   const [selectedGenres, setSelectedGenres] = useState<ArtistGenrePath[]>([])
-  const [loading, setLoading] = useState(false)
+  const [profileLoading, setProfileLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { families, loading: taxonomyLoading, error: taxonomyError } = useGenreTaxonomy()
 
   useEffect(() => {
     const loadGenres = async () => {
-      setLoading(true)
+      setProfileLoading(true)
       try {
         const response = await fetch('/api/artist-profile')
         const result = await response.json()
@@ -41,7 +43,7 @@ export function ArtistGenresManager() {
       } catch (error) {
         console.error('Error loading artist genres:', error)
       } finally {
-        setLoading(false)
+        setProfileLoading(false)
       }
     }
     loadGenres()
@@ -95,11 +97,17 @@ export function ArtistGenresManager() {
           Select the main genres and sub-genres that define your artistry. These choices power discovery, search, and matching across Gigrilla.
         </p>
 
-        {loading ? (
+        {taxonomyError && (
+          <div className="text-sm text-red-600 mb-4">{taxonomyError}</div>
+        )}
+
+        {profileLoading || taxonomyLoading ? (
           <div className="text-sm text-gray-500">Loading genres...</div>
+        ) : families.length === 0 ? (
+          <div className="text-sm text-gray-500">No genre families available yet.</div>
         ) : (
           <div className="space-y-4">
-            <GenreSelectionForm onSelect={addGenre} />
+            <GenreSelectionForm families={families} onSelect={addGenre} />
 
             <div className="border-t border-gray-200 pt-4">
               <h3 className="text-sm font-medium text-gray-900 mb-3">Selected Genres</h3>
@@ -108,9 +116,9 @@ export function ArtistGenresManager() {
               ) : (
                 <ul className="space-y-2">
                   {selectedGenres.map((path, index) => {
-                    const family = GENRE_FAMILIES.find((f) => f.id === path.familyId)
-                    const type = family?.types.find((t) => t.id === path.typeId)
-                    const sub = type?.subs?.find((s) => s.id === path.subId)
+                    const family = families.find((f) => f.id === path.familyId)
+                    const type = family?.mainGenres.find((t) => t.id === path.typeId)
+                    const sub = type?.subGenres?.find((s) => s.id === path.subId)
                     if (!family || !type) return null
                     return (
                       <li key={`${path.familyId}-${path.typeId}-${path.subId ?? 'none'}`} className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
@@ -142,10 +150,11 @@ export function ArtistGenresManager() {
 }
 
 interface GenreSelectionFormProps {
+  families: GenreFamily[]
   onSelect: (path: ArtistGenrePath) => void
 }
 
-function GenreSelectionForm({ onSelect }: GenreSelectionFormProps) {
+function GenreSelectionForm({ families, onSelect }: GenreSelectionFormProps) {
   const [familyId, setFamilyId] = useState<string>('')
   const [typeId, setTypeId] = useState<string>('')
   const [subId, setSubId] = useState<string>('')
@@ -156,8 +165,8 @@ function GenreSelectionForm({ onSelect }: GenreSelectionFormProps) {
     setSubId('')
   }
 
-  const selectedFamily = GENRE_FAMILIES.find((family) => family.id === familyId)
-  const selectedType = selectedFamily?.types.find((type) => type.id === typeId)
+  const selectedFamily = families.find((family) => family.id === familyId)
+  const selectedType = selectedFamily?.mainGenres.find((type) => type.id === typeId)
 
   const handleAdd = () => {
     if (!selectedFamily || !selectedType) return
@@ -180,7 +189,7 @@ function GenreSelectionForm({ onSelect }: GenreSelectionFormProps) {
             className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
           >
             <option value="">Select a family…</option>
-            {GENRE_FAMILIES.map((family) => (
+            {families.map((family) => (
               <option key={family.id} value={family.id}>
                 {family.name}
               </option>
@@ -200,7 +209,7 @@ function GenreSelectionForm({ onSelect }: GenreSelectionFormProps) {
             disabled={!selectedFamily}
           >
             <option value="">Select a main genre…</option>
-            {selectedFamily?.types.map((type) => (
+            {selectedFamily?.mainGenres.map((type) => (
               <option key={type.id} value={type.id}>
                 {type.name}
               </option>
@@ -214,10 +223,10 @@ function GenreSelectionForm({ onSelect }: GenreSelectionFormProps) {
             value={subId}
             onChange={(event) => setSubId(event.target.value)}
             className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            disabled={!selectedType || !selectedType.subs?.length}
+            disabled={!selectedType || !selectedType.subGenres?.length}
           >
             <option value="">Select a sub-genre…</option>
-            {selectedType?.subs?.map((sub) => (
+            {selectedType?.subGenres?.map((sub) => (
               <option key={sub.id} value={sub.id}>
                 {sub.name}
               </option>

@@ -173,6 +173,7 @@ type FanProfilePayload = {
   avatarUrl?: string;
   photoGallery?: string[];
   videoLinks?: Array<{ title: string; url: string }>;
+  onboardingCompleted?: boolean;
 };
 
 const ARTIST_TYPE_OPTIONS = [
@@ -1041,48 +1042,6 @@ export function SignUpWizard() {
       };
     }
     return { baseName: name, hybridInfo: null, hybridComponents: [] };
-  };
-
-  // Helper to get recommended genres based on selected genres and their hybrids
-  const getRecommendedGenres = (selectedGenreNames: string[]): string[] => {
-    const recommendations = new Set<string>();
-    
-    selectedGenreNames.forEach(selectedName => {
-      // Find the genre in our catalog
-      genreFamilies.forEach(family => {
-        family.mainGenres?.forEach(mainGenre => {
-          // Check if selected name matches main genre
-          if (mainGenre.name.toLowerCase() === selectedName.toLowerCase()) {
-            // Find all sub-genres that reference this main genre in their hybrid info
-            mainGenre.subGenres?.forEach(subGenre => {
-              const parsed = parseHybridGenre(subGenre.name);
-              if (parsed.hybridComponents.length > 0) {
-                parsed.hybridComponents.forEach(component => {
-                  // Add components that aren't already selected
-                  if (!selectedGenreNames.some(s => s.toLowerCase() === component.toLowerCase())) {
-                    recommendations.add(component);
-                  }
-                });
-              }
-            });
-          }
-          
-          // Check sub-genres
-          mainGenre.subGenres?.forEach(subGenre => {
-            if (subGenre.name.toLowerCase() === selectedName.toLowerCase()) {
-              const parsed = parseHybridGenre(subGenre.name);
-              parsed.hybridComponents.forEach(component => {
-                if (!selectedGenreNames.some(s => s.toLowerCase() === component.toLowerCase())) {
-                  recommendations.add(component);
-                }
-              });
-            }
-          });
-        });
-      });
-    });
-    
-    return Array.from(recommendations);
   };
 
   // Helper to get sub-genres for a selected main genre
@@ -2025,11 +1984,15 @@ export function SignUpWizard() {
         for (const mainGenre of family.mainGenres || []) {
           const subGenre = mainGenre.subGenres?.find(sg => sg.name === subGenreName);
           if (subGenre) {
-            return `${family.name} > ${mainGenre.name} > ${subGenreName}`;
+            // Parse the sub-genre name to remove hybrid info from breadcrumb
+            const parsed = parseHybridGenre(subGenreName);
+            return `${family.name} > ${mainGenre.name} > ${parsed.baseName}`;
           }
         }
       }
-      return subGenreName;
+      // Parse even if not found in catalog
+      const parsed = parseHybridGenre(subGenreName);
+      return parsed.baseName;
     };
 
     return (
@@ -2111,8 +2074,13 @@ export function SignUpWizard() {
                   Step 1: All Genre Families
                 </p>
                 <span className="text-xs text-foreground/60" title="Select at least 1 genre family">ℹ️</span>
+                {fanDetails.genreFamilies.length > 0 && (
+                  <Badge variant="default" className="text-xs font-semibold">
+                    {fanDetails.genreFamilies.length} selected
+                  </Badge>
+                )}
               </div>
-              <p className="text-sm text-foreground/80 leading-relaxed">Click on a Genre Family to select it as a favourite</p>
+              <p className="text-sm text-foreground/80 leading-relaxed">Click on a Genre Family card below to select it as a favourite (the card will be highlighted with a checkmark)</p>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {availableFamilies.map((family) => {
                   const id = `genre-family-${family.id}`;
@@ -2206,22 +2174,50 @@ export function SignUpWizard() {
                         value={familyName}
                         className="border border-border/60 rounded-lg px-4 shadow-sm bg-card"
                       >
-                        <AccordionTrigger className="text-sm font-bold text-primary hover:no-underline py-4 hover:bg-muted/30 rounded-lg -mx-2 px-2 transition-colors">
-                          <div className="flex items-center gap-2 flex-1 text-left">
-                            <span>{familyName}</span>
-                            <span className="text-xs font-normal text-foreground/60">Genre Family</span>
-                            {allMainGenres.length > 0 && (
-                              <span className="ml-auto text-xs font-medium text-foreground/70">
-                                {selectedCount > 0 && (
-                                  <span className="text-primary mr-1">{selectedCount}/{allMainGenres.length} selected</span>
-                                )}
-                                {selectedCount === 0 && (
-                                  <span className="text-foreground/60">{allMainGenres.length} available</span>
-                                )}
-                              </span>
-                            )}
-                          </div>
-                        </AccordionTrigger>
+                        <div className="flex items-center gap-2">
+                          <AccordionTrigger className="text-sm font-bold text-primary hover:no-underline py-4 hover:bg-muted/30 rounded-lg -mx-2 px-2 transition-colors flex-1">
+                            <div className="flex items-center gap-2 flex-1 text-left">
+                              <span>{familyName}</span>
+                              <span className="text-xs font-normal text-foreground/60">Genre Family</span>
+                              {allMainGenres.length > 0 && (
+                                <span className="ml-auto text-xs font-medium text-foreground/70">
+                                  {selectedCount > 0 && (
+                                    <span className="text-primary mr-1">{selectedCount}/{allMainGenres.length} selected</span>
+                                  )}
+                                  {selectedCount === 0 && (
+                                    <span className="text-foreground/60">{allMainGenres.length} available</span>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          </AccordionTrigger>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-base hover:bg-destructive/10 hover:text-destructive flex-shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Remove the family and all its main genres and sub-genres
+                              const familyMainGenres = allMainGenres.map(mg => mg.name);
+                              setFanDetails((prev) => ({
+                                ...prev,
+                                genreFamilies: prev.genreFamilies.filter((gf) => gf !== familyName),
+                                mainGenres: prev.mainGenres.filter((mg) => !familyMainGenres.includes(mg)),
+                                subGenres: prev.subGenres.filter((sg) => {
+                                  // Remove sub-genres that belong to any of the family's main genres
+                                  return !familyMainGenres.some(fmg => {
+                                    const sgList = getSubGenresForMainGenre(fmg);
+                                    return sgList.some(s => s.name === sg);
+                                  });
+                                })
+                              }));
+                            }}
+                            title="Remove genre family and all its main genres and sub-genres"
+                          >
+                            ×
+                          </Button>
+                        </div>
                         <AccordionContent className="pb-4 pt-2">
                           <div className="space-y-3">
                             <Label className="text-sm font-semibold text-foreground/90">Select Main Genre:</Label>
@@ -2310,65 +2306,6 @@ export function SignUpWizard() {
               </div>
               <p className="text-sm text-foreground/80 leading-relaxed">Expand a Main Genre to select Sub-Genres from that Main Genre</p>
               
-              {/* Show recommendations based on hybrid relationships */}
-              {(() => {
-                const allSelectedGenres = [...fanDetails.mainGenres, ...fanDetails.subGenres];
-                const recommendations = getRecommendedGenres(allSelectedGenres);
-                return recommendations.length > 0 ? (
-                  <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-3">
-                    <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-2">
-                      💡 Suggested genres based on your selections:
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {recommendations.slice(0, 5).map((rec) => {
-                        const isAlreadySelected = allSelectedGenres.some(s => s.toLowerCase() === rec.toLowerCase());
-                        if (isAlreadySelected) return null;
-                        return (
-                          <Button
-                            key={rec}
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="text-xs h-7"
-                            onClick={() => {
-                              // Try to find if it's a main genre or sub-genre
-                              let found = false;
-                              genreFamilies.forEach(family => {
-                                family.mainGenres?.forEach(mg => {
-                                  if (mg.name.toLowerCase() === rec.toLowerCase() && !found) {
-                                    setFanDetails(prev => ({
-                                      ...prev,
-                                      mainGenres: prev.mainGenres.includes(mg.name) ? prev.mainGenres : [...prev.mainGenres, mg.name]
-                                    }));
-                                    found = true;
-                                  }
-                                  mg.subGenres?.forEach(sg => {
-                                    if (sg.name.toLowerCase() === rec.toLowerCase() && !found) {
-                                      setFanDetails(prev => ({
-                                        ...prev,
-                                        subGenres: prev.subGenres.includes(sg.name) ? prev.subGenres : [...prev.subGenres, sg.name]
-                                      }));
-                                      found = true;
-                                    }
-                                  });
-                                });
-                              });
-                            }}
-                          >
-                            + {rec}
-                          </Button>
-                        );
-                      })}
-                    </div>
-                    {recommendations.length > 5 && (
-                      <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
-                        + {recommendations.length - 5} more suggestions available
-                      </p>
-                    )}
-                  </div>
-                ) : null;
-              })()}
-              
               {fanDetails.mainGenres.length === 0 ? (
                 <div className="bg-muted/30 rounded-lg p-4 border border-border/40">
                   <p className="text-sm italic text-foreground/70 text-center">
@@ -2391,27 +2328,50 @@ export function SignUpWizard() {
                         value={mainGenreName}
                         className="border border-border/60 rounded-lg px-4 shadow-sm bg-card"
                       >
-                        <AccordionTrigger className="text-sm font-bold text-primary hover:no-underline py-4 hover:bg-muted/30 rounded-lg -mx-2 px-2 transition-colors">
-                          <div className="flex flex-col items-start gap-1 flex-1 text-left">
-                            <div className="flex items-center gap-2 w-full">
-                              <span>{mainGenreName}</span>
-                              <span className="text-xs font-normal text-foreground/60">Main Genre</span>
-                              {allSubGenres.length > 0 && (
-                                <span className="ml-auto text-xs font-medium text-foreground/70">
-                                  {selectedSubCount > 0 && (
-                                    <span className="text-primary">{selectedSubCount}/{allSubGenres.length} sub-genres</span>
-                                  )}
-                                  {selectedSubCount === 0 && (
-                                    <span className="text-foreground/60">{allSubGenres.length} available</span>
-                                  )}
-                                </span>
-                              )}
+                        <div className="flex items-center gap-2">
+                          <AccordionTrigger className="text-sm font-bold text-primary hover:no-underline py-4 hover:bg-muted/30 rounded-lg -mx-2 px-2 transition-colors flex-1">
+                            <div className="flex flex-col items-start gap-1 flex-1 text-left">
+                              <div className="flex items-center gap-2 w-full">
+                                <span>{mainGenreName}</span>
+                                <span className="text-xs font-normal text-foreground/60">Main Genre</span>
+                                {allSubGenres.length > 0 && (
+                                  <span className="ml-auto text-xs font-medium text-foreground/70">
+                                    {selectedSubCount > 0 && (
+                                      <span className="text-primary">{selectedSubCount}/{allSubGenres.length} sub-genres</span>
+                                    )}
+                                    {selectedSubCount === 0 && (
+                                      <span className="text-foreground/60">{allSubGenres.length} available</span>
+                                    )}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-foreground/60 font-normal mt-0.5">
+                                {breadcrumb}
+                              </div>
                             </div>
-                            <div className="text-xs text-foreground/60 font-normal mt-0.5">
-                              {breadcrumb}
-                            </div>
-                          </div>
-                        </AccordionTrigger>
+                          </AccordionTrigger>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-base hover:bg-destructive/10 hover:text-destructive flex-shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFanDetails((prev) => ({
+                                ...prev,
+                                mainGenres: prev.mainGenres.filter((mg) => mg !== mainGenreName),
+                                // Also remove any sub-genres from this main genre
+                                subGenres: prev.subGenres.filter((sg) => {
+                                  const sgMainGenres = getSubGenresForMainGenre(mainGenreName);
+                                  return !sgMainGenres.some(smg => smg.name === sg);
+                                })
+                              }));
+                            }}
+                            title="Remove main genre and its sub-genres"
+                          >
+                            ×
+                          </Button>
+                        </div>
                         <AccordionContent className="pb-4 pt-2">
                           <div className="space-y-3">
                             <Label className="text-sm font-semibold text-foreground/90">Select Sub-Genre:</Label>
@@ -2873,7 +2833,7 @@ export function SignUpWizard() {
             className="rounded-full px-4 py-2 text-xs uppercase tracking-wider"
             onClick={async () => {
               // Skip, Save & Explore
-              await saveFanProfile();
+              await saveFanProfile({ onboardingCompleted: true });
               router.push("/dashboard");
             }}
           >
@@ -2901,7 +2861,7 @@ export function SignUpWizard() {
             className="rounded-full px-4 py-2 text-xs uppercase tracking-wider"
             onClick={async () => {
               // Publish Fan Profile Only
-              await saveFanProfile();
+              await saveFanProfile({ onboardingCompleted: true });
               await submitFanDetails();
               router.push("/dashboard");
             }}
@@ -2915,7 +2875,7 @@ export function SignUpWizard() {
             className="rounded-full px-4 py-2 text-xs uppercase tracking-wider"
             onClick={async () => {
               // Publish & Add Profile Type
-              await saveFanProfile();
+              await saveFanProfile({ onboardingCompleted: true });
               await submitFanDetails();
               const profileAddIndex = steps.findIndex((s) => s.key === "profile-add");
               if (profileAddIndex !== -1) {
@@ -3192,11 +3152,44 @@ export function SignUpWizard() {
 
   const renderProfileAdder = () => (
     <div className="space-y-6">
+      {/* Fan Profile Completed Message */}
+      <div className="rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20 p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0">
+            <svg className="h-5 w-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-semibold text-green-900 dark:text-green-100">
+              ✅ Fan Profile Completed!
+            </h3>
+            <p className="mt-1 text-sm text-green-700 dark:text-green-300">
+              Your fan profile is all set up. You can now explore Gigrilla or add additional profile types below.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <p className="text-sm text-foreground/70">
         You can add additional profile types now or later from your Control Panel. Switching
         between fan and extended profiles is always available via the &quot;Switch Profile&quot;
         control.
       </p>
+
+      {/* Skip to Dashboard Button */}
+      <div className="flex justify-center">
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          className="rounded-full px-6 py-3"
+          onClick={() => router.push("/fan-dashboard")}
+        >
+          Skip & Go to Fan Dashboard
+        </Button>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {ADDITIONAL_PROFILE_OPTIONS.map((option) => {
           const isSelected = selectedExtendedProfiles.includes(option.key);

@@ -1,5 +1,5 @@
 -- 014_seed_genre_taxonomy.sql
--- Seeds canonical genre hierarchy based on data/genres.ts
+-- Seeds canonical genre hierarchy based on data/genre-taxonomy.json
 
 begin;
 insert into public.genre_families (id, name) values ('industrial-gothic', 'Industrial / Gothic') on conflict (id) do update set name = excluded.name;

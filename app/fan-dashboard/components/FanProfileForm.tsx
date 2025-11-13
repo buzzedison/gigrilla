@@ -392,15 +392,8 @@ export function FanProfileForm() {
       // Start background update but don't wait for it
       backgroundUpdate();
       
-      // If publishing, navigate to genres page
-      if (publish) {
-        console.log('FanProfileForm: Profile published, navigating to genres page...');
-        setTimeout(() => {
-          window.location.href = '/fan-dashboard/genres';
-        }, 1500);
-      } else {
-        setTimeout(() => setMessage(""), 3000);
-      }
+      // Clear message after delay (genres already filled during onboarding)
+      setTimeout(() => setMessage(""), 3000);
 
     } catch (error) {
       console.error('FanProfileForm: Error saving profile:', error);
@@ -555,7 +548,7 @@ export function FanProfileForm() {
           disabled={saving}
           className="inline-flex w-full items-center justify-center rounded-lg bg-purple-600 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-purple-700 disabled:opacity-50 sm:w-auto"
         >
-          {saving ? "Saving..." : "Next"}
+          {saving ? "Saving..." : "Save & Publish Profile"}
         </button>
       </div>
     </div>

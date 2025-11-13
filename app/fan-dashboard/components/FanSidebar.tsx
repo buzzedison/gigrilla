@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Settings, User, Image as ImageIcon, Video, CreditCard, LogOut, RefreshCw, Eye, Edit3, Menu, Crown, ArrowRightLeft } from "lucide-react";
+import { Home, Music, ListMusic, Video as VideoIcon, Users, MapPin, BarChart3, MessageSquare, Settings, CreditCard, ArrowRightLeft, LogOut, RefreshCw, Crown } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../../lib/auth-context";
@@ -85,23 +85,31 @@ export function FanSidebar({ onNavigate, className }: FanSidebarProps) {
     onNavigate?.();
   };
 
-  const menuItems = [
-    { icon: Menu, label: "Main Dashboard", active: false, onClick: () => router.replace('/fan-dashboard') },
+  const dashboardItems = [
+    { icon: Home, label: "Back Home", active: false, onClick: () => router.push('/') },
+    { icon: Music, label: "Discover", active: false, onClick: () => {} },
+    { icon: ListMusic, label: "Create Playlist", active: false, onClick: () => {} },
+  ];
+
+  const yourPicks = [
+    { icon: Music, label: "Music", active: true, onClick: () => {} },
+    { icon: ListMusic, label: "Playlists", active: false, onClick: () => {} },
+    { icon: VideoIcon, label: "Videos", active: false, onClick: () => {} },
+    { icon: Users, label: "Artists", active: false, onClick: () => {} },
+    { icon: MapPin, label: "Venues", active: false, onClick: () => {} },
+    { icon: BarChart3, label: "Gigs", active: false, onClick: () => {} },
+    { icon: BarChart3, label: "Stats", active: false, onClick: () => {} },
   ];
 
   const activities = [
-    { icon: User, label: "About You", active: true, onClick: () => {} },
-    { icon: ImageIcon, label: "Profile Pictures", active: false, onClick: () => {} },
-    { icon: ImageIcon, label: "Photos", active: false, onClick: () => {} },
-    { icon: Video, label: "Videos", active: false, onClick: () => {} },
+    { icon: MessageSquare, label: "Messages", active: false, onClick: () => {} },
   ];
 
   const administration = [
-    { icon: Eye, label: "View Profile", active: false, onClick: () => {} },
-    { icon: Edit3, label: "Edit Profile", active: false, onClick: () => {} },
+    { icon: Settings, label: "Edit Profile", active: false, onClick: () => {} },
     { icon: CreditCard, label: "Billing & Payments", active: false, onClick: () => {} },
     { icon: Settings, label: "Settings", active: false, onClick: () => {} },
-    { icon: ArrowRightLeft, label: "Switch Profile", active: false, onClick: () => router.push('/profile-setup') },
+    { icon: ArrowRightLeft, label: "Switch Accounts", active: false, onClick: () => router.push('/profile-setup') },
     { icon: LogOut, label: "Log Out", active: false, onClick: handleSignOut },
   ];
 
@@ -185,47 +193,66 @@ export function FanSidebar({ onNavigate, className }: FanSidebarProps) {
         </div>
       )}
 
-      {/* Navigation */}
+      {/* Dashboard */}
       <div className="mb-6">
-        <h3 className="text-gray-400 text-sm uppercase tracking-wider mb-3">Navigation</h3>
+        <h3 className="text-gray-400 text-xs uppercase tracking-wider mb-3 font-semibold">DASHBOARD</h3>
         <div className="space-y-1">
-          {menuItems.map((item, index) => (
-            <div
+          {dashboardItems.map((item, index) => (
+            <button
               key={index}
               onClick={runNavigate(item.onClick)}
-              className={`flex items-center space-x-3 px-3 py-2 rounded-lg cursor-pointer ${
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
                 item.active ? "bg-purple-600/20 text-white" : "text-gray-400 hover:text-white hover:bg-purple-600/10"
               }`}
             >
-              <item.icon className="w-4 h-4" />
+              <item.icon className="w-5 h-5" />
               <span className="text-sm">{item.label}</span>
-            </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Your Picks */}
+      <div className="mb-6">
+        <h3 className="text-gray-400 text-xs uppercase tracking-wider mb-3 font-semibold">YOUR PICKS</h3>
+        <div className="space-y-1">
+          {yourPicks.map((item, index) => (
+            <button
+              key={index}
+              onClick={runNavigate(item.onClick)}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
+                item.active ? "bg-purple-600/20 text-white" : "text-gray-400 hover:text-white hover:bg-purple-600/10"
+              }`}
+            >
+              <item.icon className="w-5 h-5" />
+              <span className="text-sm">{item.label}</span>
+            </button>
           ))}
         </div>
       </div>
 
       {/* Activities */}
       <div className="mb-6">
-        <h3 className="text-gray-400 text-sm uppercase tracking-wider mb-3">Profile</h3>
+        <h3 className="text-gray-400 text-xs uppercase tracking-wider mb-3 font-semibold">ACTIVITIES</h3>
         <div className="space-y-1">
           {activities.map((item, index) => (
-            <div
+            <button
               key={index}
               onClick={runNavigate(item.onClick)}
-              className={`flex items-center space-x-3 px-3 py-2 rounded-lg cursor-pointer ${
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
                 item.active ? "bg-purple-600/20 text-white" : "text-gray-400 hover:text-white hover:bg-purple-600/10"
               }`}
             >
-              <item.icon className="w-4 h-4" />
+              <item.icon className="w-5 h-5" />
               <span className="text-sm">{item.label}</span>
-            </div>
+            </button>
           ))}
         </div>
       </div>
 
       {/* Administration */}
       <div className="flex-1">
-        <h3 className="text-gray-400 text-sm uppercase tracking-wider mb-3">Account</h3>
+        <h3 className="text-gray-400 text-xs uppercase tracking-wider mb-3 font-semibold">ADMINISTRATION</h3>
         <div className="space-y-1">
           {administration.map((item, index) => (
             item.label === 'Log Out' ? (
@@ -236,11 +263,11 @@ export function FanSidebar({ onNavigate, className }: FanSidebarProps) {
                   e.preventDefault();
                   await handleSignOut();
                 }}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg relative z-10 pointer-events-auto ${
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors relative z-10 pointer-events-auto ${
                   item.active ? "bg-purple-600/20 text-white" : "text-gray-400 hover:text-white hover:bg-purple-600/10"
                 }`}
               >
-                <item.icon className="w-4 h-4" />
+                <item.icon className="w-5 h-5" />
                 <span className="text-sm text-left flex-1">{item.label}</span>
               </Link>
             ) : (
@@ -248,11 +275,11 @@ export function FanSidebar({ onNavigate, className }: FanSidebarProps) {
                 key={index}
                 type="button"
                 onClick={runNavigate(item.onClick)}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg ${
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
                   item.active ? "bg-purple-600/20 text-white" : "text-gray-400 hover:text-white hover:bg-purple-600/10"
                 }`}
               >
-                <item.icon className="w-4 h-4" />
+                <item.icon className="w-5 h-5" />
                 <span className="text-sm text-left flex-1">{item.label}</span>
               </button>
             )

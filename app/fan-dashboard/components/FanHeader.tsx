@@ -110,19 +110,18 @@ export function FanHeader({ onOpenSidebar }: FanHeaderProps) {
     };
   }, [loading, user?.id, user?.email, user?.user_metadata?.first_name, user?.user_metadata?.display_name, user?.user_metadata?.username]);
 
-  // Load avatar URL from users table when user is ready
+  // Load avatar URL from fan_profiles when user is ready
   useEffect(() => {
     let isMounted = true
     const loadAvatar = async () => {
       if (loading || !user?.id) return
       try {
-        const supabase = getClient();
-        const { data } = await supabase
-          .from('users')
-          .select('avatar_url')
-          .eq('id', user.id)
-          .maybeSingle()
-        if (isMounted && data?.avatar_url) setAvatarUrl(data.avatar_url as string)
+        // Use API endpoint to get avatar
+        const response = await fetch('/api/fan-profile')
+        const result = await response.json()
+        if (isMounted && result.data?.avatar_url) {
+          setAvatarUrl(result.data.avatar_url as string)
+        }
       } catch {}
     }
     loadAvatar()
@@ -143,11 +142,13 @@ export function FanHeader({ onOpenSidebar }: FanHeaderProps) {
       const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path)
       const publicUrl = pub?.publicUrl || ''
       if (publicUrl) {
-        const { error: updErr } = await supabase
-          .from('users')
-          .update({ avatar_url: publicUrl })
-          .eq('id', user.id)
-        if (updErr) throw updErr
+        // Update fan_profiles via API
+        const response = await fetch('/api/fan-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ avatarUrl: publicUrl })
+        })
+        if (!response.ok) throw new Error('Failed to update avatar')
         setAvatarUrl(publicUrl)
       }
     } catch {

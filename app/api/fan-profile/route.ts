@@ -22,6 +22,7 @@ interface FanProfileRequestBody {
   avatarUrl?: string
   photoGallery?: string[]
   videoLinks?: Array<{ title: string; url: string }>
+  onboardingCompleted?: boolean
 }
 
 export async function GET() {
@@ -56,7 +57,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('fan_profiles')
-      .select('bio, username, display_name, contact_details, location_details, privacy_settings, account_type, preferred_genre_ids, music_preferences, avatar_url, photo_gallery, video_links')
+      .select('bio, username, display_name, contact_details, location_details, privacy_settings, account_type, preferred_genre_ids, music_preferences, avatar_url, photo_gallery, video_links, onboarding_completed, onboarding_completed_at')
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -127,6 +128,7 @@ export async function POST(request: NextRequest) {
       avatarUrl,
       photoGallery,
       videoLinks,
+      onboardingCompleted,
     } = body
 
     const { data: existingProfile, error: existingError } = await supabase
@@ -193,6 +195,12 @@ export async function POST(request: NextRequest) {
 
     if (Array.isArray(videoLinks)) {
       payload.video_links = videoLinks
+    }
+
+    // Set onboarding_completed flag if explicitly provided
+    if (onboardingCompleted === true) {
+      payload.onboarding_completed = true
+      payload.onboarding_completed_at = new Date().toISOString()
     }
 
     const { data, error } = await supabase

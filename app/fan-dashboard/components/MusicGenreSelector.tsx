@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "../../../lib/auth-context"
-import { GENRE_FAMILIES, GenreFamily, GenreType, GenreSubType } from "../../../data/genres"
+import { useGenreTaxonomy } from "../../../lib/hooks/useGenreTaxonomy"
+import type { GenreFamily, GenreType, GenreSubType } from "../../../types/genres"
 
 interface SelectedGenrePath {
   familyId: string
@@ -18,13 +19,14 @@ function buildLabel(family: GenreFamily, type: GenreType, sub?: GenreSubType) {
 export function MusicGenreSelector() {
   const { user } = useAuth()
   const [selectedPaths, setSelectedPaths] = useState<SelectedGenrePath[]>([])
-  const [loading, setLoading] = useState(false)
+  const [preferencesLoading, setPreferencesLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const { families, loading: taxonomyLoading, error: taxonomyError } = useGenreTaxonomy()
 
   useEffect(() => {
     if (!user?.id) return
     const load = async () => {
-      setLoading(true)
+      setPreferencesLoading(true)
       try {
         const response = await fetch('/api/user-genres')
         const result = await response.json()
@@ -44,7 +46,7 @@ export function MusicGenreSelector() {
       } catch (error) {
         console.error('Error loading user genres:', error)
       } finally {
-        setLoading(false)
+        setPreferencesLoading(false)
       }
     }
     load()
@@ -87,22 +89,28 @@ export function MusicGenreSelector() {
     })
   }
 
-  const familyOptions = useMemo(() => GENRE_FAMILIES, [])
+  const isLoading = preferencesLoading || taxonomyLoading
 
   return (
     <div className="space-y-4">
       <div>
         <h3 className="text-white text-lg font-semibold">Music Genres</h3>
         <p className="text-gray-300 text-sm">
-          Select the genres you listen to most. Choose a family, then pick main genre and optional sub-genre. We recommend at least three selections.
+          Select the genres you listen to most. Choose a family, then pick main genre and optional sub-genre.
         </p>
       </div>
 
-      {loading ? (
+      {taxonomyError && (
+        <div className="text-sm text-red-300">{taxonomyError}</div>
+      )}
+
+      {isLoading ? (
         <div className="text-gray-300 text-sm">Loading your genres...</div>
+      ) : families.length === 0 ? (
+        <div className="text-gray-400 text-sm">No genres available. Please try again later.</div>
       ) : (
         <div className="space-y-3">
-          {familyOptions.map((family) => (
+          {families.map((family) => (
             <FamilySelectionRow
               key={family.id}
               family={family}
@@ -115,9 +123,6 @@ export function MusicGenreSelector() {
 
       <div className="text-xs text-gray-300">
         Selected: {selectedPaths.length} genre{selectedPaths.length !== 1 ? 's' : ''}
-        {selectedPaths.length < 3 && !loading && (
-          <span className="text-yellow-300 ml-2">(Select at least 3 genres)</span>
-        )}
         {saving && (
           <span className="text-gray-400 ml-2">Saving…</span>
         )}
@@ -147,7 +152,7 @@ function FamilySelectionRow({ family, selectedPaths, onSelectionChange }: Family
       </button>
       {open && (
         <div className="bg-[#2c2140] px-4 py-3 space-y-3">
-          {family.types.map((type) => (
+          {family.mainGenres.map((type) => (
             <TypeSelectionRow
               key={type.id}
               family={family}
@@ -196,7 +201,7 @@ function TypeSelectionRow({ family, type, selectedPaths, onSelectionChange }: Ty
         >
           {type.name}
         </button>
-        {type.subs && type.subs.length > 0 && (
+        {type.subGenres && type.subGenres.length > 0 && (
           <button
             type="button"
             onClick={() => setOpen((prev) => !prev)}
@@ -207,9 +212,9 @@ function TypeSelectionRow({ family, type, selectedPaths, onSelectionChange }: Ty
         )}
       </div>
 
-      {open && type.subs && (
+      {open && type.subGenres && (
         <div className="px-3 pb-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {type.subs.map((sub) => {
+          {type.subGenres.map((sub) => {
             const isSelected = selectedPaths.some((path) => path.subId === sub.id)
             return (
               <button
@@ -234,7 +239,7 @@ function TypeSelectionRow({ family, type, selectedPaths, onSelectionChange }: Ty
           Selected:
           <ul className="mt-1 space-y-1">
             {selectedPaths.map((path) => {
-              const sub = type.subs?.find((s) => s.id === path.subId)
+              const sub = type.subGenres?.find((s) => s.id === path.subId)
               return (
                 <li key={`${path.typeId}-${path.subId ?? 'none'}`} className="text-gray-100">
                   {buildLabel(family, type, sub)}
@@ -247,4 +252,3 @@ function TypeSelectionRow({ family, type, selectedPaths, onSelectionChange }: Ty
     </div>
   )
 }
-

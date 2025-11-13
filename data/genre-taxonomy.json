@@ -1,0 +1,4378 @@
+[
+  {
+    "id": "african-music",
+    "name": "African Music",
+    "mainGenres": [
+      {
+        "id": "african-hip-hop-trap",
+        "name": "African Hip-Hop & Trap",
+        "familyId": "african-music",
+        "subGenres": [
+          {
+            "id": "african-hip-hop-trap-african-boom-bap",
+            "name": "African Boom Bap"
+          },
+          {
+            "id": "african-hip-hop-trap-african-drill",
+            "name": "African Drill"
+          },
+          {
+            "id": "african-hip-hop-trap-african-trap",
+            "name": "African Trap"
+          },
+          {
+            "id": "african-hip-hop-trap-afro-trap",
+            "name": "Afro-Trap (Hybrid: African Hip-Hop & Trap + Afrobeats)"
+          },
+          {
+            "id": "african-hip-hop-trap-amapiano-rap",
+            "name": "Amapiano Rap (Hybrid: African Hip-Hop & Trap + Amapiano & Afro-House + Hip-Hop & Rap)"
+          },
+          {
+            "id": "african-hip-hop-trap-hiplife",
+            "name": "Hiplife (Hybrid: African Hip-Hop & Trap + Highlife & Afro-Fusion + Hip-Hop & Rap)"
+          }
+        ]
+      },
+      {
+        "id": "afrobeats",
+        "name": "Afrobeats",
+        "familyId": "african-music",
+        "subGenres": [
+          {
+            "id": "afrobeats-afrobeats-pop",
+            "name": "Afrobeats Pop"
+          },
+          {
+            "id": "afrobeats-afro-dance",
+            "name": "Afro-Dance"
+          },
+          {
+            "id": "afrobeats-afro-fusion",
+            "name": "Afro-Fusion (Hybrid: Afrobeats + Highlife & Afro-Fusion)"
+          },
+          {
+            "id": "afrobeats-afro-rnb",
+            "name": "Afro-RnB (Hybrid: Afrobeats + Contemporary RnB & Neo Soul)"
+          },
+          {
+            "id": "afrobeats-afro-swing",
+            "name": "Afro-Swing (Hybrid: Afrobeats + Hip-Hop & Rap)"
+          },
+          {
+            "id": "afrobeats-afro-trap",
+            "name": "Afro-Trap (Hybrid: African Hip-Hop & Trap + Afrobeats)"
+          },
+          {
+            "id": "afrobeats-alt",
+            "name": "Alté"
+          },
+          {
+            "id": "afrobeats-latin-afro-house-afro-house",
+            "name": "Latin/Afro House (Afro-House) (Hybrid: Afrobeats + House)"
+          }
+        ]
+      },
+      {
+        "id": "amapiano-afro-house",
+        "name": "Amapiano & Afro-House",
+        "familyId": "african-music",
+        "subGenres": [
+          {
+            "id": "amapiano-afro-house-afro-house",
+            "name": "Afro-House"
+          },
+          {
+            "id": "amapiano-afro-house-afro-tech",
+            "name": "Afro-Tech (Hybrid: Amapiano & Afro-House + Techno)"
+          },
+          {
+            "id": "amapiano-afro-house-amapiano",
+            "name": "Amapiano"
+          },
+          {
+            "id": "amapiano-afro-house-amapiano-rap",
+            "name": "Amapiano Rap (Hybrid: African Hip-Hop & Trap + Amapiano & Afro-House + Hip-Hop & Rap)"
+          },
+          {
+            "id": "amapiano-afro-house-gqom",
+            "name": "Gqom"
+          },
+          {
+            "id": "amapiano-afro-house-private-school-amapiano",
+            "name": "Private School Amapiano"
+          }
+        ]
+      },
+      {
+        "id": "highlife-afro-fusion",
+        "name": "Highlife & Afro-Fusion",
+        "familyId": "african-music",
+        "subGenres": [
+          {
+            "id": "highlife-afro-fusion-afro-fusion",
+            "name": "Afro-Fusion (Hybrid: Afrobeats + Highlife & Afro-Fusion)"
+          },
+          {
+            "id": "highlife-afro-fusion-ghanaian-highlife",
+            "name": "Ghanaian Highlife"
+          },
+          {
+            "id": "highlife-afro-fusion-highlife",
+            "name": "Highlife"
+          },
+          {
+            "id": "highlife-afro-fusion-hiplife",
+            "name": "Hiplife (Hybrid: African Hip-Hop & Trap + Highlife & Afro-Fusion + Hip-Hop & Rap)"
+          },
+          {
+            "id": "highlife-afro-fusion-igbo-highlife",
+            "name": "Igbo Highlife"
+          },
+          {
+            "id": "highlife-afro-fusion-palm-wine-folk",
+            "name": "Palm-Wine Folk (Hybrid: African Folk + Highlife & Afro-Fusion)"
+          },
+          {
+            "id": "highlife-afro-fusion-palm-wine-highlife",
+            "name": "Palm-Wine Highlife"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "asian-pop-music",
+    "name": "Asian Pop Music",
+    "mainGenres": [
+      {
+        "id": "c-pop-cantonese-canto-pop",
+        "name": "C-Pop (Cantonese) / Canto-Pop",
+        "familyId": "asian-pop-music",
+        "subGenres": [
+          {
+            "id": "c-pop-cantonese-canto-pop-canto-dance-pop",
+            "name": "Canto Dance-Pop (Hybrid: C-Pop (Cantonese) / Canto-Pop + House)"
+          },
+          {
+            "id": "c-pop-cantonese-canto-pop-canto-rap",
+            "name": "Canto Rap (Hybrid: C-Pop (Cantonese) / Canto-Pop + Hip-Hop & Rap)"
+          },
+          {
+            "id": "c-pop-cantonese-canto-pop-canto-rnb",
+            "name": "Canto RnB (Hybrid: C-Pop (Cantonese) / Canto-Pop + Contemporary RnB & Neo Soul)"
+          },
+          {
+            "id": "c-pop-cantonese-canto-pop-cantopop-ballad",
+            "name": "Cantopop Ballad"
+          },
+          {
+            "id": "c-pop-cantonese-canto-pop-cantorock",
+            "name": "Cantorock"
+          }
+        ]
+      },
+      {
+        "id": "i-pop-indian",
+        "name": "I-Pop (Indian)",
+        "familyId": "asian-pop-music",
+        "subGenres": [
+          {
+            "id": "i-pop-indian-bollywood-bhajan",
+            "name": "Bollywood Bhajan (Hybrid: Hindu & Indian Devotional + I-Pop (Indian))"
+          },
+          {
+            "id": "i-pop-indian-bollywood-folk-fusion",
+            "name": "Bollywood Folk-Fusion (Hybrid: I-Pop (Indian) + Indian Folk)"
+          },
+          {
+            "id": "i-pop-indian-bollywood-pop",
+            "name": "Bollywood Pop (Hybrid: Movie Score & Motion Picture + I-Pop (Indian))"
+          },
+          {
+            "id": "i-pop-indian-desi-folk-pop",
+            "name": "Desi Folk-Pop (Hybrid: Asian Roots + I-Pop (Indian))"
+          },
+          {
+            "id": "i-pop-indian-desi-hip-hop",
+            "name": "Desi Hip-Hop (Hybrid: Hip-Hop & Rap + I-Pop (Indian))"
+          },
+          {
+            "id": "i-pop-indian-i-pop-ballad",
+            "name": "I-Pop Ballad"
+          },
+          {
+            "id": "i-pop-indian-i-pop-dance",
+            "name": "I-Pop Dance"
+          },
+          {
+            "id": "i-pop-indian-punjabi-pop",
+            "name": "Punjabi Pop (Hybrid: I-Pop (Indian) + Indian Folk)"
+          },
+          {
+            "id": "i-pop-indian-sufi-pop-pk-in",
+            "name": "Sufi Pop (PK/IN) (Hybrid: I-Pop (Indian) + Pak-Pop (Pakistani))"
+          }
+        ]
+      },
+      {
+        "id": "j-pop-japanese",
+        "name": "J-Pop (Japanese)",
+        "familyId": "asian-pop-music",
+        "subGenres": [
+          {
+            "id": "j-pop-japanese-anisong-anime-pop",
+            "name": "Anisong (Anime Pop)"
+          },
+          {
+            "id": "j-pop-japanese-city-pop-jp",
+            "name": "City Pop (JP)"
+          },
+          {
+            "id": "j-pop-japanese-idol-pop-j-pop",
+            "name": "Idol Pop (J-Pop)"
+          },
+          {
+            "id": "j-pop-japanese-j-rap",
+            "name": "J-Rap (Hybrid: Hip-Hop & Rap + J-Pop (Japanese))"
+          },
+          {
+            "id": "j-pop-japanese-j-rnb",
+            "name": "J-RnB (Hybrid: Contemporary RnB & Neo Soul + J-Pop (Japanese))"
+          },
+          {
+            "id": "j-pop-japanese-synthpop-jp",
+            "name": "Synthpop (JP) (Hybrid: J-Pop (Japanese) + Synthwave & Retrowave)"
+          }
+        ]
+      },
+      {
+        "id": "k-pop-korean",
+        "name": "K-pop (Korean)",
+        "familyId": "asian-pop-music",
+        "subGenres": [
+          {
+            "id": "k-pop-korean-k-drama-ost-pop",
+            "name": "K-Drama OST Pop (Hybrid: K-pop (Korean) + TV & Streaming)"
+          },
+          {
+            "id": "k-pop-korean-k-hip-hop",
+            "name": "K-Hip-Hop (Hybrid: Hip-Hop & Rap + K-pop (Korean))"
+          },
+          {
+            "id": "k-pop-korean-k-idol-pop",
+            "name": "K-Idol Pop"
+          },
+          {
+            "id": "k-pop-korean-k-pop-dance",
+            "name": "K-Pop Dance"
+          },
+          {
+            "id": "k-pop-korean-k-rnb",
+            "name": "K-RnB (Hybrid: Contemporary RnB & Neo Soul + K-pop (Korean))"
+          }
+        ]
+      },
+      {
+        "id": "pak-pop-pakistani",
+        "name": "Pak-Pop (Pakistani)",
+        "familyId": "asian-pop-music",
+        "subGenres": [
+          {
+            "id": "pak-pop-pakistani-coke-studio-fusion-pk",
+            "name": "Coke Studio Fusion (PK) (Hybrid: Islamic & Middle Eastern Devotional + Pak-Pop (Pakistani))"
+          },
+          {
+            "id": "pak-pop-pakistani-contemporary-sufi-pop",
+            "name": "Contemporary Sufi Pop (Hybrid: Islamic & Middle Eastern Devotional + Pak-Pop (Pakistani))"
+          },
+          {
+            "id": "pak-pop-pakistani-pak-folk-pop",
+            "name": "Pak Folk-Pop (Hybrid: Pak-Pop (Pakistani) + Pakistani Folk)"
+          },
+          {
+            "id": "pak-pop-pakistani-pak-pop-rock",
+            "name": "Pak Pop-Rock (Hybrid: Alternative & Indie Rock + Pak-Pop (Pakistani))"
+          },
+          {
+            "id": "pak-pop-pakistani-pakistani-pop-ballad",
+            "name": "Pakistani Pop Ballad"
+          },
+          {
+            "id": "pak-pop-pakistani-sufi-pop-pk-in",
+            "name": "Sufi Pop (PK/IN) (Hybrid: I-Pop (Indian) + Pak-Pop (Pakistani))"
+          }
+        ]
+      },
+      {
+        "id": "p-pop-filipino",
+        "name": "P-Pop (Filipino)",
+        "familyId": "asian-pop-music",
+        "subGenres": [
+          {
+            "id": "p-pop-filipino-opm-pop",
+            "name": "OPM Pop"
+          },
+          {
+            "id": "p-pop-filipino-pinoy-pop-rock",
+            "name": "Pinoy Pop-Rock (Hybrid: Alternative & Indie Rock + P-Pop (Filipino))"
+          },
+          {
+            "id": "p-pop-filipino-pinoy-rap-pop",
+            "name": "Pinoy Rap-Pop (Hybrid: Hip-Hop & Rap + P-Pop (Filipino))"
+          },
+          {
+            "id": "p-pop-filipino-pinoy-rnb-pop",
+            "name": "Pinoy RnB-Pop (Hybrid: Contemporary RnB & Neo Soul + P-Pop (Filipino))"
+          }
+        ]
+      },
+      {
+        "id": "t-pop-thai",
+        "name": "T-Pop (Thai)",
+        "familyId": "asian-pop-music",
+        "subGenres": [
+          {
+            "id": "t-pop-thai-thai-pop-ballad",
+            "name": "Thai Pop Ballad"
+          },
+          {
+            "id": "t-pop-thai-thai-pop-rock",
+            "name": "Thai Pop-Rock (Hybrid: Alternative & Indie Rock + T-Pop (Thai))"
+          },
+          {
+            "id": "t-pop-thai-thai-rap-pop",
+            "name": "Thai Rap-Pop (Hybrid: Hip-Hop & Rap + T-Pop (Thai))"
+          },
+          {
+            "id": "t-pop-thai-thai-rnb-pop",
+            "name": "Thai RnB-Pop (Hybrid: Contemporary RnB & Neo Soul + T-Pop (Thai))"
+          }
+        ]
+      },
+      {
+        "id": "c-pop-mandarin-mando-pop",
+        "name": "C-Pop (Mandarin) / Mando-Pop",
+        "familyId": "asian-pop-music",
+        "subGenres": [
+          {
+            "id": "c-pop-mandarin-mando-pop-mando-rap",
+            "name": "Mando Rap (Hybrid: Hip-Hop & Rap + C-Pop (Mandarin) / Mando-Pop)"
+          },
+          {
+            "id": "c-pop-mandarin-mando-pop-mando-rnb",
+            "name": "Mando RnB (Hybrid: Contemporary RnB & Neo Soul + C-Pop (Mandarin) / Mando-Pop)"
+          },
+          {
+            "id": "c-pop-mandarin-mando-pop-mandopop-ballad",
+            "name": "Mandopop Ballad"
+          },
+          {
+            "id": "c-pop-mandarin-mando-pop-mando-pop-folk",
+            "name": "Mando-Pop Folk (Hybrid: Chinese Folk + C-Pop (Mandarin) / Mando-Pop)"
+          },
+          {
+            "id": "c-pop-mandarin-mando-pop-mando-pop-rock",
+            "name": "Mando-Pop Rock (Hybrid: Alternative & Indie Rock + C-Pop (Mandarin) / Mando-Pop)"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "classical-music",
+    "name": "Classical Music",
+    "mainGenres": [
+      {
+        "id": "classical-crossover",
+        "name": "Classical Crossover",
+        "familyId": "classical-music",
+        "subGenres": [
+          {
+            "id": "classical-crossover-neoclassical-ambient",
+            "name": "Neoclassical Ambient (Hybrid: Ambient + Classical Crossover)"
+          },
+          {
+            "id": "classical-crossover-popera-crossover-opera",
+            "name": "Popera (Crossover Opera)"
+          },
+          {
+            "id": "classical-crossover-symphonic-pop",
+            "name": "Symphonic Pop (Hybrid: Classical Crossover + Pop)"
+          },
+          {
+            "id": "classical-crossover-symphonic-rock",
+            "name": "Symphonic Rock (Hybrid: Classical Crossover + Contemporary Rock)"
+          },
+          {
+            "id": "classical-crossover-trailer-classical",
+            "name": "Trailer Classical (Hybrid: Classical Crossover + Movie Score & Motion Picture)"
+          }
+        ]
+      },
+      {
+        "id": "classical-screen-stage",
+        "name": "Classical Screen & Stage",
+        "familyId": "classical-music",
+        "subGenres": [
+          {
+            "id": "classical-screen-stage-cinematic-classical",
+            "name": "Cinematic Classical"
+          },
+          {
+            "id": "classical-screen-stage-orchestral-film-classical",
+            "name": "Orchestral Film-Classical (Hybrid: Movie Score & Motion Picture + Classical Screen & Stage)"
+          },
+          {
+            "id": "classical-screen-stage-stage-orchestral-crossover",
+            "name": "Stage-Orchestral Crossover (Hybrid: Classical Screen & Stage + Stage & Musical Theatre)"
+          },
+          {
+            "id": "classical-screen-stage-television-orchestral-themes",
+            "name": "Television Orchestral Themes (Hybrid: Classical Screen & Stage + TV & Streaming)"
+          }
+        ]
+      },
+      {
+        "id": "contemporary-minimalist-classical",
+        "name": "Contemporary & Minimalist Classical",
+        "familyId": "classical-music",
+        "subGenres": [
+          {
+            "id": "contemporary-minimalist-classical-avant-classical",
+            "name": "Avant-Classical (Hybrid: Avant-Garde + Contemporary & Minimalist Classical)"
+          },
+          {
+            "id": "contemporary-minimalist-classical-minimalism",
+            "name": "Minimalism"
+          },
+          {
+            "id": "contemporary-minimalist-classical-new-complexity",
+            "name": "New Complexity"
+          },
+          {
+            "id": "contemporary-minimalist-classical-post-minimalism",
+            "name": "Post-Minimalism"
+          },
+          {
+            "id": "contemporary-minimalist-classical-spectralism",
+            "name": "Spectralism"
+          }
+        ]
+      },
+      {
+        "id": "core-classical",
+        "name": "Core Classical",
+        "familyId": "classical-music",
+        "subGenres": [
+          {
+            "id": "core-classical-20th-century-orchestral",
+            "name": "20th-Century Orchestral"
+          },
+          {
+            "id": "core-classical-baroque",
+            "name": "Baroque"
+          },
+          {
+            "id": "core-classical-classical-period",
+            "name": "Classical Period"
+          },
+          {
+            "id": "core-classical-renaissance-early-music",
+            "name": "Renaissance & Early Music"
+          },
+          {
+            "id": "core-classical-romantic",
+            "name": "Romantic"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "country-music",
+    "name": "Country Music",
+    "mainGenres": [
+      {
+        "id": "alt-country",
+        "name": "Alt-Country",
+        "familyId": "country-music",
+        "subGenres": [
+          {
+            "id": "alt-country-alt-americana",
+            "name": "Alt-Americana (Hybrid: Alt-Country + Americana Country)"
+          },
+          {
+            "id": "alt-country-cowpunk",
+            "name": "Cowpunk (Hybrid: Alt-Country + Punk & New Wave)"
+          },
+          {
+            "id": "alt-country-no-depression-alt",
+            "name": "No Depression (Alt)"
+          },
+          {
+            "id": "alt-country-y-allternative",
+            "name": "Y'allternative (Hybrid: Alt-Country + Alternative & Indie Rock)"
+          }
+        ]
+      },
+      {
+        "id": "americana-country",
+        "name": "Americana Country",
+        "familyId": "country-music",
+        "subGenres": [
+          {
+            "id": "americana-country-alt-americana",
+            "name": "Alt-Americana (Hybrid: Alt-Country + Americana Country)"
+          },
+          {
+            "id": "americana-country-americana-bluegrass",
+            "name": "Americana Bluegrass (Hybrid: Americana Country + Bluegrass Country)"
+          },
+          {
+            "id": "americana-country-americana-folk",
+            "name": "Americana Folk (Hybrid: Americana Country + Folk)"
+          },
+          {
+            "id": "americana-country-americana-rock",
+            "name": "Americana Rock (Hybrid: Americana Country + Contemporary Rock)"
+          },
+          {
+            "id": "americana-country-americana-roots",
+            "name": "Americana Roots"
+          }
+        ]
+      },
+      {
+        "id": "bluegrass-country",
+        "name": "Bluegrass Country",
+        "familyId": "country-music",
+        "subGenres": [
+          {
+            "id": "bluegrass-country-americana-bluegrass",
+            "name": "Americana Bluegrass (Hybrid: Americana Country + Bluegrass Country)"
+          },
+          {
+            "id": "bluegrass-country-bluegrass-gospel",
+            "name": "Bluegrass Gospel (Hybrid: Bluegrass Country + Gospel)"
+          },
+          {
+            "id": "bluegrass-country-newgrass-progressive-bluegrass",
+            "name": "Newgrass (Progressive Bluegrass) (Hybrid: Bluegrass Country + Jazz)"
+          },
+          {
+            "id": "bluegrass-country-old-time-bluegrass",
+            "name": "Old-Time Bluegrass"
+          },
+          {
+            "id": "bluegrass-country-old-time-stringband",
+            "name": "Old-Time Stringband (Hybrid: Americana Folk + Bluegrass Country)"
+          },
+          {
+            "id": "bluegrass-country-traditional-bluegrass",
+            "name": "Traditional Bluegrass"
+          }
+        ]
+      },
+      {
+        "id": "classic-country",
+        "name": "Classic Country",
+        "familyId": "country-music",
+        "subGenres": [
+          {
+            "id": "classic-country-bakersfield",
+            "name": "Bakersfield"
+          },
+          {
+            "id": "classic-country-classic-country-hillbilly",
+            "name": "Classic Country / Hillbilly"
+          },
+          {
+            "id": "classic-country-country-rock-classic",
+            "name": "Country Rock (Classic) (Hybrid: Classic Country + Golden & Classic Rock)"
+          },
+          {
+            "id": "classic-country-country-rock-roots",
+            "name": "Country Rock (Roots) (Hybrid: Classic Country + Rock 'n' Roll (RnR/R&R))"
+          },
+          {
+            "id": "classic-country-honky-tonk-hardcore-country",
+            "name": "Honky-Tonk / Hardcore Country"
+          },
+          {
+            "id": "classic-country-nashville-countrypolitan",
+            "name": "Nashville / Countrypolitan"
+          },
+          {
+            "id": "classic-country-outlaw-country",
+            "name": "Outlaw Country"
+          },
+          {
+            "id": "classic-country-western-swing",
+            "name": "Western Swing"
+          }
+        ]
+      },
+      {
+        "id": "country-fusion",
+        "name": "Country Fusion",
+        "familyId": "country-music",
+        "subGenres": [
+          {
+            "id": "country-fusion-country-house-four-on-the-floor",
+            "name": "Country House (Four-on-the-Floor) (Hybrid: Country Fusion + House)"
+          },
+          {
+            "id": "country-fusion-country-rnb",
+            "name": "Country RnB (Hybrid: Contemporary RnB & Neo Soul + Country Fusion)"
+          },
+          {
+            "id": "country-fusion-country-alt-rock",
+            "name": "Country-Alt Rock (Hybrid: Contemporary Rock + Country Fusion)"
+          },
+          {
+            "id": "country-fusion-country-dance-pop",
+            "name": "Country-Dance Pop (Hybrid: Country Fusion + Pop)"
+          }
+        ]
+      },
+      {
+        "id": "modern-country",
+        "name": "Modern Country",
+        "familyId": "country-music",
+        "subGenres": [
+          {
+            "id": "modern-country-bro-country",
+            "name": "Bro-Country"
+          },
+          {
+            "id": "modern-country-country-pop",
+            "name": "Country Pop (Hybrid: Modern Country + Pop)"
+          },
+          {
+            "id": "modern-country-country-rap-hick-hop",
+            "name": "Country Rap (Hick-Hop) (Hybrid: Hip-Hop & Rap + Modern Country)"
+          },
+          {
+            "id": "modern-country-country-rock",
+            "name": "Country Rock (Hybrid: Contemporary Rock + Modern Country + Pop)"
+          },
+          {
+            "id": "modern-country-neotraditional-contemporary-country",
+            "name": "Neotraditional / Contemporary Country"
+          },
+          {
+            "id": "modern-country-urban-country",
+            "name": "Urban Country"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dance-edm-music",
+    "name": "Dance & EDM Music",
+    "mainGenres": [
+      {
+        "id": "bass-music",
+        "name": "Bass Music",
+        "familyId": "dance-edm-music",
+        "subGenres": [
+          {
+            "id": "bass-music-brazilian-bass-baile",
+            "name": "Brazilian Bass (Baile) (Hybrid: Baile Funk & Funk Carioca + Bass Music)"
+          },
+          {
+            "id": "bass-music-brazilian-bass-urban",
+            "name": "Brazilian Bass (Urban) (Hybrid: Bass Music + Brazilian Urban)"
+          },
+          {
+            "id": "bass-music-future-bass",
+            "name": "Future Bass"
+          },
+          {
+            "id": "bass-music-jersey-club",
+            "name": "Jersey Club"
+          },
+          {
+            "id": "bass-music-moombahton",
+            "name": "Moombahton (Hybrid: Bass Music + House + Tropical & Caribbean Latin)"
+          },
+          {
+            "id": "bass-music-nueva-cumbia-electronic",
+            "name": "Nueva Cumbia (Electronic) (Hybrid: Bass Music + Cumbia)"
+          },
+          {
+            "id": "bass-music-trap-edm",
+            "name": "Trap EDM (Hybrid: Bass Music + Hip-Hop & Rap)"
+          }
+        ]
+      },
+      {
+        "id": "big-room",
+        "name": "Big Room",
+        "familyId": "dance-edm-music",
+        "subGenres": [
+          {
+            "id": "big-room-big-room-house",
+            "name": "Big Room House"
+          },
+          {
+            "id": "big-room-big-room-trance",
+            "name": "Big Room Trance (Hybrid: Big Room + Trance)"
+          },
+          {
+            "id": "big-room-electro-house",
+            "name": "Electro House (Hybrid: Big Room + House)"
+          },
+          {
+            "id": "big-room-festival-pop",
+            "name": "Festival Pop (Hybrid: Big Room + Pop)"
+          }
+        ]
+      },
+      {
+        "id": "breakbeat",
+        "name": "Breakbeat",
+        "familyId": "dance-edm-music",
+        "subGenres": [
+          {
+            "id": "breakbeat-baseline-uk-funky",
+            "name": "Baseline / UK Funky (Hybrid: Breakbeat + Drum 'n' Bass (DnB/D&B))"
+          },
+          {
+            "id": "breakbeat-breakbeat-house",
+            "name": "Breakbeat House (Hybrid: Breakbeat + House)"
+          },
+          {
+            "id": "breakbeat-breaks-classic",
+            "name": "Breaks (Classic)"
+          },
+          {
+            "id": "breakbeat-breakstep",
+            "name": "Breakstep (Hybrid: Breakbeat + Grime)"
+          },
+          {
+            "id": "breakbeat-broken-beats",
+            "name": "Broken Beats"
+          },
+          {
+            "id": "breakbeat-chemical-breaks-big-beat",
+            "name": "Chemical Breaks / Big Beat"
+          },
+          {
+            "id": "breakbeat-electro",
+            "name": "Electro (Hybrid: Breakbeat + Hip-Hop & Rap)"
+          },
+          {
+            "id": "breakbeat-florida-funky-breaks",
+            "name": "Florida Funky Breaks"
+          },
+          {
+            "id": "breakbeat-freestyle-breakdance",
+            "name": "Freestyle / Breakdance"
+          },
+          {
+            "id": "breakbeat-future-bass-garage",
+            "name": "Future Bass / Garage (Hybrid: Breakbeat + Drum 'n' Bass (DnB/D&B))"
+          },
+          {
+            "id": "breakbeat-future-garage",
+            "name": "Future Garage (Hybrid: Breakbeat + Dubstep)"
+          },
+          {
+            "id": "breakbeat-glitch-hop-wonky",
+            "name": "Glitch Hop & Wonky (Hybrid: Breakbeat + Hip-Hop & Rap)"
+          },
+          {
+            "id": "breakbeat-grime-garage-breakbeat",
+            "name": "Grime Garage Breakbeat (Hybrid: Breakbeat + Grime + Jungle)"
+          },
+          {
+            "id": "breakbeat-jungle-breaks",
+            "name": "Jungle Breaks (Hybrid: Breakbeat + Jungle)"
+          },
+          {
+            "id": "breakbeat-miami-bass-revival",
+            "name": "Miami Bass Revival (Hybrid: Breakbeat + Hip-Hop & Rap)"
+          },
+          {
+            "id": "breakbeat-nu-skool-breaks",
+            "name": "Nu Skool Breaks"
+          },
+          {
+            "id": "breakbeat-trapstep-edm-trap",
+            "name": "Trapstep / EDM Trap (Hybrid: Breakbeat + Hip-Hop & Rap)"
+          },
+          {
+            "id": "breakbeat-trip-hop",
+            "name": "Trip Hop (Hybrid: Breakbeat + Downtempo & Chillout + Hip-Hop & Rap)"
+          },
+          {
+            "id": "breakbeat-uk-garage-2-step",
+            "name": "UK Garage / 2-Step"
+          }
+        ]
+      },
+      {
+        "id": "dance-music",
+        "name": "Dance Music",
+        "familyId": "dance-edm-music",
+        "subGenres": []
+      },
+      {
+        "id": "drum-n-bass-dnb-d-b",
+        "name": "Drum 'n' Bass (DnB/D&B)",
+        "familyId": "dance-edm-music",
+        "subGenres": [
+          {
+            "id": "drum-n-bass-dnb-d-b-ambient-dnb",
+            "name": "Ambient DnB"
+          },
+          {
+            "id": "drum-n-bass-dnb-d-b-baseline-uk-funky",
+            "name": "Baseline / UK Funky (Hybrid: Breakbeat + Drum 'n' Bass (DnB/D&B))"
+          },
+          {
+            "id": "drum-n-bass-dnb-d-b-darkcore-darkstep",
+            "name": "Darkcore / Darkstep (Hybrid: Drum 'n' Bass (DnB/D&B) + Hardcore)"
+          },
+          {
+            "id": "drum-n-bass-dnb-d-b-digital-hardcore-breakcore",
+            "name": "Digital Hardcore / Breakcore (Hybrid: Drum 'n' Bass (DnB/D&B) + Hardcore)"
+          },
+          {
+            "id": "drum-n-bass-dnb-d-b-future-bass-garage",
+            "name": "Future Bass / Garage (Hybrid: Breakbeat + Drum 'n' Bass (DnB/D&B))"
+          },
+          {
+            "id": "drum-n-bass-dnb-d-b-hardstep-techstep",
+            "name": "Hardstep / Techstep"
+          },
+          {
+            "id": "drum-n-bass-dnb-d-b-intelligent-dnb",
+            "name": "Intelligent DnB"
+          },
+          {
+            "id": "drum-n-bass-dnb-d-b-jazzstep-liquid-funk",
+            "name": "Jazzstep / Liquid Funk (Hybrid: Drum 'n' Bass (DnB/D&B) + Jazz)"
+          },
+          {
+            "id": "drum-n-bass-dnb-d-b-jump-up-dnb",
+            "name": "Jump-Up DnB"
+          },
+          {
+            "id": "drum-n-bass-dnb-d-b-liquid-dnb",
+            "name": "Liquid DnB"
+          },
+          {
+            "id": "drum-n-bass-dnb-d-b-neurofunk",
+            "name": "Neurofunk"
+          },
+          {
+            "id": "drum-n-bass-dnb-d-b-old-skool-drum-n-bass",
+            "name": "Old Skool Drum 'n' Bass"
+          },
+          {
+            "id": "drum-n-bass-dnb-d-b-ragga-dnb",
+            "name": "Ragga DnB (Hybrid: Drum 'n' Bass (DnB/D&B) + Reggae)"
+          }
+        ]
+      },
+      {
+        "id": "dubstep",
+        "name": "Dubstep",
+        "familyId": "dance-edm-music",
+        "subGenres": [
+          {
+            "id": "dubstep-brostep",
+            "name": "Brostep"
+          },
+          {
+            "id": "dubstep-chillstep",
+            "name": "Chillstep"
+          },
+          {
+            "id": "dubstep-deep-dubstep",
+            "name": "Deep Dubstep"
+          },
+          {
+            "id": "dubstep-drumstep",
+            "name": "Drumstep"
+          },
+          {
+            "id": "dubstep-dubstep-roots",
+            "name": "Dubstep Roots (Hybrid: Dub & Sound System Culture + Dubstep)"
+          },
+          {
+            "id": "dubstep-dubstep-grime-crossover-140",
+            "name": "Dubstep-Grime Crossover (140) (Hybrid: Dubstep + Grime)"
+          },
+          {
+            "id": "dubstep-future-garage",
+            "name": "Future Garage (Hybrid: Breakbeat + Dubstep)"
+          },
+          {
+            "id": "dubstep-melodic-dubstep",
+            "name": "Melodic Dubstep"
+          },
+          {
+            "id": "dubstep-post-dubstep",
+            "name": "Post-Dubstep"
+          },
+          {
+            "id": "dubstep-riddim",
+            "name": "Riddim"
+          }
+        ]
+      },
+      {
+        "id": "grime",
+        "name": "Grime",
+        "familyId": "dance-edm-music",
+        "subGenres": [
+          {
+            "id": "grime-bashment-grime",
+            "name": "Bashment Grime (Hybrid: Dancehall + Grime)"
+          },
+          {
+            "id": "grime-breakstep",
+            "name": "Breakstep (Hybrid: Breakbeat + Grime)"
+          },
+          {
+            "id": "grime-dubstep-grime-crossover-140",
+            "name": "Dubstep-Grime Crossover (140) (Hybrid: Dubstep + Grime)"
+          },
+          {
+            "id": "grime-eskibeat-eski",
+            "name": "Eskibeat (Eski)"
+          },
+          {
+            "id": "grime-instrumental-grime",
+            "name": "Instrumental Grime"
+          },
+          {
+            "id": "grime-rhythm-grime-r-g-rng",
+            "name": "Rhythm & Grime (R&G/RnG) (Hybrid: Contemporary RnB & Neo Soul + Grime)"
+          },
+          {
+            "id": "grime-sino-grime",
+            "name": "Sino‑Grime"
+          },
+          {
+            "id": "grime-uk-drill",
+            "name": "UK Drill (Hybrid: Grime + Hip‑Hop & Rap)"
+          }
+        ]
+      },
+      {
+        "id": "hardcore",
+        "name": "Hardcore",
+        "familyId": "dance-edm-music",
+        "subGenres": [
+          {
+            "id": "hardcore-breakbeat-hardcore-piano-house-rave",
+            "name": "Breakbeat Hardcore / Piano House Rave"
+          },
+          {
+            "id": "hardcore-darkcore-darkstep",
+            "name": "Darkcore / Darkstep (Hybrid: Drum 'n' Bass (DnB/D&B) + Hardcore)"
+          },
+          {
+            "id": "hardcore-digital-hardcore-breakcore",
+            "name": "Digital Hardcore / Breakcore (Hybrid: Drum 'n' Bass (DnB/D&B) + Hardcore)"
+          },
+          {
+            "id": "hardcore-frenchcore-speedcore-terrocore",
+            "name": "Frenchcore / Speedcore / Terrocore"
+          },
+          {
+            "id": "hardcore-gabber",
+            "name": "Gabber"
+          },
+          {
+            "id": "hardcore-happy-hardcore-bouncy-techno",
+            "name": "Happy Hardcore / Bouncy Techno"
+          },
+          {
+            "id": "hardcore-hard-trance",
+            "name": "Hard Trance (Hybrid: Hardcore + Trance)"
+          },
+          {
+            "id": "hardcore-hardstyle-jumpstyle-hardcore-techno",
+            "name": "Hardstyle / Jumpstyle / Hardcore Techno (Hybrid: Hardcore + Techno)"
+          },
+          {
+            "id": "hardcore-new-beat",
+            "name": "New Beat (Hybrid: Hardcore + Techno)"
+          },
+          {
+            "id": "hardcore-nu-style-gabber-mainstream-j-core",
+            "name": "Nu Style Gabber / Mainstream / J-Core"
+          },
+          {
+            "id": "hardcore-uk-hardcore",
+            "name": "UK Hardcore"
+          },
+          {
+            "id": "hardcore-uk-hardcore-freeform-trancecore-acidcore",
+            "name": "UK Hardcore / Freeform / Trancecore / Acidcore"
+          }
+        ]
+      },
+      {
+        "id": "house",
+        "name": "House",
+        "familyId": "dance-edm-music",
+        "subGenres": [
+          {
+            "id": "house-acid-house",
+            "name": "Acid House"
+          },
+          {
+            "id": "house-ambient-house-chill-out",
+            "name": "Ambient House / Chill-out (Hybrid: Ambient + House)"
+          },
+          {
+            "id": "house-breakbeat-house",
+            "name": "Breakbeat House (Hybrid: Breakbeat + House)"
+          },
+          {
+            "id": "house-canto-dance-pop",
+            "name": "Canto Dance-Pop (Hybrid: C-Pop (Cantonese) / Canto-Pop + House)"
+          },
+          {
+            "id": "house-chicago-garage-house",
+            "name": "Chicago / Garage House"
+          },
+          {
+            "id": "house-country-house-four-on-the-floor",
+            "name": "Country House (Four-on-the-Floor) (Hybrid: Country Fusion + House)"
+          },
+          {
+            "id": "house-deep-house",
+            "name": "Deep House"
+          },
+          {
+            "id": "house-dutch-electro-house",
+            "name": "Dutch / Electro House"
+          },
+          {
+            "id": "house-electro-house",
+            "name": "Electro House (Hybrid: Big Room + House)"
+          },
+          {
+            "id": "house-figet-house-complextro",
+            "name": "Figet House / Complextro"
+          },
+          {
+            "id": "house-french-funky-house",
+            "name": "French / Funky House"
+          },
+          {
+            "id": "house-funky-disco-house",
+            "name": "Funky Disco House"
+          },
+          {
+            "id": "house-ghetto-house-ghettotech-juke",
+            "name": "Ghetto House / Ghettotech / Juke (Hybrid: House + Techno)"
+          },
+          {
+            "id": "house-hip-house-eurodance",
+            "name": "Hip House / Eurodance"
+          },
+          {
+            "id": "house-ibiza-dream-house-trance",
+            "name": "Ibiza / Dream House-Trance (Hybrid: House + Trance)"
+          },
+          {
+            "id": "house-latin-house",
+            "name": "Latin House (Hybrid: House + Tropical & Caribbean Latin)"
+          },
+          {
+            "id": "house-latin-afro-house-afro-house",
+            "name": "Latin/Afro House (Afro-House) (Hybrid: Afrobeats + House)"
+          },
+          {
+            "id": "house-microhouse-minimal-house",
+            "name": "Microhouse / Minimal House"
+          },
+          {
+            "id": "house-moombahton",
+            "name": "Moombahton (Hybrid: Bass Music + House + Tropical & Caribbean Latin)"
+          },
+          {
+            "id": "house-nu-disco-french-house",
+            "name": "Nu-Disco / French House (Hybrid: Funk, Groove & Boogie + House)"
+          },
+          {
+            "id": "house-piano-house",
+            "name": "Piano House"
+          },
+          {
+            "id": "house-progressive-house",
+            "name": "Progressive House"
+          },
+          {
+            "id": "house-tech-house",
+            "name": "Tech House (Hybrid: House + Techno)"
+          },
+          {
+            "id": "house-uk-hard-house-nrg-hard-nrg",
+            "name": "UK Hard House / NRG / Hard NRG (Hybrid: House + Trance)"
+          }
+        ]
+      },
+      {
+        "id": "jungle",
+        "name": "Jungle",
+        "familyId": "dance-edm-music",
+        "subGenres": [
+          {
+            "id": "jungle-grime-garage-breakbeat",
+            "name": "Grime Garage Breakbeat (Hybrid: Breakbeat + Grime + Jungle)"
+          },
+          {
+            "id": "jungle-jungle-breaks",
+            "name": "Jungle Breaks (Hybrid: Breakbeat + Jungle)"
+          },
+          {
+            "id": "jungle-modern-jungle",
+            "name": "Modern Jungle"
+          },
+          {
+            "id": "jungle-oldskool-jungle",
+            "name": "Oldskool Jungle"
+          },
+          {
+            "id": "jungle-ragga-jungle",
+            "name": "Ragga Jungle (Hybrid: Dancehall + Jungle)"
+          }
+        ]
+      },
+      {
+        "id": "techno",
+        "name": "Techno",
+        "familyId": "dance-edm-music",
+        "subGenres": [
+          {
+            "id": "techno-acid-techno",
+            "name": "Acid Techno"
+          },
+          {
+            "id": "techno-afro-tech",
+            "name": "Afro-Tech (Hybrid: Amapiano & Afro-House + Techno)"
+          },
+          {
+            "id": "techno-ambient-techno-idm-intelligent-dance-music",
+            "name": "Ambient Techno IDM (Intelligent Dance Music)"
+          },
+          {
+            "id": "techno-detroit-techno",
+            "name": "Detroit Techno"
+          },
+          {
+            "id": "techno-dutch-techno",
+            "name": "Dutch Techno"
+          },
+          {
+            "id": "techno-free-tekno-hardtek",
+            "name": "Free Tekno / Hardtek"
+          },
+          {
+            "id": "techno-ghetto-house-ghettotech-juke",
+            "name": "Ghetto House / Ghettotech / Juke (Hybrid: House + Techno)"
+          },
+          {
+            "id": "techno-hardstyle-jumpstyle-hardcore-techno",
+            "name": "Hardstyle / Jumpstyle / Hardcore Techno (Hybrid: Hardcore + Techno)"
+          },
+          {
+            "id": "techno-industrial-techno",
+            "name": "Industrial Techno (Hybrid: Industrial + Techno)"
+          },
+          {
+            "id": "techno-minimal-techno",
+            "name": "Minimal Techno"
+          },
+          {
+            "id": "techno-new-beat",
+            "name": "New Beat (Hybrid: Hardcore + Techno)"
+          },
+          {
+            "id": "techno-peak-time-techno",
+            "name": "Peak-Time Techno"
+          },
+          {
+            "id": "techno-tech-house",
+            "name": "Tech House (Hybrid: House + Techno)"
+          },
+          {
+            "id": "techno-tech-trance",
+            "name": "Tech Trance (Hybrid: Techno + Trance)"
+          }
+        ]
+      },
+      {
+        "id": "trance",
+        "name": "Trance",
+        "familyId": "dance-edm-music",
+        "subGenres": [
+          {
+            "id": "trance-big-room-trance",
+            "name": "Big Room Trance (Hybrid: Big Room + Trance)"
+          },
+          {
+            "id": "trance-classic-acid-trance",
+            "name": "Classic / Acid Trance"
+          },
+          {
+            "id": "trance-hard-trance",
+            "name": "Hard Trance (Hybrid: Hardcore + Trance)"
+          },
+          {
+            "id": "trance-ibiza-dream-house-trance",
+            "name": "Ibiza / Dream House-Trance (Hybrid: House + Trance)"
+          },
+          {
+            "id": "trance-neo-trance",
+            "name": "Neo-Trance"
+          },
+          {
+            "id": "trance-progressive-trance",
+            "name": "Progressive Trance"
+          },
+          {
+            "id": "trance-psytrance-goa",
+            "name": "Psytrance / Goa"
+          },
+          {
+            "id": "trance-tech-trance",
+            "name": "Tech Trance (Hybrid: Techno + Trance)"
+          },
+          {
+            "id": "trance-trance-game-score",
+            "name": "Trance Game Score (Hybrid: Trance + Video Game Score)"
+          },
+          {
+            "id": "trance-uk-hard-house-nrg-hard-nrg",
+            "name": "UK Hard House / NRG / Hard NRG (Hybrid: House + Trance)"
+          },
+          {
+            "id": "trance-uplifting-trance-epictrance",
+            "name": "Uplifting Trance / Epictrance"
+          },
+          {
+            "id": "trance-vocal-trance",
+            "name": "Vocal Trance"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "downtempo-ambient-music",
+    "name": "Downtempo & Ambient Music",
+    "mainGenres": [
+      {
+        "id": "ambient",
+        "name": "Ambient",
+        "familyId": "downtempo-ambient-music",
+        "subGenres": [
+          {
+            "id": "ambient-ambient-breaks-illbient",
+            "name": "Ambient Breaks / Illbient"
+          },
+          {
+            "id": "ambient-ambient-folk",
+            "name": "Ambient Folk (Hybrid: Ambient + Folk)"
+          },
+          {
+            "id": "ambient-ambient-glitch",
+            "name": "Ambient Glitch (Hybrid: Ambient + Experimental Electronic)"
+          },
+          {
+            "id": "ambient-ambient-house-chill-out",
+            "name": "Ambient House / Chill-out (Hybrid: Ambient + House)"
+          },
+          {
+            "id": "ambient-ambient-spiritual",
+            "name": "Ambient Spiritual (Hybrid: Ambient + New Age Spiritual)"
+          },
+          {
+            "id": "ambient-atmospheric-tv-score",
+            "name": "Atmospheric TV Score (Hybrid: Ambient + TV & Streaming)"
+          },
+          {
+            "id": "ambient-dark-ambient",
+            "name": "Dark Ambient"
+          },
+          {
+            "id": "ambient-dream-pop",
+            "name": "Dream Pop (Hybrid: Alternative & Indie Rock + Ambient)"
+          },
+          {
+            "id": "ambient-drone-ambient",
+            "name": "Drone Ambient"
+          },
+          {
+            "id": "ambient-healing-ambient",
+            "name": "Healing Ambient (Hybrid: Ambient + New Age)"
+          },
+          {
+            "id": "ambient-lowercase-digital-minimalism",
+            "name": "Lowercase / Digital Minimalism"
+          },
+          {
+            "id": "ambient-meditative-chant",
+            "name": "Meditative Chant (Hybrid: Ambient + Buddhist & East Asian Devotional)"
+          },
+          {
+            "id": "ambient-neoclassical-ambient",
+            "name": "Neoclassical Ambient (Hybrid: Ambient + Classical Crossover)"
+          },
+          {
+            "id": "ambient-neoclassical-new-age",
+            "name": "Neoclassical New Age (Hybrid: Ambient + New Age)"
+          },
+          {
+            "id": "ambient-nordic-dark-ambient-folk",
+            "name": "Nordic Dark Ambient Folk (Hybrid: Ambient + Nordic Folk)"
+          },
+          {
+            "id": "ambient-space-ambient",
+            "name": "Space Ambient"
+          }
+        ]
+      },
+      {
+        "id": "downtempo-chillout",
+        "name": "Downtempo & Chillout",
+        "familyId": "downtempo-ambient-music",
+        "subGenres": [
+          {
+            "id": "downtempo-chillout-balearic",
+            "name": "Balearic"
+          },
+          {
+            "id": "downtempo-chillout-chillhop",
+            "name": "Chillhop (Hybrid: Downtempo & Chillout + Lo-Fi & Chillhop)"
+          },
+          {
+            "id": "downtempo-chillout-electro-tango-downtempo",
+            "name": "Electro-Tango (Downtempo) (Hybrid: Downtempo & Chillout + Tango)"
+          },
+          {
+            "id": "downtempo-chillout-lounge-exotica-space-age-pop",
+            "name": "Lounge / Exotica / Space Age Pop"
+          },
+          {
+            "id": "downtempo-chillout-nu-jazz-downtempo",
+            "name": "Nu Jazz (Downtempo) (Hybrid: Downtempo & Chillout + Jazz)"
+          },
+          {
+            "id": "downtempo-chillout-trip-hop",
+            "name": "Trip Hop (Hybrid: Breakbeat + Downtempo & Chillout + Hip-Hop & Rap)"
+          }
+        ]
+      },
+      {
+        "id": "new-age",
+        "name": "New Age",
+        "familyId": "downtempo-ambient-music",
+        "subGenres": [
+          {
+            "id": "new-age-healing-wellness",
+            "name": "Healing & Wellness"
+          },
+          {
+            "id": "new-age-healing-ambient",
+            "name": "Healing Ambient (Hybrid: Ambient + New Age)"
+          },
+          {
+            "id": "new-age-meditation",
+            "name": "Meditation"
+          },
+          {
+            "id": "new-age-neoclassical-new-age",
+            "name": "Neoclassical New Age (Hybrid: Ambient + New Age)"
+          },
+          {
+            "id": "new-age-new-age-meditation",
+            "name": "New Age Meditation (Hybrid: New Age + New Age Spiritual)"
+          },
+          {
+            "id": "new-age-space-cosmic",
+            "name": "Space & Cosmic"
+          },
+          {
+            "id": "new-age-spiritual-new-age",
+            "name": "Spiritual New Age (Hybrid: New Age + New Age Spiritual)"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "experimental-avant-garde-music",
+    "name": "Experimental & Avant-Garde Music",
+    "mainGenres": [
+      {
+        "id": "avant-garde",
+        "name": "Avant-Garde",
+        "familyId": "experimental-avant-garde-music",
+        "subGenres": [
+          {
+            "id": "avant-garde-avant-classical",
+            "name": "Avant-Classical (Hybrid: Avant-Garde + Contemporary & Minimalist Classical)"
+          },
+          {
+            "id": "avant-garde-avant-garde-industrial",
+            "name": "Avant-Garde Industrial (Hybrid: Avant-Garde + Industrial)"
+          },
+          {
+            "id": "avant-garde-free-improvisation",
+            "name": "Free Improvisation"
+          },
+          {
+            "id": "avant-garde-krautrock-kosmische-musik",
+            "name": "Krautrock / Kosmische Musik (Hybrid: Avant-Garde + Industrial)"
+          },
+          {
+            "id": "avant-garde-musique-concr-te",
+            "name": "Musique Concrète"
+          },
+          {
+            "id": "avant-garde-no-wave",
+            "name": "No Wave (Hybrid: Avant-Garde + Punk & New Wave)"
+          },
+          {
+            "id": "avant-garde-noise-music",
+            "name": "Noise Music"
+          }
+        ]
+      },
+      {
+        "id": "experimental-electronic",
+        "name": "Experimental Electronic",
+        "familyId": "experimental-avant-garde-music",
+        "subGenres": [
+          {
+            "id": "experimental-electronic-alt-rnb-pbr-rnb",
+            "name": "Alt RnB / PBR RnB (Hybrid: Contemporary RnB & Neo Soul + Experimental Electronic)"
+          },
+          {
+            "id": "experimental-electronic-alternative-hip-hop",
+            "name": "Alternative Hip-Hop (Hybrid: Experimental Electronic + Hip-Hop & Rap)"
+          },
+          {
+            "id": "experimental-electronic-ambient-glitch",
+            "name": "Ambient Glitch (Hybrid: Ambient + Experimental Electronic)"
+          },
+          {
+            "id": "experimental-electronic-braindance-idm-intelligent-dance-music",
+            "name": "Braindance IDM (Intelligent Dance Music)"
+          },
+          {
+            "id": "experimental-electronic-chiptune-8-bit-16-bit-bit-music",
+            "name": "Chiptune / 8-Bit / 16-Bit / Bit Music (Hybrid: Experimental Electronic + Video Game Score)"
+          },
+          {
+            "id": "experimental-electronic-electroacoustic",
+            "name": "Electroacoustic"
+          },
+          {
+            "id": "experimental-electronic-electronic-film-score",
+            "name": "Electronic Film Score (Hybrid: Experimental Electronic + Movie Score & Motion Picture)"
+          },
+          {
+            "id": "experimental-electronic-electropop",
+            "name": "Electropop (Hybrid: Experimental Electronic + Pop)"
+          },
+          {
+            "id": "experimental-electronic-experimental-hip-hop",
+            "name": "Experimental Hip-Hop (Hybrid: Experimental Electronic + Hip-Hop & Rap)"
+          },
+          {
+            "id": "experimental-electronic-glitch",
+            "name": "Glitch"
+          },
+          {
+            "id": "experimental-electronic-witch-house",
+            "name": "Witch House (Hybrid: Dark Alternative & Post-Industrial + Experimental Electronic)"
+          }
+        ]
+      },
+      {
+        "id": "hyperpop-future-pop",
+        "name": "Hyperpop & Future Pop",
+        "familyId": "experimental-avant-garde-music",
+        "subGenres": [
+          {
+            "id": "hyperpop-future-pop-digicore",
+            "name": "Digicore"
+          },
+          {
+            "id": "hyperpop-future-pop-future-pop",
+            "name": "Future Pop (Hybrid: Hyperpop & Future Pop + Pop)"
+          },
+          {
+            "id": "hyperpop-future-pop-hyperpop",
+            "name": "Hyperpop"
+          },
+          {
+            "id": "hyperpop-future-pop-retro-future-pop",
+            "name": "Retro-Future Pop (Hybrid: Hyperpop & Future Pop + Synthwave & Retrowave)"
+          }
+        ]
+      },
+      {
+        "id": "lo-fi-chillhop",
+        "name": "Lo-Fi & Chillhop",
+        "familyId": "experimental-avant-garde-music",
+        "subGenres": [
+          {
+            "id": "lo-fi-chillhop-chillhop",
+            "name": "Chillhop (Hybrid: Downtempo & Chillout + Lo-Fi & Chillhop)"
+          },
+          {
+            "id": "lo-fi-chillhop-jazzhop",
+            "name": "Jazzhop (Hybrid: Jazz + Lo-Fi & Chillhop)"
+          },
+          {
+            "id": "lo-fi-chillhop-lo-fi-beats",
+            "name": "Lo-Fi Beats"
+          },
+          {
+            "id": "lo-fi-chillhop-lo-fi-hip-hop",
+            "name": "Lo-Fi Hip-Hop (Hybrid: Hip-Hop & Rap + Lo-Fi & Chillhop)"
+          }
+        ]
+      },
+      {
+        "id": "synthwave-retrowave",
+        "name": "Synthwave & Retrowave",
+        "familyId": "experimental-avant-garde-music",
+        "subGenres": [
+          {
+            "id": "synthwave-retrowave-darksynth",
+            "name": "Darksynth"
+          },
+          {
+            "id": "synthwave-retrowave-dreamwave",
+            "name": "Dreamwave"
+          },
+          {
+            "id": "synthwave-retrowave-outrun",
+            "name": "Outrun"
+          },
+          {
+            "id": "synthwave-retrowave-post-punk-synthwave",
+            "name": "Post-Punk Synthwave (Hybrid: Alternative & Indie Rock + Synthwave & Retrowave)"
+          },
+          {
+            "id": "synthwave-retrowave-retro-future-pop",
+            "name": "Retro-Future Pop (Hybrid: Hyperpop & Future Pop + Synthwave & Retrowave)"
+          },
+          {
+            "id": "synthwave-retrowave-synth-rock",
+            "name": "Synth Rock (Hybrid: Contemporary Rock + Synthwave & Retrowave)"
+          },
+          {
+            "id": "synthwave-retrowave-synthpop",
+            "name": "Synthpop (Hybrid: Pop + Synthwave & Retrowave)"
+          },
+          {
+            "id": "synthwave-retrowave-synthpop-jp",
+            "name": "Synthpop (JP) (Hybrid: J-Pop (Japanese) + Synthwave & Retrowave)"
+          },
+          {
+            "id": "synthwave-retrowave-synthpunk",
+            "name": "Synthpunk (Hybrid: Punk & New Wave + Synthwave & Retrowave)"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "folk-roots-music",
+    "name": "Folk & Roots Music",
+    "mainGenres": [
+      {
+        "id": "african-folk",
+        "name": "African Folk",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "african-folk-ewe-drum-ensemble-folk",
+            "name": "Ewe/Drum Ensemble Folk"
+          },
+          {
+            "id": "african-folk-griot-traditions",
+            "name": "Griot Traditions"
+          },
+          {
+            "id": "african-folk-palm-wine-folk",
+            "name": "Palm-Wine Folk (Hybrid: African Folk + Highlife & Afro-Fusion)"
+          },
+          {
+            "id": "african-folk-tuareg-desert-folk",
+            "name": "Tuareg Desert Folk"
+          }
+        ]
+      },
+      {
+        "id": "americana-folk",
+        "name": "Americana Folk",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "americana-folk-appalachian-folk",
+            "name": "Appalachian Folk"
+          },
+          {
+            "id": "americana-folk-country-blues-americana",
+            "name": "Country Blues (Americana) (Hybrid: Americana Folk + Blues)"
+          },
+          {
+            "id": "americana-folk-old-time-stringband",
+            "name": "Old-Time Stringband (Hybrid: Americana Folk + Bluegrass Country)"
+          },
+          {
+            "id": "americana-folk-ozark-folk",
+            "name": "Ozark Folk"
+          }
+        ]
+      },
+      {
+        "id": "asian-roots",
+        "name": "Asian Roots",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "asian-roots-desi-folk-pop",
+            "name": "Desi Folk-Pop (Hybrid: Asian Roots + I-Pop (Indian))"
+          },
+          {
+            "id": "asian-roots-gamelan-folk",
+            "name": "Gamelan Folk"
+          },
+          {
+            "id": "asian-roots-mongolian-long-song",
+            "name": "Mongolian Long Song"
+          },
+          {
+            "id": "asian-roots-nanyin-nanguan",
+            "name": "Nanyin / Nanguan"
+          }
+        ]
+      },
+      {
+        "id": "celtic-uk-folk",
+        "name": "Celtic & UK Folk",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "celtic-uk-folk-celtic-folk-rock",
+            "name": "Celtic Folk-Rock (Hybrid: Alternative & Indie Rock + Celtic & UK Folk)"
+          },
+          {
+            "id": "celtic-uk-folk-celtic-trad",
+            "name": "Celtic Trad"
+          },
+          {
+            "id": "celtic-uk-folk-english-morris-trad",
+            "name": "English Morris & Trad"
+          },
+          {
+            "id": "celtic-uk-folk-scottish-folk",
+            "name": "Scottish Folk"
+          }
+        ]
+      },
+      {
+        "id": "chinese-folk",
+        "name": "Chinese Folk",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "chinese-folk-ethnic-minority-folk-cn",
+            "name": "Ethnic Minority Folk (CN)"
+          },
+          {
+            "id": "chinese-folk-mando-pop-folk",
+            "name": "Mando-Pop Folk (Hybrid: Chinese Folk + C-Pop (Mandarin) / Mando-Pop)"
+          },
+          {
+            "id": "chinese-folk-min-ge-chinese-folk-song",
+            "name": "Min'ge (Chinese Folk Song)"
+          }
+        ]
+      },
+      {
+        "id": "contemporary-folk",
+        "name": "Contemporary Folk",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "contemporary-folk-folk-rock-indie",
+            "name": "Folk Rock (Indie) (Hybrid: Alternative & Indie Rock + Contemporary Folk)"
+          },
+          {
+            "id": "contemporary-folk-freak-folk",
+            "name": "Freak Folk (Hybrid: Contemporary Folk + Contemporary Rock + Pop)"
+          },
+          {
+            "id": "contemporary-folk-indie-folk",
+            "name": "Indie Folk (Hybrid: Contemporary Folk + Contemporary Rock + Pop)"
+          },
+          {
+            "id": "contemporary-folk-nu-folk",
+            "name": "Nu-Folk (Hybrid: Contemporary Folk + Contemporary Rock + Pop)"
+          }
+        ]
+      },
+      {
+        "id": "european-roots",
+        "name": "European Roots",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "european-roots-fado",
+            "name": "Fado"
+          },
+          {
+            "id": "european-roots-flamenco-trad",
+            "name": "Flamenco (Trad)"
+          },
+          {
+            "id": "european-roots-gypsy-jazz-manouche",
+            "name": "Gypsy Jazz / Manouche (Hybrid: European Roots + Jazz)"
+          },
+          {
+            "id": "european-roots-sevdah-sevdalinka",
+            "name": "Sevdah / Sevdalinka"
+          },
+          {
+            "id": "european-roots-slavic-folk-roots",
+            "name": "Slavic Folk-Roots (Hybrid: European Roots + Slavic Folk)"
+          }
+        ]
+      },
+      {
+        "id": "folk",
+        "name": "Folk",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "folk-ambient-folk",
+            "name": "Ambient Folk (Hybrid: Ambient + Folk)"
+          },
+          {
+            "id": "folk-americana-folk",
+            "name": "Americana Folk (Hybrid: Americana Country + Folk)"
+          },
+          {
+            "id": "folk-contemporary-singer-songwriter",
+            "name": "Contemporary Singer-Songwriter"
+          },
+          {
+            "id": "folk-folk-pop",
+            "name": "Folk Pop"
+          },
+          {
+            "id": "folk-folk-rock-classic",
+            "name": "Folk Rock (Classic) (Hybrid: Folk + Golden & Classic Rock)"
+          },
+          {
+            "id": "folk-folk-rock-contemporary",
+            "name": "Folk Rock (Contemporary) (Hybrid: Contemporary Rock + Folk)"
+          }
+        ]
+      },
+      {
+        "id": "indian-folk",
+        "name": "Indian Folk",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "indian-folk-baul-bengali-folk",
+            "name": "Baul / Bengali Folk"
+          },
+          {
+            "id": "indian-folk-bhangra-trad-folk",
+            "name": "Bhangra (Trad/Folk)"
+          },
+          {
+            "id": "indian-folk-bollywood-folk-fusion",
+            "name": "Bollywood Folk-Fusion (Hybrid: I-Pop (Indian) + Indian Folk)"
+          },
+          {
+            "id": "indian-folk-punjabi-pop",
+            "name": "Punjabi Pop (Hybrid: I-Pop (Indian) + Indian Folk)"
+          },
+          {
+            "id": "indian-folk-qawwali-folk",
+            "name": "Qawwali Folk (Hybrid: Indian Folk + Islamic & Middle Eastern Devotional)"
+          }
+        ]
+      },
+      {
+        "id": "latin-folk",
+        "name": "Latin Folk",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "latin-folk-cumbia-folk-latin",
+            "name": "Cumbia Folk (Latin) (Hybrid: Cumbia + Latin Folk)"
+          },
+          {
+            "id": "latin-folk-nueva-canci-n-trad",
+            "name": "Nueva Canción (Trad)"
+          },
+          {
+            "id": "latin-folk-son-cubano-folk",
+            "name": "Son Cubano Folk (Hybrid: Latin Folk + Salsa)"
+          },
+          {
+            "id": "latin-folk-son-jarocho",
+            "name": "Son Jarocho"
+          }
+        ]
+      },
+      {
+        "id": "mexican-folk",
+        "name": "Mexican Folk",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "mexican-folk-huapango-son-huasteco",
+            "name": "Huapango / Son Huasteco"
+          },
+          {
+            "id": "mexican-folk-jarana-son-jarocho",
+            "name": "Jarana / Son Jarocho"
+          },
+          {
+            "id": "mexican-folk-mariachi-trad-folk",
+            "name": "Mariachi (Trad/Folk) (Hybrid: Mexican Folk + Mexican Regional)"
+          }
+        ]
+      },
+      {
+        "id": "nordic-folk",
+        "name": "Nordic Folk",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "nordic-folk-nordic-ballads",
+            "name": "Nordic Ballads"
+          },
+          {
+            "id": "nordic-folk-nordic-dark-ambient-folk",
+            "name": "Nordic Dark Ambient Folk (Hybrid: Ambient + Nordic Folk)"
+          },
+          {
+            "id": "nordic-folk-s-pmi-joik",
+            "name": "Sápmi Joik"
+          }
+        ]
+      },
+      {
+        "id": "north-american-roots",
+        "name": "North American Roots",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "north-american-roots-cajun-creole-roots",
+            "name": "Cajun & Creole Roots"
+          },
+          {
+            "id": "north-american-roots-country-blues-roots",
+            "name": "Country Blues (Roots) (Hybrid: Blues + North American Roots)"
+          },
+          {
+            "id": "north-american-roots-old-time-appalachian",
+            "name": "Old-Time (Appalachian)"
+          }
+        ]
+      },
+      {
+        "id": "oceanian-roots",
+        "name": "Oceanian Roots",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "oceanian-roots-choro-choro-influenced-folk",
+            "name": "Choro & Choro-Influenced Folk (Hybrid: Oceanian Roots + Samba)"
+          },
+          {
+            "id": "oceanian-roots-hawaiian-slack-key-trad",
+            "name": "Hawaiian Slack-Key Trad"
+          },
+          {
+            "id": "oceanian-roots-maori-waiata-song",
+            "name": "Maori Waiata (Song)"
+          }
+        ]
+      },
+      {
+        "id": "pakistani-folk",
+        "name": "Pakistani Folk",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "pakistani-folk-balochi-sindhi-folk",
+            "name": "Balochi & Sindhi Folk"
+          },
+          {
+            "id": "pakistani-folk-pak-folk-pop",
+            "name": "Pak Folk-Pop (Hybrid: Pak-Pop (Pakistani) + Pakistani Folk)"
+          },
+          {
+            "id": "pakistani-folk-sufi-folk-pk",
+            "name": "Sufi Folk (PK)"
+          }
+        ]
+      },
+      {
+        "id": "roots",
+        "name": "Roots",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "roots-acoustic-roots",
+            "name": "Acoustic Roots"
+          },
+          {
+            "id": "roots-roots-reggae-crossover",
+            "name": "Roots Reggae (Crossover) (Hybrid: Reggae + Roots)"
+          },
+          {
+            "id": "roots-roots-revival",
+            "name": "Roots Revival"
+          }
+        ]
+      },
+      {
+        "id": "singer-songwriter-acoustic-folk",
+        "name": "Singer-Songwriter Acoustic Folk",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "singer-songwriter-acoustic-folk-acoustic-folk-pop",
+            "name": "Acoustic Folk Pop"
+          },
+          {
+            "id": "singer-songwriter-acoustic-folk-confessional-folk",
+            "name": "Confessional Folk"
+          },
+          {
+            "id": "singer-songwriter-acoustic-folk-indie-folk-singer-songwriter",
+            "name": "Indie Folk-Singer Songwriter (Hybrid: Alternative & Indie Rock + Singer-Songwriter Acoustic Folk)"
+          }
+        ]
+      },
+      {
+        "id": "slavic-folk",
+        "name": "Slavic Folk",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "slavic-folk-balkan-village-folk",
+            "name": "Balkan Village Folk"
+          },
+          {
+            "id": "slavic-folk-russian-byline-bylina",
+            "name": "Russian Byline / Bylina"
+          },
+          {
+            "id": "slavic-folk-slavic-folk-roots",
+            "name": "Slavic Folk-Roots (Hybrid: European Roots + Slavic Folk)"
+          }
+        ]
+      },
+      {
+        "id": "south-american-roots",
+        "name": "South American Roots",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "south-american-roots-andean-panpipe-trad",
+            "name": "Andean Panpipe Trad"
+          },
+          {
+            "id": "south-american-roots-chacarera-zamba",
+            "name": "Chacarera / Zamba"
+          },
+          {
+            "id": "south-american-roots-cumbia-roots",
+            "name": "Cumbia Roots (Hybrid: Cumbia + South American Roots)"
+          }
+        ]
+      },
+      {
+        "id": "traditional-roots-folk",
+        "name": "Traditional Roots Folk",
+        "familyId": "folk-roots-music",
+        "subGenres": [
+          {
+            "id": "traditional-roots-folk-sacred-folk",
+            "name": "Sacred Folk (Hybrid: Gospel + Traditional Roots Folk)"
+          },
+          {
+            "id": "traditional-roots-folk-traditional-ballads",
+            "name": "Traditional Ballads"
+          },
+          {
+            "id": "traditional-roots-folk-work-songs-field-hollers",
+            "name": "Work Songs & Field Hollers"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "hip-hop-rap-music",
+    "name": "Hip-Hop & Rap Music",
+    "mainGenres": [
+      {
+        "id": "hip-hop-rap",
+        "name": "Hip-Hop & Rap",
+        "familyId": "hip-hop-rap-music",
+        "subGenres": [
+          {
+            "id": "hip-hop-rap-a-capella-rap-beatbox-fusion",
+            "name": "A Capella Rap & Beatbox Fusion"
+          },
+          {
+            "id": "hip-hop-rap-afro-swing",
+            "name": "Afro-Swing (Hybrid: Afrobeats + Hip-Hop & Rap)"
+          },
+          {
+            "id": "hip-hop-rap-alternative-hip-hop",
+            "name": "Alternative Hip-Hop (Hybrid: Experimental Electronic + Hip-Hop & Rap)"
+          },
+          {
+            "id": "hip-hop-rap-amapiano-rap",
+            "name": "Amapiano Rap (Hybrid: African Hip-Hop & Trap + Amapiano & Afro-House + Hip-Hop & Rap)"
+          },
+          {
+            "id": "hip-hop-rap-boom-bap",
+            "name": "Boom Bap"
+          },
+          {
+            "id": "hip-hop-rap-canto-rap",
+            "name": "Canto Rap (Hybrid: C-Pop (Cantonese) / Canto-Pop + Hip-Hop & Rap)"
+          },
+          {
+            "id": "hip-hop-rap-country-rap-hick-hop",
+            "name": "Country Rap (Hick-Hop) (Hybrid: Hip-Hop & Rap + Modern Country)"
+          },
+          {
+            "id": "hip-hop-rap-desi-hip-hop",
+            "name": "Desi Hip-Hop (Hybrid: Hip-Hop & Rap + I-Pop (Indian))"
+          },
+          {
+            "id": "hip-hop-rap-dirty-south-rap-crunk-snap",
+            "name": "Dirty South Rap / Crunk / Snap"
+          },
+          {
+            "id": "hip-hop-rap-drill",
+            "name": "Drill"
+          },
+          {
+            "id": "hip-hop-rap-east-coast-gangsta-rap",
+            "name": "East Coast Gangsta Rap"
+          },
+          {
+            "id": "hip-hop-rap-electro",
+            "name": "Electro (Hybrid: Breakbeat + Hip-Hop & Rap)"
+          },
+          {
+            "id": "hip-hop-rap-experimental-hip-hop",
+            "name": "Experimental Hip-Hop (Hybrid: Experimental Electronic + Hip-Hop & Rap)"
+          },
+          {
+            "id": "hip-hop-rap-freestyle-rap-off-the-cuff-battle-rap",
+            "name": "Freestyle Rap / Off-the-Cuff / Battle Rap"
+          },
+          {
+            "id": "hip-hop-rap-glitch-hop-wonky",
+            "name": "Glitch Hop & Wonky (Hybrid: Breakbeat + Hip-Hop & Rap)"
+          },
+          {
+            "id": "hip-hop-rap-golden-age-hardcore-rap",
+            "name": "Golden Age / Hardcore Rap"
+          },
+          {
+            "id": "hip-hop-rap-hiplife",
+            "name": "Hiplife (Hybrid: African Hip-Hop & Trap + Highlife & Afro-Fusion + Hip-Hop & Rap)"
+          },
+          {
+            "id": "hip-hop-rap-jazz-rap",
+            "name": "Jazz Rap (Hybrid: Hip-Hop & Rap + Jazz)"
+          },
+          {
+            "id": "hip-hop-rap-j-rap",
+            "name": "J-Rap (Hybrid: Hip-Hop & Rap + J-Pop (Japanese))"
+          },
+          {
+            "id": "hip-hop-rap-k-hip-hop",
+            "name": "K-Hip-Hop (Hybrid: Hip-Hop & Rap + K-pop (Korean))"
+          },
+          {
+            "id": "hip-hop-rap-lo-fi-hip-hop",
+            "name": "Lo-Fi Hip-Hop (Hybrid: Hip-Hop & Rap + Lo-Fi & Chillhop)"
+          },
+          {
+            "id": "hip-hop-rap-mando-rap",
+            "name": "Mando Rap (Hybrid: Hip-Hop & Rap + C-Pop (Mandarin) / Mando-Pop)"
+          },
+          {
+            "id": "hip-hop-rap-miami-bass-bounce",
+            "name": "Miami Bass & Bounce"
+          },
+          {
+            "id": "hip-hop-rap-miami-bass-revival",
+            "name": "Miami Bass Revival (Hybrid: Breakbeat + Hip-Hop & Rap)"
+          },
+          {
+            "id": "hip-hop-rap-native-tongue",
+            "name": "Native Tongue"
+          },
+          {
+            "id": "hip-hop-rap-old-skool-rap",
+            "name": "Old Skool Rap"
+          },
+          {
+            "id": "hip-hop-rap-pinoy-rap-pop",
+            "name": "Pinoy Rap-Pop (Hybrid: Hip-Hop & Rap + P-Pop (Filipino))"
+          },
+          {
+            "id": "hip-hop-rap-progressive-nu-skool-rap",
+            "name": "Progressive / Nu Skool Rap"
+          },
+          {
+            "id": "hip-hop-rap-reggaet-n-latin-rap",
+            "name": "Reggaetón & Latin Rap (Hybrid: Dancehall + Hip-Hop & Rap + Latin Urban)"
+          },
+          {
+            "id": "hip-hop-rap-spoken-word",
+            "name": "Spoken Word"
+          },
+          {
+            "id": "hip-hop-rap-thai-rap-pop",
+            "name": "Thai Rap-Pop (Hybrid: Hip-Hop & Rap + T-Pop (Thai))"
+          },
+          {
+            "id": "hip-hop-rap-trap",
+            "name": "Trap"
+          },
+          {
+            "id": "hip-hop-rap-trap-soul",
+            "name": "Trap Soul (Hybrid: Contemporary RnB & Neo Soul + Hip-Hop & Rap)"
+          },
+          {
+            "id": "hip-hop-rap-trapstep-edm-trap",
+            "name": "Trapstep / EDM Trap (Hybrid: Breakbeat + Hip-Hop & Rap)"
+          },
+          {
+            "id": "hip-hop-rap-trip-hop",
+            "name": "Trip Hop (Hybrid: Breakbeat + Downtempo & Chillout + Hip-Hop & Rap)"
+          },
+          {
+            "id": "hip-hop-rap-uk-drill",
+            "name": "UK Drill (Hybrid: Grime + Hip‑Hop & Rap)"
+          },
+          {
+            "id": "hip-hop-rap-urban-breaks-rap-rnb",
+            "name": "Urban Breaks / Rap RnB (Hybrid: Contemporary RnB & Neo Soul + Hip-Hop & Rap)"
+          },
+          {
+            "id": "hip-hop-rap-west-coast-gangsta-rap",
+            "name": "West Coast Gangsta Rap"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "industrial-gothic-music",
+    "name": "Industrial & Gothic Music",
+    "mainGenres": [
+      {
+        "id": "dark-alternative-post-industrial",
+        "name": "Dark Alternative & Post-Industrial",
+        "familyId": "industrial-gothic-music",
+        "subGenres": [
+          {
+            "id": "dark-alternative-post-industrial-dark-cabaret",
+            "name": "Dark Cabaret"
+          },
+          {
+            "id": "dark-alternative-post-industrial-deathrock",
+            "name": "Deathrock (Hybrid: Dark Alternative & Post-Industrial + Punk & New Wave)"
+          },
+          {
+            "id": "dark-alternative-post-industrial-neofolk-dark",
+            "name": "Neofolk (Dark)"
+          },
+          {
+            "id": "dark-alternative-post-industrial-witch-house",
+            "name": "Witch House (Hybrid: Dark Alternative & Post-Industrial + Experimental Electronic)"
+          }
+        ]
+      },
+      {
+        "id": "gothic",
+        "name": "Gothic",
+        "familyId": "industrial-gothic-music",
+        "subGenres": [
+          {
+            "id": "gothic-coldwave",
+            "name": "Coldwave"
+          },
+          {
+            "id": "gothic-darkwave",
+            "name": "Darkwave"
+          },
+          {
+            "id": "gothic-ethereal-wave",
+            "name": "Ethereal Wave"
+          },
+          {
+            "id": "gothic-goth-gothic-rock",
+            "name": "Goth / Gothic Rock"
+          },
+          {
+            "id": "gothic-post-punk-goth",
+            "name": "Post-Punk Goth (Hybrid: Alternative & Indie Rock + Gothic)"
+          }
+        ]
+      },
+      {
+        "id": "industrial",
+        "name": "Industrial",
+        "familyId": "industrial-gothic-music",
+        "subGenres": [
+          {
+            "id": "industrial-aggrotech",
+            "name": "Aggrotech"
+          },
+          {
+            "id": "industrial-avant-garde-industrial",
+            "name": "Avant-Garde Industrial (Hybrid: Avant-Garde + Industrial)"
+          },
+          {
+            "id": "industrial-dark-industrial",
+            "name": "Dark Industrial"
+          },
+          {
+            "id": "industrial-ebm-electronic-body-music",
+            "name": "EBM (Electronic Body Music)"
+          },
+          {
+            "id": "industrial-electro-industrial",
+            "name": "Electro Industrial"
+          },
+          {
+            "id": "industrial-industrial-rock-metal",
+            "name": "Industrial Rock & Metal"
+          },
+          {
+            "id": "industrial-industrial-techno",
+            "name": "Industrial Techno (Hybrid: Industrial + Techno)"
+          },
+          {
+            "id": "industrial-krautrock-kosmische-musik",
+            "name": "Krautrock / Kosmische Musik (Hybrid: Avant-Garde + Industrial)"
+          },
+          {
+            "id": "industrial-power-noise",
+            "name": "Power Noise"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "latin-music",
+    "name": "Latin Music",
+    "mainGenres": [
+      {
+        "id": "latin-pop",
+        "name": "Latin Pop",
+        "familyId": "latin-music",
+        "subGenres": [
+          {
+            "id": "latin-pop-latin-ballad-balada",
+            "name": "Latin Ballad (Balada)"
+          },
+          {
+            "id": "latin-pop-latin-dance-pop",
+            "name": "Latin Dance-Pop"
+          },
+          {
+            "id": "latin-pop-latin-pop-rock",
+            "name": "Latin Pop-Rock (Hybrid: Contemporary Rock + Latin Pop)"
+          },
+          {
+            "id": "latin-pop-urban-latin-pop",
+            "name": "Urban Latin Pop (Hybrid: Latin Pop + Latin Urban)"
+          }
+        ]
+      },
+      {
+        "id": "latin-urban",
+        "name": "Latin Urban",
+        "familyId": "latin-music",
+        "subGenres": [
+          {
+            "id": "latin-urban-dembow",
+            "name": "Dembow (Hybrid: Dancehall + Latin Urban)"
+          },
+          {
+            "id": "latin-urban-latin-trap",
+            "name": "Latin Trap"
+          },
+          {
+            "id": "latin-urban-reggaet-n-latin-rap",
+            "name": "Reggaetón & Latin Rap (Hybrid: Dancehall + Hip-Hop & Rap + Latin Urban)"
+          },
+          {
+            "id": "latin-urban-reggaet-n-pop",
+            "name": "Reggaetón Pop (Hybrid: Latin Urban + Pop)"
+          },
+          {
+            "id": "latin-urban-salsa-choke",
+            "name": "Salsa Choke (Hybrid: Latin Urban + Salsa)"
+          },
+          {
+            "id": "latin-urban-urban-latin-pop",
+            "name": "Urban Latin Pop (Hybrid: Latin Pop + Latin Urban)"
+          },
+          {
+            "id": "latin-urban-urban-pop-sa",
+            "name": "Urban Pop (SA) (Hybrid: Latin Urban + South American Pop)"
+          }
+        ]
+      },
+      {
+        "id": "mexican-regional",
+        "name": "Mexican Regional",
+        "familyId": "latin-music",
+        "subGenres": [
+          {
+            "id": "mexican-regional-banda",
+            "name": "Banda"
+          },
+          {
+            "id": "mexican-regional-corridos-sierre-o",
+            "name": "Corridos / Sierreño"
+          },
+          {
+            "id": "mexican-regional-cumbia-norte-a",
+            "name": "Cumbia Norteña (Hybrid: Cumbia + Mexican Regional)"
+          },
+          {
+            "id": "mexican-regional-mariachi",
+            "name": "Mariachi"
+          },
+          {
+            "id": "mexican-regional-mariachi-trad-folk",
+            "name": "Mariachi (Trad/Folk) (Hybrid: Mexican Folk + Mexican Regional)"
+          },
+          {
+            "id": "mexican-regional-norte-o",
+            "name": "Norteño"
+          }
+        ]
+      },
+      {
+        "id": "tropical-caribbean-latin",
+        "name": "Tropical & Caribbean Latin",
+        "familyId": "latin-music",
+        "subGenres": [
+          {
+            "id": "tropical-caribbean-latin-bachata",
+            "name": "Bachata"
+          },
+          {
+            "id": "tropical-caribbean-latin-latin-house",
+            "name": "Latin House (Hybrid: House + Tropical & Caribbean Latin)"
+          },
+          {
+            "id": "tropical-caribbean-latin-latin-jazz",
+            "name": "Latin Jazz (Hybrid: Jazz + Tropical & Caribbean Latin)"
+          },
+          {
+            "id": "tropical-caribbean-latin-merengue",
+            "name": "Merengue"
+          },
+          {
+            "id": "tropical-caribbean-latin-moombahton",
+            "name": "Moombahton (Hybrid: Bass Music + House + Tropical & Caribbean Latin)"
+          },
+          {
+            "id": "tropical-caribbean-latin-salsa-general",
+            "name": "Salsa (General)"
+          },
+          {
+            "id": "tropical-caribbean-latin-vallenato",
+            "name": "Vallenato"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "metal-punk-music",
+    "name": "Metal & Punk Music",
+    "mainGenres": [
+      {
+        "id": "hardcore-punk",
+        "name": "Hardcore Punk",
+        "familyId": "metal-punk-music",
+        "subGenres": [
+          {
+            "id": "hardcore-punk-anarcho-punk-crustcore",
+            "name": "Anarcho-Punk / Crustcore (Hybrid: Hardcore Punk + Punk & New Wave)"
+          },
+          {
+            "id": "hardcore-punk-crossover-thrash",
+            "name": "Crossover Thrash (Hybrid: Hardcore Punk + Heavy Metal)"
+          },
+          {
+            "id": "hardcore-punk-d-beat",
+            "name": "D-Beat"
+          },
+          {
+            "id": "hardcore-punk-grindcore",
+            "name": "Grindcore (Hybrid: Hardcore Punk + Heavy Metal)"
+          },
+          {
+            "id": "hardcore-punk-math-rock-mathcore",
+            "name": "Math Rock / Mathcore (Hybrid: Alternative & Indie Rock + Hardcore Punk)"
+          },
+          {
+            "id": "hardcore-punk-melodic-hardcore",
+            "name": "Melodic Hardcore"
+          },
+          {
+            "id": "hardcore-punk-metalcore",
+            "name": "Metalcore (Hybrid: Hardcore Punk + Heavy Metal)"
+          },
+          {
+            "id": "hardcore-punk-original-hardcore-punk",
+            "name": "Original Hardcore Punk"
+          },
+          {
+            "id": "hardcore-punk-post-hardcore",
+            "name": "Post-Hardcore (Hybrid: Alternative & Indie Rock + Hardcore Punk)"
+          },
+          {
+            "id": "hardcore-punk-post-hardcore-emo-screamo",
+            "name": "Post-Hardcore Emo / Screamo"
+          },
+          {
+            "id": "hardcore-punk-ska-revival-ska-punk-skacore",
+            "name": "Ska Revival / Ska Punk / Skacore (Hybrid: Hardcore Punk + Ska & Early Reggae)"
+          },
+          {
+            "id": "hardcore-punk-synthcore-crunkcore",
+            "name": "Synthcore / Crunkcore"
+          }
+        ]
+      },
+      {
+        "id": "heavy-metal",
+        "name": "Heavy Metal",
+        "familyId": "metal-punk-music",
+        "subGenres": [
+          {
+            "id": "heavy-metal-alternative-metal",
+            "name": "Alternative Metal (Hybrid: Alternative & Indie Rock + Heavy Metal)"
+          },
+          {
+            "id": "heavy-metal-black-metal",
+            "name": "Black Metal"
+          },
+          {
+            "id": "heavy-metal-classic-metal",
+            "name": "Classic Metal"
+          },
+          {
+            "id": "heavy-metal-crossover-thrash",
+            "name": "Crossover Thrash (Hybrid: Hardcore Punk + Heavy Metal)"
+          },
+          {
+            "id": "heavy-metal-death-metal",
+            "name": "Death Metal"
+          },
+          {
+            "id": "heavy-metal-doom-metal",
+            "name": "Doom Metal"
+          },
+          {
+            "id": "heavy-metal-extreme-metal",
+            "name": "Extreme Metal"
+          },
+          {
+            "id": "heavy-metal-garage-metal",
+            "name": "Garage Metal"
+          },
+          {
+            "id": "heavy-metal-glam-hair-pop-metal",
+            "name": "Glam / Hair / Pop Metal"
+          },
+          {
+            "id": "heavy-metal-grindcore",
+            "name": "Grindcore (Hybrid: Hardcore Punk + Heavy Metal)"
+          },
+          {
+            "id": "heavy-metal-metalcore",
+            "name": "Metalcore (Hybrid: Hardcore Punk + Heavy Metal)"
+          },
+          {
+            "id": "heavy-metal-nu-rap-metal",
+            "name": "Nu / Rap Metal"
+          },
+          {
+            "id": "heavy-metal-post-metal",
+            "name": "Post-Metal (Hybrid: Alternative & Indie Rock + Heavy Metal)"
+          },
+          {
+            "id": "heavy-metal-power-metal",
+            "name": "Power Metal"
+          },
+          {
+            "id": "heavy-metal-progressive-metal",
+            "name": "Progressive Metal"
+          },
+          {
+            "id": "heavy-metal-stoner-sludge-metal",
+            "name": "Stoner / Sludge Metal"
+          },
+          {
+            "id": "heavy-metal-symphonic-gothic-metal",
+            "name": "Symphonic / Gothic Metal"
+          },
+          {
+            "id": "heavy-metal-thrash-metal",
+            "name": "Thrash Metal"
+          }
+        ]
+      },
+      {
+        "id": "punk-new-wave",
+        "name": "Punk & New Wave",
+        "familyId": "metal-punk-music",
+        "subGenres": [
+          {
+            "id": "punk-new-wave-anarcho-punk-crustcore",
+            "name": "Anarcho-Punk / Crustcore (Hybrid: Hardcore Punk + Punk & New Wave)"
+          },
+          {
+            "id": "punk-new-wave-cowpunk",
+            "name": "Cowpunk (Hybrid: Alt-Country + Punk & New Wave)"
+          },
+          {
+            "id": "punk-new-wave-deathrock",
+            "name": "Deathrock (Hybrid: Dark Alternative & Post-Industrial + Punk & New Wave)"
+          },
+          {
+            "id": "punk-new-wave-horror-punk-psychobilly",
+            "name": "Horror Punk / Psychobilly"
+          },
+          {
+            "id": "punk-new-wave-new-wave",
+            "name": "New Wave"
+          },
+          {
+            "id": "punk-new-wave-no-wave",
+            "name": "No Wave (Hybrid: Avant-Garde + Punk & New Wave)"
+          },
+          {
+            "id": "punk-new-wave-post-punk",
+            "name": "Post-Punk"
+          },
+          {
+            "id": "punk-new-wave-post-punk-revival",
+            "name": "Post-Punk Revival (Hybrid: Alternative & Indie Rock + Contemporary Rock + Punk & New Wave)"
+          },
+          {
+            "id": "punk-new-wave-pub-proto-punk",
+            "name": "Pub / Proto Punk"
+          },
+          {
+            "id": "punk-new-wave-punk",
+            "name": "Punk"
+          },
+          {
+            "id": "punk-new-wave-punk-rock",
+            "name": "Punk Rock"
+          },
+          {
+            "id": "punk-new-wave-synthpop-new-romantics",
+            "name": "Synthpop (New Romantics) (Hybrid: Pop + Punk & New Wave)"
+          },
+          {
+            "id": "punk-new-wave-synthpunk",
+            "name": "Synthpunk (Hybrid: Punk & New Wave + Synthwave & Retrowave)"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "pop-music",
+    "name": "Pop Music",
+    "mainGenres": [
+      {
+        "id": "pop",
+        "name": "Pop",
+        "familyId": "pop-music",
+        "subGenres": [
+          {
+            "id": "pop-adult-contemporary-pop-soft-rock",
+            "name": "Adult Contemporary Pop / Soft Rock"
+          },
+          {
+            "id": "pop-bossa-pop",
+            "name": "Bossa Pop (Hybrid: Bossa Nova + Pop)"
+          },
+          {
+            "id": "pop-brazilian-pop-urban",
+            "name": "Brazilian Pop-Urban (Hybrid: Brazilian Urban + Pop)"
+          },
+          {
+            "id": "pop-brill-building-pop-crooners",
+            "name": "Brill Building Pop / Crooners"
+          },
+          {
+            "id": "pop-britpop",
+            "name": "Britpop (Hybrid: Alternative & Indie Rock + Pop)"
+          },
+          {
+            "id": "pop-bubblegum-teen-pop-teenypop",
+            "name": "Bubblegum / Teen Pop / Teenypop"
+          },
+          {
+            "id": "pop-children-s-music-child-safe-radio-edit",
+            "name": "Children's Music (Child-safe Radio Edit)"
+          },
+          {
+            "id": "pop-children-s-music-child-safe-remake",
+            "name": "Children's Music (Child-safe Remake)"
+          },
+          {
+            "id": "pop-contemporary-modern-gospel",
+            "name": "Contemporary / Modern Gospel (Hybrid: Gospel + Pop)"
+          },
+          {
+            "id": "pop-country-pop",
+            "name": "Country Pop (Hybrid: Modern Country + Pop)"
+          },
+          {
+            "id": "pop-country-rock",
+            "name": "Country Rock (Hybrid: Contemporary Rock + Modern Country + Pop)"
+          },
+          {
+            "id": "pop-country-dance-pop",
+            "name": "Country-Dance Pop (Hybrid: Country Fusion + Pop)"
+          },
+          {
+            "id": "pop-dancehall-pop",
+            "name": "Dancehall Pop (Hybrid: Dancehall + Pop)"
+          },
+          {
+            "id": "pop-dance-pop",
+            "name": "Dance-Pop"
+          },
+          {
+            "id": "pop-disco-pop-post-disco",
+            "name": "Disco Pop / Post-Disco"
+          },
+          {
+            "id": "pop-electroclash",
+            "name": "Electroclash"
+          },
+          {
+            "id": "pop-electropop",
+            "name": "Electropop (Hybrid: Experimental Electronic + Pop)"
+          },
+          {
+            "id": "pop-festival-pop",
+            "name": "Festival Pop (Hybrid: Big Room + Pop)"
+          },
+          {
+            "id": "pop-freak-folk",
+            "name": "Freak Folk (Hybrid: Contemporary Folk + Contemporary Rock + Pop)"
+          },
+          {
+            "id": "pop-future-pop",
+            "name": "Future Pop (Hybrid: Hyperpop & Future Pop + Pop)"
+          },
+          {
+            "id": "pop-hi-nrg-eurodisco",
+            "name": "Hi-NRG / Eurodisco"
+          },
+          {
+            "id": "pop-holiday-anthem",
+            "name": "Holiday Anthem"
+          },
+          {
+            "id": "pop-indie-folk",
+            "name": "Indie Folk (Hybrid: Contemporary Folk + Contemporary Rock + Pop)"
+          },
+          {
+            "id": "pop-indie-pop",
+            "name": "Indie Pop (Hybrid: Alternative & Indie Rock + Pop)"
+          },
+          {
+            "id": "pop-indietronica-chillwave",
+            "name": "Indietronica / Chillwave (Hybrid: Contemporary Rock + Pop)"
+          },
+          {
+            "id": "pop-jukebox-musical",
+            "name": "Jukebox Musical (Hybrid: Pop + Stage & Musical Theatre)"
+          },
+          {
+            "id": "pop-nu-folk",
+            "name": "Nu-Folk (Hybrid: Contemporary Folk + Contemporary Rock + Pop)"
+          },
+          {
+            "id": "pop-pop-punk",
+            "name": "Pop Punk (Hybrid: Alternative & Indie Rock + Pop)"
+          },
+          {
+            "id": "pop-pop-rock-power-pop",
+            "name": "Pop Rock / Power Pop (Hybrid: Contemporary Rock + Pop)"
+          },
+          {
+            "id": "pop-post-britpop",
+            "name": "Post-Britpop (Hybrid: Contemporary Rock + Pop)"
+          },
+          {
+            "id": "pop-reggae-pop",
+            "name": "Reggae-Pop (Hybrid: Pop + Reggae)"
+          },
+          {
+            "id": "pop-reggaet-n-pop",
+            "name": "Reggaetón Pop (Hybrid: Latin Urban + Pop)"
+          },
+          {
+            "id": "pop-rnb-pop",
+            "name": "RnB-Pop (Hybrid: Contemporary RnB & Neo Soul + Pop)"
+          },
+          {
+            "id": "pop-schlager",
+            "name": "Schlager"
+          },
+          {
+            "id": "pop-sertanejo-pop",
+            "name": "Sertanejo Pop (Hybrid: Pop + Sertanejo)"
+          },
+          {
+            "id": "pop-shoegaze",
+            "name": "Shoegaze (Hybrid: Alternative & Indie Rock + Pop)"
+          },
+          {
+            "id": "pop-singer-songwriter",
+            "name": "Singer-Songwriter"
+          },
+          {
+            "id": "pop-skiffle-revival",
+            "name": "Skiffle Revival (Hybrid: Pop + Rock 'n' Roll (RnR/R&R))"
+          },
+          {
+            "id": "pop-symphonic-pop",
+            "name": "Symphonic Pop (Hybrid: Classical Crossover + Pop)"
+          },
+          {
+            "id": "pop-synthpop",
+            "name": "Synthpop (Hybrid: Pop + Synthwave & Retrowave)"
+          },
+          {
+            "id": "pop-synthpop-new-romantics",
+            "name": "Synthpop (New Romantics) (Hybrid: Pop + Punk & New Wave)"
+          },
+          {
+            "id": "pop-tv-pop-themes",
+            "name": "TV Pop Themes (Hybrid: Pop + TV & Streaming)"
+          },
+          {
+            "id": "pop-worship-pop",
+            "name": "Worship Pop (Hybrid: Christian & Gospel Worship + Pop)"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "reggae-dancehall-music",
+    "name": "Reggae & Dancehall Music",
+    "mainGenres": [
+      {
+        "id": "dancehall",
+        "name": "Dancehall",
+        "familyId": "reggae-dancehall-music",
+        "subGenres": [
+          {
+            "id": "dancehall-bashment",
+            "name": "Bashment"
+          },
+          {
+            "id": "dancehall-bashment-grime",
+            "name": "Bashment Grime (Hybrid: Dancehall + Grime)"
+          },
+          {
+            "id": "dancehall-dancehall-pop",
+            "name": "Dancehall Pop (Hybrid: Dancehall + Pop)"
+          },
+          {
+            "id": "dancehall-dembow",
+            "name": "Dembow (Hybrid: Dancehall + Latin Urban)"
+          },
+          {
+            "id": "dancehall-digital-dancehall",
+            "name": "Digital Dancehall"
+          },
+          {
+            "id": "dancehall-ragga-jungle",
+            "name": "Ragga Jungle (Hybrid: Dancehall + Jungle)"
+          },
+          {
+            "id": "dancehall-reggaet-n-latin-rap",
+            "name": "Reggaetón & Latin Rap (Hybrid: Dancehall + Hip-Hop & Rap + Latin Urban)"
+          }
+        ]
+      },
+      {
+        "id": "dub-sound-system-culture",
+        "name": "Dub & Sound System Culture",
+        "familyId": "reggae-dancehall-music",
+        "subGenres": [
+          {
+            "id": "dub-sound-system-culture-dub-classic",
+            "name": "Dub (Classic)"
+          },
+          {
+            "id": "dub-sound-system-culture-dubstep-roots",
+            "name": "Dubstep Roots (Hybrid: Dub & Sound System Culture + Dubstep)"
+          },
+          {
+            "id": "dub-sound-system-culture-steppers-dub",
+            "name": "Steppers Dub"
+          }
+        ]
+      },
+      {
+        "id": "mento",
+        "name": "Mento",
+        "familyId": "reggae-dancehall-music",
+        "subGenres": []
+      },
+      {
+        "id": "reggae",
+        "name": "Reggae",
+        "familyId": "reggae-dancehall-music",
+        "subGenres": [
+          {
+            "id": "reggae-lovers-rock-uk-reggae",
+            "name": "Lovers Rock / UK Reggae"
+          },
+          {
+            "id": "reggae-ragga-dnb",
+            "name": "Ragga DnB (Hybrid: Drum 'n' Bass (DnB/D&B) + Reggae)"
+          },
+          {
+            "id": "reggae-reggae-fusion-bhangramuffin",
+            "name": "Reggae Fusion / Bhangramuffin"
+          },
+          {
+            "id": "reggae-reggae-pop",
+            "name": "Reggae-Pop (Hybrid: Pop + Reggae)"
+          },
+          {
+            "id": "reggae-rocksteady",
+            "name": "Rocksteady"
+          },
+          {
+            "id": "reggae-roots-reggae",
+            "name": "Roots Reggae"
+          },
+          {
+            "id": "reggae-roots-reggae-crossover",
+            "name": "Roots Reggae (Crossover) (Hybrid: Reggae + Roots)"
+          },
+          {
+            "id": "reggae-samba-reggae",
+            "name": "Samba-Reggae (Hybrid: Reggae + Samba)"
+          }
+        ]
+      },
+      {
+        "id": "ska-early-reggae",
+        "name": "Ska & Early Reggae",
+        "familyId": "reggae-dancehall-music",
+        "subGenres": [
+          {
+            "id": "ska-early-reggae-2-tone-ska",
+            "name": "2 Tone Ska"
+          },
+          {
+            "id": "ska-early-reggae-rocksteady-early",
+            "name": "Rocksteady (Early)"
+          },
+          {
+            "id": "ska-early-reggae-ska-1st-wave",
+            "name": "Ska (1st Wave)"
+          },
+          {
+            "id": "ska-early-reggae-ska-revival-ska-punk-skacore",
+            "name": "Ska Revival / Ska Punk / Skacore (Hybrid: Hardcore Punk + Ska & Early Reggae)"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "religious-spiritual-music",
+    "name": "Religious & Spiritual Music",
+    "mainGenres": [
+      {
+        "id": "buddhist-east-asian-devotional",
+        "name": "Buddhist & East Asian Devotional",
+        "familyId": "religious-spiritual-music",
+        "subGenres": [
+          {
+            "id": "buddhist-east-asian-devotional-meditative-chant",
+            "name": "Meditative Chant (Hybrid: Ambient + Buddhist & East Asian Devotional)"
+          },
+          {
+            "id": "buddhist-east-asian-devotional-sh-my-buddhist-chant-jp",
+            "name": "Shōmyō / Buddhist Chant (JP)"
+          },
+          {
+            "id": "buddhist-east-asian-devotional-tibetan-chant",
+            "name": "Tibetan Chant"
+          }
+        ]
+      },
+      {
+        "id": "christian-gospel-worship",
+        "name": "Christian & Gospel Worship",
+        "familyId": "religious-spiritual-music",
+        "subGenres": [
+          {
+            "id": "christian-gospel-worship-contemporary-worship",
+            "name": "Contemporary Worship"
+          },
+          {
+            "id": "christian-gospel-worship-gospel-worship",
+            "name": "Gospel Worship (Hybrid: Christian & Gospel Worship + Gospel)"
+          },
+          {
+            "id": "christian-gospel-worship-traditional-hymns",
+            "name": "Traditional Hymns"
+          },
+          {
+            "id": "christian-gospel-worship-worship-pop",
+            "name": "Worship Pop (Hybrid: Christian & Gospel Worship + Pop)"
+          }
+        ]
+      },
+      {
+        "id": "hindu-indian-devotional",
+        "name": "Hindu & Indian Devotional",
+        "familyId": "religious-spiritual-music",
+        "subGenres": [
+          {
+            "id": "hindu-indian-devotional-bhajan",
+            "name": "Bhajan"
+          },
+          {
+            "id": "hindu-indian-devotional-bollywood-bhajan",
+            "name": "Bollywood Bhajan (Hybrid: Hindu & Indian Devotional + I-Pop (Indian))"
+          },
+          {
+            "id": "hindu-indian-devotional-kirtan",
+            "name": "Kirtan"
+          }
+        ]
+      },
+      {
+        "id": "islamic-middle-eastern-devotional",
+        "name": "Islamic & Middle Eastern Devotional",
+        "familyId": "religious-spiritual-music",
+        "subGenres": [
+          {
+            "id": "islamic-middle-eastern-devotional-coke-studio-fusion-pk",
+            "name": "Coke Studio Fusion (PK) (Hybrid: Islamic & Middle Eastern Devotional + Pak-Pop (Pakistani))"
+          },
+          {
+            "id": "islamic-middle-eastern-devotional-contemporary-sufi-pop",
+            "name": "Contemporary Sufi Pop (Hybrid: Islamic & Middle Eastern Devotional + Pak-Pop (Pakistani))"
+          },
+          {
+            "id": "islamic-middle-eastern-devotional-nasheed",
+            "name": "Nasheed"
+          },
+          {
+            "id": "islamic-middle-eastern-devotional-qawwali-devotional",
+            "name": "Qawwali (Devotional)"
+          },
+          {
+            "id": "islamic-middle-eastern-devotional-qawwali-folk",
+            "name": "Qawwali Folk (Hybrid: Indian Folk + Islamic & Middle Eastern Devotional)"
+          }
+        ]
+      },
+      {
+        "id": "jewish-hebrew-devotional",
+        "name": "Jewish & Hebrew Devotional",
+        "familyId": "religious-spiritual-music",
+        "subGenres": [
+          {
+            "id": "jewish-hebrew-devotional-hasidic-nigunim",
+            "name": "Hasidic Nigunim"
+          },
+          {
+            "id": "jewish-hebrew-devotional-klezmer-spiritual",
+            "name": "Klezmer Spiritual (Hybrid: Jewish & Hebrew Devotional + World - Europe - Other Traditional)"
+          },
+          {
+            "id": "jewish-hebrew-devotional-piyyut-liturgical-song",
+            "name": "Piyyut / Liturgical Song"
+          }
+        ]
+      },
+      {
+        "id": "new-age-spiritual",
+        "name": "New Age Spiritual",
+        "familyId": "religious-spiritual-music",
+        "subGenres": [
+          {
+            "id": "new-age-spiritual-ambient-spiritual",
+            "name": "Ambient Spiritual (Hybrid: Ambient + New Age Spiritual)"
+          },
+          {
+            "id": "new-age-spiritual-new-age-meditation",
+            "name": "New Age Meditation (Hybrid: New Age + New Age Spiritual)"
+          },
+          {
+            "id": "new-age-spiritual-spiritual-healing",
+            "name": "Spiritual Healing"
+          },
+          {
+            "id": "new-age-spiritual-spiritual-new-age",
+            "name": "Spiritual New Age (Hybrid: New Age + New Age Spiritual)"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "rhythm-blues-rnb-r-b-music",
+    "name": "Rhythm & Blues (RnB/R&B) Music",
+    "mainGenres": [
+      {
+        "id": "contemporary-rnb-neo-soul",
+        "name": "Contemporary RnB & Neo Soul",
+        "familyId": "rhythm-blues-rnb-r-b-music",
+        "subGenres": [
+          {
+            "id": "contemporary-rnb-neo-soul-afro-rnb",
+            "name": "Afro-RnB (Hybrid: Afrobeats + Contemporary RnB & Neo Soul)"
+          },
+          {
+            "id": "contemporary-rnb-neo-soul-alt-rnb-pbr-rnb",
+            "name": "Alt RnB / PBR RnB (Hybrid: Contemporary RnB & Neo Soul + Experimental Electronic)"
+          },
+          {
+            "id": "contemporary-rnb-neo-soul-canto-rnb",
+            "name": "Canto RnB (Hybrid: C-Pop (Cantonese) / Canto-Pop + Contemporary RnB & Neo Soul)"
+          },
+          {
+            "id": "contemporary-rnb-neo-soul-country-rnb",
+            "name": "Country RnB (Hybrid: Contemporary RnB & Neo Soul + Country Fusion)"
+          },
+          {
+            "id": "contemporary-rnb-neo-soul-j-rnb",
+            "name": "J-RnB (Hybrid: Contemporary RnB & Neo Soul + J-Pop (Japanese))"
+          },
+          {
+            "id": "contemporary-rnb-neo-soul-k-rnb",
+            "name": "K-RnB (Hybrid: Contemporary RnB & Neo Soul + K-pop (Korean))"
+          },
+          {
+            "id": "contemporary-rnb-neo-soul-mando-rnb",
+            "name": "Mando RnB (Hybrid: Contemporary RnB & Neo Soul + C-Pop (Mandarin) / Mando-Pop)"
+          },
+          {
+            "id": "contemporary-rnb-neo-soul-neo-soul-nu-soul",
+            "name": "Neo-Soul / Nu-Soul"
+          },
+          {
+            "id": "contemporary-rnb-neo-soul-new-jack-swing-swingbeat",
+            "name": "New Jack Swing / Swingbeat"
+          },
+          {
+            "id": "contemporary-rnb-neo-soul-pinoy-rnb-pop",
+            "name": "Pinoy RnB-Pop (Hybrid: Contemporary RnB & Neo Soul + P-Pop (Filipino))"
+          },
+          {
+            "id": "contemporary-rnb-neo-soul-rhythm-grime-r-g-rng",
+            "name": "Rhythm & Grime (R&G/RnG) (Hybrid: Contemporary RnB & Neo Soul + Grime)"
+          },
+          {
+            "id": "contemporary-rnb-neo-soul-rnb-pop",
+            "name": "RnB-Pop (Hybrid: Contemporary RnB & Neo Soul + Pop)"
+          },
+          {
+            "id": "contemporary-rnb-neo-soul-thai-rnb-pop",
+            "name": "Thai RnB-Pop (Hybrid: Contemporary RnB & Neo Soul + T-Pop (Thai))"
+          },
+          {
+            "id": "contemporary-rnb-neo-soul-trap-soul",
+            "name": "Trap Soul (Hybrid: Contemporary RnB & Neo Soul + Hip-Hop & Rap)"
+          },
+          {
+            "id": "contemporary-rnb-neo-soul-urban-breaks-rap-rnb",
+            "name": "Urban Breaks / Rap RnB (Hybrid: Contemporary RnB & Neo Soul + Hip-Hop & Rap)"
+          },
+          {
+            "id": "contemporary-rnb-neo-soul-urban-soul-pop-rnb",
+            "name": "Urban Soul/Pop/RnB"
+          }
+        ]
+      },
+      {
+        "id": "funk-groove-boogie",
+        "name": "Funk, Groove & Boogie",
+        "familyId": "rhythm-blues-rnb-r-b-music",
+        "subGenres": [
+          {
+            "id": "funk-groove-boogie-boogie-electrofunk-modern-funk",
+            "name": "Boogie / Electrofunk / Modern Funk"
+          },
+          {
+            "id": "funk-groove-boogie-disco",
+            "name": "Disco"
+          },
+          {
+            "id": "funk-groove-boogie-funktronika-nu-disco",
+            "name": "Funktronika / Nu-Disco"
+          },
+          {
+            "id": "funk-groove-boogie-go-go-bounce-beat",
+            "name": "Go-Go / Bounce Beat"
+          },
+          {
+            "id": "funk-groove-boogie-nu-disco-french-house",
+            "name": "Nu-Disco / French House (Hybrid: Funk, Groove & Boogie + House)"
+          },
+          {
+            "id": "funk-groove-boogie-p-funk-early-funk",
+            "name": "P-Funk / Early Funk"
+          },
+          {
+            "id": "funk-groove-boogie-rare-groove-nu-funk-deep-funk",
+            "name": "Rare Groove / Nu-Funk / Deep Funk"
+          }
+        ]
+      },
+      {
+        "id": "traditional-r-b-soul",
+        "name": "Traditional R&B & Soul",
+        "familyId": "rhythm-blues-rnb-r-b-music",
+        "subGenres": [
+          {
+            "id": "traditional-r-b-soul-blue-eyed-soul",
+            "name": "Blue-Eyed Soul (Hybrid: Golden & Classic Rock + Traditional R&B & Soul)"
+          },
+          {
+            "id": "traditional-r-b-soul-deep-soul",
+            "name": "Deep Soul"
+          },
+          {
+            "id": "traditional-r-b-soul-detroit-chicago-soul",
+            "name": "Detroit & Chicago Soul"
+          },
+          {
+            "id": "traditional-r-b-soul-doo-wop",
+            "name": "Doo Wop"
+          },
+          {
+            "id": "traditional-r-b-soul-early-rhythm-blues",
+            "name": "Early Rhythm & Blues"
+          },
+          {
+            "id": "traditional-r-b-soul-memphis-soul",
+            "name": "Memphis Soul"
+          },
+          {
+            "id": "traditional-r-b-soul-motown",
+            "name": "Motown"
+          },
+          {
+            "id": "traditional-r-b-soul-philadelphia-soul-philly-soul",
+            "name": "Philadelphia Soul / Philly Soul"
+          },
+          {
+            "id": "traditional-r-b-soul-soul-blues-nu-southern-soul",
+            "name": "Soul Blues / Nu-Southern Soul (Hybrid: Blues + Traditional R&B & Soul)"
+          },
+          {
+            "id": "traditional-r-b-soul-southern-soul",
+            "name": "Southern Soul"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "rock-music",
+    "name": "Rock Music",
+    "mainGenres": [
+      {
+        "id": "alternative-indie-rock",
+        "name": "Alternative & Indie Rock",
+        "familyId": "rock-music",
+        "subGenres": [
+          {
+            "id": "alternative-indie-rock-alternative-metal",
+            "name": "Alternative Metal (Hybrid: Alternative & Indie Rock + Heavy Metal)"
+          },
+          {
+            "id": "alternative-indie-rock-alternative-rock",
+            "name": "Alternative Rock"
+          },
+          {
+            "id": "alternative-indie-rock-britpop",
+            "name": "Britpop (Hybrid: Alternative & Indie Rock + Pop)"
+          },
+          {
+            "id": "alternative-indie-rock-celtic-folk-rock",
+            "name": "Celtic Folk-Rock (Hybrid: Alternative & Indie Rock + Celtic & UK Folk)"
+          },
+          {
+            "id": "alternative-indie-rock-dream-pop",
+            "name": "Dream Pop (Hybrid: Alternative & Indie Rock + Ambient)"
+          },
+          {
+            "id": "alternative-indie-rock-folk-rock-indie",
+            "name": "Folk Rock (Indie) (Hybrid: Alternative & Indie Rock + Contemporary Folk)"
+          },
+          {
+            "id": "alternative-indie-rock-funk-metal",
+            "name": "Funk Metal"
+          },
+          {
+            "id": "alternative-indie-rock-funk-rock",
+            "name": "Funk Rock"
+          },
+          {
+            "id": "alternative-indie-rock-grunge",
+            "name": "Grunge"
+          },
+          {
+            "id": "alternative-indie-rock-indie-folk-singer-songwriter",
+            "name": "Indie Folk-Singer Songwriter (Hybrid: Alternative & Indie Rock + Singer-Songwriter Acoustic Folk)"
+          },
+          {
+            "id": "alternative-indie-rock-indie-pop",
+            "name": "Indie Pop (Hybrid: Alternative & Indie Rock + Pop)"
+          },
+          {
+            "id": "alternative-indie-rock-indie-rock",
+            "name": "Indie Rock"
+          },
+          {
+            "id": "alternative-indie-rock-jangle-pop",
+            "name": "Jangle Pop"
+          },
+          {
+            "id": "alternative-indie-rock-mando-pop-rock",
+            "name": "Mando-Pop Rock (Hybrid: Alternative & Indie Rock + C-Pop (Mandarin) / Mando-Pop)"
+          },
+          {
+            "id": "alternative-indie-rock-math-rock-mathcore",
+            "name": "Math Rock / Mathcore (Hybrid: Alternative & Indie Rock + Hardcore Punk)"
+          },
+          {
+            "id": "alternative-indie-rock-noise-rock",
+            "name": "Noise Rock"
+          },
+          {
+            "id": "alternative-indie-rock-pak-pop-rock",
+            "name": "Pak Pop-Rock (Hybrid: Alternative & Indie Rock + Pak-Pop (Pakistani))"
+          },
+          {
+            "id": "alternative-indie-rock-pinoy-pop-rock",
+            "name": "Pinoy Pop-Rock (Hybrid: Alternative & Indie Rock + P-Pop (Filipino))"
+          },
+          {
+            "id": "alternative-indie-rock-pop-punk",
+            "name": "Pop Punk (Hybrid: Alternative & Indie Rock + Pop)"
+          },
+          {
+            "id": "alternative-indie-rock-post-grunge",
+            "name": "Post-Grunge (Hybrid: Alternative & Indie Rock + Contemporary Rock)"
+          },
+          {
+            "id": "alternative-indie-rock-post-hardcore",
+            "name": "Post-Hardcore (Hybrid: Alternative & Indie Rock + Hardcore Punk)"
+          },
+          {
+            "id": "alternative-indie-rock-post-metal",
+            "name": "Post-Metal (Hybrid: Alternative & Indie Rock + Heavy Metal)"
+          },
+          {
+            "id": "alternative-indie-rock-post-punk-goth",
+            "name": "Post-Punk Goth (Hybrid: Alternative & Indie Rock + Gothic)"
+          },
+          {
+            "id": "alternative-indie-rock-post-punk-revival",
+            "name": "Post-Punk Revival (Hybrid: Alternative & Indie Rock + Contemporary Rock + Punk & New Wave)"
+          },
+          {
+            "id": "alternative-indie-rock-post-punk-synthwave",
+            "name": "Post-Punk Synthwave (Hybrid: Alternative & Indie Rock + Synthwave & Retrowave)"
+          },
+          {
+            "id": "alternative-indie-rock-post-rock",
+            "name": "Post-Rock"
+          },
+          {
+            "id": "alternative-indie-rock-rap-rock",
+            "name": "Rap Rock"
+          },
+          {
+            "id": "alternative-indie-rock-shoegaze",
+            "name": "Shoegaze (Hybrid: Alternative & Indie Rock + Pop)"
+          },
+          {
+            "id": "alternative-indie-rock-skate-punk",
+            "name": "Skate Punk"
+          },
+          {
+            "id": "alternative-indie-rock-thai-pop-rock",
+            "name": "Thai Pop-Rock (Hybrid: Alternative & Indie Rock + T-Pop (Thai))"
+          },
+          {
+            "id": "alternative-indie-rock-y-allternative",
+            "name": "Y'allternative (Hybrid: Alt-Country + Alternative & Indie Rock)"
+          }
+        ]
+      },
+      {
+        "id": "contemporary-rock",
+        "name": "Contemporary Rock",
+        "familyId": "rock-music",
+        "subGenres": [
+          {
+            "id": "contemporary-rock-americana-rock",
+            "name": "Americana Rock (Hybrid: Americana Country + Contemporary Rock)"
+          },
+          {
+            "id": "contemporary-rock-country-rock",
+            "name": "Country Rock (Hybrid: Contemporary Rock + Modern Country + Pop)"
+          },
+          {
+            "id": "contemporary-rock-country-alt-rock",
+            "name": "Country-Alt Rock (Hybrid: Contemporary Rock + Country Fusion)"
+          },
+          {
+            "id": "contemporary-rock-dance-punk-new-rave",
+            "name": "Dance-Punk / New Rave"
+          },
+          {
+            "id": "contemporary-rock-emo-rock",
+            "name": "Emo Rock"
+          },
+          {
+            "id": "contemporary-rock-folk-rock-contemporary",
+            "name": "Folk Rock (Contemporary) (Hybrid: Contemporary Rock + Folk)"
+          },
+          {
+            "id": "contemporary-rock-freak-folk",
+            "name": "Freak Folk (Hybrid: Contemporary Folk + Contemporary Rock + Pop)"
+          },
+          {
+            "id": "contemporary-rock-garage-rock-revival",
+            "name": "Garage Rock Revival"
+          },
+          {
+            "id": "contemporary-rock-indie-folk",
+            "name": "Indie Folk (Hybrid: Contemporary Folk + Contemporary Rock + Pop)"
+          },
+          {
+            "id": "contemporary-rock-indietronica-chillwave",
+            "name": "Indietronica / Chillwave (Hybrid: Contemporary Rock + Pop)"
+          },
+          {
+            "id": "contemporary-rock-jazz-fusion-rock",
+            "name": "Jazz Fusion (Rock) (Hybrid: Contemporary Rock + Jazz)"
+          },
+          {
+            "id": "contemporary-rock-latin-pop-rock",
+            "name": "Latin Pop-Rock (Hybrid: Contemporary Rock + Latin Pop)"
+          },
+          {
+            "id": "contemporary-rock-modern-hard-rock",
+            "name": "Modern Hard Rock"
+          },
+          {
+            "id": "contemporary-rock-nu-folk",
+            "name": "Nu-Folk (Hybrid: Contemporary Folk + Contemporary Rock + Pop)"
+          },
+          {
+            "id": "contemporary-rock-nu-prog-post-prog-rock",
+            "name": "Nu-Prog / Post-Prog Rock"
+          },
+          {
+            "id": "contemporary-rock-pop-rock-power-pop",
+            "name": "Pop Rock / Power Pop (Hybrid: Contemporary Rock + Pop)"
+          },
+          {
+            "id": "contemporary-rock-post-britpop",
+            "name": "Post-Britpop (Hybrid: Contemporary Rock + Pop)"
+          },
+          {
+            "id": "contemporary-rock-post-grunge",
+            "name": "Post-Grunge (Hybrid: Alternative & Indie Rock + Contemporary Rock)"
+          },
+          {
+            "id": "contemporary-rock-post-punk-revival",
+            "name": "Post-Punk Revival (Hybrid: Alternative & Indie Rock + Contemporary Rock + Punk & New Wave)"
+          },
+          {
+            "id": "contemporary-rock-rock-musical",
+            "name": "Rock Musical (Hybrid: Contemporary Rock + Stage & Musical Theatre)"
+          },
+          {
+            "id": "contemporary-rock-symphonic-rock",
+            "name": "Symphonic Rock (Hybrid: Classical Crossover + Contemporary Rock)"
+          },
+          {
+            "id": "contemporary-rock-synth-rock",
+            "name": "Synth Rock (Hybrid: Contemporary Rock + Synthwave & Retrowave)"
+          }
+        ]
+      },
+      {
+        "id": "golden-classic-rock",
+        "name": "Golden & Classic Rock",
+        "familyId": "rock-music",
+        "subGenres": [
+          {
+            "id": "golden-classic-rock-blue-eyed-soul",
+            "name": "Blue-Eyed Soul (Hybrid: Golden & Classic Rock + Traditional R&B & Soul)"
+          },
+          {
+            "id": "golden-classic-rock-blues-rock-british-blues",
+            "name": "Blues Rock / British Blues (Hybrid: Blues + Golden & Classic Rock)"
+          },
+          {
+            "id": "golden-classic-rock-classic-hard-rock",
+            "name": "Classic Hard Rock"
+          },
+          {
+            "id": "golden-classic-rock-classic-rock",
+            "name": "Classic Rock"
+          },
+          {
+            "id": "golden-classic-rock-country-rock-classic",
+            "name": "Country Rock (Classic) (Hybrid: Classic Country + Golden & Classic Rock)"
+          },
+          {
+            "id": "golden-classic-rock-folk-rock-classic",
+            "name": "Folk Rock (Classic) (Hybrid: Folk + Golden & Classic Rock)"
+          },
+          {
+            "id": "golden-classic-rock-glam-glitter-shock-rock",
+            "name": "Glam / Glitter / Shock Rock"
+          },
+          {
+            "id": "golden-classic-rock-golden-rock",
+            "name": "Golden Rock"
+          },
+          {
+            "id": "golden-classic-rock-heartland-adult-orientated-rock",
+            "name": "Heartland / Adult Orientated Rock"
+          },
+          {
+            "id": "golden-classic-rock-merseybeat-british-invasion-rock",
+            "name": "Merseybeat / British Invasion Rock"
+          },
+          {
+            "id": "golden-classic-rock-prog-rock-classic",
+            "name": "Prog Rock (Classic)"
+          },
+          {
+            "id": "golden-classic-rock-progressive-art-rock",
+            "name": "Progressive / Art Rock"
+          },
+          {
+            "id": "golden-classic-rock-psychedelic-acid-psychedelia-rock",
+            "name": "Psychedelic / Acid / Psychedelia Rock"
+          },
+          {
+            "id": "golden-classic-rock-southern-rock",
+            "name": "Southern Rock"
+          },
+          {
+            "id": "golden-classic-rock-tropic-lia",
+            "name": "Tropicália (Hybrid: Golden & Classic Rock + Música Popular Brasileira (MPB))"
+          }
+        ]
+      },
+      {
+        "id": "rock-n-roll-rnr-r-r",
+        "name": "Rock 'n' Roll (RnR/R&R)",
+        "familyId": "rock-music",
+        "subGenres": [
+          {
+            "id": "rock-n-roll-rnr-r-r-american-english-folk-revival",
+            "name": "American & English Folk Revival"
+          },
+          {
+            "id": "rock-n-roll-rnr-r-r-country-rock-roots",
+            "name": "Country Rock (Roots) (Hybrid: Classic Country + Rock 'n' Roll (RnR/R&R))"
+          },
+          {
+            "id": "rock-n-roll-rnr-r-r-doo-wop",
+            "name": "Doo-Wop"
+          },
+          {
+            "id": "rock-n-roll-rnr-r-r-garage-rock",
+            "name": "Garage Rock"
+          },
+          {
+            "id": "rock-n-roll-rnr-r-r-rockabilly-rock-n-roll",
+            "name": "Rockabilly / Rock 'n' Roll"
+          },
+          {
+            "id": "rock-n-roll-rnr-r-r-skiffle-revival",
+            "name": "Skiffle Revival (Hybrid: Pop + Rock 'n' Roll (RnR/R&R))"
+          },
+          {
+            "id": "rock-n-roll-rnr-r-r-surf-rock",
+            "name": "Surf Rock"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "soundtrack-film-tv-stage-music",
+    "name": "Soundtrack, Film, TV & Stage Music",
+    "mainGenres": [
+      {
+        "id": "movie-score-motion-picture",
+        "name": "Movie Score & Motion Picture",
+        "familyId": "soundtrack-film-tv-stage-music",
+        "subGenres": [
+          {
+            "id": "movie-score-motion-picture-bollywood-pop",
+            "name": "Bollywood Pop (Hybrid: Movie Score & Motion Picture + I-Pop (Indian))"
+          },
+          {
+            "id": "movie-score-motion-picture-electronic-film-score",
+            "name": "Electronic Film Score (Hybrid: Experimental Electronic + Movie Score & Motion Picture)"
+          },
+          {
+            "id": "movie-score-motion-picture-hybrid-score-electro-orchestral",
+            "name": "Hybrid Score (Electro-Orchestral)"
+          },
+          {
+            "id": "movie-score-motion-picture-orchestral-film-classical",
+            "name": "Orchestral Film-Classical (Hybrid: Movie Score & Motion Picture + Classical Screen & Stage)"
+          },
+          {
+            "id": "movie-score-motion-picture-orchestral-score",
+            "name": "Orchestral Score"
+          },
+          {
+            "id": "movie-score-motion-picture-trailer-classical",
+            "name": "Trailer Classical (Hybrid: Classical Crossover + Movie Score & Motion Picture)"
+          },
+          {
+            "id": "movie-score-motion-picture-trailer-music",
+            "name": "Trailer Music"
+          }
+        ]
+      },
+      {
+        "id": "stage-musical-theatre",
+        "name": "Stage & Musical Theatre",
+        "familyId": "soundtrack-film-tv-stage-music",
+        "subGenres": [
+          {
+            "id": "stage-musical-theatre-concept-musical",
+            "name": "Concept Musical"
+          },
+          {
+            "id": "stage-musical-theatre-jukebox-musical",
+            "name": "Jukebox Musical (Hybrid: Pop + Stage & Musical Theatre)"
+          },
+          {
+            "id": "stage-musical-theatre-rock-musical",
+            "name": "Rock Musical (Hybrid: Contemporary Rock + Stage & Musical Theatre)"
+          },
+          {
+            "id": "stage-musical-theatre-show-tunes",
+            "name": "Show Tunes"
+          },
+          {
+            "id": "stage-musical-theatre-stage-orchestral-crossover",
+            "name": "Stage-Orchestral Crossover (Hybrid: Classical Screen & Stage + Stage & Musical Theatre)"
+          }
+        ]
+      },
+      {
+        "id": "tv-streaming",
+        "name": "TV & Streaming",
+        "familyId": "soundtrack-film-tv-stage-music",
+        "subGenres": [
+          {
+            "id": "tv-streaming-atmospheric-tv-score",
+            "name": "Atmospheric TV Score (Hybrid: Ambient + TV & Streaming)"
+          },
+          {
+            "id": "tv-streaming-episodic-score",
+            "name": "Episodic Score"
+          },
+          {
+            "id": "tv-streaming-k-drama-ost-pop",
+            "name": "K-Drama OST Pop (Hybrid: K-pop (Korean) + TV & Streaming)"
+          },
+          {
+            "id": "tv-streaming-television-orchestral-themes",
+            "name": "Television Orchestral Themes (Hybrid: Classical Screen & Stage + TV & Streaming)"
+          },
+          {
+            "id": "tv-streaming-theme-songs",
+            "name": "Theme Songs"
+          },
+          {
+            "id": "tv-streaming-tv-pop-themes",
+            "name": "TV Pop Themes (Hybrid: Pop + TV & Streaming)"
+          }
+        ]
+      },
+      {
+        "id": "video-game-score",
+        "name": "Video Game Score",
+        "familyId": "soundtrack-film-tv-stage-music",
+        "subGenres": [
+          {
+            "id": "video-game-score-chiptune-8-bit-16-bit-bit-music",
+            "name": "Chiptune / 8-Bit / 16-Bit / Bit Music (Hybrid: Experimental Electronic + Video Game Score)"
+          },
+          {
+            "id": "video-game-score-hybrid-game-score",
+            "name": "Hybrid Game Score"
+          },
+          {
+            "id": "video-game-score-orchestral-game-score",
+            "name": "Orchestral Game Score"
+          },
+          {
+            "id": "video-game-score-trance-game-score",
+            "name": "Trance Game Score (Hybrid: Trance + Video Game Score)"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "south-american-music",
+    "name": "South American Music",
+    "mainGenres": [
+      {
+        "id": "andean",
+        "name": "Andean",
+        "familyId": "south-american-music",
+        "subGenres": [
+          {
+            "id": "andean-huayno-wayno",
+            "name": "Huayno / Wayno"
+          },
+          {
+            "id": "andean-saya-tinku",
+            "name": "Saya & Tinku"
+          },
+          {
+            "id": "andean-sikuri-panpipe-ensembles",
+            "name": "Sikuri / Panpipe Ensembles"
+          }
+        ]
+      },
+      {
+        "id": "baile-funk-funk-carioca",
+        "name": "Baile Funk & Funk Carioca",
+        "familyId": "south-american-music",
+        "subGenres": [
+          {
+            "id": "baile-funk-funk-carioca-brazilian-bass-baile",
+            "name": "Brazilian Bass (Baile) (Hybrid: Baile Funk & Funk Carioca + Bass Music)"
+          },
+          {
+            "id": "baile-funk-funk-carioca-funk-consciente",
+            "name": "Funk Consciente"
+          },
+          {
+            "id": "baile-funk-funk-carioca-funk-ostenta-o",
+            "name": "Funk Ostentação"
+          }
+        ]
+      },
+      {
+        "id": "bossa-nova",
+        "name": "Bossa Nova",
+        "familyId": "south-american-music",
+        "subGenres": [
+          {
+            "id": "bossa-nova-bossa-nova-classic",
+            "name": "Bossa Nova (Classic)"
+          },
+          {
+            "id": "bossa-nova-bossa-pop",
+            "name": "Bossa Pop (Hybrid: Bossa Nova + Pop)"
+          },
+          {
+            "id": "bossa-nova-bossa-jazz",
+            "name": "Bossa-Jazz (Hybrid: Bossa Nova + Jazz)"
+          }
+        ]
+      },
+      {
+        "id": "brazilian-urban",
+        "name": "Brazilian Urban",
+        "familyId": "south-american-music",
+        "subGenres": [
+          {
+            "id": "brazilian-urban-brazilian-bass-urban",
+            "name": "Brazilian Bass (Urban) (Hybrid: Bass Music + Brazilian Urban)"
+          },
+          {
+            "id": "brazilian-urban-brazilian-pop-urban",
+            "name": "Brazilian Pop-Urban (Hybrid: Brazilian Urban + Pop)"
+          },
+          {
+            "id": "brazilian-urban-rap-br",
+            "name": "Rap BR"
+          },
+          {
+            "id": "brazilian-urban-trap-br",
+            "name": "Trap BR"
+          }
+        ]
+      },
+      {
+        "id": "cumbia",
+        "name": "Cumbia",
+        "familyId": "south-american-music",
+        "subGenres": [
+          {
+            "id": "cumbia-cumbia-folk-latin",
+            "name": "Cumbia Folk (Latin) (Hybrid: Cumbia + Latin Folk)"
+          },
+          {
+            "id": "cumbia-cumbia-folk-sa",
+            "name": "Cumbia Folk (SA) (Hybrid: Cumbia + South American Folk)"
+          },
+          {
+            "id": "cumbia-cumbia-norte-a",
+            "name": "Cumbia Norteña (Hybrid: Cumbia + Mexican Regional)"
+          },
+          {
+            "id": "cumbia-cumbia-roots",
+            "name": "Cumbia Roots (Hybrid: Cumbia + South American Roots)"
+          },
+          {
+            "id": "cumbia-cumbia-sonidera",
+            "name": "Cumbia Sonidera"
+          },
+          {
+            "id": "cumbia-cumbia-tradicional",
+            "name": "Cumbia Tradicional"
+          },
+          {
+            "id": "cumbia-cumbia-villera",
+            "name": "Cumbia Villera"
+          },
+          {
+            "id": "cumbia-nueva-cumbia-electronic",
+            "name": "Nueva Cumbia (Electronic) (Hybrid: Bass Music + Cumbia)"
+          }
+        ]
+      },
+      {
+        "id": "forr",
+        "name": "Forró",
+        "familyId": "south-american-music",
+        "subGenres": [
+          {
+            "id": "forr-bai-o",
+            "name": "Baião"
+          },
+          {
+            "id": "forr-forr-eletr-nico",
+            "name": "Forró Eletrônico"
+          },
+          {
+            "id": "forr-forr-p-de-serra",
+            "name": "Forró pé-de-Serra"
+          },
+          {
+            "id": "forr-xote",
+            "name": "Xote"
+          }
+        ]
+      },
+      {
+        "id": "m-sica-folcl-rica",
+        "name": "Música Folclórica",
+        "familyId": "south-american-music",
+        "subGenres": [
+          {
+            "id": "m-sica-folcl-rica-cueca-tonada",
+            "name": "Cueca / Tonada"
+          },
+          {
+            "id": "m-sica-folcl-rica-nueva-canci-n",
+            "name": "Nueva Canción"
+          },
+          {
+            "id": "m-sica-folcl-rica-zamba-chacarera",
+            "name": "Zamba / Chacarera"
+          }
+        ]
+      },
+      {
+        "id": "m-sica-popular-brasileira-mpb",
+        "name": "Música Popular Brasileira (MPB)",
+        "familyId": "south-american-music",
+        "subGenres": [
+          {
+            "id": "m-sica-popular-brasileira-mpb-mpb-classic",
+            "name": "MPB (Classic)"
+          },
+          {
+            "id": "m-sica-popular-brasileira-mpb-mpb-jazz",
+            "name": "MPB Jazz (Hybrid: Jazz + Música Popular Brasileira (MPB))"
+          },
+          {
+            "id": "m-sica-popular-brasileira-mpb-tropic-lia",
+            "name": "Tropicália (Hybrid: Golden & Classic Rock + Música Popular Brasileira (MPB))"
+          }
+        ]
+      },
+      {
+        "id": "rock-nacional",
+        "name": "Rock Nacional",
+        "familyId": "south-american-music",
+        "subGenres": [
+          {
+            "id": "rock-nacional-argentine-rock",
+            "name": "Argentine Rock"
+          },
+          {
+            "id": "rock-nacional-chilean-rock",
+            "name": "Chilean Rock"
+          },
+          {
+            "id": "rock-nacional-pop-rock-sa",
+            "name": "Pop-Rock (SA) (Hybrid: Rock Nacional + South American Pop)"
+          },
+          {
+            "id": "rock-nacional-uruguayan-rock",
+            "name": "Uruguayan Rock"
+          }
+        ]
+      },
+      {
+        "id": "salsa",
+        "name": "Salsa",
+        "familyId": "south-american-music",
+        "subGenres": [
+          {
+            "id": "salsa-salsa-choke",
+            "name": "Salsa Choke (Hybrid: Latin Urban + Salsa)"
+          },
+          {
+            "id": "salsa-salsa-dura",
+            "name": "Salsa Dura"
+          },
+          {
+            "id": "salsa-salsa-rom-ntica",
+            "name": "Salsa Romántica"
+          },
+          {
+            "id": "salsa-son-cubano-folk",
+            "name": "Son Cubano Folk (Hybrid: Latin Folk + Salsa)"
+          }
+        ]
+      },
+      {
+        "id": "samba",
+        "name": "Samba",
+        "familyId": "south-american-music",
+        "subGenres": [
+          {
+            "id": "samba-choro-choro-influenced-folk",
+            "name": "Choro & Choro-Influenced Folk (Hybrid: Oceanian Roots + Samba)"
+          },
+          {
+            "id": "samba-pagode",
+            "name": "Pagode"
+          },
+          {
+            "id": "samba-samba-de-roda-capoeira",
+            "name": "Samba de Roda Capoeira"
+          },
+          {
+            "id": "samba-samba-enredo",
+            "name": "Samba-Enredo"
+          },
+          {
+            "id": "samba-samba-reggae",
+            "name": "Samba-Reggae (Hybrid: Reggae + Samba)"
+          }
+        ]
+      },
+      {
+        "id": "sertanejo",
+        "name": "Sertanejo",
+        "familyId": "south-american-music",
+        "subGenres": [
+          {
+            "id": "sertanejo-sertanejo-classic",
+            "name": "Sertanejo (Classic)"
+          },
+          {
+            "id": "sertanejo-sertanejo-pop",
+            "name": "Sertanejo Pop (Hybrid: Pop + Sertanejo)"
+          },
+          {
+            "id": "sertanejo-sertanejo-universit-rio",
+            "name": "Sertanejo Universitário"
+          }
+        ]
+      },
+      {
+        "id": "south-american-folk",
+        "name": "South American Folk",
+        "familyId": "south-american-music",
+        "subGenres": [
+          {
+            "id": "south-american-folk-andean-folk",
+            "name": "Andean Folk"
+          },
+          {
+            "id": "south-american-folk-cumbia-folk-sa",
+            "name": "Cumbia Folk (SA) (Hybrid: Cumbia + South American Folk)"
+          },
+          {
+            "id": "south-american-folk-nueva-canci-n-folk",
+            "name": "Nueva Canción (Folk)"
+          }
+        ]
+      },
+      {
+        "id": "tango",
+        "name": "Tango",
+        "familyId": "south-american-music",
+        "subGenres": [
+          {
+            "id": "tango-electro-tango-downtempo",
+            "name": "Electro-Tango (Downtempo) (Hybrid: Downtempo & Chillout + Tango)"
+          },
+          {
+            "id": "tango-tango-salon",
+            "name": "Tango (Salon)"
+          },
+          {
+            "id": "tango-tango-nuevo",
+            "name": "Tango Nuevo"
+          },
+          {
+            "id": "tango-tango-jazz",
+            "name": "Tango-Jazz (Hybrid: Jazz + Tango)"
+          }
+        ]
+      },
+      {
+        "id": "south-american-pop",
+        "name": "South American Pop",
+        "familyId": "south-american-music",
+        "subGenres": [
+          {
+            "id": "south-american-pop-latin-pop-sa",
+            "name": "Latin Pop (SA)"
+          },
+          {
+            "id": "south-american-pop-pop-rock-sa",
+            "name": "Pop-Rock (SA) (Hybrid: Rock Nacional + South American Pop)"
+          },
+          {
+            "id": "south-american-pop-urban-pop-sa",
+            "name": "Urban Pop (SA) (Hybrid: Latin Urban + South American Pop)"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "the-blues-jazz-music",
+    "name": "The Blues & Jazz Music",
+    "mainGenres": [
+      {
+        "id": "blues",
+        "name": "Blues",
+        "familyId": "the-blues-jazz-music",
+        "subGenres": [
+          {
+            "id": "blues-blues-rock-british-blues",
+            "name": "Blues Rock / British Blues (Hybrid: Blues + Golden & Classic Rock)"
+          },
+          {
+            "id": "blues-boogie-woogie-piano-blues",
+            "name": "Boogie Woogie / Piano Blues"
+          },
+          {
+            "id": "blues-chicago-city-urban-blues",
+            "name": "Chicago / City / Urban Blues"
+          },
+          {
+            "id": "blues-country-blues-americana",
+            "name": "Country Blues (Americana) (Hybrid: Americana Folk + Blues)"
+          },
+          {
+            "id": "blues-country-blues-roots",
+            "name": "Country Blues (Roots) (Hybrid: Blues + North American Roots)"
+          },
+          {
+            "id": "blues-delta-folk-blues",
+            "name": "Delta / Folk Blues"
+          },
+          {
+            "id": "blues-electric-blues",
+            "name": "Electric Blues"
+          },
+          {
+            "id": "blues-electric-texas-blues",
+            "name": "Electric Texas Blues"
+          },
+          {
+            "id": "blues-hill-country-trance-blues",
+            "name": "Hill Country / Trance Blues"
+          },
+          {
+            "id": "blues-jump-blues",
+            "name": "Jump Blues"
+          },
+          {
+            "id": "blues-louisiana-swamp-blues",
+            "name": "Louisiana / Swamp Blues"
+          },
+          {
+            "id": "blues-soul-blues-nu-southern-soul",
+            "name": "Soul Blues / Nu-Southern Soul (Hybrid: Blues + Traditional R&B & Soul)"
+          },
+          {
+            "id": "blues-texas-blues-rock-modern-electric-blues",
+            "name": "Texas Blues Rock / Modern Electric Blues"
+          },
+          {
+            "id": "blues-vaudeville-classic-blues",
+            "name": "Vaudeville / Classic Blues"
+          },
+          {
+            "id": "blues-west-coast-blues",
+            "name": "West Coast Blues"
+          }
+        ]
+      },
+      {
+        "id": "gospel",
+        "name": "Gospel",
+        "familyId": "the-blues-jazz-music",
+        "subGenres": [
+          {
+            "id": "gospel-bluegrass-gospel",
+            "name": "Bluegrass Gospel (Hybrid: Bluegrass Country + Gospel)"
+          },
+          {
+            "id": "gospel-christian-relipop-relirock",
+            "name": "Christian Relipop / Relirock"
+          },
+          {
+            "id": "gospel-contemporary-modern-gospel",
+            "name": "Contemporary / Modern Gospel (Hybrid: Gospel + Pop)"
+          },
+          {
+            "id": "gospel-gospel-worship",
+            "name": "Gospel Worship (Hybrid: Christian & Gospel Worship + Gospel)"
+          },
+          {
+            "id": "gospel-ragtime-stride",
+            "name": "Ragtime / Stride"
+          },
+          {
+            "id": "gospel-sacred-folk",
+            "name": "Sacred Folk (Hybrid: Gospel + Traditional Roots Folk)"
+          },
+          {
+            "id": "gospel-southern-gospel",
+            "name": "Southern Gospel"
+          },
+          {
+            "id": "gospel-spiritual-worksong",
+            "name": "Spiritual Worksong"
+          },
+          {
+            "id": "gospel-traditional-gospel",
+            "name": "Traditional Gospel"
+          }
+        ]
+      },
+      {
+        "id": "jazz",
+        "name": "Jazz",
+        "familyId": "the-blues-jazz-music",
+        "subGenres": [
+          {
+            "id": "jazz-acid-jazz-jazzdance",
+            "name": "Acid Jazz / Jazzdance"
+          },
+          {
+            "id": "jazz-bebop-hard-bop",
+            "name": "Bebop / Hard Bop"
+          },
+          {
+            "id": "jazz-bossa-jazz",
+            "name": "Bossa-Jazz (Hybrid: Bossa Nova + Jazz)"
+          },
+          {
+            "id": "jazz-chicago-jazz",
+            "name": "Chicago Jazz"
+          },
+          {
+            "id": "jazz-cool-jazz-west-coast",
+            "name": "Cool Jazz / West Coast"
+          },
+          {
+            "id": "jazz-electro-swing",
+            "name": "Electro Swing"
+          },
+          {
+            "id": "jazz-free-jazz",
+            "name": "Free Jazz"
+          },
+          {
+            "id": "jazz-gypsy-jazz-manouche",
+            "name": "Gypsy Jazz / Manouche (Hybrid: European Roots + Jazz)"
+          },
+          {
+            "id": "jazz-jazz-fusion-rock",
+            "name": "Jazz Fusion (Rock) (Hybrid: Contemporary Rock + Jazz)"
+          },
+          {
+            "id": "jazz-jazz-rap",
+            "name": "Jazz Rap (Hybrid: Hip-Hop & Rap + Jazz)"
+          },
+          {
+            "id": "jazz-jazzhop",
+            "name": "Jazzhop (Hybrid: Jazz + Lo-Fi & Chillhop)"
+          },
+          {
+            "id": "jazz-jazzstep-liquid-funk",
+            "name": "Jazzstep / Liquid Funk (Hybrid: Drum 'n' Bass (DnB/D&B) + Jazz)"
+          },
+          {
+            "id": "jazz-latin-jazz",
+            "name": "Latin Jazz (Hybrid: Jazz + Tropical & Caribbean Latin)"
+          },
+          {
+            "id": "jazz-modal-progressive-jazz",
+            "name": "Modal / Progressive Jazz"
+          },
+          {
+            "id": "jazz-mpb-jazz",
+            "name": "MPB Jazz (Hybrid: Jazz + Música Popular Brasileira (MPB))"
+          },
+          {
+            "id": "jazz-new-orleans-dixieland-jazz",
+            "name": "New Orleans / Dixieland Jazz"
+          },
+          {
+            "id": "jazz-new-orleans-dixieland-revival",
+            "name": "New Orleans / Dixieland Revival"
+          },
+          {
+            "id": "jazz-newgrass-progressive-bluegrass",
+            "name": "Newgrass (Progressive Bluegrass) (Hybrid: Bluegrass Country + Jazz)"
+          },
+          {
+            "id": "jazz-nordic-jazz",
+            "name": "Nordic Jazz"
+          },
+          {
+            "id": "jazz-nu-electro-jazz",
+            "name": "Nu Electro Jazz"
+          },
+          {
+            "id": "jazz-nu-jazz-downtempo",
+            "name": "Nu Jazz (Downtempo) (Hybrid: Downtempo & Chillout + Jazz)"
+          },
+          {
+            "id": "jazz-smooth-jazz",
+            "name": "Smooth Jazz"
+          },
+          {
+            "id": "jazz-soul-jazz-jazz-funk",
+            "name": "Soul Jazz / Jazz Funk"
+          },
+          {
+            "id": "jazz-swing-big-band",
+            "name": "Swing / Big Band"
+          },
+          {
+            "id": "jazz-tango-jazz",
+            "name": "Tango-Jazz (Hybrid: Jazz + Tango)"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "world-other-traditional-music",
+    "name": "World (Other Traditional) Music",
+    "mainGenres": [
+      {
+        "id": "world-africa-other-traditional",
+        "name": "World - Africa - Other Traditional",
+        "familyId": "world-other-traditional-music",
+        "subGenres": [
+          {
+            "id": "world-africa-other-traditional-amazigh-tuareg-trad",
+            "name": "Amazigh / Tuareg Trad"
+          },
+          {
+            "id": "world-africa-other-traditional-gnawa-morocco",
+            "name": "Gnawa (Morocco)"
+          },
+          {
+            "id": "world-africa-other-traditional-mbalax-trad-roots",
+            "name": "Mbalax (Trad Roots)"
+          }
+        ]
+      },
+      {
+        "id": "world-asia-other-traditional",
+        "name": "World - Asia - Other Traditional",
+        "familyId": "world-other-traditional-music",
+        "subGenres": [
+          {
+            "id": "world-asia-other-traditional-gamelan-indonesia",
+            "name": "Gamelan (Indonesia)"
+          },
+          {
+            "id": "world-asia-other-traditional-shakuhachi-sh-my-jp-trad",
+            "name": "Shakuhachi / Shōmyō (JP Trad)"
+          },
+          {
+            "id": "world-asia-other-traditional-tuvan-mongol-throat-singing",
+            "name": "Tuvan/Mongol Throat Singing"
+          }
+        ]
+      },
+      {
+        "id": "world-europe-other-traditional",
+        "name": "World - Europe - Other Traditional",
+        "familyId": "world-other-traditional-music",
+        "subGenres": [
+          {
+            "id": "world-europe-other-traditional-alpine-yodel-trad",
+            "name": "Alpine Yodel Trad"
+          },
+          {
+            "id": "world-europe-other-traditional-klezmer-secular",
+            "name": "Klezmer (Secular)"
+          },
+          {
+            "id": "world-europe-other-traditional-klezmer-spiritual",
+            "name": "Klezmer Spiritual (Hybrid: Jewish & Hebrew Devotional + World - Europe - Other Traditional)"
+          },
+          {
+            "id": "world-europe-other-traditional-occitan-trad-bal-folk",
+            "name": "Occitan Trad / Bal-Folk"
+          }
+        ]
+      },
+      {
+        "id": "world-north-america-other-traditional",
+        "name": "World - North America - Other Traditional",
+        "familyId": "world-other-traditional-music",
+        "subGenres": [
+          {
+            "id": "world-north-america-other-traditional-appalachian-old-time-trad",
+            "name": "Appalachian Old-Time (Trad)"
+          },
+          {
+            "id": "world-north-america-other-traditional-first-nations-powwow",
+            "name": "First Nations Powwow"
+          },
+          {
+            "id": "world-north-america-other-traditional-inuit-throat-singing",
+            "name": "Inuit Throat Singing"
+          }
+        ]
+      },
+      {
+        "id": "world-oceania-other-traditional",
+        "name": "World - Oceania - Other Traditional",
+        "familyId": "world-other-traditional-music",
+        "subGenres": [
+          {
+            "id": "world-oceania-other-traditional-aboriginal-songlines",
+            "name": "Aboriginal Songlines"
+          },
+          {
+            "id": "world-oceania-other-traditional-haka-haka-waiata",
+            "name": "Haka / Haka Waiata"
+          },
+          {
+            "id": "world-oceania-other-traditional-hula-mele-hawai-i",
+            "name": "Hula & Mele (Hawai'i)"
+          }
+        ]
+      },
+      {
+        "id": "world-south-america-other-traditional",
+        "name": "World - South America - Other Traditional",
+        "familyId": "world-other-traditional-music",
+        "subGenres": [
+          {
+            "id": "world-south-america-other-traditional-afro-peruvian-trad",
+            "name": "Afro-Peruvian Trad"
+          },
+          {
+            "id": "world-south-america-other-traditional-bomba-del-chota-andes",
+            "name": "Bomba del Chota (Andes)"
+          },
+          {
+            "id": "world-south-america-other-traditional-guaran-trad-songs",
+            "name": "Guaraní­ Trad Songs"
+          }
+        ]
+      }
+    ]
+  }
+]

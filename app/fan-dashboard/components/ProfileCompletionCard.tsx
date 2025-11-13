@@ -339,7 +339,7 @@ export function ProfileCompletionCard() {
             {!profileData.username && <li>• Add a username</li>}
             {!profileData.location && <li>• Set your location</li>}
             {!profileData.bio && <li>• Write your bio</li>}
-            {profileData.genreCount < 3 && <li>• Select at least 3 music genres</li>}
+            {profileData.genreCount < 3 && <li>• Music genres loaded from signup</li>}
           </ul>
         </div>
       )}
