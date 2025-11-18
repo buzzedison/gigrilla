@@ -232,6 +232,11 @@ export async function POST(request: NextRequest) {
     if (dateOfBirth) metadataUpdates.date_of_birth = dateOfBirth
     if (address) metadataUpdates.address = address
     if (phone) metadataUpdates.phone = phone
+    
+    // Update onboarding_completed in user metadata when it's set to true
+    if (onboardingCompleted === true) {
+      metadataUpdates.onboarding_completed = true
+    }
 
     if (Object.keys(metadataUpdates).length > 0) {
       const { error: metadataError } = await supabase.auth.updateUser({ data: metadataUpdates })

@@ -166,52 +166,22 @@ export default function ProfileSetupPage() {
                           // User has artist profile, go to dashboard
                           router.push('/artist-dashboard');
                         } else {
-                          console.log('ProfileSetup: User has no artist profile, creating basic profile...');
-                          setCreatingProfile('artist');
-                          
-                          try {
-                            // Create a basic artist profile automatically
-                            const response = await fetch('/api/artist-profile', {
-                              method: 'POST',
-                              headers: {
-                                'Content-Type': 'application/json',
-                              },
-                              body: JSON.stringify({
-                                stage_name: user?.email?.split('@')[0] || 'Artist',
-                                bio: '',
-                                established_date: '',
-                                base_location: '',
-                                members: '',
-                                website: '',
-                                social_links: {},
-                                artist_type_id: null,
-                                artist_sub_types: null
-                              }),
-                            });
-
-                            const result = await response.json();
-
-                            if (result.success) {
-                              console.log('ProfileSetup: Artist profile created successfully');
-                              setHasArtistProfile(true);
-                              setCreatingProfile(null);
-                              router.push('/artist-dashboard');
-                            } else {
-                              console.error('ProfileSetup: Failed to create artist profile:', result);
-                              setCreatingProfile(null);
-                              // Fallback to setup page if creation fails
-                              router.push(profile.path);
-                            }
-                          } catch (error) {
-                            console.error('ProfileSetup: Error creating artist profile:', error);
-                            setCreatingProfile(null);
-                            // Fallback to setup page if creation fails
-                            router.push(profile.path);
-                          }
+                          console.log('ProfileSetup: User has no artist profile, starting onboarding...');
+                          // Redirect to signup wizard with artist onboarding
+                          router.push('/signup?onboarding=artist');
                         }
+                      } else if (profile.id === 'venue') {
+                        console.log('ProfileSetup: Starting venue onboarding...');
+                        router.push('/signup?onboarding=venue');
+                      } else if (profile.id === 'music-service') {
+                        console.log('ProfileSetup: Starting service onboarding...');
+                        router.push('/signup?onboarding=service');
+                      } else if (profile.id === 'industry-pro') {
+                        console.log('ProfileSetup: Starting pro onboarding...');
+                        router.push('/signup?onboarding=pro');
                       } else {
                         console.log('ProfileSetup: Navigating to setup page for:', profile.id);
-                        // For other profile types, go to their setup page
+                        // For other profile types not yet in onboarding, go to their setup page
                         router.push(profile.path);
                       }
                     }}

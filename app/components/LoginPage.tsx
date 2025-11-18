@@ -21,18 +21,47 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
 
   // Navigate to appropriate page after login
   useEffect(() => {
-    if (user && user.id) {
-      // Check if user needs to complete onboarding
-      const onboardingMemberType = user.user_metadata?.onboarding_member_type;
-      const onboardingCompleted = user.user_metadata?.onboarding_completed;
-      
-      if (onboardingMemberType && !onboardingCompleted) {
-        console.log("Login component: User needs to complete onboarding, redirecting to signup...");
-        window.location.href = `/signup?onboarding=${onboardingMemberType}`;
-      } else {
-        console.log("Login component: User found, navigating to dashboard...");
+    const checkOnboardingStatus = async () => {
+      if (!user || !user.id) return;
+
+      try {
+        // Check database for actual onboarding status
+        const response = await fetch('/api/fan-profile');
+        const result = await response.json();
+        
+        const dbOnboardingCompleted = result.data?.onboarding_completed;
+        const onboardingMemberType = user.user_metadata?.onboarding_member_type;
+        
+        console.log("Login component: Onboarding check", {
+          dbOnboardingCompleted,
+          onboardingMemberType,
+          hasProfile: !!result.data
+        });
+        
+        // If user has completed onboarding in database, go to dashboard
+        if (dbOnboardingCompleted === true) {
+          console.log("Login component: User completed onboarding, navigating to dashboard...");
+          onNavigate("fan-dashboard");
+        } 
+        // If user has onboarding_member_type but hasn't completed, continue onboarding
+        else if (onboardingMemberType && !dbOnboardingCompleted) {
+          console.log("Login component: User needs to complete onboarding, redirecting to signup...");
+          window.location.href = `/signup?onboarding=${onboardingMemberType}`;
+        } 
+        // Default: go to dashboard
+        else {
+          console.log("Login component: User found, navigating to dashboard...");
+          onNavigate("fan-dashboard");
+        }
+      } catch (error) {
+        console.error("Login component: Error checking onboarding status", error);
+        // On error, default to dashboard
         onNavigate("fan-dashboard");
       }
+    };
+
+    if (user && user.id) {
+      checkOnboardingStatus();
     }
   }, [user, onNavigate]);
 

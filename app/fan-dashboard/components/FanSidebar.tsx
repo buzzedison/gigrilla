@@ -109,7 +109,7 @@ export function FanSidebar({ onNavigate, className }: FanSidebarProps) {
     { icon: Settings, label: "Edit Profile", active: false, onClick: () => {} },
     { icon: CreditCard, label: "Billing & Payments", active: false, onClick: () => {} },
     { icon: Settings, label: "Settings", active: false, onClick: () => {} },
-    { icon: ArrowRightLeft, label: "Switch Accounts", active: false, onClick: () => router.push('/profile-setup') },
+    { icon: ArrowRightLeft, label: "Switch Accounts", active: false, onClick: () => router.push('/signup?onboarding=artist') },
     { icon: LogOut, label: "Log Out", active: false, onClick: handleSignOut },
   ];
 

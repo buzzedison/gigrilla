@@ -560,6 +560,51 @@ export function SignUpWizard() {
     hostSessions: true,
   });
 
+  // Redirect to dashboard if user has already completed FAN onboarding and is trying to do it again
+  // Allow users to add additional profile types (artist, venue, service, pro) even if they have fan profile
+  useEffect(() => {
+    const checkOnboardingStatus = async () => {
+      if (!user || !onboardingParam) return;
+
+      try {
+        // Check database for actual fan onboarding status
+        const response = await fetch('/api/fan-profile');
+        const result = await response.json();
+        
+        const dbOnboardingCompleted = result.data?.onboarding_completed;
+        
+        console.log('SignUpWizard: Onboarding check', {
+          dbOnboardingCompleted,
+          hasProfile: !!result.data,
+          onboardingParam
+        });
+        
+        // If user has completed FAN onboarding
+        if (dbOnboardingCompleted === true) {
+          if (onboardingParam === 'fan') {
+            console.log('SignUpWizard: User already completed fan onboarding, redirecting to dashboard...');
+            router.push('/fan-dashboard');
+          } else {
+            console.log('SignUpWizard: User completed fan onboarding, setting up for additional profile...');
+            // Set up for additional profile type selection
+            setAccountChoice("fan");
+            setSelectedMemberType(onboardingParam);
+            setIsRegistered(true);
+            setHasResumedOnboarding(true);
+          }
+        }
+      } catch (error) {
+        console.error('SignUpWizard: Error checking onboarding status', error);
+        // Don't redirect on error, let user continue
+      }
+    };
+
+    if (!authLoading && user && onboardingParam) {
+      checkOnboardingStatus();
+    }
+  }, [authLoading, user, onboardingParam, router]);
+
+  
   // Handle email verification callback and check session when returning
   useEffect(() => {
     // Run if we have onboarding param but either:
@@ -779,6 +824,31 @@ export function SignUpWizard() {
     () => (personaStep ? [...baseSteps, personaStep] : baseSteps),
     [baseSteps, personaStep],
   );
+
+  // Jump to profile-add step after steps are built and user has completed fan onboarding
+  useEffect(() => {
+    if (steps.length === 0) return;
+    
+    // Only jump if we've explicitly set this up for adding additional profiles
+    // This should only happen when a completed fan user clicks "Switch Accounts"
+    const shouldJumpToProfileAdd = 
+      hasResumedOnboarding && 
+      onboardingParam && 
+      onboardingParam !== 'fan' &&
+      accountChoice === "fan" &&
+      isRegistered === true &&
+      steps[stepIndex]?.key !== "profile-add" &&
+      // Additional check: make sure we're not at the beginning (step 0 or 1)
+      stepIndex > 1;
+    
+    if (shouldJumpToProfileAdd) {
+      console.log('SignUpWizard: Jumping to profile-add step for additional profile...');
+      const profileAddIndex = steps.findIndex((s) => s.key === "profile-add");
+      if (profileAddIndex !== -1) {
+        setStepIndex(profileAddIndex);
+      }
+    }
+  }, [steps, hasResumedOnboarding, onboardingParam, accountChoice, stepIndex, isRegistered]);
 
   // Resume onboarding after email verification - run this after user is loaded AND steps are built
   useEffect(() => {
@@ -1143,6 +1213,12 @@ export function SignUpWizard() {
             : "Unable to save your profile details right now.";
         setRegistrationError(errorMessage);
         return false;
+      }
+
+      // If onboarding was marked as completed, refresh the auth context to get updated user metadata
+      if (overrides?.onboardingCompleted === true) {
+        console.log('Onboarding completed, refreshing auth context...');
+        await checkSession();
       }
 
       setRegistrationError("");
@@ -2267,13 +2343,32 @@ export function SignUpWizard() {
                             {/* Show selected main genres for this family */}
                             {selectedCount > 0 && (
                               <div className="mt-3 pt-3 border-t border-border/40">
-                                <p className="text-xs font-semibold text-foreground/70 mb-2">Selected from this family:</p>
+                                <p className="text-xs font-semibold text-green-600 dark:text-green-400 mb-2 border-b border-green-200 dark:border-green-800 pb-1">Selected from this family:</p>
                                 <div className="flex flex-wrap gap-2">
                                   {allMainGenres
                                     .filter(mg => fanDetails.mainGenres.includes(mg.name))
                                     .map(mg => (
-                                      <Badge key={mg.id} variant="secondary" className="text-xs font-medium">
-                                        {mg.name}
+                                      <Badge 
+                                        key={mg.id} 
+                                        variant="secondary" 
+                                        className="text-xs font-medium group relative pl-3 pr-7 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/20 hover:text-red-600 dark:hover:text-red-400 hover:border-red-300 dark:hover:border-red-800 transition-all duration-200 cursor-pointer"
+                                        onClick={() => {
+                                          setFanDetails((prev) => ({
+                                            ...prev,
+                                            mainGenres: prev.mainGenres.filter((mgName) => mgName !== mg.name),
+                                            // Also remove any sub-genres from this main genre
+                                            subGenres: prev.subGenres.filter((sg) => {
+                                              const sgMainGenres = getSubGenresForMainGenre(mg.name);
+                                              return !sgMainGenres.some(smg => smg.name === sg);
+                                            })
+                                          }));
+                                        }}
+                                        title="Click to remove"
+                                      >
+                                        <span className="mr-1">{mg.name}</span>
+                                        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-red-600 dark:text-red-400 font-bold text-sm">
+                                          ×
+                                        </span>
                                       </Badge>
                                     ))}
                                 </div>
@@ -2420,15 +2515,29 @@ export function SignUpWizard() {
                             {/* Show selected sub-genres for this main genre */}
                             {selectedSubCount > 0 && (
                               <div className="mt-3 pt-3 border-t border-border/40">
-                                <p className="text-xs font-semibold text-foreground/70 mb-2">Selected from this main genre:</p>
+                                <p className="text-xs font-semibold text-green-600 dark:text-green-400 mb-2 border-b border-green-200 dark:border-green-800 pb-1">Selected from this main genre:</p>
                                 <div className="flex flex-wrap gap-2">
                                   {allSubGenres
                                     .filter(sg => fanDetails.subGenres.includes(sg.name))
                                     .map(sg => {
                                       const parsed = parseHybridGenre(sg.name);
                                       return (
-                                        <Badge key={sg.id} variant="secondary" className="text-xs font-medium">
-                                          {parsed.baseName}
+                                        <Badge 
+                                          key={sg.id} 
+                                          variant="secondary" 
+                                          className="text-xs font-medium group relative pl-3 pr-7 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/20 hover:text-red-600 dark:hover:text-red-400 hover:border-red-300 dark:hover:border-red-800 transition-all duration-200 cursor-pointer"
+                                          onClick={() => {
+                                            setFanDetails((prev) => ({
+                                              ...prev,
+                                              subGenres: prev.subGenres.filter((sgName) => sgName !== sg.name),
+                                            }));
+                                          }}
+                                          title="Click to remove"
+                                        >
+                                          <span className="mr-1">{parsed.baseName}</span>
+                                          <span className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-red-600 dark:text-red-400 font-bold text-sm">
+                                            ×
+                                          </span>
                                         </Badge>
                                       );
                                     })}
@@ -2473,7 +2582,7 @@ export function SignUpWizard() {
                     const breadcrumb = getSubGenreBreadcrumb(subGenre);
                     const parsed = parseHybridGenre(subGenre);
                     return (
-                      <Card key={subGenre} className="border-primary/50 bg-primary/5 shadow-sm">
+                      <Card key={subGenre} id={`subgenre-${subGenre}`} className="border-primary/50 bg-primary/5 shadow-sm transition-all duration-200">
                         <CardContent className="flex items-start justify-between p-4">
                           <div className="flex-1 min-w-0">
                             <Label className="text-sm font-semibold text-primary block mb-1">
@@ -2492,16 +2601,28 @@ export function SignUpWizard() {
                           type="button"
                           variant="ghost"
                           size="sm"
-                            className="h-8 w-8 p-0 text-base hover:bg-destructive/10 hover:text-destructive flex-shrink-0 ml-3"
+                            className="h-8 w-8 p-0 text-base hover:bg-red-100 hover:text-red-600 flex-shrink-0 ml-3 transition-all duration-200 hover:scale-110 group"
                           onClick={() => {
-                            setFanDetails((prev) => ({
-                              ...prev,
-                              subGenres: prev.subGenres.filter((sg) => sg !== subGenre),
-                            }));
+                            // Add animation effect before removal
+                            const card = document.getElementById(`subgenre-${subGenre}`);
+                            if (card) {
+                              card.classList.add('animate-pulse', 'opacity-50');
+                              setTimeout(() => {
+                                setFanDetails((prev) => ({
+                                  ...prev,
+                                  subGenres: prev.subGenres.filter((sg) => sg !== subGenre),
+                                }));
+                              }, 150);
+                            } else {
+                              setFanDetails((prev) => ({
+                                ...prev,
+                                subGenres: prev.subGenres.filter((sg) => sg !== subGenre),
+                              }));
+                            }
                           }}
-                            title="Remove sub-genre"
+                            title="Kiss goodbye - Remove this sub-genre"
                         >
-                          ×
+                          <span className="group-hover:animate-bounce">💋</span>
                         </Button>
                       </CardContent>
                     </Card>
