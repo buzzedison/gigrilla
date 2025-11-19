@@ -181,7 +181,7 @@ const ARTIST_TYPE_OPTIONS = [
     id: "type1",
     label: "Type 1: Live Gig & Original Recording Artist",
     description:
-      "Record original music, perform live, sell merchandise, and take bookings.",
+      "I/we record original music (and licensed covers). I/we perform my/our original music at live Gigs. Venues and Fans can hire me/us for live Gigs through Gigrilla. Fans can buy tickets to my/our gigs on Gigrilla. You can buy my/our merchandise on Gigrilla.",
     subTypes: [
       "Band",
       "DJ-Producer",
@@ -206,7 +206,7 @@ const ARTIST_TYPE_OPTIONS = [
     id: "type2",
     label: "Type 2: Original Recording Artist",
     description:
-      "Upload, manage, and monetise recordings with full control of metadata.",
+      "I/we record original music (and licensed covers). You can stream and buy my/our music on Gigrilla. You can buy my/our merchandise on Gigrilla.",
     subTypes: [
       "Band",
       "DJ-Producer",
@@ -229,9 +229,9 @@ const ARTIST_TYPE_OPTIONS = [
   },
   {
     id: "type3",
-    label: "Type 3: Live Gig Artist (Cover, Tribute, Classical, Theatrical)",
+    label: "Type 3: Live Gig Artist (Cover; Tribute; Classical; Theatrical)",
     description:
-      "Focus on live performances of existing repertoires with gig-first tooling.",
+      "I/we do not record original music or licensed covers. I/we perform other people's music at live gigs. You can hire me/us for live gigs through Gigrilla. You can buy tickets to my/our gigs on Gigrilla. You can buy my/our merchandise on Gigrilla.",
     subTypes: [
       "Cover Band",
       "Tribute Band",
@@ -259,7 +259,7 @@ const ARTIST_TYPE_OPTIONS = [
     id: "type4",
     label: "Type 4: Vocal Artist for Hire",
     description:
-      "Offer vocals for recordings, live backing, and bespoke projects.",
+      "I sing guest and featuring vocals, live backing vocals, and recording session vocals.",
     subTypes: [
       "All Vocals",
       "Lead Vocals",
@@ -272,7 +272,7 @@ const ARTIST_TYPE_OPTIONS = [
     id: "type5",
     label: "Type 5: Instrumentalist Artist for Hire",
     description:
-      "Provide instrumental performances for live shows and studio sessions.",
+      "I am a live performance and recording session musician.",
     subTypes: [
       "All String Instruments",
       "Banjo",
@@ -281,40 +281,84 @@ const ARTIST_TYPE_OPTIONS = [
       "Double Bass",
       "Guitar",
       "Harp",
+      "Lute",
       "Mandolin",
-      "Percussion",
-      "Keyboard Instruments",
-      "Electronic Instruments",
+      "Nyckelharpa",
+      "Phonofiddle",
+      "Sitar",
+      "Ukulele",
+      "Viola",
+      "Violin",
+      "Zither",
+      "All Wind Instruments",
+      "Alboka",
+      "Clarinet",
+      "Didgeridoo",
+      "Flute",
+      "Harmonica",
+      "Jaw Harp",
+      "Kazoo",
+      "Kubing",
+      "Lur",
+      "Nose Flute",
+      "Oboe",
+      "Recorder",
+      "Saxophone",
+      "Shaw",
+      "Triton Shell",
+      "Vuvuzela",
+      "Whistle",
+      "Xun",
+      "All Percussion Instruments",
+      "Drum Set",
+      "Hand Drums",
+      "Mallet Percussion",
+      "Metal Percussion",
+      "Cowbell",
+      "Shakers",
+      "Misc. Percussion",
+      "All Keyboard Instruments",
+      "Accordion",
+      "Celesta",
+      "Clavichord",
+      "Harpsichord",
+      "Melodica",
+      "Organ",
+      "Piano",
+      "All Electronic Instruments",
+      "Electronic Keyboard",
+      "Sampler",
+      "Synthesizer",
     ],
   },
   {
     id: "type6",
     label: "Type 6: Songwriter Artist for Hire",
     description:
-      "Write original songs across genres with clear brief and collaboration tools.",
+      "I write words and musical compositions for songs (lyrics, melodies, harmonies, notes, chords and musical structure) for Artists, Labels, Recorded Audio Visual Media and Live Performances.",
     subTypes: [
-      "Any Genre",
-      "Specific Genre (Select Main Genre)",
+      "Any Genre: I write original songs for Original Recording Artists. [Type 1 & 2]",
+      "Specific Genre(s): I write original songs for Original Recording Artists. [Type 1 & 2]",
     ],
   },
   {
     id: "type7",
     label: "Type 7: Lyricist Artist for Hire",
     description:
-      "Deliver lyrical craft for projects, collaborations, and publishing deals.",
+      "I write words for songs (lyrics) for Artists, Labels, Recorded Audio Visual Media and Live Performances.",
     subTypes: [
-      "Any Genre",
-      "Specific Genre (Select Main Genre)",
+      "Any Genre: I write original lyrics for Original Recording Artists. [Type 1 & 2]",
+      "Specific Genre(s): I write original lyrics for Original Recording Artists. [Type 1 & 2]",
     ],
   },
   {
     id: "type8",
     label: "Type 8: Composer Artist for Hire",
     description:
-      "Compose music for recordings, media, and live performances with genre tags.",
+      "I write musical compositions (melodies, harmonies, notes, chords and musical structure) for Artists, Labels, Recorded Audio Visual Media and Live Performances.",
     subTypes: [
-      "Any Genre",
-      "Specific Genre (Select Main Genre)",
+      "Any Genre: I write original compositions for Original Recording Artists. [Type 1 & 2]",
+      "Specific Genre(s): I write original compositions for Original Recording Artists. [Type 1 & 2]",
     ],
   },
 ];
@@ -415,29 +459,27 @@ const GUEST_LIMITATIONS = [
 const FAN_MEMBERSHIP_BENEFITS = [
   "£1 per year keeps the platform running for the Fair Trade community.",
   "Pay-as-you-play streaming at £0.02 per spin with 100% to rights holders.",
-  "Download tracks (£0.50) and albums (£4.00) to keep and play anywhere.",
-  "Access GigFinder, location discovery, booking, and social interactions.",
-  "Add artist, venue, service, or pro profiles whenever you are ready.",
 ];
 
 interface StepDefinition {
-  key:
-    | "member-selector"
-    | "membership"
-    | "fan-account-basics"
-    | "fan-profile-details"
-    | "fan-music-preferences"
-    | "fan-payment"
-    | "fan-profile-picture"
-    | "fan-photos"
-    | "fan-videos"
-    | "profile-add"
-    | "artist-type"
-    | "venue-type"
-    | "service-type"
-    | "pro-type"
-    | "guest-summary";
-  label: string;
+key:
+| "member-selector"
+| "membership"
+| "fan-account-basics"
+| "fan-profile-details"
+| "fan-music-preferences"
+| "fan-payment"
+| "fan-profile-picture"
+| "fan-photos"
+| "fan-videos"
+| "profile-add"
+| "artist-type"
+| "artist-profile-setup"
+| "venue-type"
+| "service-type"
+| "pro-type"
+| "guest-summary";
+label: string;
 }
 
 const slugify = (value: string) =>
@@ -540,6 +582,53 @@ export function SignUpWizard() {
     typeId: "",
     subType: "",
   });
+
+  const [artistProfile, setArtistProfile] = useState({
+    stageName: "",
+    formedDate: "",
+    performingMembers: 1,
+    baseLocation: "",
+    baseLocationLat: null as number | null,
+    baseLocationLon: null as number | null,
+    publicGigsPerformed: 0,
+    facebookUrl: "",
+    instagramUrl: "",
+    threadsUrl: "",
+    xUrl: "",
+    tiktokUrl: "",
+    youtubeUrl: "",
+    snapchatUrl: "",
+    recordLabelStatus: "independent",
+    recordLabelName: "",
+    recordLabelContactName: "",
+    recordLabelContactEmail: "",
+    recordLabelContactPhone: "",
+    musicPublisherStatus: "independent",
+    musicPublisherName: "",
+    musicPublisherContactName: "",
+    musicPublisherContactEmail: "",
+    musicPublisherContactPhone: "",
+    artistManagerStatus: "self_managed",
+    artistManagerName: "",
+    artistManagerContactName: "",
+    artistManagerContactEmail: "",
+    artistManagerContactPhone: "",
+    bookingAgentStatus: "self_managed",
+    bookingAgentName: "",
+    bookingAgentContactName: "",
+    bookingAgentContactEmail: "",
+    bookingAgentContactPhone: "",
+  });
+
+  const [locationSuggestions, setLocationSuggestions] = useState<Array<{
+    id: string;
+    formatted: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    lat?: number;
+    lon?: number;
+  }>>([]);
 
   const [venueSelection, setVenueSelection] = useState({
     typeId: "",
@@ -778,6 +867,17 @@ export function SignUpWizard() {
     }
   }, [onboardingParam, selectedMemberType, accountChoice]);
 
+  // Auto-advance to membership step when onboarding param is set and member type is selected
+  useEffect(() => {
+    if (onboardingParam && selectedMemberType && stepIndex === 0 && accountChoice) {
+      console.log('Auto-advancing from member-selector due to onboarding param:', onboardingParam);
+      // Use setTimeout to ensure state updates have completed
+      setTimeout(() => {
+        setStepIndex(1); // Move to membership step
+      }, 100);
+    }
+  }, [onboardingParam, selectedMemberType, stepIndex, accountChoice]);
+
 
   const baseSteps: StepDefinition[] = useMemo(() => {
     const stepsList: StepDefinition[] = [
@@ -820,14 +920,24 @@ export function SignUpWizard() {
     }
   }, [selectedMemberType, accountChoice]);
 
-  const steps = useMemo(
-    () => (personaStep ? [...baseSteps, personaStep] : baseSteps),
-    [baseSteps, personaStep],
-  );
+  const artistProfileSetupStep: StepDefinition | null = useMemo(() => {
+    if (selectedMemberType !== "artist" || !artistSelection.typeId) return null;
+    return { key: "artist-profile-setup", label: "Artist Profile Setup" };
+  }, [selectedMemberType, artistSelection.typeId]);
+
+  const steps = useMemo(() => {
+    const stepList = personaStep ? [...baseSteps, personaStep] : baseSteps;
+    if (artistProfileSetupStep) {
+      stepList.push(artistProfileSetupStep);
+    }
+    return stepList;
+  }, [baseSteps, personaStep, artistProfileSetupStep]);
 
   // Jump to profile-add step after steps are built and user has completed fan onboarding
   useEffect(() => {
     if (steps.length === 0) return;
+    
+    const profileAddIndex = steps.findIndex((s) => s.key === "profile-add");
     
     // Only jump if we've explicitly set this up for adding additional profiles
     // This should only happen when a completed fan user clicks "Switch Accounts"
@@ -839,14 +949,14 @@ export function SignUpWizard() {
       isRegistered === true &&
       steps[stepIndex]?.key !== "profile-add" &&
       // Additional check: make sure we're not at the beginning (step 0 or 1)
-      stepIndex > 1;
+      stepIndex > 1 &&
+      // Don't jump back if we're already past profile-add
+      profileAddIndex !== -1 &&
+      stepIndex < profileAddIndex;
     
     if (shouldJumpToProfileAdd) {
       console.log('SignUpWizard: Jumping to profile-add step for additional profile...');
-      const profileAddIndex = steps.findIndex((s) => s.key === "profile-add");
-      if (profileAddIndex !== -1) {
-        setStepIndex(profileAddIndex);
-      }
+      setStepIndex(profileAddIndex);
     }
   }, [steps, hasResumedOnboarding, onboardingParam, accountChoice, stepIndex, isRegistered]);
 
@@ -964,6 +1074,19 @@ export function SignUpWizard() {
   const isLastStep = stepIndex === steps.length - 1;
   const progressValue = steps.length ? ((stepIndex + 1) / steps.length) * 100 : 0;
 
+  // Debug logging for step navigation
+  useEffect(() => {
+    console.log('📍 Step Navigation:', {
+      currentStepKey: currentStep?.key,
+      stepIndex,
+      totalSteps: steps.length,
+      isLastStep,
+      canAdvance: canProceed(),
+      artistStageName: artistProfile.stageName,
+      allSteps: steps.map(s => s.key)
+    });
+  }, [stepIndex, steps.length, currentStep?.key, isLastStep, artistProfile.stageName]);
+
   const toggleFromArray = (list: string[], value: string) => {
     return list.includes(value)
       ? list.filter((item) => item !== value)
@@ -1029,6 +1152,8 @@ export function SignUpWizard() {
         return true;
       case "artist-type":
         return Boolean(artistSelection.typeId);
+      case "artist-profile-setup":
+        return Boolean(artistProfile.stageName?.trim());
       case "venue-type":
         return Boolean(venueSelection.typeId);
       case "service-type":
@@ -1545,7 +1670,21 @@ export function SignUpWizard() {
   };
 
   const handleNext = async () => {
+    console.log('handleNext called:', { 
+      currentStep: currentStep?.key, 
+      canProceed: canProceed(), 
+      isProcessingStep,
+      stepIndex,
+      selectedMemberType,
+      accountChoice
+    });
+    
     if (!currentStep || !canProceed() || isProcessingStep) {
+      console.log('handleNext blocked:', { 
+        hasCurrentStep: !!currentStep, 
+        canProceed: canProceed(), 
+        isProcessingStep 
+      });
       return;
     }
 
@@ -1556,6 +1695,10 @@ export function SignUpWizard() {
 
     try {
       switch (currentStep.key) {
+        case "member-selector":
+          // Member selector just needs to validate that a type is selected
+          stepCompleted = Boolean(selectedMemberType);
+          break;
         case "fan-account-basics":
         case "fan-profile-details":
         case "fan-music-preferences":
@@ -3370,70 +3513,698 @@ export function SignUpWizard() {
   );
 
   const renderArtistType = () => (
-    <div className="space-y-6">
-      <p className="text-sm text-foreground/75">
-        Artists choose the workflow that fits how they create, perform, and collaborate.
-        Start with the type that best represents you—you can always add more later.
-      </p>
-      <RadioGroup
-        value={artistSelection.typeId}
-        onValueChange={(value) => setArtistSelection({ typeId: value, subType: "" })}
-        className="space-y-4"
-      >
+    <div className="space-y-8">
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-2xl">
+            🎵
+          </div>
+          <div>
+            <h3 className="text-2xl font-bold text-foreground">Artist Type</h3>
+            <p className="text-sm text-foreground/60">Step 5 of 6</p>
+          </div>
+        </div>
+        <p className="text-base text-foreground/80 leading-relaxed">
+          Each Artist Type has a unique set of tools to help you create, perform, and collaborate.
+          Choose the type that best represents you—you can always add more profiles later.
+        </p>
+      </div>
+      
+      <div className="space-y-4">
         {ARTIST_TYPE_OPTIONS.map((option) => {
           const isActive = artistSelection.typeId === option.id;
           return (
             <Card
               key={option.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => setArtistSelection({ typeId: option.id, subType: "" })}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setArtistSelection({ typeId: option.id, subType: "" });
+                }
+              }}
               className={cn(
-                "border border-border/60 transition hover:border-primary/50",
-                isActive && "border-primary shadow-lg",
+                "group cursor-pointer border-2 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                isActive 
+                  ? "border-primary bg-primary/5 shadow-lg" 
+                  : "border-border/40 hover:border-primary/30"
               )}
             >
-              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex items-start gap-3">
-                  <RadioGroupItem
-                    value={option.id}
-                    id={`artist-type-${option.id}`}
-                    className="mt-1"
-                  />
-                  <div className="space-y-1">
-                    <Label htmlFor={`artist-type-${option.id}`} className="text-base font-semibold">
+              <CardHeader className="pb-4">
+                <div className="flex items-start gap-4">
+                  <div
+                    className={cn(
+                      "mt-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 transition-all duration-200",
+                      isActive
+                        ? "border-primary bg-primary scale-110"
+                        : "border-border/60 bg-background group-hover:border-primary/50",
+                    )}
+                  >
+                    {isActive && (
+                      <svg className="h-4 w-4 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <h4 className="text-lg font-bold text-foreground group-hover:text-primary transition-colors">
                       {option.label}
-                    </Label>
-                    <CardDescription className="text-sm text-foreground/75">
+                    </h4>
+                    <p className="text-sm text-foreground/70 leading-relaxed">
                       {option.description}
-                    </CardDescription>
+                    </p>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <Label className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground/60">
-                  Choose a sub-type (optional)
-                </Label>
-                <Select
-                  value={isActive ? artistSelection.subType : ""}
-                  onValueChange={(value) =>
-                    setArtistSelection((prev) => ({ ...prev, subType: value }))
-                  }
-                  disabled={!isActive}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select sub-type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {option.subTypes.map((sub) => (
-                      <SelectItem key={sub} value={sub}>
-                        {sub}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </CardContent>
+              
+              {isActive && (
+                <CardContent className="pt-0 pb-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="space-y-4 pl-10">
+                    <div className="h-px bg-border/40" />
+                    <div className="space-y-3">
+                      <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                        <span className="text-primary">→</span>
+                        Choose your specialty
+                        <span className="text-xs font-normal text-foreground/50">(optional)</span>
+                      </Label>
+                      <Select
+                        value={artistSelection.subType}
+                        onValueChange={(value) =>
+                          setArtistSelection((prev) => ({ ...prev, subType: value }))
+                        }
+                      >
+                        <SelectTrigger className="h-11 border-2 font-ui hover:border-primary/50 transition-colors">
+                          <SelectValue placeholder="Select a specialty..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {option.subTypes.map((sub) => (
+                            <SelectItem key={sub} value={sub} className="font-ui">
+                              {sub}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {option.subTypes.length > 0 && (
+                        <p className="text-xs text-foreground/50 italic">
+                          💡 {option.subTypes.length} specialties available
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              )}
             </Card>
           );
         })}
-      </RadioGroup>
+      </div>
+      
+      <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+        <div className="flex gap-3">
+          <div className="text-xl">💡</div>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-foreground">Need multiple profiles?</p>
+            <p className="text-xs text-foreground/70">
+              You can add additional artist types later from your Control Panel. Start with the one that best represents your primary work.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderArtistProfileSetup = () => (
+    <div className="space-y-8">
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-2xl">
+            🎤
+          </div>
+          <div>
+            <h3 className="text-2xl font-bold text-foreground">Artist Profile Setup</h3>
+            <p className="text-sm text-foreground/60">Step 6 of 6 • Final Step</p>
+          </div>
+        </div>
+        <p className="text-base text-foreground/80 leading-relaxed">
+          Complete your artist profile to start making money on Gigrilla. This information helps fans and venues discover and connect with you.
+        </p>
+      </div>
+
+      <div className="space-y-6">
+        {/* Artist Details */}
+        <Card className="border-2 border-border/40 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent pb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">✨</span>
+              <h4 className="text-lg font-bold text-foreground">Artist Details</h4>
+            </div>
+            <p className="text-xs text-foreground/60 mt-1">Basic information about your artist identity</p>
+          </CardHeader>
+          <CardContent className="space-y-5 pt-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="stageName" className="font-semibold">
+                  Artist Stage Name <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="stageName"
+                  placeholder="The name you perform under..."
+                  value={artistProfile.stageName}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, stageName: e.target.value }))}
+                  className="font-ui h-11 border-2 focus:border-primary"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="formedDate" className="font-semibold">Artist Formed</Label>
+                <Input
+                  id="formedDate"
+                  type="month"
+                  value={artistProfile.formedDate}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, formedDate: e.target.value }))}
+                  className="font-ui h-11 border-2 focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="performingMembers" className="font-semibold">Number of Performing Members</Label>
+                <Input
+                  id="performingMembers"
+                  type="number"
+                  min="1"
+                  value={artistProfile.performingMembers}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, performingMembers: parseInt(e.target.value) || 1 }))}
+                  className="font-ui h-11 border-2 focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="publicGigsPerformed" className="font-semibold">Public Gigs Performed</Label>
+                <Input
+                  id="publicGigsPerformed"
+                  type="number"
+                  min="0"
+                  placeholder="Before joining Gigrilla..."
+                  value={artistProfile.publicGigsPerformed}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, publicGigsPerformed: parseInt(e.target.value) || 0 }))}
+                  className="font-ui h-11 border-2 focus:border-primary"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="baseLocation" className="font-semibold">Artist Base Location</Label>
+              <div className="relative">
+                <Input
+                  id="baseLocation"
+                  placeholder="Start typing city, address, or postal code..."
+                  value={artistProfile.baseLocation}
+                  onChange={async (e) => {
+                    const value = e.target.value;
+                    setArtistProfile(prev => ({ ...prev, baseLocation: value }));
+                    
+                    // Fetch location suggestions
+                    if (value.length >= 3) {
+                      try {
+                        const response = await fetch(`/api/location-search?query=${encodeURIComponent(value)}`);
+                        const data = await response.json();
+                        if (data.suggestions && data.suggestions.length > 0) {
+                          // Store suggestions in state for dropdown
+                          setLocationSuggestions(data.suggestions);
+                        }
+                      } catch (error) {
+                        console.error('Location search error:', error);
+                      }
+                    } else {
+                      setLocationSuggestions([]);
+                    }
+                  }}
+                  onBlur={() => {
+                    // Delay to allow click on suggestion
+                    setTimeout(() => setLocationSuggestions([]), 200);
+                  }}
+                  className="font-ui h-11 border-2 focus:border-primary"
+                />
+                {locationSuggestions.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border-2 border-border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {locationSuggestions.map((suggestion) => {
+                      // Format as: City/Town(+State?), Country
+                      const cityPart = suggestion.city || '';
+                      const statePart = suggestion.state ? `, ${suggestion.state}` : '';
+                      const countryPart = suggestion.country || '';
+                      const displayLocation = cityPart && countryPart 
+                        ? `${cityPart}${statePart}, ${countryPart}`
+                        : suggestion.formatted;
+                      
+                      return (
+                        <button
+                          key={suggestion.id}
+                          type="button"
+                          onClick={() => {
+                            setArtistProfile(prev => ({ 
+                              ...prev, 
+                              baseLocation: displayLocation,
+                              baseLocationLat: suggestion.lat || null,
+                              baseLocationLon: suggestion.lon || null
+                            }));
+                            setLocationSuggestions([]);
+                          }}
+                          className="w-full px-4 py-3 text-left hover:bg-primary/5 transition-colors border-b border-border/30 last:border-0"
+                        >
+                          <div className="text-sm font-medium text-foreground">{displayLocation}</div>
+                          {suggestion.formatted && suggestion.formatted !== displayLocation && (
+                            <div className="text-xs text-foreground/60 mt-1">
+                              📍 {suggestion.formatted}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-foreground/60 italic flex items-start gap-1">
+                <span>ℹ️</span>
+                <span>Start typing to search locations. Your profile will display as: City/Town, State/Province, Country</span>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Social Media */}
+        <Card className="border-2 border-border/40 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="bg-gradient-to-r from-blue-500/5 to-transparent pb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🌐</span>
+              <h4 className="text-lg font-bold text-foreground">Social Media Accounts</h4>
+            </div>
+            <p className="text-xs text-foreground/60 mt-1">Connect your social profiles to build your online presence</p>
+          </CardHeader>
+          <CardContent className="space-y-5 pt-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="facebookUrl" className="flex items-center gap-2">
+                  <span className="text-blue-600">f</span>
+                  Facebook
+                </Label>
+                <Input
+                  id="facebookUrl"
+                  placeholder="facebook.com/yourartist"
+                  value={artistProfile.facebookUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, facebookUrl: e.target.value }))}
+                  className="font-ui h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="instagramUrl" className="flex items-center gap-2">
+                  <span className="text-pink-600">📷</span>
+                  Instagram
+                </Label>
+                <Input
+                  id="instagramUrl"
+                  placeholder="instagram.com/yourartist"
+                  value={artistProfile.instagramUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, instagramUrl: e.target.value }))}
+                  className="font-ui h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="threadsUrl" className="flex items-center gap-2">
+                  <span className="text-gray-800">🧵</span>
+                  Threads
+                </Label>
+                <Input
+                  id="threadsUrl"
+                  placeholder="threads.net/@yourartist"
+                  value={artistProfile.threadsUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, threadsUrl: e.target.value }))}
+                  className="font-ui h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="xUrl" className="flex items-center gap-2">
+                  <span className="text-gray-900">𝕏</span>
+                  X (Twitter)
+                </Label>
+                <Input
+                  id="xUrl"
+                  placeholder="x.com/yourartist"
+                  value={artistProfile.xUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, xUrl: e.target.value }))}
+                  className="font-ui h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tiktokUrl" className="flex items-center gap-2">
+                  <span className="text-gray-900">🎵</span>
+                  TikTok
+                </Label>
+                <Input
+                  id="tiktokUrl"
+                  placeholder="tiktok.com/@yourartist"
+                  value={artistProfile.tiktokUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, tiktokUrl: e.target.value }))}
+                  className="font-ui h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="youtubeUrl" className="flex items-center gap-2">
+                  <span className="text-red-600">▶️</span>
+                  YouTube
+                </Label>
+                <Input
+                  id="youtubeUrl"
+                  placeholder="youtube.com/@yourartist"
+                  value={artistProfile.youtubeUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, youtubeUrl: e.target.value }))}
+                  className="font-ui h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="snapchatUrl" className="flex items-center gap-2">
+                  <span className="text-yellow-400">👻</span>
+                  Snapchat
+                </Label>
+                <Input
+                  id="snapchatUrl"
+                  placeholder="snapchat.com/add/yourartist"
+                  value={artistProfile.snapchatUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, snapchatUrl: e.target.value }))}
+                  className="font-ui h-11"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Contract Status */}
+        <Card className="border-2 border-border/40 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="bg-gradient-to-r from-green-500/5 to-transparent pb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">📋</span>
+              <h4 className="text-lg font-bold text-foreground">Contract Status</h4>
+            </div>
+            <p className="text-xs text-foreground/60 mt-1">Tell us about your industry relationships and representation</p>
+          </CardHeader>
+          <CardContent className="space-y-8 pt-6">
+            {/* Record Label */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Record Label Status</Label>
+                <Select
+                  value={artistProfile.recordLabelStatus}
+                  onValueChange={(value) => setArtistProfile(prev => ({ ...prev, recordLabelStatus: value }))}
+                >
+                  <SelectTrigger className="font-ui">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="signed">Signed to Label</SelectItem>
+                    <SelectItem value="independent">Self-Signed: Independent</SelectItem>
+                    <SelectItem value="seeking">Seeking Label</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {artistProfile.recordLabelStatus === "signed" && (
+                <div className="space-y-4 pl-4 border-l-2 border-border/40">
+                  <p className="text-xs text-foreground/60 italic">
+                    ℹ️ If your Record Label is already on Gigrilla they&apos;ll show-up as you start to type. If not, just finish typing their full Label company name below to help us invite and match them to you.
+                  </p>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="recordLabelName">Record Label Name</Label>
+                      <Input
+                        id="recordLabelName"
+                        placeholder="Start typing label company name…"
+                        value={artistProfile.recordLabelName}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, recordLabelName: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="recordLabelContactName">Record Label Contact Name</Label>
+                      <Input
+                        id="recordLabelContactName"
+                        placeholder="Start typing contact name…"
+                        value={artistProfile.recordLabelContactName}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, recordLabelContactName: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="recordLabelContactEmail">Record Label Contact Email</Label>
+                      <Input
+                        id="recordLabelContactEmail"
+                        type="email"
+                        placeholder="contact@company.com…"
+                        value={artistProfile.recordLabelContactEmail}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, recordLabelContactEmail: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="recordLabelContactPhone">Record Label Contact Phone</Label>
+                      <Input
+                        id="recordLabelContactPhone"
+                        placeholder="Country Code + phone number…"
+                        value={artistProfile.recordLabelContactPhone}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, recordLabelContactPhone: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Music Publisher */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Music Publisher Status</Label>
+                <Select
+                  value={artistProfile.musicPublisherStatus}
+                  onValueChange={(value) => setArtistProfile(prev => ({ ...prev, musicPublisherStatus: value }))}
+                >
+                  <SelectTrigger className="font-ui">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="signed">Signed to Publisher</SelectItem>
+                    <SelectItem value="independent">Self-Publishing: Independent</SelectItem>
+                    <SelectItem value="seeking">Seeking Publisher</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {artistProfile.musicPublisherStatus === "signed" && (
+                <div className="space-y-4 pl-4 border-l-2 border-border/40">
+                  <p className="text-xs text-foreground/60 italic">
+                    ℹ️ If your Music Publisher is already on Gigrilla they&apos;ll show-up as you start to type. If not, just finish typing their full Publisher company name below to help us invite and match them to you.
+                  </p>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="musicPublisherName">Music Publisher Name</Label>
+                      <Input
+                        id="musicPublisherName"
+                        placeholder="Start typing publisher company name…"
+                        value={artistProfile.musicPublisherName}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, musicPublisherName: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="musicPublisherContactName">Music Publisher Contact Name</Label>
+                      <Input
+                        id="musicPublisherContactName"
+                        placeholder="Start typing contact name…"
+                        value={artistProfile.musicPublisherContactName}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, musicPublisherContactName: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="musicPublisherContactEmail">Music Publisher Contact Email</Label>
+                      <Input
+                        id="musicPublisherContactEmail"
+                        type="email"
+                        placeholder="contact@company.com…"
+                        value={artistProfile.musicPublisherContactEmail}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, musicPublisherContactEmail: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="musicPublisherContactPhone">Music Publisher Contact Phone</Label>
+                      <Input
+                        id="musicPublisherContactPhone"
+                        placeholder="Country Code + phone number…"
+                        value={artistProfile.musicPublisherContactPhone}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, musicPublisherContactPhone: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Artist Manager */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Artist Manager Status</Label>
+                <Select
+                  value={artistProfile.artistManagerStatus}
+                  onValueChange={(value) => setArtistProfile(prev => ({ ...prev, artistManagerStatus: value }))}
+                >
+                  <SelectTrigger className="font-ui">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="signed">Managed Artist</SelectItem>
+                    <SelectItem value="self_managed">Self-Managed: Independent</SelectItem>
+                    <SelectItem value="seeking">Seeking Manager</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {artistProfile.artistManagerStatus === "signed" && (
+                <div className="space-y-4 pl-4 border-l-2 border-border/40">
+                  <p className="text-xs text-foreground/60 italic">
+                    ℹ️ If your Manager is already on Gigrilla they&apos;ll show-up as you start to type. If not, just finish typing their full Management company name below to help us invite and match them to you.
+                  </p>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="artistManagerName">Artist Manager Name</Label>
+                      <Input
+                        id="artistManagerName"
+                        placeholder="Start typing management company name…"
+                        value={artistProfile.artistManagerName}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, artistManagerName: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="artistManagerContactName">Artist Manager Contact Name</Label>
+                      <Input
+                        id="artistManagerContactName"
+                        placeholder="Start typing contact name…"
+                        value={artistProfile.artistManagerContactName}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, artistManagerContactName: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="artistManagerContactEmail">Artist Manager Contact Email</Label>
+                      <Input
+                        id="artistManagerContactEmail"
+                        type="email"
+                        placeholder="contact@company.com…"
+                        value={artistProfile.artistManagerContactEmail}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, artistManagerContactEmail: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="artistManagerContactPhone">Artist Manager Contact Phone</Label>
+                      <Input
+                        id="artistManagerContactPhone"
+                        placeholder="Country Code + phone number…"
+                        value={artistProfile.artistManagerContactPhone}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, artistManagerContactPhone: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Booking Agent */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Booking Agent Status</Label>
+                <Select
+                  value={artistProfile.bookingAgentStatus}
+                  onValueChange={(value) => setArtistProfile(prev => ({ ...prev, bookingAgentStatus: value }))}
+                >
+                  <SelectTrigger className="font-ui">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="signed">Signed to Booking Agent</SelectItem>
+                    <SelectItem value="self_managed">Self-Booking: Independent</SelectItem>
+                    <SelectItem value="seeking">Seeking Booking Agent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {artistProfile.bookingAgentStatus === "signed" && (
+                <div className="space-y-4 pl-4 border-l-2 border-border/40">
+                  <p className="text-xs text-foreground/60 italic">
+                    ℹ️ If your Booking Agent is already on Gigrilla they&apos;ll show-up as you start to type. If not, just finish typing their full Agency company name below to help us invite and match them to you.
+                  </p>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="bookingAgentName">Booking Agent Name</Label>
+                      <Input
+                        id="bookingAgentName"
+                        placeholder="Start typing agency company name…"
+                        value={artistProfile.bookingAgentName}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, bookingAgentName: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="bookingAgentContactName">Booking Agent Contact Name</Label>
+                      <Input
+                        id="bookingAgentContactName"
+                        placeholder="Start typing contact name…"
+                        value={artistProfile.bookingAgentContactName}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, bookingAgentContactName: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="bookingAgentContactEmail">Booking Agent Contact Email</Label>
+                      <Input
+                        id="bookingAgentContactEmail"
+                        type="email"
+                        placeholder="contact@company.com…"
+                        value={artistProfile.bookingAgentContactEmail}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, bookingAgentContactEmail: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="bookingAgentContactPhone">Booking Agent Contact Phone</Label>
+                      <Input
+                        id="bookingAgentContactPhone"
+                        placeholder="Country Code + phone number…"
+                        value={artistProfile.bookingAgentContactPhone}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, bookingAgentContactPhone: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Completion Message */}
+        <div className="rounded-xl border-2 border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-6 shadow-sm">
+          <div className="flex gap-4">
+            <div className="text-3xl">🎉</div>
+            <div className="space-y-2">
+              <h4 className="text-lg font-bold text-foreground">Almost There!</h4>
+              <p className="text-sm text-foreground/70 leading-relaxed">
+                Once you complete this profile, you&apos;ll have access to your Artist Dashboard where you can upload music, 
+                book gigs, connect with fans, and start earning. Click <strong>Go to Control Panel</strong> below to finish your setup!
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 
@@ -3710,6 +4481,8 @@ export function SignUpWizard() {
         return renderProfileAdder();
       case "artist-type":
         return renderArtistType();
+      case "artist-profile-setup":
+        return renderArtistProfileSetup();
       case "venue-type":
         return renderVenueType();
       case "service-type":
