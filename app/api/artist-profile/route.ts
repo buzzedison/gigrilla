@@ -44,7 +44,7 @@ export async function GET() {
 
     const { data: profileData, error: profileError } = await supabase
       .from('user_profiles')
-      .select('id, user_id, profile_type, artist_type_id, artist_sub_types, artist_primary_roles, company_name, job_title, years_experience, hourly_rate, daily_rate, monthly_retainer, availability_status, preferred_genre_ids, location_details, contact_details, social_links, verification_documents, bio, stage_name, established_date, base_location, hometown_city, hometown_state, hometown_country, gigs_performed, record_label_status, record_label_name, record_label_contact_name, record_label_email, record_label_phone, music_publisher_status, music_publisher_name, music_publisher_contact_name, music_publisher_email, music_publisher_phone, artist_manager_status, artist_manager_name, artist_manager_contact_name, artist_manager_email, artist_manager_phone, booking_agent_status, booking_agent_name, booking_agent_contact_name, booking_agent_email, booking_agent_phone, website, created_at, updated_at')
+      .select('id, user_id, profile_type, artist_type_id, artist_sub_types, artist_primary_roles, company_name, job_title, years_experience, hourly_rate, daily_rate, monthly_retainer, availability_status, preferred_genre_ids, location_details, contact_details, social_links, verification_documents, bio, stage_name, established_date, performing_members, base_location, base_location_lat, base_location_lon, hometown_city, hometown_state, hometown_country, gigs_performed, record_label_status, record_label_name, record_label_contact_name, record_label_email, record_label_phone, music_publisher_status, music_publisher_name, music_publisher_contact_name, music_publisher_email, music_publisher_phone, artist_manager_status, artist_manager_name, artist_manager_contact_name, artist_manager_email, artist_manager_phone, booking_agent_status, booking_agent_name, booking_agent_contact_name, booking_agent_email, booking_agent_phone, facebook_url, instagram_url, threads_url, x_url, tiktok_url, youtube_url, snapchat_url, website, onboarding_completed, onboarding_completed_at, created_at, updated_at')
       .eq('user_id', user.id)
       .eq('profile_type', 'artist')
       .maybeSingle()
@@ -163,8 +163,19 @@ export async function POST(request: NextRequest) {
       booking_agent_contact_name,
       booking_agent_email,
       booking_agent_phone,
+      performing_members,
+      base_location_lat,
+      base_location_lon,
+      facebook_url,
+      instagram_url,
+      threads_url,
+      x_url,
+      tiktok_url,
+      youtube_url,
+      snapchat_url,
       artist_primary_roles,
-      is_published
+      is_published,
+      onboarding_completed
     } = body
 
     console.log('API: Creating/updating artist profile for user:', user.id)
@@ -189,6 +200,27 @@ export async function POST(request: NextRequest) {
 
     if (base_location !== undefined) {
       profileData.base_location = base_location || null
+    }
+
+    if (base_location_lat !== undefined) {
+      const latNumber = typeof base_location_lat === 'number' ? base_location_lat : parseFloat(base_location_lat)
+      profileData.base_location_lat = Number.isFinite(latNumber) ? latNumber : null
+    }
+
+    if (base_location_lon !== undefined) {
+      const lonNumber = typeof base_location_lon === 'number' ? base_location_lon : parseFloat(base_location_lon)
+      profileData.base_location_lon = Number.isFinite(lonNumber) ? lonNumber : null
+    }
+
+    if (performing_members !== undefined) {
+      if (typeof performing_members === 'number') {
+        profileData.performing_members = performing_members
+      } else if (typeof performing_members === 'string' && performing_members.trim()) {
+        const parsedMembers = parseInt(performing_members, 10)
+        profileData.performing_members = Number.isNaN(parsedMembers) ? null : parsedMembers
+      } else {
+        profileData.performing_members = null
+      }
     }
 
     if (hometown_city !== undefined) {
@@ -320,6 +352,13 @@ export async function POST(request: NextRequest) {
     assignIfDefined('booking_agent_contact_name', booking_agent_contact_name)
     assignIfDefined('booking_agent_email', booking_agent_email)
     assignIfDefined('booking_agent_phone', booking_agent_phone)
+    assignIfDefined('facebook_url', facebook_url)
+    assignIfDefined('instagram_url', instagram_url)
+    assignIfDefined('threads_url', threads_url)
+    assignIfDefined('x_url', x_url)
+    assignIfDefined('tiktok_url', tiktok_url)
+    assignIfDefined('youtube_url', youtube_url)
+    assignIfDefined('snapchat_url', snapchat_url)
 
     if (artist_primary_roles !== undefined) {
       profileData.artist_primary_roles = Array.isArray(artist_primary_roles)
@@ -350,6 +389,21 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    if (onboarding_completed === true) {
+      profileData.onboarding_completed = true
+      profileData.onboarding_completed_at = new Date().toISOString()
+    }
+
+
+    console.log('API: Attempting to upsert artist profile with data:', {
+      user_id: profileData.user_id,
+      profile_type: profileData.profile_type,
+      stage_name: profileData.stage_name,
+      artist_type_id: profileData.artist_type_id,
+      onboarding_completed: profileData.onboarding_completed,
+      fieldCount: Object.keys(profileData).length
+    })
+
     const { data, error } = await supabase
       .from('user_profiles')
       .upsert(profileData, {
@@ -360,10 +414,13 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('API: Error creating/updating artist profile:', error)
+      console.error('API: Full error details:', JSON.stringify(error, null, 2))
+      console.error('API: Profile data that failed:', JSON.stringify(profileData, null, 2))
       return NextResponse.json({
         error: 'Database error',
         details: error.message,
-        code: error.code
+        code: error.code,
+        hint: error.hint
       }, { status: 500 })
     }
 

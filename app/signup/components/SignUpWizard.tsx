@@ -1723,13 +1723,74 @@ export function SignUpWizard() {
           break;
         }
         case "fan-videos": {
-          // Videos are optional - try to save but don't block progression
+          // Videos are optional - try to save and mark onboarding as complete
           try {
-            await saveFanProfile();
+            await saveFanProfile({ onboardingCompleted: true });
+            console.log('✅ Fan onboarding completed');
           } catch (error) {
             console.warn("SignUpWizard: Failed to save videos, but allowing progression", error);
           }
           stepCompleted = true; // Always allow progression
+          break;
+        }
+        case "artist-profile-setup": {
+          // Save artist profile data
+          try {
+            const response = await fetch('/api/artist-profile', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                stage_name: artistProfile.stageName,
+                established_date: artistProfile.formedDate,
+                performing_members: artistProfile.performingMembers,
+                base_location: artistProfile.baseLocation,
+                base_location_lat: artistProfile.baseLocationLat,
+                base_location_lon: artistProfile.baseLocationLon,
+                gigs_performed: artistProfile.publicGigsPerformed,
+                facebook_url: artistProfile.facebookUrl,
+                instagram_url: artistProfile.instagramUrl,
+                threads_url: artistProfile.threadsUrl,
+                x_url: artistProfile.xUrl,
+                tiktok_url: artistProfile.tiktokUrl,
+                youtube_url: artistProfile.youtubeUrl,
+                snapchat_url: artistProfile.snapchatUrl,
+                record_label_status: artistProfile.recordLabelStatus,
+                record_label_name: artistProfile.recordLabelName,
+                record_label_contact_name: artistProfile.recordLabelContactName,
+                record_label_email: artistProfile.recordLabelContactEmail,
+                record_label_phone: artistProfile.recordLabelContactPhone,
+                music_publisher_status: artistProfile.musicPublisherStatus,
+                music_publisher_name: artistProfile.musicPublisherName,
+                music_publisher_contact_name: artistProfile.musicPublisherContactName,
+                music_publisher_email: artistProfile.musicPublisherContactEmail,
+                music_publisher_phone: artistProfile.musicPublisherContactPhone,
+                artist_manager_status: artistProfile.artistManagerStatus,
+                artist_manager_name: artistProfile.artistManagerName,
+                artist_manager_contact_name: artistProfile.artistManagerContactName,
+                artist_manager_email: artistProfile.artistManagerContactEmail,
+                artist_manager_phone: artistProfile.artistManagerContactPhone,
+                booking_agent_status: artistProfile.bookingAgentStatus,
+                booking_agent_name: artistProfile.bookingAgentName,
+                booking_agent_contact_name: artistProfile.bookingAgentContactName,
+                booking_agent_email: artistProfile.bookingAgentContactEmail,
+                booking_agent_phone: artistProfile.bookingAgentContactPhone,
+                artist_type_id: artistSelection.typeId,
+                artist_sub_types: artistSelection.subType ? [artistSelection.subType] : [],
+                onboarding_completed: true
+              })
+            });
+            
+            if (!response.ok) {
+              throw new Error('Failed to save artist profile');
+            }
+            
+            console.log('✅ Artist profile saved successfully');
+            stepCompleted = true;
+          } catch (error) {
+            console.error('Error saving artist profile:', error);
+            // Allow progression even if save fails
+            stepCompleted = true;
+          }
           break;
         }
         default:
@@ -4199,7 +4260,7 @@ export function SignUpWizard() {
               <h4 className="text-lg font-bold text-foreground">Almost There!</h4>
               <p className="text-sm text-foreground/70 leading-relaxed">
                 Once you complete this profile, you&apos;ll have access to your Artist Dashboard where you can upload music, 
-                book gigs, connect with fans, and start earning. Click <strong>Go to Control Panel</strong> below to finish your setup!
+                book gigs, connect with fans, and start earning. Click <strong>Go to Artist Dashboard</strong> below to finish your setup!
               </p>
             </div>
           </div>
@@ -4588,19 +4649,99 @@ export function SignUpWizard() {
           </Button>
           {isLastStep ? (
             <Button
-              onClick={() => {
-                if (!canAdvance) return;
-                const target =
-                  accountChoice === "guest"
-                    ? "/control-panel?mode=guest"
-                    : "/control-panel";
+              onClick={async () => {
+                if (!canAdvance || isProcessingStep) return;
+                
+                setIsProcessingStep(true);
+                
+                // Save artist profile if on artist-profile-setup step
+                if (currentStep?.key === "artist-profile-setup") {
+                  console.log('💾 Saving artist profile...', {
+                    stageName: artistProfile.stageName,
+                    artistTypeId: artistSelection.typeId,
+                    artistSubType: artistSelection.subType
+                  });
+                  try {
+                    const response = await fetch('/api/artist-profile', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        stage_name: artistProfile.stageName,
+                        established_date: artistProfile.formedDate,
+                        performing_members: artistProfile.performingMembers,
+                        base_location: artistProfile.baseLocation,
+                        base_location_lat: artistProfile.baseLocationLat,
+                        base_location_lon: artistProfile.baseLocationLon,
+                        gigs_performed: artistProfile.publicGigsPerformed,
+                        facebook_url: artistProfile.facebookUrl,
+                        instagram_url: artistProfile.instagramUrl,
+                        threads_url: artistProfile.threadsUrl,
+                        x_url: artistProfile.xUrl,
+                        tiktok_url: artistProfile.tiktokUrl,
+                        youtube_url: artistProfile.youtubeUrl,
+                        snapchat_url: artistProfile.snapchatUrl,
+                        record_label_status: artistProfile.recordLabelStatus,
+                        record_label_name: artistProfile.recordLabelName,
+                        record_label_contact_name: artistProfile.recordLabelContactName,
+                        record_label_email: artistProfile.recordLabelContactEmail,
+                        record_label_phone: artistProfile.recordLabelContactPhone,
+                        music_publisher_status: artistProfile.musicPublisherStatus,
+                        music_publisher_name: artistProfile.musicPublisherName,
+                        music_publisher_contact_name: artistProfile.musicPublisherContactName,
+                        music_publisher_email: artistProfile.musicPublisherContactEmail,
+                        music_publisher_phone: artistProfile.musicPublisherContactPhone,
+                        artist_manager_status: artistProfile.artistManagerStatus,
+                        artist_manager_name: artistProfile.artistManagerName,
+                        artist_manager_contact_name: artistProfile.artistManagerContactName,
+                        artist_manager_email: artistProfile.artistManagerContactEmail,
+                        artist_manager_phone: artistProfile.artistManagerContactPhone,
+                        booking_agent_status: artistProfile.bookingAgentStatus,
+                        booking_agent_name: artistProfile.bookingAgentName,
+                        booking_agent_contact_name: artistProfile.bookingAgentContactName,
+                        booking_agent_email: artistProfile.bookingAgentContactEmail,
+                        booking_agent_phone: artistProfile.bookingAgentContactPhone,
+                        artist_type_id: artistSelection.typeId,
+                        artist_sub_types: artistSelection.subType ? [artistSelection.subType] : [],
+                        onboarding_completed: true
+                      })
+                    });
+                    
+                    if (!response.ok) {
+                      throw new Error('Failed to save artist profile');
+                    }
+                    
+                    console.log('✅ Artist profile saved successfully');
+                  } catch (error) {
+                    console.error('Error saving artist profile:', error);
+                    // Continue to redirect even if save fails
+                  }
+                }
+                
+                setIsProcessingStep(false);
+                
+                // Redirect to appropriate dashboard
+                let target = "/control-panel";
+                if (accountChoice === "guest") {
+                  target = "/control-panel?mode=guest";
+                } else if (selectedMemberType === "artist") {
+                  target = "/artist-dashboard";
+                }
                 router.push(target);
               }}
-              disabled={!canAdvance}
+              disabled={!canAdvance || isProcessingStep}
               variant="secondary"
               className="rounded-full px-5 py-2 text-[0.7rem] uppercase tracking-[0.18em]"
             >
-              {accountChoice === "guest" ? "Explore as Guest" : "Go to Control Panel"}
+              {isProcessingStep ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
+                </span>
+              ) : accountChoice === "guest" 
+                ? "Explore as Guest" 
+                : selectedMemberType === "artist"
+                ? "Go to Artist Dashboard"
+                : "Go to Control Panel"}
             </Button>
           ) : (
             <Button

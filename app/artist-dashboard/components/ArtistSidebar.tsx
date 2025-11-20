@@ -43,10 +43,12 @@ interface ArtistSidebarProps {
   onSectionChange?: (section: ArtistDashboardSection) => void
   capabilities?: ArtistTypeCapabilities | null
   completedSections?: string[]
+  hideTypeSection?: boolean
   className?: string
 }
 
-function isSectionEnabled(section: ArtistDashboardSection, capabilities: ArtistTypeCapabilities | null | undefined) {
+function isSectionEnabled(section: ArtistDashboardSection, capabilities: ArtistTypeCapabilities | null | undefined, hideTypeSection?: boolean) {
+  if (hideTypeSection && section === 'type') return false
   if (!capabilities) {
     // Only allow type selection until artist type is saved
     return section === 'type'
@@ -60,7 +62,7 @@ function isSectionEnabled(section: ArtistDashboardSection, capabilities: ArtistT
   }
 }
 
-export function ArtistSidebar({ activeSection = 'profile', onSectionChange, capabilities, completedSections = [], className }: ArtistSidebarProps) {
+export function ArtistSidebar({ activeSection = 'profile', onSectionChange, capabilities, completedSections = [], hideTypeSection, className }: ArtistSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { signOut } = useAuth();
@@ -96,17 +98,17 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange, capa
     { icon: FileText, label: "Main Dashboard", section: "profile" }
   ]
 
-  const activitiesItems: { icon: ComponentType<{ className?: string }>; label: string; section: ArtistDashboardSection }[] = [
-    { icon: User, label: "Basic Artist Details", section: "profile" },
-    { icon: Users, label: "Artist Members", section: "members" },
-    { icon: BookOpen, label: "Artist Biography", section: "bio" },
-    { icon: Music, label: "Artist Genres", section: "genres" },
-    { icon: Map, label: "GigAbility Maps", section: "maps" },
-    { icon: Palette, label: "Logo/Profile Artwork", section: "logo" },
-    { icon: ImageIcon, label: "Photos", section: "photos" },
-    { icon: Video, label: "Videos", section: "videos" },
-    { icon: Settings, label: "Artist Type & Config", section: "type" }
-  ]
+  const activitiesItems = [
+    { icon: User, label: "Basic Artist Details", section: "profile" as ArtistDashboardSection },
+    { icon: Users, label: "Artist Members", section: "members" as ArtistDashboardSection },
+    { icon: BookOpen, label: "Artist Biography", section: "bio" as ArtistDashboardSection },
+    { icon: Music, label: "Artist Genres", section: "genres" as ArtistDashboardSection },
+    { icon: Map, label: "GigAbility Maps", section: "maps" as ArtistDashboardSection },
+    { icon: Palette, label: "Logo/Profile Artwork", section: "logo" as ArtistDashboardSection },
+    { icon: ImageIcon, label: "Photos", section: "photos" as ArtistDashboardSection },
+    { icon: Video, label: "Videos", section: "videos" as ArtistDashboardSection },
+    { icon: Settings, label: "Artist Type & Config", section: "type" as ArtistDashboardSection }
+  ].filter(item => !(hideTypeSection && item.section === 'type'))
 
   const administrationItems = [
     { icon: Eye, label: "View Profile", path: "/artist-dashboard?section=view" },
@@ -143,7 +145,7 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange, capa
         <h3 className="text-gray-400 text-sm uppercase tracking-wider mb-3">Main Menu</h3>
         <div className="space-y-1">
           {mainMenuItems.map((item, index) => {
-            const disabled = !isSectionEnabled(item.section as ArtistDashboardSection, capabilities)
+            const disabled = !isSectionEnabled(item.section as ArtistDashboardSection, capabilities, hideTypeSection)
             return (
               <button
                 key={index}
@@ -185,7 +187,7 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange, capa
         {expandedSections.activities && (
           <div className="space-y-1">
             {activitiesItems.map((item, index) => {
-              const disabled = !isSectionEnabled(item.section as ArtistDashboardSection, capabilities)
+              const disabled = !isSectionEnabled(item.section as ArtistDashboardSection, capabilities, hideTypeSection)
               return (
               <button
                 key={index}

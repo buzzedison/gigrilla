@@ -25,6 +25,7 @@ interface ArtistProfileResponse {
     artist_type_id?: number | null
     artist_sub_types?: Record<string, string[] | undefined> | null
     preferred_genre_ids?: string[] | null
+    onboarding_completed?: boolean | null
   } | null
 }
 
@@ -49,6 +50,7 @@ export default function ArtistDashboard() {
   const [completionState, setCompletionState] = useState<CompletionItemState[]>([])
   const [completionRefreshKey, setCompletionRefreshKey] = useState(0)
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
+  const [onboardingCompleted, setOnboardingCompleted] = useState(false)
 
   const selectedTypeConfig = useMemo(() => {
     if (!artistTypeSelection) return undefined
@@ -72,6 +74,9 @@ export default function ArtistDashboard() {
           setActiveSection('type')
           return
         }
+
+        // Set onboarding completed status
+        setOnboardingCompleted(result.data.onboarding_completed ?? false)
 
         if (result.data.artist_type_id) {
           const subTypes = Array.isArray(result.data.artist_sub_types)
@@ -100,6 +105,12 @@ export default function ArtistDashboard() {
 
     loadArtistProfile()
   }, [user, router])
+
+  useEffect(() => {
+    if (onboardingCompleted && activeSection === 'type') {
+      setActiveSection('profile')
+    }
+  }, [onboardingCompleted, activeSection])
 
   const handleArtistTypeChange = async (selection: ArtistTypeSelection) => {
     setIsSavingArtistType(true)
@@ -205,6 +216,14 @@ export default function ArtistDashboard() {
           </div>
         )
       case 'type':
+        // Hide type selector if onboarding is completed
+        if (onboardingCompleted) {
+          return (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <p className="text-sm text-gray-600">Your artist type has been configured. Contact support if you need to change it.</p>
+            </div>
+          )
+        }
         return (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             <div className="xl:col-span-3 space-y-4">
@@ -318,6 +337,7 @@ export default function ArtistDashboard() {
             }}
             capabilities={capabilities}
             completedSections={completionState.filter(item => item.completed).map(item => item.section)}
+            hideTypeSection={onboardingCompleted}
           />
         </SheetContent>
 
@@ -329,6 +349,7 @@ export default function ArtistDashboard() {
                 onSectionChange={setActiveSection}
                 capabilities={capabilities}
                 completedSections={completionState.filter(item => item.completed).map(item => item.section)}
+                hideTypeSection={onboardingCompleted}
               />
             </div>
           </div>
