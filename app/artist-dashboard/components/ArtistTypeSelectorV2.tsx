@@ -172,51 +172,145 @@ export function ArtistTypeSelectorV2({ value, onChange }: ArtistTypeSelectorProp
                                 {group.helpText && <p className="text-xs text-gray-500 mt-1">{group.helpText}</p>}
                               </div>
 
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {group.options.map((option) => {
-                                  const isSelected = selectedOptions.includes(option.id)
-                                  const disabled = Boolean(!isSelected && group.maxSelect && selectedOptions.length >= group.maxSelect)
-
-                                  const handleClick = () => {
-                                    if (isSingleSelect) {
-                                      updateSelections(config.id, group.id, [option.id])
-                                      return
+                              <div className="relative">
+                                {/* Scroll hint banner - top */}
+                                {group.options.length > 6 && (
+                                  <div className="mb-3 rounded-lg bg-purple-100 border-2 border-purple-400 p-3 text-center">
+                                    <div className="flex items-center justify-center gap-2 text-purple-900 font-semibold text-sm">
+                                      <svg className="w-5 h-5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                      </svg>
+                                      <span>{group.options.length} Options Available - Scroll Down to See All</span>
+                                      <svg className="w-5 h-5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* Scroll indicator - top shadow */}
+                                <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-white via-white/80 to-transparent pointer-events-none z-10 opacity-0 transition-opacity" 
+                                     style={{ opacity: group.options.length > 6 ? 1 : 0 }} />
+                                
+                                {/* Scrollable container */}
+                                <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${
+                                  group.options.length > 6 ? 'max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-purple-300 scrollbar-track-gray-100 border-2 border-purple-200 rounded-lg p-3' : ''
+                                }`}>
+                                  {group.options.map((option) => {
+                                    const isSelected = selectedOptions.includes(option.id)
+                                    
+                                    // Special logic for Type 4 "All Vocals" option
+                                    const isAllVocalsGroup = config.id === 4 && group.id === 'vocal-role'
+                                    const isAllVocalsOption = option.id === 'all-vocals'
+                                    const individualVocalOptions = ['lead-vocalist', 'backing-vocalist', 'session-vocalist', 'voiceover-artist']
+                                    const hasAllVocalsSelected = isAllVocalsGroup && selectedOptions.includes('all-vocals')
+                                    const hasAllIndividualVocalsSelected = isAllVocalsGroup && 
+                                      individualVocalOptions.every(opt => selectedOptions.includes(opt))
+                                    
+                                    // Disable individual options if "All Vocals" is selected
+                                    // Disable "All Vocals" if any individual option is selected (but not all)
+                                    let disabled = Boolean(!isSelected && group.maxSelect && selectedOptions.length >= group.maxSelect)
+                                    if (isAllVocalsGroup) {
+                                      if (isAllVocalsOption && selectedOptions.length > 0 && !hasAllIndividualVocalsSelected) {
+                                        disabled = false // Allow clicking "All Vocals" when some individuals are selected
+                                      } else if (!isAllVocalsOption && hasAllVocalsSelected) {
+                                        disabled = true // Disable individual options when "All Vocals" is selected
+                                      }
                                     }
-                                    if (disabled) return
-                                    const nextValues = isSelected
-                                      ? selectedOptions.filter((value) => value !== option.id)
-                                      : [...selectedOptions, option.id]
-                                    updateSelections(config.id, group.id, nextValues)
-                                  }
 
-                                  return (
-                                    <button
-                                      key={option.id}
-                                      type="button"
-                                      onClick={handleClick}
-                                      disabled={disabled}
-                                      className={`text-left rounded-lg border px-4 py-3 transition-all ${
-                                        isSelected
-                                          ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
-                                          : `border-gray-200 bg-white hover:border-purple-300 hover:bg-purple-50 ${
-                                              disabled ? 'opacity-50 cursor-not-allowed' : ''
-                                            }`
-                                      }`}
-                                    >
-                                      <div className="flex items-start justify-between">
-                                        <div className="font-medium text-sm md:text-base">
-                                          {option.label}
+                                    const handleClick = () => {
+                                      if (isSingleSelect) {
+                                        updateSelections(config.id, group.id, [option.id])
+                                        return
+                                      }
+                                      if (disabled) return
+                                      
+                                      // Special handling for Type 4 vocal roles
+                                      if (isAllVocalsGroup) {
+                                        if (isAllVocalsOption) {
+                                          // Clicking "All Vocals"
+                                          if (isSelected) {
+                                            // Deselect "All Vocals" only
+                                            updateSelections(config.id, group.id, selectedOptions.filter(v => v !== 'all-vocals'))
+                                          } else {
+                                            // Select "All Vocals" and clear individual selections
+                                            updateSelections(config.id, group.id, ['all-vocals'])
+                                          }
+                                          return
+                                        } else {
+                                          // Clicking an individual vocal option
+                                          let nextValues: string[]
+                                          if (isSelected) {
+                                            // Deselecting an individual option
+                                            nextValues = selectedOptions.filter((value) => value !== option.id && value !== 'all-vocals')
+                                          } else {
+                                            // Selecting an individual option
+                                            nextValues = [...selectedOptions.filter(v => v !== 'all-vocals'), option.id]
+                                            // If all individual options are now selected, auto-select "All Vocals"
+                                            if (individualVocalOptions.every(opt => nextValues.includes(opt))) {
+                                              nextValues = ['all-vocals']
+                                            }
+                                          }
+                                          updateSelections(config.id, group.id, nextValues)
+                                          return
+                                        }
+                                      }
+                                      
+                                      // Default multi-select behavior
+                                      const nextValues = isSelected
+                                        ? selectedOptions.filter((value) => value !== option.id)
+                                        : [...selectedOptions, option.id]
+                                      updateSelections(config.id, group.id, nextValues)
+                                    }
+
+                                    return (
+                                      <button
+                                        key={option.id}
+                                        type="button"
+                                        onClick={handleClick}
+                                        disabled={disabled}
+                                        className={`text-left rounded-lg border px-4 py-3 transition-all ${
+                                          isSelected
+                                            ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                                            : `border-gray-200 bg-white hover:border-purple-300 hover:bg-purple-50 ${
+                                                disabled ? 'opacity-50 cursor-not-allowed' : ''
+                                              }`
+                                        }`}
+                                      >
+                                        <div className="flex items-start justify-between">
+                                          <div className="font-medium text-sm md:text-base">
+                                            {option.label}
+                                          </div>
+                                          {isSelected && <span className="text-xs">Selected</span>}
                                         </div>
-                                        {isSelected && <span className="text-xs">Selected</span>}
-                                      </div>
-                                      {option.description && (
-                                        <p className={`mt-1 text-xs ${isSelected ? 'text-purple-100' : 'text-gray-600'}`}>
-                                          {option.description}
-                                        </p>
-                                      )}
-                                    </button>
-                                  )
-                                })}
+                                        {option.description && (
+                                          <p className={`mt-1 text-xs ${isSelected ? 'text-purple-100' : 'text-gray-600'}`}>
+                                            {option.description}
+                                          </p>
+                                        )}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                                
+                                {/* Scroll indicator - bottom shadow */}
+                                <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none z-10 opacity-0 transition-opacity" 
+                                     style={{ opacity: group.options.length > 6 ? 1 : 0 }} />
+                                
+                                {/* Scroll hint banner - bottom */}
+                                {group.options.length > 6 && (
+                                  <div className="mt-3 rounded-lg bg-orange-100 border-2 border-orange-400 p-3 text-center">
+                                    <div className="flex items-center justify-center gap-2 text-orange-900 font-semibold text-sm">
+                                      <svg className="w-5 h-5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                      </svg>
+                                      <span>Scroll Up to See More Options</span>
+                                      <svg className="w-5 h-5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )
@@ -225,23 +319,29 @@ export function ArtistTypeSelectorV2({ value, onChange }: ArtistTypeSelectorProp
                     </div>
 
                     <div className="flex justify-between items-center pt-4 border-t border-gray-100 flex-wrap gap-3">
-                      <div className="space-x-2 text-xs">
-                        <span className="font-medium text-gray-700">Selections:</span>
-                        {Object.entries(selections)
-                          .flatMap(([groupId, ids]) =>
-                            ids.map((valueId) => (
-                              <span
-                                key={`${groupId}-${valueId}`}
-                                className="inline-flex items-center px-2 py-1 rounded-full bg-gray-100 text-gray-700"
-                              >
-                                {config.groups
-                                  .find((group) => group.id === groupId)
-                                  ?.options.find((option) => option.id === valueId)?.label ?? valueId}
-                              </span>
-                            ))
-                          )}
+                      <div className="flex-1 space-y-2">
+                        <div className="font-semibold text-sm text-gray-900 mb-2">Your Selections:</div>
+                        {Object.entries(selections).map(([groupId, ids]) => {
+                          const group = config.groups.find((g) => g.id === groupId)
+                          if (!group || !ids.length) return null
+                          return (
+                            <div key={groupId} className="space-y-1">
+                              <div className="text-xs font-medium text-gray-600">{group.title}:</div>
+                              <div className="flex flex-wrap gap-2">
+                                {ids.map((valueId) => (
+                                  <span
+                                    key={`${groupId}-${valueId}`}
+                                    className="inline-flex items-center px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-semibold shadow-sm"
+                                  >
+                                    ✓ {group.options.find((option) => option.id === valueId)?.label ?? valueId}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        })}
                         {!Object.values(selections).some((ids) => ids.length) && (
-                          <span className="text-gray-400">No selections yet</span>
+                          <span className="text-sm text-gray-400 italic">No selections yet - choose options above</span>
                         )}
                       </div>
 

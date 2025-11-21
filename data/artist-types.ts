@@ -234,14 +234,16 @@ export const ARTIST_TYPES: ArtistTypeConfig[] = [
     groups: [
       {
         id: 'vocal-role',
-        title: 'Primary vocal role',
+        title: 'Vocal services offered',
+        helpText: 'Select all vocal services you provide. "All Vocals" covers all options.',
         required: true,
         minSelect: 1,
         options: [
-          { id: 'lead-vocalist', label: 'Lead / Featured Vocalist' },
-          { id: 'backing-vocalist', label: 'Backing Vocalist' },
-          { id: 'session-vocalist', label: 'Session / Recording Vocalist' },
-          { id: 'choir-vocalist', label: 'Choir / Ensemble Vocalist' }
+          { id: 'all-vocals', label: 'All Vocals', description: 'I provide all vocal services listed below' },
+          { id: 'lead-vocalist', label: 'Lead Vocals', description: 'Primary/featured vocal performances' },
+          { id: 'backing-vocalist', label: 'Backing Vocals', description: 'Harmony and support vocals' },
+          { id: 'session-vocalist', label: 'Session Vocalist', description: 'Studio recording vocals' },
+          { id: 'voiceover-artist', label: 'Voiceover Artist', description: 'Spoken word, narration, voice acting' }
         ]
       },
       {

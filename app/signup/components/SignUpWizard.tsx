@@ -176,7 +176,16 @@ type FanProfilePayload = {
   onboardingCompleted?: boolean;
 };
 
-const ARTIST_TYPE_OPTIONS = [
+type ArtistTypeOption = {
+  id: string;
+  label: string;
+  description: string;
+  subTypes?: string[];
+  instrumentCategories?: Record<string, string[]>;
+  availabilityOptions?: string[];
+};
+
+const ARTIST_TYPE_OPTIONS: ArtistTypeOption[] = [
   {
     id: "type1",
     label: "Type 1: Live Gig & Original Recording Artist",
@@ -273,63 +282,80 @@ const ARTIST_TYPE_OPTIONS = [
     label: "Type 5: Instrumentalist Artist for Hire",
     description:
       "I am a live performance and recording session musician.",
-    subTypes: [
-      "All String Instruments",
-      "Banjo",
-      "Bass Guitar",
-      "Cello",
-      "Double Bass",
-      "Guitar",
-      "Harp",
-      "Lute",
-      "Mandolin",
-      "Nyckelharpa",
-      "Phonofiddle",
-      "Sitar",
-      "Ukulele",
-      "Viola",
-      "Violin",
-      "Zither",
-      "All Wind Instruments",
-      "Alboka",
-      "Clarinet",
-      "Didgeridoo",
-      "Flute",
-      "Harmonica",
-      "Jaw Harp",
-      "Kazoo",
-      "Kubing",
-      "Lur",
-      "Nose Flute",
-      "Oboe",
-      "Recorder",
-      "Saxophone",
-      "Shaw",
-      "Triton Shell",
-      "Vuvuzela",
-      "Whistle",
-      "Xun",
-      "All Percussion Instruments",
-      "Drum Set",
-      "Hand Drums",
-      "Mallet Percussion",
-      "Metal Percussion",
-      "Cowbell",
-      "Shakers",
-      "Misc. Percussion",
-      "All Keyboard Instruments",
-      "Accordion",
-      "Celesta",
-      "Clavichord",
-      "Harpsichord",
-      "Melodica",
-      "Organ",
-      "Piano",
-      "All Electronic Instruments",
-      "Electronic Keyboard",
-      "Sampler",
-      "Synthesizer",
-    ],
+    instrumentCategories: {
+      "String Instruments": [
+        "All String Instruments",
+        "Banjo",
+        "Bass Guitar", 
+        "Cello",
+        "Double Bass",
+        "Guitar",
+        "Harp",
+        "Lute",
+        "Mandolin",
+        "Nyckelharpa",
+        "Phonofiddle",
+        "Sitar",
+        "Ukulele",
+        "Viola",
+        "Violin",
+        "Zither"
+      ],
+      "Wind Instruments": [
+        "All Wind Instruments",
+        "Alboka",
+        "Clarinet",
+        "Didgeridoo",
+        "Flute",
+        "Harmonica",
+        "Jaw Harp",
+        "Kazoo",
+        "Kubing",
+        "Lur",
+        "Nose Flute",
+        "Oboe",
+        "Recorder",
+        "Saxophone",
+        "Shaw",
+        "Triton Shell",
+        "Vuvuzela",
+        "Whistle",
+        "Xun"
+      ],
+      "Percussion Instruments": [
+        "All Percussion Instruments",
+        "Drum Set",
+        "Hand Drums",
+        "Mallet Percussion",
+        "Metal Percussion",
+        "Cowbell",
+        "Shakers",
+        "Misc. Percussion"
+      ],
+      "Keyboard Instruments": [
+        "All Keyboard Instruments",
+        "Accordion",
+        "Celesta",
+        "Clavichord",
+        "Harpsichord",
+        "Melodica",
+        "Organ",
+        "Piano"
+      ],
+      "Electronic Instruments": [
+        "All Electronic Instruments",
+        "Electronic Keyboard",
+        "Sampler",
+        "Synthesizer"
+      ]
+    },
+    availabilityOptions: [
+      "Available to audition and join a band",
+      "Available for session recording work",
+      "Available for live performance gigs",
+      "Available for collaboration projects",
+      "Available for teaching/instruction"
+    ]
   },
   {
     id: "type6",
@@ -581,6 +607,9 @@ export function SignUpWizard() {
   const [artistSelection, setArtistSelection] = useState({
     typeId: "",
     subType: "",
+    instrumentCategory: "",
+    instrument: "",
+    availability: "",
   });
 
   const [artistProfile, setArtistProfile] = useState({
@@ -1867,7 +1896,7 @@ export function SignUpWizard() {
     setPhotoUploadError("");
     setVideoFormError("");
     setPasswordErrors([]);
-    setArtistSelection({ typeId: "", subType: "" });
+    setArtistSelection({ typeId: "", subType: "", instrumentCategory: "", instrument: "", availability: "" });
     setVenueSelection({ typeId: "", subType: "" });
     setServiceDetails({
       summary: "",
@@ -3599,11 +3628,11 @@ export function SignUpWizard() {
               key={option.id}
               role="button"
               tabIndex={0}
-              onClick={() => setArtistSelection({ typeId: option.id, subType: "" })}
+              onClick={() => setArtistSelection({ typeId: option.id, subType: "", instrumentCategory: "", instrument: "", availability: "" })}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  setArtistSelection({ typeId: option.id, subType: "" });
+                  setArtistSelection({ typeId: option.id, subType: "", instrumentCategory: "", instrument: "", availability: "" });
                 }
               }}
               className={cn(
@@ -3647,30 +3676,276 @@ export function SignUpWizard() {
                     <div className="space-y-3">
                       <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
                         <span className="text-primary">→</span>
-                        Choose your specialty
+                        {option.id === 'type4' ? 'Choose your vocal services (select all that apply)' : 
+                         option.id === 'type5' ? 'Choose your instrument category and specific instrument' : 'Choose your specialty'}
                         <span className="text-xs font-normal text-foreground/50">(optional)</span>
                       </Label>
-                      <Select
-                        value={artistSelection.subType}
-                        onValueChange={(value) =>
-                          setArtistSelection((prev) => ({ ...prev, subType: value }))
-                        }
-                      >
-                        <SelectTrigger className="h-11 border-2 font-ui hover:border-primary/50 transition-colors">
-                          <SelectValue placeholder="Select a specialty..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {option.subTypes.map((sub) => (
-                            <SelectItem key={sub} value={sub} className="font-ui">
-                              {sub}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {option.subTypes.length > 0 && (
-                        <p className="text-xs text-foreground/50 italic">
-                          💡 {option.subTypes.length} specialties available
-                        </p>
+                      
+                      {/* Type 4 uses checkboxes for multiple selection */}
+                      {option.id === 'type4' ? (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 gap-2">
+                            {option.subTypes?.map((sub: string) => {
+                              const subTypeArray = artistSelection.subType ? artistSelection.subType.split(',').map(s => s.trim()) : []
+                              const isSelected = subTypeArray.includes(sub)
+                              const isAllVocals = sub === 'All Vocals'
+                              const individualVocals = ['Lead Vocals', 'Backing Vocals', 'Session Vocalist', 'Voiceover Artist']
+                              const hasAllVocals = subTypeArray.includes('All Vocals')
+                              const hasAllIndividuals = individualVocals.every(v => subTypeArray.includes(v))
+                              
+                              const isDisabled = !isAllVocals && hasAllVocals
+                              
+                              return (
+                                <div
+                                  key={sub}
+                                  className={`text-left p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                                    isSelected
+                                      ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                                      : isDisabled
+                                      ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                                      : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
+                                  }`}
+                                  onClick={(e) => {
+                                    e.stopPropagation() // Prevent parent Card click
+                                    console.log('Clicked:', sub, 'Current:', artistSelection.subType)
+                                    let newSelection: string[]
+                                    
+                                    if (isAllVocals) {
+                                      // Clicking "All Vocals"
+                                      if (isSelected) {
+                                        newSelection = []
+                                      } else {
+                                        newSelection = ['All Vocals']
+                                      }
+                                    } else {
+                                      // Clicking individual option
+                                      if (isSelected) {
+                                        newSelection = subTypeArray.filter(s => s !== sub && s !== 'All Vocals')
+                                      } else {
+                                        newSelection = [...subTypeArray.filter(s => s !== 'All Vocals'), sub]
+                                        // Auto-select "All Vocals" if all individuals are selected
+                                        if (individualVocals.every(v => newSelection.includes(v))) {
+                                          newSelection = ['All Vocals']
+                                        }
+                                      }
+                                    }
+                                    
+                                    const newSubType = newSelection.length > 0 ? newSelection.join(', ') : ''
+                                    console.log('New selection:', newSubType)
+                                    setArtistSelection((prev) => ({ 
+                                      ...prev, 
+                                      subType: newSubType
+                                    }))
+                                  }}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-semibold text-sm">{sub}</span>
+                                    {isSelected && (
+                                      <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          
+                          {/* Always show selected vocals */}
+                          <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300">
+                            <div className="text-xs font-semibold text-purple-900 uppercase tracking-wide mb-2">Selected Vocal Services</div>
+                            {artistSelection.subType && artistSelection.subType.length > 0 ? (
+                              <div className="flex flex-wrap gap-2">
+                                {artistSelection.subType.split(',').map(s => s.trim()).map((service) => (
+                                  <span key={service} className="px-2 py-1 rounded-full bg-purple-600 text-white text-xs font-semibold">
+                                    ✓ {service}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-purple-700 italic">No vocal services selected</div>
+                            )}
+                          </div>
+                        </div>
+                      ) : option.id === 'type5' ? (
+                        <div className="space-y-4">
+                          {/* Two-tier instrument selection */}
+                          <div className="space-y-3">
+                            <Label className="text-xs font-semibold text-foreground">Instrument Category</Label>
+                            <Select
+                              value={artistSelection.instrumentCategory || ''}
+                              onValueChange={(value) => {
+                                setArtistSelection((prev) => ({ 
+                                  ...prev, 
+                                  instrumentCategory: value,
+                                  instrument: '' // Reset specific instrument when category changes
+                                }))
+                              }}
+                            >
+                              <SelectTrigger className="h-11 border-2 font-ui hover:border-primary/50 transition-colors">
+                                <SelectValue placeholder="Select instrument category..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {option.instrumentCategories && Object.keys(option.instrumentCategories).map((category) => (
+                                  <SelectItem key={category} value={category} className="font-ui">
+                                    {category}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          {artistSelection.instrumentCategory && (
+                            <div className="space-y-3">
+                              <Label className="text-xs font-semibold text-foreground">Specific Instrument</Label>
+                              <Select
+                                value={artistSelection.instrument || ''}
+                                onValueChange={(value) =>
+                                  setArtistSelection((prev) => ({ ...prev, instrument: value }))
+                                }
+                              >
+                                <SelectTrigger className="h-11 border-2 font-ui hover:border-primary/50 transition-colors">
+                                  <SelectValue placeholder="Select specific instrument..." />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-[300px]">
+                                  {option.instrumentCategories && option.instrumentCategories[artistSelection.instrumentCategory]?.map((instrument: string) => (
+                                    <SelectItem key={instrument} value={instrument} className="font-ui">
+                                      {instrument}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                          
+                          {/* Show selected instrument */}
+                          {artistSelection.instrument && (
+                            <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300">
+                              <div className="flex items-center gap-2">
+                                <span className="text-lg">✓</span>
+                                <div>
+                                  <div className="text-xs font-semibold text-purple-900 uppercase tracking-wide">Selected Instrument</div>
+                                  <div className="text-sm font-bold text-purple-700">{artistSelection.instrument}</div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Availability checkboxes */}
+                          <div className="mt-6 space-y-3">
+                            <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                              <span className="text-primary">→</span>
+                              What type of instrumentalist artist are you?
+                              <span className="text-xs font-normal text-foreground/50">(select all that apply)</span>
+                            </Label>
+                            <div className="grid grid-cols-1 gap-2">
+                              {option.availabilityOptions?.map((availabilityOption: string) => {
+                                const availabilityArray = artistSelection.availability ? artistSelection.availability.split(',').map((s: string) => s.trim()) : []
+                                const isSelected = availabilityArray.includes(availabilityOption)
+                                
+                                return (
+                                  <div
+                                    key={availabilityOption}
+                                    className={`text-left p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                                      isSelected
+                                        ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                                        : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
+                                    }`}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const newAvailability = isSelected
+                                        ? availabilityArray.filter((s: string) => s !== availabilityOption)
+                                        : [...availabilityArray, availabilityOption]
+                                      
+                                      setArtistSelection((prev) => ({ 
+                                        ...prev, 
+                                        availability: newAvailability.length > 0 ? newAvailability.join(', ') : ''
+                                      }))
+                                    }}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-semibold text-sm">{availabilityOption}</span>
+                                      {isSelected && (
+                                        <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                            
+                            {/* Show selected availability */}
+                            {artistSelection.availability && (
+                              <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300">
+                                <div className="text-xs font-semibold text-green-900 uppercase tracking-wide mb-2">Your Availability</div>
+                                <div className="flex flex-wrap gap-2">
+                                  {artistSelection.availability.split(',').map((s: string) => s.trim()).map((item: string) => (
+                                    <span key={item} className="px-2 py-1 rounded-full bg-green-600 text-white text-xs font-semibold">
+                                      ✓ {item}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Scroll indicator banner */}
+                          {option.subTypes && option.subTypes.length > 8 && (
+                            <div className="rounded-lg bg-purple-100 border-2 border-purple-400 p-3 text-center animate-pulse">
+                              <div className="flex items-center justify-center gap-2 text-purple-900 font-semibold text-xs">
+                                <svg className="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                                <span>{option.subTypes.length} Specialties - Dropdown Scrolls!</span>
+                                <svg className="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {option.subTypes && (
+                            <Select
+                              value={artistSelection.subType}
+                              onValueChange={(value) =>
+                                setArtistSelection((prev) => ({ ...prev, subType: value }))
+                              }
+                            >
+                              <SelectTrigger className="h-11 border-2 font-ui hover:border-primary/50 transition-colors">
+                                <SelectValue placeholder="Select a specialty..." />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-[300px]">
+                                {option.subTypes.map((sub: string) => (
+                                  <SelectItem key={sub} value={sub} className="font-ui">
+                                    {sub}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                          {option.subTypes && option.subTypes.length > 8 && (
+                            <p className="text-xs text-orange-700 font-semibold bg-orange-50 border border-orange-300 rounded px-3 py-2 text-center">
+                              ⚠️ This dropdown has {option.subTypes.length} options - scroll inside the dropdown to see all specialties!
+                            </p>
+                          )}
+                          
+                          {/* Show selected specialty */}
+                          {artistSelection.subType && (
+                            <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300">
+                              <div className="flex items-center gap-2">
+                                <span className="text-lg">✓</span>
+                                <div>
+                                  <div className="text-xs font-semibold text-purple-900 uppercase tracking-wide">Selected Specialty</div>
+                                  <div className="text-sm font-bold text-purple-700">{artistSelection.subType}</div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -3680,6 +3955,28 @@ export function SignUpWizard() {
           );
         })}
       </div>
+      
+      {/* Overall selection summary */}
+      {artistSelection.typeId && (
+        <div className="rounded-lg border-2 border-green-400 bg-green-50 p-4">
+          <div className="flex gap-3">
+            <div className="text-2xl">✅</div>
+            <div className="flex-1">
+              <div className="font-bold text-green-900 mb-1">Your Artist Type Selection</div>
+              <div className="space-y-1 text-sm text-green-800">
+                <div>
+                  <span className="font-semibold">Type:</span> {ARTIST_TYPE_OPTIONS.find(opt => opt.id === artistSelection.typeId)?.label}
+                </div>
+                {artistSelection.subType && (
+                  <div>
+                    <span className="font-semibold">Specialty:</span> {artistSelection.subType}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
         <div className="flex gap-3">
@@ -4322,7 +4619,7 @@ export function SignUpWizard() {
                     <SelectValue placeholder="Select sub-type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {option.subTypes.map((sub) => (
+                    {option.subTypes?.map((sub: string) => (
                       <SelectItem key={sub} value={sub}>
                         {sub}
                       </SelectItem>
