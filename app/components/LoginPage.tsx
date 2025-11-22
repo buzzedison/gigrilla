@@ -21,48 +21,46 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
 
   // Navigate to appropriate page after login
   useEffect(() => {
+    if (!user || !user.id) return;
+
     const checkOnboardingStatus = async () => {
-      if (!user || !user.id) return;
+      const onboardingMemberType = user.user_metadata?.onboarding_member_type;
+
+      // Quick check - if user has onboarding_member_type, they likely need to complete onboarding
+      if (onboardingMemberType) {
+        console.log("Login component: User needs to complete onboarding, redirecting to signup...");
+        window.location.href = `/signup?onboarding=${onboardingMemberType}`;
+        return;
+      }
 
       try {
-        // Check database for actual onboarding status
+        // Only fetch profile if we need to check onboarding status
         const response = await fetch('/api/fan-profile');
         const result = await response.json();
-        
+
         const dbOnboardingCompleted = result.data?.onboarding_completed;
-        const onboardingMemberType = user.user_metadata?.onboarding_member_type;
-        
+
         console.log("Login component: Onboarding check", {
           dbOnboardingCompleted,
-          onboardingMemberType,
           hasProfile: !!result.data
         });
-        
+
         // If user has completed onboarding in database, go to dashboard
         if (dbOnboardingCompleted === true) {
           console.log("Login component: User completed onboarding, navigating to dashboard...");
           onNavigate("fan-dashboard");
-        } 
-        // If user has onboarding_member_type but hasn't completed, continue onboarding
-        else if (onboardingMemberType && !dbOnboardingCompleted) {
-          console.log("Login component: User needs to complete onboarding, redirecting to signup...");
-          window.location.href = `/signup?onboarding=${onboardingMemberType}`;
-        } 
-        // Default: go to dashboard
-        else {
+        } else {
           console.log("Login component: User found, navigating to dashboard...");
           onNavigate("fan-dashboard");
         }
       } catch (error) {
         console.error("Login component: Error checking onboarding status", error);
-        // On error, default to dashboard
         onNavigate("fan-dashboard");
       }
     };
 
-    if (user && user.id) {
-      checkOnboardingStatus();
-    }
+    // Use setTimeout to avoid blocking the UI
+    setTimeout(checkOnboardingStatus, 0);
   }, [user, onNavigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -82,11 +80,10 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
     if (error) {
       console.error("Login error:", error);
       setError(error);
-      setLoading(false);
     } else {
       console.log("Login successful");
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   const handleInputChange = (field: keyof typeof formData) => (e: React.ChangeEvent<HTMLInputElement>) => {

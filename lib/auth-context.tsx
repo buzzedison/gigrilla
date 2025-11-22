@@ -49,7 +49,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      setLoading(true)
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
@@ -61,17 +60,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await response.json()
 
       if (response.ok) {
+        // Update user and session immediately without loading state delay
         setUser(data.user)
         setSession(data.session)
+        setLoading(false)
         return { error: null }
       } else {
+        setLoading(false)
         return { error: data.error || 'Login failed' }
       }
     } catch (error) {
       console.error('AuthContext: Sign in error:', error)
-      return { error: 'Network error' }
-    } finally {
       setLoading(false)
+      return { error: 'Network error' }
     }
   }
 

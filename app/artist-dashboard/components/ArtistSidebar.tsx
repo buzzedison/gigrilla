@@ -5,6 +5,7 @@ import Image from "next/image";
 import {
   User,
   Users,
+  Users2,
   BookOpen,
   Music,
   Map,
@@ -20,7 +21,9 @@ import {
   ChevronRight,
   FileText,
   Palette,
-  CheckCircle2
+  CheckCircle2,
+  DollarSign,
+  Clock
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -29,7 +32,9 @@ import { ArtistTypeCapabilities } from "../../../data/artist-types";
 
 export type ArtistDashboardSection =
   | 'profile'
-  | 'members'
+  | 'crew'
+  | 'royalty'
+  | 'gigability'
   | 'bio'
   | 'genres'
   | 'maps'
@@ -100,7 +105,9 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange, capa
 
   const activitiesItems = [
     { icon: User, label: "Basic Artist Details", section: "profile" as ArtistDashboardSection },
-    { icon: Users, label: "Artist Members", section: "members" as ArtistDashboardSection },
+    { icon: Users2, label: "Artist Crew", section: "crew" as ArtistDashboardSection },
+    { icon: DollarSign, label: "Default Royalty Splits", section: "royalty" as ArtistDashboardSection },
+    { icon: Clock, label: "Artist Gig-Ability", section: "gigability" as ArtistDashboardSection },
     { icon: BookOpen, label: "Artist Biography", section: "bio" as ArtistDashboardSection },
     { icon: Music, label: "Artist Genres", section: "genres" as ArtistDashboardSection },
     { icon: Map, label: "GigAbility Maps", section: "maps" as ArtistDashboardSection },

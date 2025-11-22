@@ -84,7 +84,10 @@ export async function POST(request: NextRequest) {
     roles,
     dateOfBirth,
     incomeShare,
-    displayAge
+    displayAge,
+    gigRoyaltyShare,
+    musicRoyaltyShare,
+    isAdmin
   } = body ?? {}
 
   if (!email || typeof email !== 'string') {
@@ -114,6 +117,25 @@ export async function POST(request: NextRequest) {
   }
   if (displayAge !== undefined) {
     metadata.displayAge = !!displayAge
+  }
+  if (gigRoyaltyShare !== undefined && gigRoyaltyShare !== null && gigRoyaltyShare !== '') {
+    const numericGigShare = typeof gigRoyaltyShare === 'number'
+      ? gigRoyaltyShare
+      : parseFloat(String(gigRoyaltyShare))
+    if (!Number.isNaN(numericGigShare)) {
+      metadata.gigRoyaltyShare = numericGigShare
+    }
+  }
+  if (musicRoyaltyShare !== undefined && musicRoyaltyShare !== null && musicRoyaltyShare !== '') {
+    const numericMusicShare = typeof musicRoyaltyShare === 'number'
+      ? musicRoyaltyShare
+      : parseFloat(String(musicRoyaltyShare))
+    if (!Number.isNaN(numericMusicShare)) {
+      metadata.musicRoyaltyShare = numericMusicShare
+    }
+  }
+  if (isAdmin !== undefined) {
+    metadata.isAdmin = !!isAdmin
   }
 
   const invitationToken = randomUUID()
@@ -287,5 +309,141 @@ export async function PATCH(request: NextRequest) {
   }
 
   return NextResponse.json({ success: true, data: inserted })
+}
+
+export async function PUT(request: NextRequest) {
+  const { supabase, user, error: authError } = await getAuthenticatedUser()
+
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { profile, error: profileError } = await getArtistProfile(supabase, user.id)
+
+  if (profileError) {
+    console.error('Artist members PUT: failed to load artist profile', profileError)
+    return NextResponse.json({ error: 'Failed to load artist profile' }, { status: 500 })
+  }
+
+  if (!profile) {
+    return NextResponse.json({ error: 'Artist profile not found' }, { status: 400 })
+  }
+
+  const body = await request.json()
+  const { memberId, gigRoyaltyShare, musicRoyaltyShare, isAdmin } = body ?? {}
+
+  if (!memberId || typeof memberId !== 'string') {
+    return NextResponse.json({ error: 'Member ID is required' }, { status: 400 })
+  }
+
+  try {
+    // First try to update in invitations table
+    const { data: invitationData, error: invitationError } = await supabase
+      .from('artist_member_invitations')
+      .select('metadata')
+      .eq('id', memberId)
+      .eq('user_id', user.id)
+      .eq('artist_profile_id', profile.id)
+      .single()
+
+    if (!invitationError && invitationData) {
+      // Update invitation metadata
+      const updatedMetadata = { ...invitationData.metadata }
+      
+      if (gigRoyaltyShare !== undefined) {
+        const numericGigShare = typeof gigRoyaltyShare === 'number'
+          ? gigRoyaltyShare
+          : parseFloat(String(gigRoyaltyShare))
+        if (!Number.isNaN(numericGigShare)) {
+          updatedMetadata.gigRoyaltyShare = numericGigShare
+        }
+      }
+      
+      if (musicRoyaltyShare !== undefined) {
+        const numericMusicShare = typeof musicRoyaltyShare === 'number'
+          ? musicRoyaltyShare
+          : parseFloat(String(musicRoyaltyShare))
+        if (!Number.isNaN(numericMusicShare)) {
+          updatedMetadata.musicRoyaltyShare = numericMusicShare
+        }
+      }
+      
+      if (isAdmin !== undefined) {
+        updatedMetadata.isAdmin = !!isAdmin
+      }
+
+      const { data, error } = await supabase
+        .from('artist_member_invitations')
+        .update({ metadata: updatedMetadata })
+        .eq('id', memberId)
+        .eq('user_id', user.id)
+        .eq('artist_profile_id', profile.id)
+        .select('id, name, email, role, roles, status, invited_at, responded_at, metadata')
+        .single()
+
+      if (error) {
+        console.error('Artist members PUT: failed to update invitation', error)
+        return NextResponse.json({ error: 'Failed to update member royalty splits' }, { status: 500 })
+      }
+
+      return NextResponse.json({ success: true, data })
+    }
+
+    // If not found in invitations, try active members table
+    const { data: activeData, error: activeError } = await supabase
+      .from('artist_members_active')
+      .select('metadata')
+      .eq('id', memberId)
+      .eq('artist_profile_id', profile.id)
+      .single()
+
+    if (!activeError && activeData) {
+      // Update active member metadata
+      const updatedMetadata = { ...activeData.metadata }
+      
+      if (gigRoyaltyShare !== undefined) {
+        const numericGigShare = typeof gigRoyaltyShare === 'number'
+          ? gigRoyaltyShare
+          : parseFloat(String(gigRoyaltyShare))
+        if (!Number.isNaN(numericGigShare)) {
+          updatedMetadata.gigRoyaltyShare = numericGigShare
+        }
+      }
+      
+      if (musicRoyaltyShare !== undefined) {
+        const numericMusicShare = typeof musicRoyaltyShare === 'number'
+          ? musicRoyaltyShare
+          : parseFloat(String(musicRoyaltyShare))
+        if (!Number.isNaN(numericMusicShare)) {
+          updatedMetadata.musicRoyaltyShare = numericMusicShare
+        }
+      }
+      
+      if (isAdmin !== undefined) {
+        updatedMetadata.isAdmin = !!isAdmin
+      }
+
+      const { data, error } = await supabase
+        .from('artist_members_active')
+        .update({ metadata: updatedMetadata, updated_at: new Date().toISOString() })
+        .eq('id', memberId)
+        .eq('artist_profile_id', profile.id)
+        .select('id, invitation_id, name, email, roles, metadata, joined_at')
+        .single()
+
+      if (error) {
+        console.error('Artist members PUT: failed to update active member', error)
+        return NextResponse.json({ error: 'Failed to update member royalty splits' }, { status: 500 })
+      }
+
+      return NextResponse.json({ success: true, data })
+    }
+
+    return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+
+  } catch (error) {
+    console.error('Artist members PUT: unexpected error', error)
+    return NextResponse.json({ error: 'Failed to update member royalty splits' }, { status: 500 })
+  }
 }
 

@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation"
 import { ArtistSidebar, ArtistDashboardSection } from "./components/ArtistSidebar"
 import { ArtistProfileForm } from "./components/ArtistProfileForm"
 import { ArtistCompletionCard, CompletionItemState, CompletionSection } from "./components/ArtistCompletionCard"
-import { ArtistMembersManager } from "./components/ArtistMembersManager"
 import { ArtistBiographyManager } from "./components/ArtistBiographyManager"
 import { ArtistGenresManager } from "./components/ArtistGenresManager"
 import { GigAbilityMapsManager } from "./components/GigAbilityMapsManager"
@@ -15,6 +14,9 @@ import { LogoProfileArtwork } from "./components/LogoProfileArtwork"
 import { ArtistPhotosManager } from "./components/ArtistPhotosManager"
 import { ArtistVideosManager } from "./components/ArtistVideosManager"
 import { ArtistTypeSelectorV2, ArtistTypeSelection } from "./components/ArtistTypeSelectorV2"
+import { ArtistCrewManager } from "./components/ArtistCrewManager"
+import { ArtistRoyaltySplitsManager } from "./components/ArtistRoyaltySplitsManager"
+import { ArtistGigAbilityManager } from "./components/ArtistGigAbilityManager"
 import { Badge } from "../components/ui/badge"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet"
 import { Music, Info, Menu } from "lucide-react"
@@ -31,7 +33,9 @@ interface ArtistProfileResponse {
 
 type DashboardSection =
   | 'profile'
-  | 'members'
+  | 'crew'
+  | 'royalty'
+  | 'gigability'
   | 'bio'
   | 'genres'
   | 'maps'
@@ -71,7 +75,7 @@ export default function ArtistDashboard() {
         }
 
         if (!result?.data) {
-          setActiveSection('type')
+          // Don't force redirect to type section - let users navigate freely
           return
         }
 
@@ -95,9 +99,8 @@ export default function ArtistDashboard() {
           setArtistTypeSelection(selection)
           const config = getArtistTypeConfig(selection.artistTypeId)
           setCapabilities(config?.capabilities ?? null)
-        } else {
-          setActiveSection('type')
         }
+        // Don't force redirect to type section - let users navigate freely
       } catch (error) {
         console.error('Error loading artist profile:', error)
       }
@@ -146,8 +149,8 @@ export default function ArtistDashboard() {
 
   const sectionIsEnabled = (section: DashboardSection) => {
     if (!capabilities) {
-      // Allow artist type selection even with no capabilities configured yet
-      return section === 'type'
+      // Allow all sections when no capabilities configured yet
+      return true
     }
 
     switch (section) {
@@ -240,11 +243,33 @@ export default function ArtistDashboard() {
             </div>
           </div>
         )
-      case 'members':
+      case 'crew':
         return (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             <div className="xl:col-span-3">
-              <ArtistMembersManager />
+              <ArtistCrewManager />
+            </div>
+            <div className="xl:col-span-1">
+              <ArtistCompletionCard />
+            </div>
+          </div>
+        )
+      case 'royalty':
+        return (
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <div className="xl:col-span-3">
+              <ArtistRoyaltySplitsManager />
+            </div>
+            <div className="xl:col-span-1">
+              <ArtistCompletionCard />
+            </div>
+          </div>
+        )
+      case 'gigability':
+        return (
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <div className="xl:col-span-3">
+              <ArtistGigAbilityManager />
             </div>
             <div className="xl:col-span-1">
               <ArtistCompletionCard />
@@ -304,7 +329,9 @@ export default function ArtistDashboard() {
     photos: 'Artist Photos',
     videos: 'Artist Videos',
     type: 'Artist Type & Configuration',
-    members: 'Artist Members',
+    crew: 'Artist Crew',
+    royalty: 'Default Royalty Splits',
+    gigability: 'Artist Gig-Ability',
     bio: 'Artist Biography',
     genres: 'Artist Genres',
     maps: 'GigAbility Maps'
@@ -316,16 +343,18 @@ export default function ArtistDashboard() {
     photos: 'Upload and manage your artist photos',
     videos: 'Embed and manage your artist videos',
     type: 'Select your official artist type and sub-types',
-    members: 'Manage your artist members and their details',
-    bio: 'Tell your artist story and key milestones',
-    genres: 'Define your music genres and sub-genres',
-    maps: 'Set your gig locations and pricing areas'
+    crew: 'Manage your crew roles, instruments, and band members',
+    royalty: 'Set default royalty splits for gigs and music releases',
+    gigability: 'Set your base location and stage timing preferences',
+    bio: 'Write and manage your artist biography',
+    genres: 'Select your music genres and sub-genres',
+    maps: 'Set your gig location preferences and availability'
   }
 
   return (
     <ProtectedRoute>
       <Sheet open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
-        <SheetContent side="left" className="w-full max-w-xs p-0 sm:max-w-sm">
+        <SheetContent side="left" className="w-64 p-0 bg-[#2a1b3d]">
           <SheetHeader className="sr-only">
             <SheetTitle>Artist dashboard navigation</SheetTitle>
           </SheetHeader>

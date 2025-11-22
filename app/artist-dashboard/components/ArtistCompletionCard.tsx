@@ -8,7 +8,9 @@ import { useSearchParams } from "next/navigation"
 
 export type CompletionSection =
   | 'profile'
-  | 'members'
+  | 'crew'
+  | 'royalty'
+  | 'gigability'
   | 'bio'
   | 'genres'
   | 'maps'
@@ -48,6 +50,8 @@ interface ArtistProfileData {
   booking_agent_name?: string | null
   members?: string[] | null
   members_count?: number | null
+  minimum_set_length?: number | null
+  maximum_set_length?: number | null
 }
 
 interface ArtistCompletionCardProps {
@@ -68,7 +72,10 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
     { id: 'artist_sub_types', label: 'Artist Sub-Type', required: true, dependsOn: ['artist_type'], section: 'type' },
     { id: 'established_date', label: 'Artist Formed', required: true, section: 'profile' },
     { id: 'genres', label: 'Artist Genre(s)', required: true, section: 'genres' },
-    { id: 'members', label: 'Artist Members', section: 'members' },
+    { id: 'crew', label: 'Artist Crew', section: 'crew' },
+    { id: 'royalty_splits', label: 'Default Royalty Splits', section: 'royalty' },
+    { id: 'gig_ability', label: 'Artist Gig-Ability', section: 'gigability' },
+    { id: 'bio', label: 'Artist Biography', section: 'bio' },
     { id: 'record_label', label: 'Record Label', section: 'profile' },
     { id: 'music_publisher', label: 'Music Publisher', section: 'profile' },
     { id: 'artist_manager', label: 'Artist Manager', section: 'profile' },
@@ -87,7 +94,10 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
       artist_sub_types: Array.isArray(profile?.artist_sub_types) && profile!.artist_sub_types!.length > 0,
       established_date: !!profile?.established_date,
       genres: Array.isArray(profile?.preferred_genre_ids) && profile!.preferred_genre_ids!.length > 0,
-      members: membersCount > 0,
+      crew: membersCount > 0,
+      royalty_splits: false, // TODO: Implement royalty splits completion check
+      gig_ability: !!(profile?.minimum_set_length && profile?.maximum_set_length), // TODO: Update after migration
+      bio: !!profile?.bio && profile?.bio.length > 50,
       record_label: !!profile?.record_label_status && !!profile?.record_label_name,
       music_publisher: !!profile?.music_publisher_status && !!profile?.music_publisher_name,
       artist_manager: !!profile?.artist_manager_status && !!profile?.artist_manager_name,

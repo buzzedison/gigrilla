@@ -181,7 +181,15 @@ type ArtistTypeOption = {
   label: string;
   description: string;
   subTypes?: string[];
+  vocalCategories?: Record<string, string[]>;
   instrumentCategories?: Record<string, string[]>;
+  songwriterOptions?: string[];
+  lyricistOptions?: string[];
+  composerOptions?: string[];
+  genreSelection?: {
+    allowMultiple: boolean;
+    description: string;
+  };
   availabilityOptions?: string[];
 };
 
@@ -266,16 +274,51 @@ const ARTIST_TYPE_OPTIONS: ArtistTypeOption[] = [
   },
   {
     id: "type4",
-    label: "Type 4: Vocal Artist for Hire",
+    label: "Type 4: Vocalist for Hire",
     description:
       "I sing guest and featuring vocals, live backing vocals, and recording session vocals.",
-    subTypes: [
-      "All Vocals",
-      "Lead Vocals",
-      "Backing Vocals",
-      "Session Vocalist",
-      "Voiceover Artist",
-    ],
+    vocalCategories: {
+      "Sound-Based Voice Types": [
+        "Soprano",
+        "Mezzo-Soprano", 
+        "Alto",
+        "Contralto",
+        "Tenor",
+        "Baritone",
+        "Bass",
+        "Countertenor",
+        "Falsetto",
+        "Vocal Fry",
+        "Whistle Register",
+        "Chest Voice",
+        "Head Voice",
+        "Mixed Voice"
+      ],
+      "Genre-Based Vocal Styles": [
+        "Pop Vocals",
+        "Rock Vocals",
+        "R&B/Soul Vocals",
+        "Jazz Vocals",
+        "Blues Vocals",
+        "Country Vocals",
+        "Folk Vocals",
+        "Classical/Opera",
+        "Musical Theatre",
+        "Hip-Hop/Rap Vocals",
+        "EDM/Electronic Vocals",
+        "Gospel Vocals",
+        "Reggae Vocals",
+        "Metal Vocals",
+        "Indie/Alternative Vocals",
+        "World/Ethnic Vocals"
+      ]
+    },
+    availabilityOptions: [
+      "Available to record voiceovers for Media Companies",
+      "Available to audition and join a Live Gig & Original Recording Artist",
+      "Available to audition and join an Original Recording Artist", 
+      "Available to audition and join a Live Gig Artist"
+    ]
   },
   {
     id: "type5",
@@ -362,30 +405,42 @@ const ARTIST_TYPE_OPTIONS: ArtistTypeOption[] = [
     label: "Type 6: Songwriter Artist for Hire",
     description:
       "I write words and musical compositions for songs (lyrics, melodies, harmonies, notes, chords and musical structure) for Artists, Labels, Recorded Audio Visual Media and Live Performances.",
-    subTypes: [
+    songwriterOptions: [
       "Any Genre: I write original songs for Original Recording Artists. [Type 1 & 2]",
-      "Specific Genre(s): I write original songs for Original Recording Artists. [Type 1 & 2]",
+      "Specific Genre(s): I write original songs for Original Recording Artists. [Type 1 & 2]"
     ],
+    genreSelection: {
+      "allowMultiple": true,
+      "description": "Select multiple Genre Family: Main Genre combinations to be searchable by Type 1 and Type 2 Artists and Record Labels"
+    }
   },
   {
     id: "type7",
     label: "Type 7: Lyricist Artist for Hire",
     description:
       "I write words for songs (lyrics) for Artists, Labels, Recorded Audio Visual Media and Live Performances.",
-    subTypes: [
+    lyricistOptions: [
       "Any Genre: I write original lyrics for Original Recording Artists. [Type 1 & 2]",
-      "Specific Genre(s): I write original lyrics for Original Recording Artists. [Type 1 & 2]",
+      "Specific Genre(s): I write original lyrics for Original Recording Artists. [Type 1 & 2]"
     ],
+    genreSelection: {
+      "allowMultiple": true,
+      "description": "Select multiple Genre Family: Main Genre identifiers to be searched by Type 1 and Type 2 Artists and Record Labels"
+    }
   },
   {
     id: "type8",
     label: "Type 8: Composer Artist for Hire",
     description:
       "I write musical compositions (melodies, harmonies, notes, chords and musical structure) for Artists, Labels, Recorded Audio Visual Media and Live Performances.",
-    subTypes: [
+    composerOptions: [
       "Any Genre: I write original compositions for Original Recording Artists. [Type 1 & 2]",
-      "Specific Genre(s): I write original compositions for Original Recording Artists. [Type 1 & 2]",
+      "Specific Genre(s): I write original compositions for Original Recording Artists. [Type 1 & 2]"
     ],
+    genreSelection: {
+      "allowMultiple": true,
+      "description": "Select multiple Genre Family: Main Genre identifiers to be searched by Type 1 and Type 2 Artists and Record Labels"
+    }
   },
 ];
 
@@ -607,9 +662,17 @@ export function SignUpWizard() {
   const [artistSelection, setArtistSelection] = useState({
     typeId: "",
     subType: "",
+    vocalSoundTypes: "",
+    vocalGenreStyles: "",
+    availability: "",
     instrumentCategory: "",
     instrument: "",
-    availability: "",
+    songwriterOption: "",
+    songwriterGenres: "",
+    lyricistOption: "",
+    lyricistGenres: "",
+    composerOption: "",
+    composerGenres: "",
   });
 
   const [artistProfile, setArtistProfile] = useState({
@@ -1770,7 +1833,7 @@ export function SignUpWizard() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 stage_name: artistProfile.stageName,
-                established_date: artistProfile.formedDate,
+                established_date: artistProfile.formedDate ? `${artistProfile.formedDate}-01` : null,
                 performing_members: artistProfile.performingMembers,
                 base_location: artistProfile.baseLocation,
                 base_location_lat: artistProfile.baseLocationLat,
@@ -1803,14 +1866,16 @@ export function SignUpWizard() {
                 booking_agent_contact_name: artistProfile.bookingAgentContactName,
                 booking_agent_email: artistProfile.bookingAgentContactEmail,
                 booking_agent_phone: artistProfile.bookingAgentContactPhone,
-                artist_type_id: artistSelection.typeId,
+                artist_type_id: artistSelection.typeId ? parseInt(artistSelection.typeId.replace('type', '')) : null,
                 artist_sub_types: artistSelection.subType ? [artistSelection.subType] : [],
                 onboarding_completed: true
               })
             });
             
             if (!response.ok) {
-              throw new Error('Failed to save artist profile');
+              const errorData = await response.json().catch(() => ({}));
+              console.error('API Error Response:', errorData);
+              throw new Error(`Failed to save artist profile: ${errorData.error || response.statusText}`);
             }
             
             console.log('✅ Artist profile saved successfully');
@@ -1896,7 +1961,7 @@ export function SignUpWizard() {
     setPhotoUploadError("");
     setVideoFormError("");
     setPasswordErrors([]);
-    setArtistSelection({ typeId: "", subType: "", instrumentCategory: "", instrument: "", availability: "" });
+    setArtistSelection({ typeId: "", subType: "", vocalSoundTypes: "", vocalGenreStyles: "", availability: "", instrumentCategory: "", instrument: "", songwriterOption: "", songwriterGenres: "", lyricistOption: "", lyricistGenres: "", composerOption: "", composerGenres: "" });
     setVenueSelection({ typeId: "", subType: "" });
     setServiceDetails({
       summary: "",
@@ -3628,11 +3693,11 @@ export function SignUpWizard() {
               key={option.id}
               role="button"
               tabIndex={0}
-              onClick={() => setArtistSelection({ typeId: option.id, subType: "", instrumentCategory: "", instrument: "", availability: "" })}
+              onClick={() => setArtistSelection({ typeId: option.id, subType: "", vocalSoundTypes: "", vocalGenreStyles: "", availability: "", instrumentCategory: "", instrument: "", songwriterOption: "", songwriterGenres: "", lyricistOption: "", lyricistGenres: "", composerOption: "", composerGenres: "" })}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  setArtistSelection({ typeId: option.id, subType: "", instrumentCategory: "", instrument: "", availability: "" });
+                  setArtistSelection({ typeId: option.id, subType: "", vocalSoundTypes: "", vocalGenreStyles: "", availability: "", instrumentCategory: "", instrument: "", songwriterOption: "", songwriterGenres: "", lyricistOption: "", lyricistGenres: "", composerOption: "", composerGenres: "" });
                 }
               }}
               className={cn(
@@ -3676,94 +3741,191 @@ export function SignUpWizard() {
                     <div className="space-y-3">
                       <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
                         <span className="text-primary">→</span>
-                        {option.id === 'type4' ? 'Choose your vocal services (select all that apply)' : 
-                         option.id === 'type5' ? 'Choose your instrument category and specific instrument' : 'Choose your specialty'}
+                        {option.id === 'type4' ? 'Choose your voice types and availability (select all that apply)' : 
+                         option.id === 'type5' ? 'Choose your instrument category and specific instrument' : 
+                         option.id === 'type6' ? 'Choose your songwriter scope and genres (select all that apply)' : 
+                         option.id === 'type7' ? 'Choose your lyricist scope and genres (select all that apply)' : 
+                         option.id === 'type8' ? 'Choose your composer scope and genres (select all that apply)' : 'Choose your specialty'}
                         <span className="text-xs font-normal text-foreground/50">(optional)</span>
                       </Label>
                       
-                      {/* Type 4 uses checkboxes for multiple selection */}
+                      {/* Type 4 uses vocal categories and availability selection */}
                       {option.id === 'type4' ? (
-                        <div className="space-y-3">
-                          <div className="grid grid-cols-1 gap-2">
-                            {option.subTypes?.map((sub: string) => {
-                              const subTypeArray = artistSelection.subType ? artistSelection.subType.split(',').map(s => s.trim()) : []
-                              const isSelected = subTypeArray.includes(sub)
-                              const isAllVocals = sub === 'All Vocals'
-                              const individualVocals = ['Lead Vocals', 'Backing Vocals', 'Session Vocalist', 'Voiceover Artist']
-                              const hasAllVocals = subTypeArray.includes('All Vocals')
-                              const hasAllIndividuals = individualVocals.every(v => subTypeArray.includes(v))
-                              
-                              const isDisabled = !isAllVocals && hasAllVocals
-                              
-                              return (
-                                <div
-                                  key={sub}
-                                  className={`text-left p-4 rounded-lg border-2 transition-all cursor-pointer ${
-                                    isSelected
-                                      ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
-                                      : isDisabled
-                                      ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
-                                      : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
-                                  }`}
-                                  onClick={(e) => {
-                                    e.stopPropagation() // Prevent parent Card click
-                                    console.log('Clicked:', sub, 'Current:', artistSelection.subType)
-                                    let newSelection: string[]
-                                    
-                                    if (isAllVocals) {
-                                      // Clicking "All Vocals"
-                                      if (isSelected) {
-                                        newSelection = []
-                                      } else {
-                                        newSelection = ['All Vocals']
-                                      }
-                                    } else {
-                                      // Clicking individual option
-                                      if (isSelected) {
-                                        newSelection = subTypeArray.filter(s => s !== sub && s !== 'All Vocals')
-                                      } else {
-                                        newSelection = [...subTypeArray.filter(s => s !== 'All Vocals'), sub]
-                                        // Auto-select "All Vocals" if all individuals are selected
-                                        if (individualVocals.every(v => newSelection.includes(v))) {
-                                          newSelection = ['All Vocals']
-                                        }
-                                      }
-                                    }
-                                    
-                                    const newSubType = newSelection.length > 0 ? newSelection.join(', ') : ''
-                                    console.log('New selection:', newSubType)
-                                    setArtistSelection((prev) => ({ 
-                                      ...prev, 
-                                      subType: newSubType
-                                    }))
-                                  }}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-semibold text-sm">{sub}</span>
-                                    {isSelected && (
-                                      <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                      </svg>
-                                    )}
+                        <div className="space-y-4">
+                          {/* Sound-Based Voice Types */}
+                          <div className="space-y-3">
+                            <Label className="text-xs font-semibold text-foreground">Sound-Based Voice Types (select at least one)</Label>
+                            <div className="grid grid-cols-1 gap-2">
+                              {option.vocalCategories?.["Sound-Based Voice Types"]?.map((voiceType: string) => {
+                                const soundTypesArray = artistSelection.vocalSoundTypes ? artistSelection.vocalSoundTypes.split(',').map(s => s.trim()) : []
+                                const isSelected = soundTypesArray.includes(voiceType)
+                                
+                                return (
+                                  <div
+                                    key={voiceType}
+                                    className={`text-left p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                                      isSelected
+                                        ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                                        : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
+                                    }`}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const newSoundTypes = isSelected
+                                        ? soundTypesArray.filter((s: string) => s !== voiceType)
+                                        : [...soundTypesArray, voiceType]
+                                      
+                                      setArtistSelection((prev) => ({ 
+                                        ...prev, 
+                                        vocalSoundTypes: newSoundTypes.length > 0 ? newSoundTypes.join(', ') : ''
+                                      }))
+                                    }}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-semibold text-sm">{voiceType}</span>
+                                      {isSelected && (
+                                        <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              )
-                            })}
+                                )
+                              })}
+                            </div>
                           </div>
                           
-                          {/* Always show selected vocals */}
-                          <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300">
-                            <div className="text-xs font-semibold text-purple-900 uppercase tracking-wide mb-2">Selected Vocal Services</div>
-                            {artistSelection.subType && artistSelection.subType.length > 0 ? (
-                              <div className="flex flex-wrap gap-2">
-                                {artistSelection.subType.split(',').map(s => s.trim()).map((service) => (
-                                  <span key={service} className="px-2 py-1 rounded-full bg-purple-600 text-white text-xs font-semibold">
-                                    ✓ {service}
-                                  </span>
-                                ))}
+                          {/* Genre-Based Vocal Styles */}
+                          <div className="space-y-3">
+                            <Label className="text-xs font-semibold text-foreground">Genre-Based Vocal Styles (select at least one)</Label>
+                            <div className="grid grid-cols-1 gap-2">
+                              {option.vocalCategories?.["Genre-Based Vocal Styles"]?.map((vocalStyle: string) => {
+                                const genreStylesArray = artistSelection.vocalGenreStyles ? artistSelection.vocalGenreStyles.split(',').map(s => s.trim()) : []
+                                const isSelected = genreStylesArray.includes(vocalStyle)
+                                
+                                return (
+                                  <div
+                                    key={vocalStyle}
+                                    className={`text-left p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                                      isSelected
+                                        ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                                        : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
+                                    }`}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const newGenreStyles = isSelected
+                                        ? genreStylesArray.filter((s: string) => s !== vocalStyle)
+                                        : [...genreStylesArray, vocalStyle]
+                                      
+                                      setArtistSelection((prev) => ({ 
+                                        ...prev, 
+                                        vocalGenreStyles: newGenreStyles.length > 0 ? newGenreStyles.join(', ') : ''
+                                      }))
+                                    }}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-semibold text-sm">{vocalStyle}</span>
+                                      {isSelected && (
+                                        <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                          
+                          {/* Show selected voice types */}
+                          {(artistSelection.vocalSoundTypes || artistSelection.vocalGenreStyles) && (
+                            <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300">
+                              <div className="text-xs font-semibold text-purple-900 uppercase tracking-wide mb-2">Your Voice Profile</div>
+                              <div className="space-y-2">
+                                {artistSelection.vocalSoundTypes && (
+                                  <div>
+                                    <div className="text-xs font-medium text-purple-800 mb-1">Sound Types:</div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {artistSelection.vocalSoundTypes.split(',').map((s: string) => s.trim()).map((voiceType: string) => (
+                                        <span key={voiceType} className="px-2 py-1 rounded-full bg-purple-600 text-white text-xs font-semibold">
+                                          ✓ {voiceType}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {artistSelection.vocalGenreStyles && (
+                                  <div>
+                                    <div className="text-xs font-medium text-purple-800 mb-1">Genre Styles:</div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {artistSelection.vocalGenreStyles.split(',').map((s: string) => s.trim()).map((vocalStyle: string) => (
+                                        <span key={vocalStyle} className="px-2 py-1 rounded-full bg-purple-600 text-white text-xs font-semibold">
+                                          ✓ {vocalStyle}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                            ) : (
-                              <div className="text-sm text-purple-700 italic">No vocal services selected</div>
+                            </div>
+                          )}
+                          
+                          {/* Availability checkboxes */}
+                          <div className="mt-6 space-y-3">
+                            <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                              <span className="text-primary">→</span>
+                              What type of vocalist work are you available for?
+                              <span className="text-xs font-normal text-foreground/50">(select all that apply)</span>
+                            </Label>
+                            <div className="grid grid-cols-1 gap-2">
+                              {option.availabilityOptions?.map((availabilityOption: string) => {
+                                const availabilityArray = artistSelection.availability ? artistSelection.availability.split(',').map((s: string) => s.trim()) : []
+                                const isSelected = availabilityArray.includes(availabilityOption)
+                                
+                                return (
+                                  <div
+                                    key={availabilityOption}
+                                    className={`text-left p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                                      isSelected
+                                        ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                                        : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
+                                    }`}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const newAvailability = isSelected
+                                        ? availabilityArray.filter((s: string) => s !== availabilityOption)
+                                        : [...availabilityArray, availabilityOption]
+                                      
+                                      setArtistSelection((prev) => ({ 
+                                        ...prev, 
+                                        availability: newAvailability.length > 0 ? newAvailability.join(', ') : ''
+                                      }))
+                                    }}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-semibold text-sm">{availabilityOption}</span>
+                                      {isSelected && (
+                                        <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                            
+                            {/* Show selected availability */}
+                            {artistSelection.availability && (
+                              <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300">
+                                <div className="text-xs font-semibold text-green-900 uppercase tracking-wide mb-2">Your Availability</div>
+                                <div className="flex flex-wrap gap-2">
+                                  {artistSelection.availability.split(',').map((s: string) => s.trim()).map((item: string) => (
+                                    <span key={item} className="px-2 py-1 rounded-full bg-green-600 text-white text-xs font-semibold">
+                                      ✓ {item}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -3891,19 +4053,394 @@ export function SignUpWizard() {
                             )}
                           </div>
                         </div>
+                      ) : option.id === 'type6' ? (
+                        <div className="space-y-4">
+                          {/* Songwriter Options */}
+                          <div className="space-y-3">
+                            <Label className="text-xs font-semibold text-foreground">Songwriter Scope (select one)</Label>
+                            <div className="grid grid-cols-1 gap-2">
+                              {option.songwriterOptions?.map((songwriterOption: string) => {
+                                const isSelected = artistSelection.songwriterOption === songwriterOption
+                                
+                                return (
+                                  <div
+                                    key={songwriterOption}
+                                    className={`text-left p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                                      isSelected
+                                        ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                                        : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
+                                    }`}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setArtistSelection((prev) => ({ 
+                                        ...prev, 
+                                        songwriterOption: songwriterOption
+                                      }))
+                                    }}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-semibold text-sm">{songwriterOption}</span>
+                                      {isSelected && (
+                                        <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                          
+                          {/* Genre Selection - Multiple Genre Family: Main Genre */}
+                          <div className="space-y-3">
+                            <Label className="text-xs font-semibold text-foreground">
+                              Genre Selection for Searchability
+                              <span className="text-xs font-normal text-foreground/50 block mt-1">
+                                {option.genreSelection?.description}
+                              </span>
+                            </Label>
+                            <div className="space-y-4">
+                              {genreFamilies.map((family) => (
+                                <div key={family.id} className="space-y-2">
+                                  <Label className="text-sm font-medium text-foreground/80">
+                                    {family.name}:
+                                  </Label>
+                                  <div className="grid grid-cols-1 gap-2">
+                                    {family.mainGenres?.map((mainGenre) => {
+                                      const genreKey = `${family.name}: ${mainGenre.name}`
+                                      const selectedGenres = artistSelection.songwriterGenres ? artistSelection.songwriterGenres.split(',').map(s => s.trim()) : []
+                                      const isSelected = selectedGenres.includes(genreKey)
+                                      
+                                      return (
+                                        <div
+                                          key={mainGenre.id}
+                                          className={`text-left p-2 rounded-lg border-2 transition-all cursor-pointer ${
+                                            isSelected
+                                              ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                                              : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
+                                          }`}
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            const newSelectedGenres = isSelected
+                                              ? selectedGenres.filter((s: string) => s !== genreKey)
+                                              : [...selectedGenres, genreKey]
+                                            
+                                            setArtistSelection((prev) => ({ 
+                                              ...prev, 
+                                              songwriterGenres: newSelectedGenres.length > 0 ? newSelectedGenres.join(', ') : ''
+                                            }))
+                                          }}
+                                        >
+                                          <div className="flex items-center justify-between">
+                                            <span className="font-medium text-sm">{mainGenre.name}</span>
+                                            {isSelected && (
+                                              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                              </svg>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Show selected songwriter info */}
+                          {(artistSelection.songwriterOption || artistSelection.songwriterGenres) && (
+                            <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300">
+                              <div className="text-xs font-semibold text-purple-900 uppercase tracking-wide mb-2">Your Songwriter Profile</div>
+                              <div className="space-y-2">
+                                {artistSelection.songwriterOption && (
+                                  <div>
+                                    <div className="text-xs font-medium text-purple-800 mb-1">Scope:</div>
+                                    <div className="flex flex-wrap gap-2">
+                                      <span className="px-2 py-1 rounded-full bg-purple-600 text-white text-xs font-semibold">
+                                        ✓ {artistSelection.songwriterOption}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+                                {artistSelection.songwriterGenres && (
+                                  <div>
+                                    <div className="text-xs font-medium text-purple-800 mb-1">Searchable Genres:</div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {artistSelection.songwriterGenres.split(',').map((s: string) => s.trim()).map((genre: string) => (
+                                        <span key={genre} className="px-2 py-1 rounded-full bg-purple-600 text-white text-xs font-semibold">
+                                          ✓ {genre}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : option.id === 'type7' ? (
+                        <div className="space-y-4">
+                          {/* Lyricist Options */}
+                          <div className="space-y-3">
+                            <Label className="text-xs font-semibold text-foreground">Lyricist Scope (select one)</Label>
+                            <div className="grid grid-cols-1 gap-2">
+                              {option.lyricistOptions?.map((lyricistOption: string) => {
+                                const isSelected = artistSelection.lyricistOption === lyricistOption
+                                
+                                return (
+                                  <div
+                                    key={lyricistOption}
+                                    className={`text-left p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                                      isSelected
+                                        ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                                        : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
+                                    }`}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setArtistSelection((prev) => ({ 
+                                        ...prev, 
+                                        lyricistOption: lyricistOption
+                                      }))
+                                    }}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-semibold text-sm">{lyricistOption}</span>
+                                      {isSelected && (
+                                        <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                          
+                          {/* Genre Selection - Multiple Genre Family: Main Genre */}
+                          <div className="space-y-3">
+                            <Label className="text-xs font-semibold text-foreground">
+                              Genre Selection for Searchability
+                              <span className="text-xs font-normal text-foreground/50 block mt-1">
+                                {option.genreSelection?.description}
+                              </span>
+                            </Label>
+                            <div className="space-y-4">
+                              {genreFamilies.map((family) => (
+                                <div key={family.id} className="space-y-2">
+                                  <Label className="text-sm font-medium text-foreground/80">
+                                    {family.name}:
+                                  </Label>
+                                  <div className="grid grid-cols-1 gap-2">
+                                    {family.mainGenres?.map((mainGenre) => {
+                                      const genreKey = `${family.name}: ${mainGenre.name}`
+                                      const selectedGenres = artistSelection.lyricistGenres ? artistSelection.lyricistGenres.split(',').map(s => s.trim()) : []
+                                      const isSelected = selectedGenres.includes(genreKey)
+                                      
+                                      return (
+                                        <div
+                                          key={mainGenre.id}
+                                          className={`text-left p-2 rounded-lg border-2 transition-all cursor-pointer ${
+                                            isSelected
+                                              ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                                              : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
+                                          }`}
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            const newSelectedGenres = isSelected
+                                              ? selectedGenres.filter((s: string) => s !== genreKey)
+                                              : [...selectedGenres, genreKey]
+                                            
+                                            setArtistSelection((prev) => ({ 
+                                              ...prev, 
+                                              lyricistGenres: newSelectedGenres.length > 0 ? newSelectedGenres.join(', ') : ''
+                                            }))
+                                          }}
+                                        >
+                                          <div className="flex items-center justify-between">
+                                            <span className="font-medium text-sm">{mainGenre.name}</span>
+                                            {isSelected && (
+                                              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                              </svg>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Show selected lyricist info */}
+                          {(artistSelection.lyricistOption || artistSelection.lyricistGenres) && (
+                            <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300">
+                              <div className="text-xs font-semibold text-purple-900 uppercase tracking-wide mb-2">Your Lyricist Profile</div>
+                              <div className="space-y-2">
+                                {artistSelection.lyricistOption && (
+                                  <div>
+                                    <div className="text-xs font-medium text-purple-800 mb-1">Scope:</div>
+                                    <div className="flex flex-wrap gap-2">
+                                      <span className="px-2 py-1 rounded-full bg-purple-600 text-white text-xs font-semibold">
+                                        ✓ {artistSelection.lyricistOption}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+                                {artistSelection.lyricistGenres && (
+                                  <div>
+                                    <div className="text-xs font-medium text-purple-800 mb-1">Searchable Genres:</div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {artistSelection.lyricistGenres.split(',').map((s: string) => s.trim()).map((genre: string) => (
+                                        <span key={genre} className="px-2 py-1 rounded-full bg-purple-600 text-white text-xs font-semibold">
+                                          ✓ {genre}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : option.id === 'type8' ? (
+                        <div className="space-y-4">
+                          {/* Composer Options */}
+                          <div className="space-y-3">
+                            <Label className="text-xs font-semibold text-foreground">Composer Scope (select one)</Label>
+                            <div className="grid grid-cols-1 gap-2">
+                              {option.composerOptions?.map((composerOption: string) => {
+                                const isSelected = artistSelection.composerOption === composerOption
+                                
+                                return (
+                                  <div
+                                    key={composerOption}
+                                    className={`text-left p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                                      isSelected
+                                        ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                                        : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
+                                    }`}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setArtistSelection((prev) => ({ 
+                                        ...prev, 
+                                        composerOption: composerOption
+                                      }))
+                                    }}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-semibold text-sm">{composerOption}</span>
+                                      {isSelected && (
+                                        <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                          
+                          {/* Genre Selection - Multiple Genre Family: Main Genre */}
+                          <div className="space-y-3">
+                            <Label className="text-xs font-semibold text-foreground">
+                              Genre Selection for Searchability
+                              <span className="text-xs font-normal text-foreground/50 block mt-1">
+                                {option.genreSelection?.description}
+                              </span>
+                            </Label>
+                            <div className="space-y-4">
+                              {genreFamilies.map((family) => (
+                                <div key={family.id} className="space-y-2">
+                                  <Label className="text-sm font-medium text-foreground/80">
+                                    {family.name}:
+                                  </Label>
+                                  <div className="grid grid-cols-1 gap-2">
+                                    {family.mainGenres?.map((mainGenre) => {
+                                      const genreKey = `${family.name}: ${mainGenre.name}`
+                                      const selectedGenres = artistSelection.composerGenres ? artistSelection.composerGenres.split(',').map(s => s.trim()) : []
+                                      const isSelected = selectedGenres.includes(genreKey)
+                                      
+                                      return (
+                                        <div
+                                          key={mainGenre.id}
+                                          className={`text-left p-2 rounded-lg border-2 transition-all cursor-pointer ${
+                                            isSelected
+                                              ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                                              : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
+                                          }`}
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            const newSelectedGenres = isSelected
+                                              ? selectedGenres.filter((s: string) => s !== genreKey)
+                                              : [...selectedGenres, genreKey]
+                                            
+                                            setArtistSelection((prev) => ({ 
+                                              ...prev, 
+                                              composerGenres: newSelectedGenres.length > 0 ? newSelectedGenres.join(', ') : ''
+                                            }))
+                                          }}
+                                        >
+                                          <div className="flex items-center justify-between">
+                                            <span className="font-medium text-sm">{mainGenre.name}</span>
+                                            {isSelected && (
+                                              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                              </svg>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Show selected composer info */}
+                          {(artistSelection.composerOption || artistSelection.composerGenres) && (
+                            <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300">
+                              <div className="text-xs font-semibold text-purple-900 uppercase tracking-wide mb-2">Your Composer Profile</div>
+                              <div className="space-y-2">
+                                {artistSelection.composerOption && (
+                                  <div>
+                                    <div className="text-xs font-medium text-purple-800 mb-1">Scope:</div>
+                                    <div className="flex flex-wrap gap-2">
+                                      <span className="px-2 py-1 rounded-full bg-purple-600 text-white text-xs font-semibold">
+                                        ✓ {artistSelection.composerOption}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+                                {artistSelection.composerGenres && (
+                                  <div>
+                                    <div className="text-xs font-medium text-purple-800 mb-1">Searchable Genres:</div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {artistSelection.composerGenres.split(',').map((s: string) => s.trim()).map((genre: string) => (
+                                        <span key={genre} className="px-2 py-1 rounded-full bg-purple-600 text-white text-xs font-semibold">
+                                          ✓ {genre}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <>
                           {/* Scroll indicator banner */}
                           {option.subTypes && option.subTypes.length > 8 && (
-                            <div className="rounded-lg bg-purple-100 border-2 border-purple-400 p-3 text-center animate-pulse">
-                              <div className="flex items-center justify-center gap-2 text-purple-900 font-semibold text-xs">
-                                <svg className="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
+                            <div className="rounded-lg bg-purple-100 border-2 border-purple-400 p-3 text-center">
+                              <div className="flex items-center justify-center text-purple-900 font-semibold text-xs">
                                 <span>{option.subTypes.length} Specialties - Dropdown Scrolls!</span>
-                                <svg className="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
                               </div>
                             </div>
                           )}
@@ -4035,14 +4572,25 @@ export function SignUpWizard() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="formedDate" className="font-semibold">Artist Formed</Label>
-                <Input
-                  id="formedDate"
-                  type="month"
-                  value={artistProfile.formedDate}
-                  onChange={(e) => setArtistProfile(prev => ({ ...prev, formedDate: e.target.value }))}
-                  className="font-ui h-11 border-2 focus:border-primary"
-                />
+                <Label htmlFor="formedDate" className="font-semibold flex items-center gap-2">
+                  Artist Formed <span className="text-lg">🗓️</span>
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="formedDate"
+                    type="month"
+                    value={artistProfile.formedDate}
+                    onChange={(e) => setArtistProfile(prev => ({ ...prev, formedDate: e.target.value }))}
+                    className="font-ui h-11 border-2 focus:border-primary pr-12"
+                    placeholder="mm/yyyy"
+                  />
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none text-gray-400">
+                    📅
+                  </div>
+                </div>
+                <p className="text-xs text-foreground/60 italic">
+                  Select the month and year when you started performing together
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="performingMembers" className="font-semibold">Number of Performing Members</Label>
@@ -4964,7 +5512,7 @@ export function SignUpWizard() {
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
                         stage_name: artistProfile.stageName,
-                        established_date: artistProfile.formedDate,
+                        established_date: artistProfile.formedDate ? `${artistProfile.formedDate}-01` : null,
                         performing_members: artistProfile.performingMembers,
                         base_location: artistProfile.baseLocation,
                         base_location_lat: artistProfile.baseLocationLat,
@@ -4997,14 +5545,27 @@ export function SignUpWizard() {
                         booking_agent_contact_name: artistProfile.bookingAgentContactName,
                         booking_agent_email: artistProfile.bookingAgentContactEmail,
                         booking_agent_phone: artistProfile.bookingAgentContactPhone,
-                        artist_type_id: artistSelection.typeId,
+                        artist_type_id: artistSelection.typeId ? parseInt(artistSelection.typeId.replace('type', '')) : null,
                         artist_sub_types: artistSelection.subType ? [artistSelection.subType] : [],
+                        vocal_sound_types: artistSelection.vocalSoundTypes || null,
+                        vocal_genre_styles: artistSelection.vocalGenreStyles || null,
+                        availability: artistSelection.availability || null,
+                        instrument_category: artistSelection.instrumentCategory || null,
+                        instrument: artistSelection.instrument || null,
+                        songwriter_option: artistSelection.songwriterOption || null,
+                        songwriter_genres: artistSelection.songwriterGenres || null,
+                        lyricist_option: artistSelection.lyricistOption || null,
+                        lyricist_genres: artistSelection.lyricistGenres || null,
+                        composer_option: artistSelection.composerOption || null,
+                        composer_genres: artistSelection.composerGenres || null,
                         onboarding_completed: true
                       })
                     });
                     
                     if (!response.ok) {
-                      throw new Error('Failed to save artist profile');
+                      const errorData = await response.json().catch(() => ({}));
+                      console.error('API Error Response:', errorData);
+                      throw new Error(`Failed to save artist profile: ${errorData.error || response.statusText}`);
                     }
                     
                     console.log('✅ Artist profile saved successfully');

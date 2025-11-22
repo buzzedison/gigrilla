@@ -44,7 +44,7 @@ export async function GET() {
 
     const { data: profileData, error: profileError } = await supabase
       .from('user_profiles')
-      .select('id, user_id, profile_type, artist_type_id, artist_sub_types, artist_primary_roles, company_name, job_title, years_experience, hourly_rate, daily_rate, monthly_retainer, availability_status, preferred_genre_ids, location_details, contact_details, social_links, verification_documents, bio, stage_name, established_date, performing_members, base_location, base_location_lat, base_location_lon, hometown_city, hometown_state, hometown_country, gigs_performed, record_label_status, record_label_name, record_label_contact_name, record_label_email, record_label_phone, music_publisher_status, music_publisher_name, music_publisher_contact_name, music_publisher_email, music_publisher_phone, artist_manager_status, artist_manager_name, artist_manager_contact_name, artist_manager_email, artist_manager_phone, booking_agent_status, booking_agent_name, booking_agent_contact_name, booking_agent_email, booking_agent_phone, facebook_url, instagram_url, threads_url, x_url, tiktok_url, youtube_url, snapchat_url, website, onboarding_completed, onboarding_completed_at, created_at, updated_at')
+      .select('id, user_id, profile_type, artist_type_id, artist_sub_types, artist_primary_roles, company_name, job_title, years_experience, hourly_rate, daily_rate, monthly_retainer, availability_status, preferred_genre_ids, location_details, contact_details, social_links, verification_documents, bio, stage_name, established_date, performing_members, base_location, base_location_lat, base_location_lon, hometown_city, hometown_state, hometown_country, gigs_performed, record_label_status, record_label_name, record_label_contact_name, record_label_email, record_label_phone, music_publisher_status, music_publisher_name, music_publisher_contact_name, music_publisher_email, music_publisher_phone, artist_manager_status, artist_manager_name, artist_manager_contact_name, artist_manager_email, artist_manager_phone, booking_agent_status, booking_agent_name, booking_agent_contact_name, booking_agent_email, booking_agent_phone, facebook_url, instagram_url, threads_url, x_url, tiktok_url, youtube_url, snapchat_url, website, onboarding_completed, onboarding_completed_at, created_at, updated_at, minimum_set_length, maximum_set_length, local_gig_fee, local_gig_timescale, wider_gig_fee, wider_gig_timescale, wider_fixed_logistics_fee, wider_negotiated_logistics, local_gig_area, wider_gig_area')
       .eq('user_id', user.id)
       .eq('profile_type', 'artist')
       .maybeSingle()
@@ -175,10 +175,60 @@ export async function POST(request: NextRequest) {
       snapchat_url,
       artist_primary_roles,
       is_published,
-      onboarding_completed
+      onboarding_completed,
+      minimum_set_length,
+      maximum_set_length,
+      local_gig_fee,
+      local_gig_timescale,
+      wider_gig_fee,
+      wider_gig_timescale,
+      wider_fixed_logistics_fee,
+      wider_negotiated_logistics,
+      local_gig_area,
+      wider_gig_area
     } = body
 
     console.log('API: Creating/updating artist profile for user:', user.id)
+
+    // Ensure user record exists in users table
+    const { error: userCheckError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', user.id)
+      .single()
+    
+    if (userCheckError && userCheckError.code === 'PGRST116') {
+      // User doesn't exist in users table, create it
+      console.log('API: Creating user record for:', user.id)
+      const { error: userCreateError } = await supabase
+        .from('users')
+        .insert({
+          id: user.id,
+          email: user.email || '',
+          first_name: user.user_metadata?.first_name || '',
+          last_name: user.user_metadata?.last_name || '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+      
+      if (userCreateError) {
+        console.error('API: Failed to create user record:', userCreateError)
+        return NextResponse.json({
+          error: 'Failed to create user record',
+          details: userCreateError.message,
+          code: userCreateError.code
+        }, { status: 500 })
+      }
+      
+      console.log('API: User record created successfully')
+    } else if (userCheckError) {
+      console.error('API: Error checking user record:', userCheckError)
+      return NextResponse.json({
+        error: 'Database error checking user',
+        details: userCheckError.message,
+        code: userCheckError.code
+      }, { status: 500 })
+    }
 
     const profileData: Record<string, unknown> = {
       user_id: user.id,
@@ -394,6 +444,53 @@ export async function POST(request: NextRequest) {
       profileData.onboarding_completed_at = new Date().toISOString()
     }
 
+    // Gig ability fields (migrations 033 and 034 have been run)
+    if (minimum_set_length !== undefined) {
+      const minLength = typeof minimum_set_length === 'number' ? minimum_set_length : parseInt(minimum_set_length)
+      profileData.minimum_set_length = Number.isFinite(minLength) && minLength >= 15 && minLength <= 180 && minLength % 15 === 0 ? minLength : 30
+    }
+
+    if (maximum_set_length !== undefined) {
+      const maxLength = typeof maximum_set_length === 'number' ? maximum_set_length : parseInt(maximum_set_length)
+      profileData.maximum_set_length = Number.isFinite(maxLength) && maxLength >= 15 && maxLength <= 180 && maxLength % 15 === 0 ? maxLength : 120
+    }
+
+    if (local_gig_fee !== undefined) {
+      const fee = typeof local_gig_fee === 'number' ? local_gig_fee : parseFloat(local_gig_fee)
+      profileData.local_gig_fee = Number.isFinite(fee) ? fee : 0
+    }
+
+    if (local_gig_timescale !== undefined) {
+      const timescale = typeof local_gig_timescale === 'number' ? local_gig_timescale : parseInt(local_gig_timescale)
+      profileData.local_gig_timescale = Number.isFinite(timescale) ? timescale : 30
+    }
+
+    if (wider_gig_fee !== undefined) {
+      const fee = typeof wider_gig_fee === 'number' ? wider_gig_fee : parseFloat(wider_gig_fee)
+      profileData.wider_gig_fee = Number.isFinite(fee) ? fee : 0
+    }
+
+    if (wider_gig_timescale !== undefined) {
+      const timescale = typeof wider_gig_timescale === 'number' ? wider_gig_timescale : parseInt(wider_gig_timescale)
+      profileData.wider_gig_timescale = Number.isFinite(timescale) ? timescale : 30
+    }
+
+    if (wider_fixed_logistics_fee !== undefined) {
+      const fee = typeof wider_fixed_logistics_fee === 'number' ? wider_fixed_logistics_fee : parseFloat(wider_fixed_logistics_fee)
+      profileData.wider_fixed_logistics_fee = Number.isFinite(fee) ? fee : 0
+    }
+
+    if (wider_negotiated_logistics !== undefined) {
+      profileData.wider_negotiated_logistics = Boolean(wider_negotiated_logistics)
+    }
+
+    if (local_gig_area !== undefined) {
+      profileData.local_gig_area = local_gig_area || null
+    }
+
+    if (wider_gig_area !== undefined) {
+      profileData.wider_gig_area = wider_gig_area || null
+    }
 
     console.log('API: Attempting to upsert artist profile with data:', {
       user_id: profileData.user_id,
