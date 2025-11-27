@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useAuth } from "../../../lib/auth-context"
-import { HelpCircle, CheckCircle2, Circle } from "lucide-react"
+import { HelpCircle, CheckCircle2, Circle, PartyPopper } from "lucide-react"
 import { Badge } from "../../components/ui/badge"
-import { useSearchParams } from "next/navigation"
+import { Button } from "../../components/ui/button"
+import { useSearchParams, useRouter } from "next/navigation"
 
 export type CompletionSection =
   | 'profile'
@@ -62,9 +63,12 @@ interface ArtistCompletionCardProps {
 export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }: ArtistCompletionCardProps) {
   const { user } = useAuth()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const [profile, setProfile] = useState<ArtistProfileData | null>(null)
   const [loading, setLoading] = useState(true)
   const [recentlyCompleted, setRecentlyCompleted] = useState<string | null>(null)
+  const [onboardingCompleted, setOnboardingCompleted] = useState(false)
+  const [isMarkingComplete, setIsMarkingComplete] = useState(false)
 
   const completionDefinitions = useMemo<CompletionItemDefinition[]>(() => ([
     { id: 'stage_name', label: 'Artist Name', required: true, section: 'profile' },
@@ -124,6 +128,9 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
   const completedCount = useMemo(() => evaluatedItems.filter(item => item.completed).length, [evaluatedItems])
   const totalCount = evaluatedItems.length
   const percentage = totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100)
+  const requiredItems = useMemo(() => evaluatedItems.filter(item => item.required), [evaluatedItems])
+  const requiredCompletedCount = useMemo(() => requiredItems.filter(item => item.completed).length, [requiredItems])
+  const allRequiredComplete = requiredCompletedCount === requiredItems.length && requiredItems.length > 0
 
   useEffect(() => {
     const recent = searchParams.get('completed')
@@ -140,7 +147,7 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
         const result = await response.json()
 
         if (result.data) {
-          const rawProfile = result.data as ArtistProfileData & { members?: string[] | null }
+          const rawProfile = result.data as ArtistProfileData & { members?: string[] | null; onboarding_completed?: boolean }
           const membersArray = Array.isArray(rawProfile.members) ? rawProfile.members : null
           const membersCount = membersArray?.length ?? rawProfile.members_count ?? null
 
@@ -149,8 +156,10 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
             members: membersArray,
             members_count: membersCount
           })
+          setOnboardingCompleted(rawProfile.onboarding_completed ?? false)
         } else {
           setProfile(null)
+          setOnboardingCompleted(false)
         }
       } catch (error) {
         console.error('Error loading completion status:', error)
@@ -167,6 +176,32 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
     const item = evaluatedItems.find(i => i.id === recentlyCompleted)
     return item?.label ?? null
   }, [recentlyCompleted, evaluatedItems])
+
+  const handleCompleteOnboarding = async () => {
+    if (!user || onboardingCompleted || !allRequiredComplete) return
+
+    setIsMarkingComplete(true)
+    try {
+      const response = await fetch('/api/artist-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          onboarding_completed: true
+        })
+      })
+
+      if (response.ok) {
+        setOnboardingCompleted(true)
+        router.refresh()
+      } else {
+        console.error('Failed to mark onboarding as complete')
+      }
+    } catch (error) {
+      console.error('Error marking onboarding as complete:', error)
+    } finally {
+      setIsMarkingComplete(false)
+    }
+  }
 
   return (
     <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-xl shadow-sm">
@@ -232,9 +267,29 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
                     style={{ width: `${percentage}%` }}
                   ></div>
                 </div>
-                <p className="text-sm text-gray-600 leading-relaxed">
-                  Complete all required fields to publish your profile
-                </p>
+                {onboardingCompleted ? (
+                  <div className="flex items-center justify-center gap-2 text-sm text-green-600 font-medium">
+                    <PartyPopper className="w-4 h-4" />
+                    <span>Onboarding Complete!</span>
+                  </div>
+                ) : allRequiredComplete ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-green-600 font-medium">
+                      All required fields complete!
+                    </p>
+                    <Button
+                      onClick={handleCompleteOnboarding}
+                      disabled={isMarkingComplete}
+                      className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+                    >
+                      {isMarkingComplete ? 'Completing...' : 'Complete Onboarding'}
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    Complete all required fields to finish onboarding
+                  </p>
+                )}
               </>
             )}
           </div>

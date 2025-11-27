@@ -234,8 +234,10 @@ export async function POST(request: NextRequest) {
     if (phone) metadataUpdates.phone = phone
     
     // Update onboarding_completed in user metadata when it's set to true
+    // Also clear the onboarding_member_type flag so user doesn't get redirected to onboarding on next login
     if (onboardingCompleted === true) {
       metadataUpdates.onboarding_completed = true
+      metadataUpdates.onboarding_member_type = null
     }
 
     if (Object.keys(metadataUpdates).length > 0) {

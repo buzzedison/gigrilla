@@ -4,6 +4,7 @@ export interface ArtistTypeOption {
   id: string
   label: string
   description?: string
+  group?: string
 }
 
 export interface ArtistTypeGroup {
@@ -75,81 +76,105 @@ const ARTIST_TYPE_THREE_SUB_TYPES: ArtistTypeOption[] = [
 ]
 
 const VOCAL_SOUND_DESCRIPTORS: ArtistTypeOption[] = [
-  { id: 'ballad-voice', label: 'Ballad Voice' },
-  { id: 'breathy-voice', label: 'Breathy Voice' },
-  { id: 'bright-voice', label: 'Bright Voice' },
-  { id: 'classical-baritone', label: 'Classical Baritone Voice' },
-  { id: 'classical-bass', label: 'Classical Bass Voice' },
-  { id: 'classical-contralto', label: 'Classical Contralto Voice' },
-  { id: 'classical-countertenor', label: 'Classical Countertenor Voice' },
-  { id: 'classical-mezzo', label: 'Classical Mezzo-Soprano Voice' },
-  { id: 'classical-soprano', label: 'Classical Soprano Voice' },
-  { id: 'classical-tenor', label: 'Classical Tenor Voice' },
-  { id: 'coloratura', label: 'Coloratura Voice' },
-  { id: 'deep-bassy', label: 'Deep Bassy Voice' },
-  { id: 'dramatic', label: 'Dramatic Voice' },
-  { id: 'edgy', label: 'Edgy Voice' },
-  { id: 'emotional', label: 'Emotional Voice' },
-  { id: 'ethereal', label: 'Ethereal Voice' },
-  { id: 'gritty', label: 'Gritty Voice' },
-  { id: 'haunting', label: 'Haunting Voice' },
-  { id: 'high-pitched', label: 'High Pitched Voice' },
-  { id: 'husky', label: 'Husky Voice' },
-  { id: 'lyric', label: 'Lyric Voice' },
-  { id: 'mellow', label: 'Mellow Voice' },
-  { id: 'nasal', label: 'Nasal Voice' },
-  { id: 'powerful', label: 'Powerful Voice' },
-  { id: 'raspy', label: 'Raspy Voice' },
-  { id: 'resonant', label: 'Resonant Voice' },
-  { id: 'robust', label: 'Robust Voice' },
-  { id: 'silky', label: 'Silky Voice' },
-  { id: 'smoky', label: 'Smoky Voice' },
-  { id: 'soft', label: 'Soft Voice' },
-  { id: 'soulful', label: 'Soulful Voice' },
-  { id: 'velvety', label: 'Velvety Voice' },
-  { id: 'vibrato', label: 'Vibrato Voice' },
-  { id: 'warm', label: 'Warm Voice' },
-  { id: 'whimsical', label: 'Whimsical Voice' }
+  // Classical Voice Types
+  { id: 'classical-soprano', label: 'Classical Soprano', group: 'Classical Voice Types' },
+  { id: 'classical-mezzo', label: 'Classical Mezzo-Soprano', group: 'Classical Voice Types' },
+  { id: 'classical-contralto', label: 'Classical Contralto', group: 'Classical Voice Types' },
+  { id: 'classical-countertenor', label: 'Classical Countertenor', group: 'Classical Voice Types' },
+  { id: 'classical-tenor', label: 'Classical Tenor', group: 'Classical Voice Types' },
+  { id: 'classical-baritone', label: 'Classical Baritone', group: 'Classical Voice Types' },
+  { id: 'classical-bass', label: 'Classical Bass', group: 'Classical Voice Types' },
+  { id: 'coloratura', label: 'Coloratura', group: 'Classical Voice Types' },
+  { id: 'lyric', label: 'Lyric', group: 'Classical Voice Types' },
+
+  // Tonal Quality
+  { id: 'deep-bassy', label: 'Deep Bassy', group: 'Tonal Quality' },
+  { id: 'high-pitched', label: 'High Pitched', group: 'Tonal Quality' },
+  { id: 'bright-voice', label: 'Bright', group: 'Tonal Quality' },
+  { id: 'warm', label: 'Warm', group: 'Tonal Quality' },
+  { id: 'nasal', label: 'Nasal', group: 'Tonal Quality' },
+  { id: 'resonant', label: 'Resonant', group: 'Tonal Quality' },
+
+  // Texture & Smoothness
+  { id: 'silky', label: 'Silky', group: 'Texture & Smoothness' },
+  { id: 'velvety', label: 'Velvety', group: 'Texture & Smoothness' },
+  { id: 'breathy-voice', label: 'Breathy', group: 'Texture & Smoothness' },
+  { id: 'soft', label: 'Soft', group: 'Texture & Smoothness' },
+  { id: 'mellow', label: 'Mellow', group: 'Texture & Smoothness' },
+  { id: 'smoky', label: 'Smoky', group: 'Texture & Smoothness' },
+
+  // Intensity & Power
+  { id: 'powerful', label: 'Powerful', group: 'Intensity & Power' },
+  { id: 'robust', label: 'Robust', group: 'Intensity & Power' },
+  { id: 'dramatic', label: 'Dramatic', group: 'Intensity & Power' },
+  { id: 'gritty', label: 'Gritty', group: 'Intensity & Power' },
+  { id: 'raspy', label: 'Raspy', group: 'Intensity & Power' },
+  { id: 'husky', label: 'Husky', group: 'Intensity & Power' },
+  { id: 'edgy', label: 'Edgy', group: 'Intensity & Power' },
+
+  // Character & Emotion
+  { id: 'soulful', label: 'Soulful', group: 'Character & Emotion' },
+  { id: 'emotional', label: 'Emotional', group: 'Character & Emotion' },
+  { id: 'ethereal', label: 'Ethereal', group: 'Character & Emotion' },
+  { id: 'haunting', label: 'Haunting', group: 'Character & Emotion' },
+  { id: 'whimsical', label: 'Whimsical', group: 'Character & Emotion' },
+  { id: 'ballad-voice', label: 'Ballad', group: 'Character & Emotion' },
+
+  // Technique
+  { id: 'vibrato', label: 'Vibrato', group: 'Technique' }
 ]
 
 const VOCAL_GENRE_DESCRIPTORS: ArtistTypeOption[] = [
-  { id: 'a-cappella', label: 'A Cappella Voice' },
-  { id: 'alternative-voice', label: 'Alternative Voice' },
-  { id: 'arabic-voice', label: 'Arabic Voice' },
-  { id: 'blues-voice', label: 'Blues Voice' },
-  { id: 'bhangra-voice', label: 'Bhangra Voice' },
-  { id: 'bossa-nova-voice', label: 'Bossa Nova Voice' },
-  { id: 'choral-voice', label: 'Choral Voice' },
-  { id: 'classical-crossover', label: 'Classical Crossover Voice' },
-  { id: 'country-voice', label: 'Country Voice' },
-  { id: 'electronic-voice', label: 'Electronic Voice' },
-  { id: 'enka-voice', label: 'Enka Voice' },
-  { id: 'fado-voice', label: 'Fado Voice' },
-  { id: 'flamenco-voice', label: 'Flamenco Voice' },
-  { id: 'folk-voice', label: 'Folk Voice' },
-  { id: 'gospel-voice', label: 'Gospel Voice' },
-  { id: 'gregorian-voice', label: 'Gregorian Chant Voice' },
-  { id: 'hip-hop-voice', label: 'Hip-Hop Voice' },
-  { id: 'hindustani-classical-voice', label: 'Hindustani Classical Voice' },
-  { id: 'indie-voice', label: 'Indie Voice' },
-  { id: 'jazz-voice', label: 'Jazz Voice' },
-  { id: 'k-pop-voice', label: 'K-Pop Voice' },
-  { id: 'kabuki-voice', label: 'Kabuki Voice' },
-  { id: 'latin-voice', label: 'Latin Voice' },
-  { id: 'metal-voice', label: 'Metal Voice' },
-  { id: 'musical-theatre-voice', label: 'Musical Theatre Voice' },
-  { id: 'opera-voice', label: 'Opera Voice' },
-  { id: 'pop-voice', label: 'Pop Voice' },
-  { id: 'punk-voice', label: 'Punk Voice' },
-  { id: 'qawwali-voice', label: 'Qawwali Voice' },
-  { id: 'rnb-voice', label: 'R&B Voice' },
-  { id: 'reggae-voice', label: 'Reggae Voice' },
-  { id: 'rock-voice', label: 'Rock Voice' },
-  { id: 'samba-voice', label: 'Samba Voice' },
-  { id: 'soul-voice', label: 'Soul Voice' },
-  { id: 'taarab-voice', label: 'Taarab Voice' },
-  { id: 'throat-singing', label: 'Throat Singing Voice' },
-  { id: 'yodel-voice', label: 'Yodel Voice' }
+  // Classical & Theatrical
+  { id: 'opera-voice', label: 'Opera', group: 'Classical & Theatrical' },
+  { id: 'choral-voice', label: 'Choral', group: 'Classical & Theatrical' },
+  { id: 'gregorian-voice', label: 'Gregorian Chant', group: 'Classical & Theatrical' },
+  { id: 'classical-crossover', label: 'Classical Crossover', group: 'Classical & Theatrical' },
+  { id: 'musical-theatre-voice', label: 'Musical Theatre', group: 'Classical & Theatrical' },
+  { id: 'a-cappella', label: 'A Cappella', group: 'Classical & Theatrical' },
+
+  // Contemporary Pop & Rock
+  { id: 'pop-voice', label: 'Pop', group: 'Contemporary Pop & Rock' },
+  { id: 'rock-voice', label: 'Rock', group: 'Contemporary Pop & Rock' },
+  { id: 'indie-voice', label: 'Indie', group: 'Contemporary Pop & Rock' },
+  { id: 'alternative-voice', label: 'Alternative', group: 'Contemporary Pop & Rock' },
+  { id: 'punk-voice', label: 'Punk', group: 'Contemporary Pop & Rock' },
+  { id: 'metal-voice', label: 'Metal', group: 'Contemporary Pop & Rock' },
+  { id: 'k-pop-voice', label: 'K-Pop', group: 'Contemporary Pop & Rock' },
+  { id: 'electronic-voice', label: 'Electronic', group: 'Contemporary Pop & Rock' },
+
+  // Urban & Soul
+  { id: 'hip-hop-voice', label: 'Hip-Hop', group: 'Urban & Soul' },
+  { id: 'rnb-voice', label: 'R&B', group: 'Urban & Soul' },
+  { id: 'soul-voice', label: 'Soul', group: 'Urban & Soul' },
+  { id: 'gospel-voice', label: 'Gospel', group: 'Urban & Soul' },
+  { id: 'blues-voice', label: 'Blues', group: 'Urban & Soul' },
+
+  // Jazz & Latin
+  { id: 'jazz-voice', label: 'Jazz', group: 'Jazz & Latin' },
+  { id: 'latin-voice', label: 'Latin', group: 'Jazz & Latin' },
+  { id: 'bossa-nova-voice', label: 'Bossa Nova', group: 'Jazz & Latin' },
+  { id: 'samba-voice', label: 'Samba', group: 'Jazz & Latin' },
+
+  // World & Traditional
+  { id: 'reggae-voice', label: 'Reggae', group: 'World & Traditional' },
+  { id: 'country-voice', label: 'Country', group: 'World & Traditional' },
+  { id: 'folk-voice', label: 'Folk', group: 'World & Traditional' },
+  { id: 'flamenco-voice', label: 'Flamenco', group: 'World & Traditional' },
+  { id: 'fado-voice', label: 'Fado', group: 'World & Traditional' },
+
+  // Asian & Middle Eastern
+  { id: 'hindustani-classical-voice', label: 'Hindustani Classical', group: 'Asian & Middle Eastern' },
+  { id: 'qawwali-voice', label: 'Qawwali', group: 'Asian & Middle Eastern' },
+  { id: 'arabic-voice', label: 'Arabic', group: 'Asian & Middle Eastern' },
+  { id: 'bhangra-voice', label: 'Bhangra', group: 'Asian & Middle Eastern' },
+  { id: 'kabuki-voice', label: 'Kabuki', group: 'Asian & Middle Eastern' },
+  { id: 'enka-voice', label: 'Enka', group: 'Asian & Middle Eastern' },
+
+  // African & Specialized
+  { id: 'taarab-voice', label: 'Taarab', group: 'African & Specialized' },
+  { id: 'throat-singing', label: 'Throat Singing', group: 'African & Specialized' },
+  { id: 'yodel-voice', label: 'Yodel', group: 'African & Specialized' }
 ]
 
 const SONGWRITER_OPTIONS: ArtistTypeOption[] = [

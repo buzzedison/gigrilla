@@ -6,7 +6,7 @@ import { useAuth } from "../../lib/auth-context";
 import Image from "next/image";
 
 interface LoginPageProps {
-  onNavigate: (page: "login" | "signup" | "genres" | "dashboard" | "fan-dashboard") => void;
+  onNavigate: (page: "login" | "signup" | "genres" | "dashboard" | "fan-dashboard" | "artist-dashboard") => void;
 }
 
 export function LoginPage({ onNavigate }: LoginPageProps) {
@@ -18,49 +18,76 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [postLoginRedirecting, setPostLoginRedirecting] = useState(false);
+  const [hasAttemptedLogin, setHasAttemptedLogin] = useState(false);
 
   // Navigate to appropriate page after login
   useEffect(() => {
-    if (!user || !user.id) return;
+    // Only redirect if user exists AND we've actually attempted a login
+    // This prevents redirects when landing on the page after logout
+    if (!user || !user.id || !hasAttemptedLogin) return;
+
+    let cancelled = false;
+    setPostLoginRedirecting(true);
 
     const checkOnboardingStatus = async () => {
       const onboardingMemberType = user.user_metadata?.onboarding_member_type;
 
-      // Quick check - if user has onboarding_member_type, they likely need to complete onboarding
-      if (onboardingMemberType) {
-        console.log("Login component: User needs to complete onboarding, redirecting to signup...");
-        window.location.href = `/signup?onboarding=${onboardingMemberType}`;
-        return;
+      // Check artist profile first
+      try {
+        const artistResponse = await fetch('/api/artist-profile');
+        if (artistResponse.ok) {
+          const artistResult = await artistResponse.json();
+          if (artistResult.data?.onboarding_completed) {
+            console.log("Login component: Artist onboarding complete, sending to artist dashboard...");
+            onNavigate("artist-dashboard");
+            return;
+          } else if (onboardingMemberType === 'artist') {
+            // Artist profile exists but onboarding not complete
+            console.log("Login component: Artist needs to complete onboarding, redirecting to signup...");
+            window.location.href = `/signup?onboarding=artist`;
+            return;
+          }
+        }
+      } catch (error) {
+        console.error("Login component: Error checking artist onboarding status", error);
       }
 
+      // Check fan profile
       try {
-        // Only fetch profile if we need to check onboarding status
         const response = await fetch('/api/fan-profile');
         const result = await response.json();
 
         const dbOnboardingCompleted = result.data?.onboarding_completed;
 
-        console.log("Login component: Onboarding check", {
+        console.log("Login component: Fan onboarding check", {
           dbOnboardingCompleted,
           hasProfile: !!result.data
         });
 
-        // If user has completed onboarding in database, go to dashboard
-        if (dbOnboardingCompleted === true) {
-          console.log("Login component: User completed onboarding, navigating to dashboard...");
-          onNavigate("fan-dashboard");
-        } else {
-          console.log("Login component: User found, navigating to dashboard...");
-          onNavigate("fan-dashboard");
+        // If fan onboarding is incomplete and they have the onboarding flag, redirect to onboarding
+        if (!dbOnboardingCompleted && onboardingMemberType === 'fan') {
+          console.log("Login component: Fan needs to complete onboarding, redirecting to signup...");
+          window.location.href = `/signup?onboarding=fan`;
+          return;
         }
-      } catch (error) {
-        console.error("Login component: Error checking onboarding status", error);
+
         onNavigate("fan-dashboard");
+      } catch (error) {
+        console.error("Login component: Error checking fan onboarding status", error);
+        onNavigate("fan-dashboard");
+      } finally {
+        if (!cancelled) {
+          setPostLoginRedirecting(false);
+        }
       }
     };
 
-    // Use setTimeout to avoid blocking the UI
-    setTimeout(checkOnboardingStatus, 0);
+    checkOnboardingStatus();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user, onNavigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -80,8 +107,10 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
     if (error) {
       console.error("Login error:", error);
       setError(error);
+      setHasAttemptedLogin(false);
     } else {
       console.log("Login successful");
+      setHasAttemptedLogin(true);
     }
     setLoading(false);
   };
@@ -94,7 +123,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
     }
   };
 
-  if (authLoading) {
+  if (authLoading || postLoginRedirecting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50">
         <div className="text-center">

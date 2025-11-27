@@ -155,6 +155,17 @@ export function ArtistTypeSelectorV2({ value, onChange }: ArtistTypeSelectorProp
                           const selectedOptions = selections[group.id] ?? []
                           const isSingleSelect = group.maxSelect === 1 || group.minSelect === 1
 
+                          // Check if this group has grouped options
+                          const hasGroupedOptions = group.options.some(opt => opt.group)
+                          const groupedOptions = hasGroupedOptions
+                            ? group.options.reduce((acc, opt) => {
+                                const groupKey = opt.group || 'Other'
+                                if (!acc[groupKey]) acc[groupKey] = []
+                                acc[groupKey].push(opt)
+                                return acc
+                              }, {} as Record<string, typeof group.options>)
+                            : null
+
                           return (
                             <div key={group.id} className="space-y-3">
                               <div>
@@ -174,7 +185,7 @@ export function ArtistTypeSelectorV2({ value, onChange }: ArtistTypeSelectorProp
 
                               <div className="relative">
                                 {/* Scroll hint banner - top */}
-                                {group.options.length > 6 && (
+                                {group.options.length > 6 && !hasGroupedOptions && (
                                   <div className="mb-3 rounded-lg bg-purple-100 border-2 border-purple-400 p-3 text-center">
                                     <div className="flex items-center justify-center gap-2 text-purple-900 font-semibold text-sm">
                                       <svg className="w-5 h-5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -187,16 +198,70 @@ export function ArtistTypeSelectorV2({ value, onChange }: ArtistTypeSelectorProp
                                     </div>
                                   </div>
                                 )}
-                                
-                                {/* Scroll indicator - top shadow */}
-                                <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-white via-white/80 to-transparent pointer-events-none z-10 opacity-0 transition-opacity" 
-                                     style={{ opacity: group.options.length > 6 ? 1 : 0 }} />
-                                
-                                {/* Scrollable container */}
-                                <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${
-                                  group.options.length > 6 ? 'max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-purple-300 scrollbar-track-gray-100 border-2 border-purple-200 rounded-lg p-3' : ''
-                                }`}>
-                                  {group.options.map((option) => {
+
+                                {/* Render grouped options */}
+                                {hasGroupedOptions && groupedOptions ? (
+                                  <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-purple-300 scrollbar-track-gray-100">
+                                    {Object.entries(groupedOptions).map(([groupName, groupOpts]) => (
+                                      <div key={groupName} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                                        <h5 className="text-sm font-semibold text-purple-700 mb-3 flex items-center gap-2">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-purple-600"></span>
+                                          {groupName}
+                                        </h5>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                          {groupOpts.map((option) => {
+                                            const isSelected = selectedOptions.includes(option.id)
+                                            const disabled = Boolean(!isSelected && group.maxSelect && selectedOptions.length >= group.maxSelect)
+
+                                            const handleClick = () => {
+                                              if (isSingleSelect) {
+                                                updateSelections(config.id, group.id, [option.id])
+                                                return
+                                              }
+                                              if (disabled) return
+
+                                              const nextValues = isSelected
+                                                ? selectedOptions.filter((value) => value !== option.id)
+                                                : [...selectedOptions, option.id]
+                                              updateSelections(config.id, group.id, nextValues)
+                                            }
+
+                                            return (
+                                              <button
+                                                key={option.id}
+                                                type="button"
+                                                onClick={handleClick}
+                                                disabled={disabled}
+                                                className={`text-left rounded-md border px-3 py-2 transition-all text-sm ${
+                                                  isSelected
+                                                    ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md font-medium'
+                                                    : `border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50 ${
+                                                        disabled ? 'opacity-50 cursor-not-allowed' : ''
+                                                      }`
+                                                }`}
+                                              >
+                                                <div className="flex items-center justify-between gap-2">
+                                                  <span>{option.label}</span>
+                                                  {isSelected && <span className="text-xs">✓</span>}
+                                                </div>
+                                              </button>
+                                            )
+                                          })}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <>
+                                    {/* Scroll indicator - top shadow */}
+                                    <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-white via-white/80 to-transparent pointer-events-none z-10 opacity-0 transition-opacity"
+                                         style={{ opacity: group.options.length > 6 ? 1 : 0 }} />
+
+                                    {/* Scrollable container */}
+                                    <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${
+                                      group.options.length > 6 ? 'max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-purple-300 scrollbar-track-gray-100 border-2 border-purple-200 rounded-lg p-3' : ''
+                                    }`}>
+                                      {group.options.map((option) => {
                                     const isSelected = selectedOptions.includes(option.id)
                                     
                                     // Special logic for Type 4 "All Vocals" option
@@ -292,11 +357,11 @@ export function ArtistTypeSelectorV2({ value, onChange }: ArtistTypeSelectorProp
                                     )
                                   })}
                                 </div>
-                                
+
                                 {/* Scroll indicator - bottom shadow */}
-                                <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none z-10 opacity-0 transition-opacity" 
+                                <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none z-10 opacity-0 transition-opacity"
                                      style={{ opacity: group.options.length > 6 ? 1 : 0 }} />
-                                
+
                                 {/* Scroll hint banner - bottom */}
                                 {group.options.length > 6 && (
                                   <div className="mt-3 rounded-lg bg-orange-100 border-2 border-orange-400 p-3 text-center">
@@ -310,6 +375,8 @@ export function ArtistTypeSelectorV2({ value, onChange }: ArtistTypeSelectorProp
                                       </svg>
                                     </div>
                                   </div>
+                                )}
+                              </>
                                 )}
                               </div>
                             </div>

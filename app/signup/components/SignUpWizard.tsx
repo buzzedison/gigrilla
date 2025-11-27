@@ -622,6 +622,15 @@ export function SignUpWizard() {
   const [hasCheckedEmailVerification, setHasCheckedEmailVerification] = useState(false);
   const [hasResumedOnboarding, setHasResumedOnboarding] = useState(false);
   const [subscriptionConfirmed, setSubscriptionConfirmed] = useState(false);
+  const [artistRedirectLoading, setArtistRedirectLoading] = useState(onboardingParam === 'artist');
+  const [openSoundGroup, setOpenSoundGroup] = useState<string | null>(null);
+  const [openGenreGroup, setOpenGenreGroup] = useState<string | null>(null);
+  const [openSongwriterGenreFamily, setOpenSongwriterGenreFamily] = useState<string | null>(null);
+  const [openLyricistGenreFamily, setOpenLyricistGenreFamily] = useState<string | null>(null);
+  const [openComposerGenreFamily, setOpenComposerGenreFamily] = useState<string | null>(null);
+  const [showSongwriterGenres, setShowSongwriterGenres] = useState(false);
+  const [showLyricistGenres, setShowLyricistGenres] = useState(false);
+  const [showComposerGenres, setShowComposerGenres] = useState(false);
 
   const [fanDetails, setFanDetails] = useState({
     firstName: "",
@@ -784,6 +793,54 @@ export function SignUpWizard() {
       checkOnboardingStatus();
     }
   }, [authLoading, user, onboardingParam, router]);
+
+  // Skip artist onboarding if artist profile already completed
+  useEffect(() => {
+    if (onboardingParam !== 'artist') {
+      setArtistRedirectLoading(false);
+      return;
+    }
+
+    if (!user) {
+      setArtistRedirectLoading(false);
+      return;
+    }
+
+    if (authLoading) return;
+
+    let cancelled = false;
+
+    const ensureArtistNotReOnboarded = async () => {
+      try {
+        const response = await fetch('/api/artist-profile');
+        if (!response.ok) {
+          if (!cancelled) setArtistRedirectLoading(false);
+          return;
+        }
+
+        const result = await response.json();
+        const artistOnboardingCompleted = result.data?.onboarding_completed;
+
+        if (artistOnboardingCompleted) {
+          console.log('SignUpWizard: Artist onboarding already complete, redirecting to artist dashboard');
+          router.replace('/artist-dashboard');
+        } else if (!cancelled) {
+          setArtistRedirectLoading(false);
+        }
+      } catch (error) {
+        console.error('SignUpWizard: Failed to verify artist onboarding status', error);
+        if (!cancelled) {
+          setArtistRedirectLoading(false);
+        }
+      }
+    };
+
+    ensureArtistNotReOnboarded();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, onboardingParam, router, user]);
 
   
   // Handle email verification callback and check session when returning
@@ -1867,8 +1924,7 @@ export function SignUpWizard() {
                 booking_agent_email: artistProfile.bookingAgentContactEmail,
                 booking_agent_phone: artistProfile.bookingAgentContactPhone,
                 artist_type_id: artistSelection.typeId ? parseInt(artistSelection.typeId.replace('type', '')) : null,
-                artist_sub_types: artistSelection.subType ? [artistSelection.subType] : [],
-                onboarding_completed: true
+                artist_sub_types: artistSelection.subType ? [artistSelection.subType] : []
               })
             });
             
@@ -3752,87 +3808,190 @@ export function SignUpWizard() {
                       {/* Type 4 uses vocal categories and availability selection */}
                       {option.id === 'type4' ? (
                         <div className="space-y-4">
-                          {/* Sound-Based Voice Types */}
+                          {/* Sound-Based Voice Descriptors - Dropdown Groups */}
                           <div className="space-y-3">
-                            <Label className="text-xs font-semibold text-foreground">Sound-Based Voice Types (select at least one)</Label>
-                            <div className="grid grid-cols-1 gap-2">
-                              {option.vocalCategories?.["Sound-Based Voice Types"]?.map((voiceType: string) => {
+                            <Label className="text-xs font-semibold text-foreground">Sound-Based Voice Descriptors (click categories to expand)</Label>
+                            <div className="space-y-2">
+                              {(() => {
                                 const soundTypesArray = artistSelection.vocalSoundTypes ? artistSelection.vocalSoundTypes.split(',').map(s => s.trim()) : []
-                                const isSelected = soundTypesArray.includes(voiceType)
-                                
-                                return (
-                                  <div
-                                    key={voiceType}
-                                    className={`text-left p-3 rounded-lg border-2 transition-all cursor-pointer ${
-                                      isSelected
-                                        ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
-                                        : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
-                                    }`}
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      const newSoundTypes = isSelected
-                                        ? soundTypesArray.filter((s: string) => s !== voiceType)
-                                        : [...soundTypesArray, voiceType]
-                                      
-                                      setArtistSelection((prev) => ({ 
-                                        ...prev, 
-                                        vocalSoundTypes: newSoundTypes.length > 0 ? newSoundTypes.join(', ') : ''
-                                      }))
-                                    }}
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-semibold text-sm">{voiceType}</span>
-                                      {isSelected && (
-                                        <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+
+                                // Group the vocal sound descriptors
+                                const groupedSoundTypes: Record<string, string[]> = {
+                                  "Classical Voice Types": ["Classical Soprano", "Classical Mezzo-Soprano", "Classical Contralto", "Classical Countertenor", "Classical Tenor", "Classical Baritone", "Classical Bass", "Coloratura", "Lyric"],
+                                  "Tonal Quality": ["Deep Bassy", "High Pitched", "Bright", "Warm", "Nasal", "Resonant"],
+                                  "Texture & Smoothness": ["Silky", "Velvety", "Breathy", "Soft", "Mellow", "Smoky"],
+                                  "Intensity & Power": ["Powerful", "Robust", "Dramatic", "Gritty", "Raspy", "Husky", "Edgy"],
+                                  "Character & Emotion": ["Soulful", "Emotional", "Ethereal", "Haunting", "Whimsical", "Ballad"],
+                                  "Technique": ["Vibrato"]
+                                }
+
+                                return Object.entries(groupedSoundTypes).map(([groupName, types]) => {
+                                  const isOpen = openSoundGroup === groupName
+                                  const selectedInGroup = types.filter(t => soundTypesArray.includes(t)).length
+
+                                  return (
+                                    <div key={groupName} className="border border-gray-200 rounded-lg overflow-hidden">
+                                      <button
+                                        type="button"
+                                        className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setOpenSoundGroup(isOpen ? null : groupName)
+                                        }}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span className={`text-sm font-semibold ${selectedInGroup > 0 ? 'text-purple-700' : 'text-gray-700'}`}>
+                                            {groupName}
+                                          </span>
+                                          {selectedInGroup > 0 && (
+                                            <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-xs font-semibold">
+                                              {selectedInGroup}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <svg
+                                          className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                          stroke="currentColor"
+                                        >
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                         </svg>
+                                      </button>
+                                      {isOpen && (
+                                        <div className="p-3 bg-white border-t border-gray-200">
+                                          <div className="grid grid-cols-2 gap-2">
+                                            {types.map((voiceType) => {
+                                              const isSelected = soundTypesArray.includes(voiceType)
+
+                                              return (
+                                                <div
+                                                  key={voiceType}
+                                                  className={`text-left p-2 rounded-md border transition-all cursor-pointer text-sm ${
+                                                    isSelected
+                                                      ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md font-medium'
+                                                      : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
+                                                  }`}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    const newSoundTypes = isSelected
+                                                      ? soundTypesArray.filter((s: string) => s !== voiceType)
+                                                      : [...soundTypesArray, voiceType]
+
+                                                    setArtistSelection((prev) => ({
+                                                      ...prev,
+                                                      vocalSoundTypes: newSoundTypes.length > 0 ? newSoundTypes.join(', ') : ''
+                                                    }))
+                                                  }}
+                                                >
+                                                  <div className="flex items-center justify-between gap-1">
+                                                    <span>{voiceType}</span>
+                                                    {isSelected && <span className="text-xs">✓</span>}
+                                                  </div>
+                                                </div>
+                                              )
+                                            })}
+                                          </div>
+                                        </div>
                                       )}
                                     </div>
-                                  </div>
-                                )
-                              })}
+                                  )
+                                })
+                              })()}
                             </div>
                           </div>
-                          
-                          {/* Genre-Based Vocal Styles */}
+
+                          {/* Genre-Based Vocal Styles - Dropdown Groups */}
                           <div className="space-y-3">
-                            <Label className="text-xs font-semibold text-foreground">Genre-Based Vocal Styles (select at least one)</Label>
-                            <div className="grid grid-cols-1 gap-2">
-                              {option.vocalCategories?.["Genre-Based Vocal Styles"]?.map((vocalStyle: string) => {
+                            <Label className="text-xs font-semibold text-foreground">Genre-Based Vocal Styles (click categories to expand)</Label>
+                            <div className="space-y-2">
+                              {(() => {
                                 const genreStylesArray = artistSelection.vocalGenreStyles ? artistSelection.vocalGenreStyles.split(',').map(s => s.trim()) : []
-                                const isSelected = genreStylesArray.includes(vocalStyle)
-                                
-                                return (
-                                  <div
-                                    key={vocalStyle}
-                                    className={`text-left p-3 rounded-lg border-2 transition-all cursor-pointer ${
-                                      isSelected
-                                        ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
-                                        : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
-                                    }`}
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      const newGenreStyles = isSelected
-                                        ? genreStylesArray.filter((s: string) => s !== vocalStyle)
-                                        : [...genreStylesArray, vocalStyle]
-                                      
-                                      setArtistSelection((prev) => ({ 
-                                        ...prev, 
-                                        vocalGenreStyles: newGenreStyles.length > 0 ? newGenreStyles.join(', ') : ''
-                                      }))
-                                    }}
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-semibold text-sm">{vocalStyle}</span>
-                                      {isSelected && (
-                                        <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+
+                                // Group the vocal genre descriptors
+                                const groupedGenreStyles: Record<string, string[]> = {
+                                  "Classical & Theatrical": ["Opera", "Choral", "Gregorian Chant", "Classical Crossover", "Musical Theatre", "A Cappella"],
+                                  "Contemporary Pop & Rock": ["Pop", "Rock", "Indie", "Alternative", "Punk", "Metal", "K-Pop", "Electronic"],
+                                  "Urban & Soul": ["Hip-Hop", "R&B", "Soul", "Gospel", "Blues"],
+                                  "Jazz & Latin": ["Jazz", "Bossa Nova", "Samba", "Latin"],
+                                  "World & Traditional": ["Reggae", "Country", "Folk", "Flamenco", "Fado"],
+                                  "Asian & Middle Eastern": ["Hindustani Classical", "Qawwali", "Arabic", "Bhangra", "Kabuki", "Enka"],
+                                  "African & Specialized": ["Taarab", "Throat Singing", "Yodel"]
+                                }
+
+                                return Object.entries(groupedGenreStyles).map(([groupName, styles]) => {
+                                  const isOpen = openGenreGroup === groupName
+                                  const selectedInGroup = styles.filter(s => genreStylesArray.includes(s)).length
+
+                                  return (
+                                    <div key={groupName} className="border border-gray-200 rounded-lg overflow-hidden">
+                                      <button
+                                        type="button"
+                                        className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setOpenGenreGroup(isOpen ? null : groupName)
+                                        }}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span className={`text-sm font-semibold ${selectedInGroup > 0 ? 'text-purple-700' : 'text-gray-700'}`}>
+                                            {groupName}
+                                          </span>
+                                          {selectedInGroup > 0 && (
+                                            <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-xs font-semibold">
+                                              {selectedInGroup}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <svg
+                                          className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                          stroke="currentColor"
+                                        >
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                         </svg>
+                                      </button>
+                                      {isOpen && (
+                                        <div className="p-3 bg-white border-t border-gray-200">
+                                          <div className="grid grid-cols-2 gap-2">
+                                            {styles.map((vocalStyle) => {
+                                              const isSelected = genreStylesArray.includes(vocalStyle)
+
+                                              return (
+                                                <div
+                                                  key={vocalStyle}
+                                                  className={`text-left p-2 rounded-md border transition-all cursor-pointer text-sm ${
+                                                    isSelected
+                                                      ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md font-medium'
+                                                      : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
+                                                  }`}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    const newGenreStyles = isSelected
+                                                      ? genreStylesArray.filter((s: string) => s !== vocalStyle)
+                                                      : [...genreStylesArray, vocalStyle]
+
+                                                    setArtistSelection((prev) => ({
+                                                      ...prev,
+                                                      vocalGenreStyles: newGenreStyles.length > 0 ? newGenreStyles.join(', ') : ''
+                                                    }))
+                                                  }}
+                                                >
+                                                  <div className="flex items-center justify-between gap-1">
+                                                    <span>{vocalStyle}</span>
+                                                    {isSelected && <span className="text-xs">✓</span>}
+                                                  </div>
+                                                </div>
+                                              )
+                                            })}
+                                          </div>
+                                        </div>
                                       )}
                                     </div>
-                                  </div>
-                                )
-                              })}
+                                  )
+                                })
+                              })()}
                             </div>
                           </div>
                           
@@ -4092,61 +4251,121 @@ export function SignUpWizard() {
                             </div>
                           </div>
                           
-                          {/* Genre Selection - Multiple Genre Family: Main Genre */}
-                          <div className="space-y-3">
-                            <Label className="text-xs font-semibold text-foreground">
-                              Genre Selection for Searchability
-                              <span className="text-xs font-normal text-foreground/50 block mt-1">
-                                {option.genreSelection?.description}
-                              </span>
-                            </Label>
-                            <div className="space-y-4">
-                              {genreFamilies.map((family) => (
-                                <div key={family.id} className="space-y-2">
-                                  <Label className="text-sm font-medium text-foreground/80">
-                                    {family.name}:
-                                  </Label>
-                                  <div className="grid grid-cols-1 gap-2">
-                                    {family.mainGenres?.map((mainGenre) => {
-                                      const genreKey = `${family.name}: ${mainGenre.name}`
-                                      const selectedGenres = artistSelection.songwriterGenres ? artistSelection.songwriterGenres.split(',').map(s => s.trim()) : []
-                                      const isSelected = selectedGenres.includes(genreKey)
-                                      
-                                      return (
-                                        <div
-                                          key={mainGenre.id}
-                                          className={`text-left p-2 rounded-lg border-2 transition-all cursor-pointer ${
-                                            isSelected
-                                              ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
-                                              : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
-                                          }`}
+                          {/* Genre Selection - Collapsible Section */}
+                          <div className="border border-gray-200 rounded-lg overflow-hidden">
+                            <button
+                              type="button"
+                              className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setShowSongwriterGenres(!showSongwriterGenres)
+                              }}
+                            >
+                              <div className="flex-1 text-left">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-sm font-bold text-gray-900">
+                                    Genre Selection for Searchability
+                                  </span>
+                                  {artistSelection.songwriterGenres && (
+                                    <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-xs font-semibold">
+                                      {artistSelection.songwriterGenres.split(',').length} selected
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-600">
+                                  {option.genreSelection?.description}
+                                </p>
+                              </div>
+                              <svg
+                                className={`w-5 h-5 text-gray-500 transition-transform flex-shrink-0 ml-2 ${showSongwriterGenres ? 'rotate-180' : ''}`}
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+
+                            {showSongwriterGenres && (
+                              <div className="p-4 bg-white border-t border-gray-200">
+                                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                                  {genreFamilies.map((family) => {
+                                    const selectedGenres = artistSelection.songwriterGenres ? artistSelection.songwriterGenres.split(',').map(s => s.trim()) : []
+                                    const selectedInFamily = family.mainGenres?.filter(mg => selectedGenres.includes(`${family.name}: ${mg.name}`)).length || 0
+                                    const isOpen = openSongwriterGenreFamily === family.id
+
+                                    return (
+                                      <div key={family.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                        <button
+                                          type="button"
+                                          className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
                                           onClick={(e) => {
                                             e.stopPropagation()
-                                            const newSelectedGenres = isSelected
-                                              ? selectedGenres.filter((s: string) => s !== genreKey)
-                                              : [...selectedGenres, genreKey]
-                                            
-                                            setArtistSelection((prev) => ({ 
-                                              ...prev, 
-                                              songwriterGenres: newSelectedGenres.length > 0 ? newSelectedGenres.join(', ') : ''
-                                            }))
+                                            setOpenSongwriterGenreFamily(isOpen ? null : family.id)
                                           }}
                                         >
-                                          <div className="flex items-center justify-between">
-                                            <span className="font-medium text-sm">{mainGenre.name}</span>
-                                            {isSelected && (
-                                              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                              </svg>
+                                          <div className="flex items-center gap-2">
+                                            <span className={`text-sm font-semibold ${selectedInFamily > 0 ? 'text-purple-700' : 'text-gray-700'}`}>
+                                              {family.name}
+                                            </span>
+                                            {selectedInFamily > 0 && (
+                                              <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-xs font-semibold">
+                                                {selectedInFamily}
+                                              </span>
                                             )}
                                           </div>
-                                        </div>
-                                      )
-                                    })}
-                                  </div>
+                                          <svg
+                                            className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                          >
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                          </svg>
+                                        </button>
+                                        {isOpen && (
+                                          <div className="p-3 bg-white border-t border-gray-200">
+                                            <div className="grid grid-cols-2 gap-2">
+                                              {family.mainGenres?.map((mainGenre) => {
+                                                const genreKey = `${family.name}: ${mainGenre.name}`
+                                                const isSelected = selectedGenres.includes(genreKey)
+
+                                                return (
+                                                  <div
+                                                    key={mainGenre.id}
+                                                    className={`text-left p-2 rounded-md border transition-all cursor-pointer text-sm ${
+                                                      isSelected
+                                                        ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md font-medium'
+                                                        : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
+                                                    }`}
+                                                    onClick={(e) => {
+                                                      e.stopPropagation()
+                                                      const newSelectedGenres = isSelected
+                                                        ? selectedGenres.filter((s: string) => s !== genreKey)
+                                                        : [...selectedGenres, genreKey]
+
+                                                      setArtistSelection((prev) => ({
+                                                        ...prev,
+                                                        songwriterGenres: newSelectedGenres.length > 0 ? newSelectedGenres.join(', ') : ''
+                                                      }))
+                                                    }}
+                                                  >
+                                                    <div className="flex items-center justify-between gap-1">
+                                                      <span>{mainGenre.name}</span>
+                                                      {isSelected && <span className="text-xs">✓</span>}
+                                                    </div>
+                                                  </div>
+                                                )
+                                              })}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
                                 </div>
-                              ))}
-                            </div>
+                              </div>
+                            )}
                           </div>
                           
                           {/* Show selected songwriter info */}
@@ -4219,61 +4438,121 @@ export function SignUpWizard() {
                             </div>
                           </div>
                           
-                          {/* Genre Selection - Multiple Genre Family: Main Genre */}
-                          <div className="space-y-3">
-                            <Label className="text-xs font-semibold text-foreground">
-                              Genre Selection for Searchability
-                              <span className="text-xs font-normal text-foreground/50 block mt-1">
-                                {option.genreSelection?.description}
-                              </span>
-                            </Label>
-                            <div className="space-y-4">
-                              {genreFamilies.map((family) => (
-                                <div key={family.id} className="space-y-2">
-                                  <Label className="text-sm font-medium text-foreground/80">
-                                    {family.name}:
-                                  </Label>
-                                  <div className="grid grid-cols-1 gap-2">
-                                    {family.mainGenres?.map((mainGenre) => {
-                                      const genreKey = `${family.name}: ${mainGenre.name}`
-                                      const selectedGenres = artistSelection.lyricistGenres ? artistSelection.lyricistGenres.split(',').map(s => s.trim()) : []
-                                      const isSelected = selectedGenres.includes(genreKey)
-                                      
-                                      return (
-                                        <div
-                                          key={mainGenre.id}
-                                          className={`text-left p-2 rounded-lg border-2 transition-all cursor-pointer ${
-                                            isSelected
-                                              ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
-                                              : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
-                                          }`}
+                          {/* Genre Selection - Collapsible Section */}
+                          <div className="border border-gray-200 rounded-lg overflow-hidden">
+                            <button
+                              type="button"
+                              className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setShowLyricistGenres(!showLyricistGenres)
+                              }}
+                            >
+                              <div className="flex-1 text-left">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-sm font-bold text-gray-900">
+                                    Genre Selection for Searchability
+                                  </span>
+                                  {artistSelection.lyricistGenres && (
+                                    <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-xs font-semibold">
+                                      {artistSelection.lyricistGenres.split(',').length} selected
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-600">
+                                  {option.genreSelection?.description}
+                                </p>
+                              </div>
+                              <svg
+                                className={`w-5 h-5 text-gray-500 transition-transform flex-shrink-0 ml-2 ${showLyricistGenres ? 'rotate-180' : ''}`}
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+
+                            {showLyricistGenres && (
+                              <div className="p-4 bg-white border-t border-gray-200">
+                                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                                  {genreFamilies.map((family) => {
+                                    const selectedGenres = artistSelection.lyricistGenres ? artistSelection.lyricistGenres.split(',').map(s => s.trim()) : []
+                                    const selectedInFamily = family.mainGenres?.filter(mg => selectedGenres.includes(`${family.name}: ${mg.name}`)).length || 0
+                                    const isOpen = openLyricistGenreFamily === family.id
+
+                                    return (
+                                      <div key={family.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                        <button
+                                          type="button"
+                                          className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
                                           onClick={(e) => {
                                             e.stopPropagation()
-                                            const newSelectedGenres = isSelected
-                                              ? selectedGenres.filter((s: string) => s !== genreKey)
-                                              : [...selectedGenres, genreKey]
-                                            
-                                            setArtistSelection((prev) => ({ 
-                                              ...prev, 
-                                              lyricistGenres: newSelectedGenres.length > 0 ? newSelectedGenres.join(', ') : ''
-                                            }))
+                                            setOpenLyricistGenreFamily(isOpen ? null : family.id)
                                           }}
                                         >
-                                          <div className="flex items-center justify-between">
-                                            <span className="font-medium text-sm">{mainGenre.name}</span>
-                                            {isSelected && (
-                                              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                              </svg>
+                                          <div className="flex items-center gap-2">
+                                            <span className={`text-sm font-semibold ${selectedInFamily > 0 ? 'text-purple-700' : 'text-gray-700'}`}>
+                                              {family.name}
+                                            </span>
+                                            {selectedInFamily > 0 && (
+                                              <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-xs font-semibold">
+                                                {selectedInFamily}
+                                              </span>
                                             )}
                                           </div>
-                                        </div>
-                                      )
-                                    })}
-                                  </div>
+                                          <svg
+                                            className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                          >
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                          </svg>
+                                        </button>
+                                        {isOpen && (
+                                          <div className="p-3 bg-white border-t border-gray-200">
+                                            <div className="grid grid-cols-2 gap-2">
+                                              {family.mainGenres?.map((mainGenre) => {
+                                                const genreKey = `${family.name}: ${mainGenre.name}`
+                                                const isSelected = selectedGenres.includes(genreKey)
+
+                                                return (
+                                                  <div
+                                                    key={mainGenre.id}
+                                                    className={`text-left p-2 rounded-md border transition-all cursor-pointer text-sm ${
+                                                      isSelected
+                                                        ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md font-medium'
+                                                        : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
+                                                    }`}
+                                                    onClick={(e) => {
+                                                      e.stopPropagation()
+                                                      const newSelectedGenres = isSelected
+                                                        ? selectedGenres.filter((s: string) => s !== genreKey)
+                                                        : [...selectedGenres, genreKey]
+
+                                                      setArtistSelection((prev) => ({
+                                                        ...prev,
+                                                        lyricistGenres: newSelectedGenres.length > 0 ? newSelectedGenres.join(', ') : ''
+                                                      }))
+                                                    }}
+                                                  >
+                                                    <div className="flex items-center justify-between gap-1">
+                                                      <span>{mainGenre.name}</span>
+                                                      {isSelected && <span className="text-xs">✓</span>}
+                                                    </div>
+                                                  </div>
+                                                )
+                                              })}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
                                 </div>
-                              ))}
-                            </div>
+                              </div>
+                            )}
                           </div>
                           
                           {/* Show selected lyricist info */}
@@ -4346,61 +4625,121 @@ export function SignUpWizard() {
                             </div>
                           </div>
                           
-                          {/* Genre Selection - Multiple Genre Family: Main Genre */}
-                          <div className="space-y-3">
-                            <Label className="text-xs font-semibold text-foreground">
-                              Genre Selection for Searchability
-                              <span className="text-xs font-normal text-foreground/50 block mt-1">
-                                {option.genreSelection?.description}
-                              </span>
-                            </Label>
-                            <div className="space-y-4">
-                              {genreFamilies.map((family) => (
-                                <div key={family.id} className="space-y-2">
-                                  <Label className="text-sm font-medium text-foreground/80">
-                                    {family.name}:
-                                  </Label>
-                                  <div className="grid grid-cols-1 gap-2">
-                                    {family.mainGenres?.map((mainGenre) => {
-                                      const genreKey = `${family.name}: ${mainGenre.name}`
-                                      const selectedGenres = artistSelection.composerGenres ? artistSelection.composerGenres.split(',').map(s => s.trim()) : []
-                                      const isSelected = selectedGenres.includes(genreKey)
-                                      
-                                      return (
-                                        <div
-                                          key={mainGenre.id}
-                                          className={`text-left p-2 rounded-lg border-2 transition-all cursor-pointer ${
-                                            isSelected
-                                              ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
-                                              : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
-                                          }`}
+                          {/* Genre Selection - Collapsible Section */}
+                          <div className="border border-gray-200 rounded-lg overflow-hidden">
+                            <button
+                              type="button"
+                              className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setShowComposerGenres(!showComposerGenres)
+                              }}
+                            >
+                              <div className="flex-1 text-left">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-sm font-bold text-gray-900">
+                                    Genre Selection for Searchability
+                                  </span>
+                                  {artistSelection.composerGenres && (
+                                    <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-xs font-semibold">
+                                      {artistSelection.composerGenres.split(',').length} selected
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-600">
+                                  {option.genreSelection?.description}
+                                </p>
+                              </div>
+                              <svg
+                                className={`w-5 h-5 text-gray-500 transition-transform flex-shrink-0 ml-2 ${showComposerGenres ? 'rotate-180' : ''}`}
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+
+                            {showComposerGenres && (
+                              <div className="p-4 bg-white border-t border-gray-200">
+                                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                                  {genreFamilies.map((family) => {
+                                    const selectedGenres = artistSelection.composerGenres ? artistSelection.composerGenres.split(',').map(s => s.trim()) : []
+                                    const selectedInFamily = family.mainGenres?.filter(mg => selectedGenres.includes(`${family.name}: ${mg.name}`)).length || 0
+                                    const isOpen = openComposerGenreFamily === family.id
+
+                                    return (
+                                      <div key={family.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                        <button
+                                          type="button"
+                                          className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
                                           onClick={(e) => {
                                             e.stopPropagation()
-                                            const newSelectedGenres = isSelected
-                                              ? selectedGenres.filter((s: string) => s !== genreKey)
-                                              : [...selectedGenres, genreKey]
-                                            
-                                            setArtistSelection((prev) => ({ 
-                                              ...prev, 
-                                              composerGenres: newSelectedGenres.length > 0 ? newSelectedGenres.join(', ') : ''
-                                            }))
+                                            setOpenComposerGenreFamily(isOpen ? null : family.id)
                                           }}
                                         >
-                                          <div className="flex items-center justify-between">
-                                            <span className="font-medium text-sm">{mainGenre.name}</span>
-                                            {isSelected && (
-                                              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                              </svg>
+                                          <div className="flex items-center gap-2">
+                                            <span className={`text-sm font-semibold ${selectedInFamily > 0 ? 'text-purple-700' : 'text-gray-700'}`}>
+                                              {family.name}
+                                            </span>
+                                            {selectedInFamily > 0 && (
+                                              <span className="px-2 py-0.5 rounded-full bg-purple-600 text-white text-xs font-semibold">
+                                                {selectedInFamily}
+                                              </span>
                                             )}
                                           </div>
-                                        </div>
-                                      )
-                                    })}
-                                  </div>
+                                          <svg
+                                            className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                          >
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                          </svg>
+                                        </button>
+                                        {isOpen && (
+                                          <div className="p-3 bg-white border-t border-gray-200">
+                                            <div className="grid grid-cols-2 gap-2">
+                                              {family.mainGenres?.map((mainGenre) => {
+                                                const genreKey = `${family.name}: ${mainGenre.name}`
+                                                const isSelected = selectedGenres.includes(genreKey)
+
+                                                return (
+                                                  <div
+                                                    key={mainGenre.id}
+                                                    className={`text-left p-2 rounded-md border transition-all cursor-pointer text-sm ${
+                                                      isSelected
+                                                        ? 'border-purple-500 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md font-medium'
+                                                        : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50'
+                                                    }`}
+                                                    onClick={(e) => {
+                                                      e.stopPropagation()
+                                                      const newSelectedGenres = isSelected
+                                                        ? selectedGenres.filter((s: string) => s !== genreKey)
+                                                        : [...selectedGenres, genreKey]
+
+                                                      setArtistSelection((prev) => ({
+                                                        ...prev,
+                                                        composerGenres: newSelectedGenres.length > 0 ? newSelectedGenres.join(', ') : ''
+                                                      }))
+                                                    }}
+                                                  >
+                                                    <div className="flex items-center justify-between gap-1">
+                                                      <span>{mainGenre.name}</span>
+                                                      {isSelected && <span className="text-xs">✓</span>}
+                                                    </div>
+                                                  </div>
+                                                )
+                                              })}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
                                 </div>
-                              ))}
-                            </div>
+                              </div>
+                            )}
                           </div>
                           
                           {/* Show selected composer info */}
@@ -4485,6 +4824,19 @@ export function SignUpWizard() {
                         </>
                       )}
                     </div>
+
+                    <div className="mt-6 space-y-2 border-t border-border/40 pt-4">
+                      <Button
+                        className="w-full rounded-full bg-primary px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary-foreground hover:bg-primary/90 sm:w-auto"
+                        disabled={!canProceed() || isProcessingStep}
+                        onClick={handleNext}
+                      >
+                        {isProcessingStep ? 'Working…' : `Proceed with ${option.label}`}
+                      </Button>
+                      <p className="text-xs text-foreground/70">
+                        You can revisit this selection later from your Control Panel.
+                      </p>
+                    </div>
                   </div>
                 </CardContent>
               )}
@@ -4495,7 +4847,7 @@ export function SignUpWizard() {
       
       {/* Overall selection summary */}
       {artistSelection.typeId && (
-        <div className="rounded-lg border-2 border-green-400 bg-green-50 p-4">
+        <div className="flex flex-col gap-4 rounded-lg border-2 border-green-400 bg-green-50 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-3">
             <div className="text-2xl">✅</div>
             <div className="flex-1">
@@ -4512,6 +4864,13 @@ export function SignUpWizard() {
               </div>
             </div>
           </div>
+          <Button
+            className="w-full rounded-full bg-primary px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary-foreground hover:bg-primary/90 sm:w-auto"
+            disabled={!canProceed() || isProcessingStep}
+            onClick={handleNext}
+          >
+            {isProcessingStep ? 'Working…' : 'Proceed with selection'}
+          </Button>
         </div>
       )}
       
@@ -5404,6 +5763,24 @@ export function SignUpWizard() {
 
   const canAdvance = canProceed();
 
+  if (artistRedirectLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-6 py-16 text-center">
+        <div className="space-y-4">
+          <p className="uppercase tracking-[0.35em] text-[0.7rem] text-foreground-alt/70">
+            Preparing Artist Dashboard
+          </p>
+          <div className="flex flex-col items-center gap-3">
+            <div className="size-12 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-sm text-foreground/70">
+              Checking your artist profile status…
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (needsEmailVerification) {
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-lg flex-col items-center justify-center gap-6 px-6 py-16 text-center">
@@ -5557,8 +5934,7 @@ export function SignUpWizard() {
                         lyricist_option: artistSelection.lyricistOption || null,
                         lyricist_genres: artistSelection.lyricistGenres || null,
                         composer_option: artistSelection.composerOption || null,
-                        composer_genres: artistSelection.composerGenres || null,
-                        onboarding_completed: true
+                        composer_genres: artistSelection.composerGenres || null
                       })
                     });
                     

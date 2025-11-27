@@ -523,6 +523,19 @@ export async function POST(request: NextRequest) {
 
     console.log('API: Successfully created/updated artist profile:', data)
 
+    // Clear onboarding_member_type flag when onboarding is completed
+    if (onboarding_completed === true) {
+      const { error: metadataError } = await supabase.auth.updateUser({
+        data: {
+          onboarding_member_type: null,
+          onboarding_completed: true
+        }
+      })
+      if (metadataError) {
+        console.warn('API: Unable to clear onboarding_member_type flag', metadataError)
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: data,
