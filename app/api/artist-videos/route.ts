@@ -37,7 +37,7 @@ export async function GET() {
       .from('user_profiles')
       .select('id')
       .eq('user_id', user.id)
-      .eq('account_type', 'artist')
+      .eq('profile_type', 'artist')
       .single()
 
     if (profileError || !profile) {
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
       .from('user_profiles')
       .select('id')
       .eq('user_id', user.id)
-      .eq('account_type', 'artist')
+      .eq('profile_type', 'artist')
       .single()
 
     if (profileError || !profile) {
@@ -211,7 +211,7 @@ export async function PUT(request: NextRequest) {
       .from('user_profiles')
       .select('id')
       .eq('user_id', user.id)
-      .eq('account_type', 'artist')
+      .eq('profile_type', 'artist')
       .single()
 
     if (profileError || !profile) {
@@ -297,7 +297,7 @@ export async function DELETE(request: NextRequest) {
       .from('user_profiles')
       .select('id')
       .eq('user_id', user.id)
-      .eq('account_type', 'artist')
+      .eq('profile_type', 'artist')
       .single()
 
     if (profileError || !profile) {
