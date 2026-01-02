@@ -1794,7 +1794,7 @@ export function SignUpWizard() {
     // Fetch video metadata if we don't have a title
     let videoTitle = newVideoTitle.trim();
     let videoThumbnail = "";
-    
+
     if (!videoTitle) {
       setFanProfile((prev) => ({ ...prev, fetchingVideoMetadata: true }));
       try {
@@ -1833,11 +1833,22 @@ export function SignUpWizard() {
       return;
     }
 
+    // Add &rel=0 to prevent suggested videos
+    const urlWithRelParam = newVideoUrl.trim();
+    let finalUrl: string;
+    try {
+      const urlObj = new URL(urlWithRelParam);
+      urlObj.searchParams.set('rel', '0');
+      finalUrl = urlObj.toString();
+    } catch {
+      finalUrl = urlWithRelParam;
+    }
+
     const updatedVideos = [
       ...fanProfile.videos,
-      { 
-        title: videoTitle, 
-        url: newVideoUrl.trim(),
+      {
+        title: videoTitle,
+        url: finalUrl,
         thumbnail: videoThumbnail || undefined,
       },
     ];

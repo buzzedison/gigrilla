@@ -17,6 +17,7 @@ import { ArtistTypeSelectorV2, ArtistTypeSelection } from "./components/ArtistTy
 import { ArtistCrewManager } from "./components/ArtistCrewManager"
 import { ArtistRoyaltySplitsManager } from "./components/ArtistRoyaltySplitsManager"
 import { ArtistGigAbilityManager } from "./components/ArtistGigAbilityManager"
+import { ArtistMusicManager } from "./components/ArtistMusicManager"
 import { Badge } from "../components/ui/badge"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet"
 import { Music, Info, Menu } from "lucide-react"
@@ -42,6 +43,7 @@ type DashboardSection =
   | 'logo'
   | 'photos'
   | 'videos'
+  | 'music'
   | 'type'
 
 export default function ArtistDashboard() {
@@ -309,6 +311,17 @@ export default function ArtistDashboard() {
             </div>
           </div>
         ))
+      case 'music':
+        return (
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <div className="xl:col-span-3">
+              <ArtistMusicManager />
+            </div>
+            <div className="xl:col-span-1">
+              <ArtistCompletionCard />
+            </div>
+          </div>
+        )
       default:
         return (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
@@ -334,7 +347,8 @@ export default function ArtistDashboard() {
     gigability: 'Artist Gig-Ability',
     bio: 'Artist Biography',
     genres: 'Artist Genres',
-    maps: 'GigAbility Maps'
+    maps: 'GigAbility Maps',
+    music: 'Music Manager'
   }
 
   const headerSubtitleMap: Record<DashboardSection, string> = {
@@ -348,7 +362,8 @@ export default function ArtistDashboard() {
     gigability: 'Set your base location and stage timing preferences',
     bio: 'Write and manage your artist biography',
     genres: 'Select your music genres and sub-genres',
-    maps: 'Set your gig location preferences and availability'
+    maps: 'Set your gig location preferences and availability',
+    music: 'Upload and manage your music releases'
   }
 
   return (

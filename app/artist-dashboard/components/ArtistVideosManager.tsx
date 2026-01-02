@@ -14,6 +14,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog'
+import { YouTubeVideoModal } from '../../components/ui/youtube-video-modal'
+import { addYouTubeRelParam } from '../../../lib/utils'
 
 interface VideoItem {
   id: string
@@ -46,6 +48,10 @@ export function ArtistVideosManager() {
   const [manageDialogOpen, setManageDialogOpen] = useState(false)
   const [selectedVideo, setSelectedVideo] = useState<VideoItem | null>(null)
   const [editTitle, setEditTitle] = useState('')
+
+  // Video modal state
+  const [videoModalOpen, setVideoModalOpen] = useState(false)
+  const [modalVideoUrl, setModalVideoUrl] = useState<string | null>(null)
 
   const extractVideoId = useCallback((url: string): string | null => {
     const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([^&\n?#]+)/)
@@ -151,12 +157,15 @@ export function ArtistVideosManager() {
     setError(null)
 
     try {
+      // Add &rel=0 to prevent suggested videos
+      const urlWithRelParam = addYouTubeRelParam(newYoutubeUrl.trim())
+
       const response = await fetch('/api/artist-videos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: newVideoTitle.trim(),
-          video_url: newYoutubeUrl.trim(),
+          video_url: urlWithRelParam,
           thumbnail_url: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
         })
       })
@@ -244,6 +253,11 @@ export function ArtistVideosManager() {
     setSelectedVideo(video)
     setEditTitle(video.title)
     setManageDialogOpen(true)
+  }
+
+  const handlePlayVideo = (videoUrl: string) => {
+    setModalVideoUrl(videoUrl)
+    setVideoModalOpen(true)
   }
 
   if (loading) {
@@ -505,7 +519,10 @@ export function ArtistVideosManager() {
 
               return (
                 <div key={video.id} className="group rounded-2xl border border-gray-100 shadow-sm overflow-hidden bg-white flex flex-col">
-                  <div className="aspect-video bg-gray-100 relative">
+                  <div
+                    className="aspect-video bg-gray-100 relative cursor-pointer"
+                    onClick={() => handlePlayVideo(video.video_url)}
+                  >
                     {thumbnail ? (
                       <Image
                         src={thumbnail}
@@ -638,6 +655,13 @@ export function ArtistVideosManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* YouTube Video Modal */}
+      <YouTubeVideoModal
+        videoUrl={modalVideoUrl}
+        isOpen={videoModalOpen}
+        onClose={() => setVideoModalOpen(false)}
+      />
     </div>
   )
 }

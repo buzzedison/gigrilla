@@ -8,6 +8,7 @@ import {
   Users2,
   BookOpen,
   Music,
+  Music2,
   Map,
   Image as ImageIcon,
   Video,
@@ -41,6 +42,7 @@ export type ArtistDashboardSection =
   | 'logo'
   | 'photos'
   | 'videos'
+  | 'music'
   | 'type'
 
 interface ArtistSidebarProps {
@@ -114,6 +116,7 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange, capa
     { icon: Palette, label: "Logo/Profile Artwork", section: "logo" as ArtistDashboardSection },
     { icon: ImageIcon, label: "Photos", section: "photos" as ArtistDashboardSection },
     { icon: Video, label: "Videos", section: "videos" as ArtistDashboardSection },
+    { icon: Music2, label: "Music Manager", section: "music" as ArtistDashboardSection },
     { icon: Settings, label: "Artist Type & Config", section: "type" as ArtistDashboardSection }
   ].filter(item => !(hideTypeSection && item.section === 'type'))
 
