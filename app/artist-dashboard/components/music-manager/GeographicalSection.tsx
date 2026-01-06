@@ -1,8 +1,10 @@
 'use client'
 
-import { Globe, Home, MapPin, CheckCircle } from 'lucide-react'
+import { useState } from 'react'
+import { Globe, Home, MapPin, X } from 'lucide-react'
 import { SectionWrapper, InfoBox } from './shared'
-import { ReleaseData, territoryOptions } from './types'
+import { ReleaseData, territoryOptions, countryOptions } from './types'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select'
 
 interface GeographicalSectionProps {
   releaseData: ReleaseData
@@ -10,116 +12,147 @@ interface GeographicalSectionProps {
 }
 
 export function GeographicalSection({ releaseData, onUpdate }: GeographicalSectionProps) {
-  const territoryTypes = [
-    {
-      value: 'home',
-      label: 'Home Territory Only',
-      description: 'Release only in your home country',
-      icon: Home
-    },
-    {
-      value: 'specific',
-      label: 'Specific Territories',
-      description: 'Choose specific regions',
-      icon: MapPin
-    },
-    {
-      value: 'worldwide',
-      label: 'Worldwide',
-      description: 'Release globally',
-      icon: Globe
-    }
-  ]
-
-  const handleTerritoryTypeChange = (type: 'home' | 'specific' | 'worldwide') => {
-    onUpdate('territoryType', type)
-    if (type !== 'specific') {
-      onUpdate('selectedTerritories', [])
+  const [territorySelectKey, setTerritorySelectKey] = useState(0)
+  const toggleTerritory = (territory: string) => {
+    const current = releaseData.specificTerritories
+    if (current.includes(territory)) {
+      onUpdate('specificTerritories', current.filter(t => t !== territory))
+    } else {
+      onUpdate('specificTerritories', [...current, territory])
     }
   }
 
-  const toggleTerritory = (territory: string) => {
-    const current = releaseData.selectedTerritories
-    if (current.includes(territory)) {
-      onUpdate('selectedTerritories', current.filter(t => t !== territory))
-    } else {
-      onUpdate('selectedTerritories', [...current, territory])
+  const handleWorldwideToggle = (checked: boolean) => {
+    onUpdate('availableWorldwide', checked)
+    if (checked) {
+      onUpdate('availableHome', true)
     }
   }
 
   return (
     <SectionWrapper
-      title="Geographical Availability"
-      subtitle="Where should your release be available?"
+      title="Release Geographical Availability"
+      subtitle="Where Should This Release Be Available to Stream/Download?"
     >
       <div className="space-y-6">
-        {/* Territory Type Selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Distribution Scope <span className="text-red-500">*</span>
-          </label>
-          <div className="grid grid-cols-3 gap-4">
-            {territoryTypes.map((type) => {
-              const Icon = type.icon
-              const isSelected = releaseData.territoryType === type.value
-              return (
-                <button
-                  key={type.value}
-                  onClick={() => handleTerritoryTypeChange(type.value as 'home' | 'specific' | 'worldwide')}
-                  className={`
-                    relative p-4 rounded-lg border-2 transition-all text-left
-                    ${isSelected
-                      ? 'border-purple-500 bg-purple-50'
-                      : 'border-gray-200 hover:border-gray-300 bg-white'
-                    }
-                  `}
-                >
-                  {isSelected && (
-                    <CheckCircle className="absolute top-2 right-2 w-5 h-5 text-purple-500" />
-                  )}
-                  <Icon className={`w-8 h-8 mb-2 ${isSelected ? 'text-purple-500' : 'text-gray-400'}`} />
-                  <h4 className={`font-semibold ${isSelected ? 'text-purple-700' : 'text-gray-800'}`}>
-                    {type.label}
-                  </h4>
-                  <p className="text-sm text-gray-500">{type.description}</p>
-                </button>
-              )
-            })}
-          </div>
+        <div className="space-y-3">
+          <label className="block text-sm font-medium text-gray-800">Country of Origin</label>
+          <Select
+            value={releaseData.countryOfOrigin}
+            onValueChange={(value) => onUpdate('countryOfOrigin', value)}
+          >
+            <SelectTrigger className="w-full md:w-72">
+              <SelectValue placeholder="Set Country of Origin" />
+            </SelectTrigger>
+            <SelectContent>
+              {countryOptions.map((country) => (
+                <SelectItem key={country.value} value={country.value}>
+                  {country.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Specific Territories Selection */}
-        {releaseData.territoryType === 'specific' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Select Territories
+        <div className="grid md:grid-cols-3 gap-4">
+          <label className="flex items-start gap-3 border rounded-2xl p-4 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={releaseData.availableHome}
+              onChange={(e) => onUpdate('availableHome', e.target.checked)}
+              className="mt-0.5 w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+            />
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <Home className="w-4 h-4 text-purple-500" /> Available in Home Territory?
+              </div>
+              <p className="text-xs text-gray-600 mt-1">Uses your Country of Origin as the home market.</p>
+            </div>
+          </label>
+
+          <label className="flex items-start gap-3 border rounded-2xl p-4 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={releaseData.availableSpecific}
+              onChange={(e) => {
+                const checked = e.target.checked
+                onUpdate('availableSpecific', checked)
+                if (!checked) {
+                  onUpdate('specificTerritories', [])
+                }
+              }}
+              className="mt-0.5 w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+            />
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <MapPin className="w-4 h-4 text-purple-500" /> Available in Specific Territories?
+              </div>
+              <p className="text-xs text-gray-600 mt-1">Add territories below as you need them.</p>
+            </div>
+          </label>
+
+          <label className="flex items-start gap-3 border rounded-2xl p-4 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={releaseData.availableWorldwide}
+              onChange={(e) => handleWorldwideToggle(e.target.checked)}
+              className="mt-0.5 w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+            />
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <Globe className="w-4 h-4 text-purple-500" /> Available Worldwide?
+              </div>
+              <p className="text-xs text-gray-600 mt-1">Choosing Worldwide automatically keeps Home Territory enabled.</p>
+            </div>
+          </label>
+        </div>
+
+        {releaseData.availableSpecific && (
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-gray-800">
+              Add Specific Territories
             </label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {territoryOptions.map((territory) => {
-                const isSelected = releaseData.selectedTerritories.includes(territory.value)
-                return (
-                  <button
-                    key={territory.value}
-                    onClick={() => toggleTerritory(territory.value)}
-                    className={`
-                      p-3 rounded-lg border transition-all text-sm
-                      ${isSelected
-                        ? 'border-purple-500 bg-purple-50 text-purple-700'
-                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
-                      }
-                    `}
-                  >
-                    {isSelected && <CheckCircle className="w-4 h-4 inline mr-1" />}
+            <Select
+              key={territorySelectKey}
+              onValueChange={(value) => {
+                toggleTerritory(value)
+                setTerritorySelectKey((prev) => prev + 1)
+              }}
+            >
+              <SelectTrigger className="w-full md:w-80">
+                <SelectValue placeholder="Add Specific Territories" />
+              </SelectTrigger>
+              <SelectContent>
+                {territoryOptions.map((territory) => (
+                  <SelectItem key={territory.value} value={territory.value}>
                     {territory.label}
-                  </button>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex flex-wrap gap-2">
+              {releaseData.specificTerritories.map((territory) => {
+                const territoryLabel = territoryOptions.find(t => t.value === territory)?.label || territory
+                return (
+                  <span
+                    key={territory}
+                    className="inline-flex items-center gap-1 text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-full"
+                  >
+                    {territoryLabel}
+                    <button type="button" onClick={() => toggleTerritory(territory)}>
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
                 )
               })}
+              {releaseData.specificTerritories.length === 0 && (
+                <p className="text-xs text-gray-500">No territories selected yet.</p>
+              )}
             </div>
           </div>
         )}
-
-        {/* Rights Confirmation */}
-        {releaseData.territoryType && (
+        
+        {(releaseData.availableHome || releaseData.availableSpecific || releaseData.availableWorldwide) && (
           <div className="border-t pt-4">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
@@ -129,8 +162,7 @@ export function GeographicalSection({ releaseData, onUpdate }: GeographicalSecti
                 className="mt-1 w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
               />
               <span className="text-sm text-gray-700">
-                I confirm that I have the rights to distribute this release in the selected territories
-                and that the content complies with local regulations.
+                I warrant that I hold the necessary Rights to exploit this Sound Recording(s) in my selected territories for all Tracks on this Specific Release.
               </span>
             </label>
           </div>

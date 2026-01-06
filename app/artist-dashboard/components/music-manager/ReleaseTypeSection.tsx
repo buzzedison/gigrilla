@@ -3,7 +3,7 @@
 import { Disc, Music, Album, CheckCircle } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select'
 import { SectionWrapper } from './shared'
-import { ReleaseData, releaseVersionOptions, trackCountOptions } from './types'
+import { ReleaseData, releaseVersionOptions, trackCountOptions, TrackCountOption } from './types'
 
 interface ReleaseTypeSectionProps {
   releaseData: ReleaseData
@@ -15,33 +15,40 @@ export function ReleaseTypeSection({ releaseData, onUpdate }: ReleaseTypeSection
     {
       value: 'single',
       label: 'Single',
-      description: '1-3 tracks',
+      description: '1 to 3 tracks • under 30 mins total playtime',
       icon: Music
     },
     {
       value: 'ep',
       label: 'EP',
-      description: '4-6 tracks',
+      description: '4 to 6 tracks • under 30 mins total playtime',
       icon: Disc
     },
     {
       value: 'album',
       label: 'Album',
-      description: '7+ tracks',
+      description: '7+ tracks OR longer than 30 mins total playtime',
       icon: Album
     }
   ]
 
   const handleReleaseTypeChange = (type: 'single' | 'ep' | 'album') => {
     onUpdate('releaseType', type)
-    // Set default track count based on type
-    const defaultCounts = { single: 1, ep: 4, album: 10 }
-    onUpdate('trackCount', defaultCounts[type])
+    const defaultOption = trackCountOptions[type][0]
+    if (defaultOption) {
+      onUpdate('trackCount', defaultOption.value)
+      onUpdate('trackCountLabel', defaultOption.label)
+    }
   }
 
   const getTrackOptions = () => {
     if (!releaseData.releaseType) return []
     return trackCountOptions[releaseData.releaseType as keyof typeof trackCountOptions] || []
+  }
+
+  const handleTrackCountSelect = (option: TrackCountOption) => {
+    onUpdate('trackCount', option.value)
+    onUpdate('trackCountLabel', option.label)
   }
 
   return (
@@ -93,15 +100,20 @@ export function ReleaseTypeSection({ releaseData, onUpdate }: ReleaseTypeSection
             </label>
             <Select
               value={releaseData.trackCount.toString()}
-              onValueChange={(value) => onUpdate('trackCount', parseInt(value))}
+              onValueChange={(value) => {
+                const selected = getTrackOptions().find(opt => opt.value.toString() === value)
+                if (selected) {
+                  handleTrackCountSelect(selected)
+                }
+              }}
             >
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="Select track count" />
               </SelectTrigger>
               <SelectContent>
-                {getTrackOptions().map((count) => (
-                  <SelectItem key={count} value={count.toString()}>
-                    {count} {count === 1 ? 'track' : 'tracks'}
+                {getTrackOptions().map((option) => (
+                  <SelectItem key={option.value} value={option.value.toString()}>
+                    {option.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -132,7 +144,9 @@ export function ReleaseTypeSection({ releaseData, onUpdate }: ReleaseTypeSection
                 </SelectContent>
               </Select>
 
-              {releaseData.releaseVersion && releaseData.trackCount > 1 && (
+              {releaseData.releaseVersion &&
+                releaseData.trackCount > 1 &&
+                releaseData.releaseVersion !== 'deluxe' && (
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -145,7 +159,7 @@ export function ReleaseTypeSection({ releaseData, onUpdate }: ReleaseTypeSection
               )}
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              Version will appear after the title (e.g., &quot;Song Name - Acoustic&quot;)
+              Selecting Deluxe Edition automatically disables the “Apply to all tracks” toggle because deluxe releases are treated track-by-track.
             </p>
           </div>
         )}

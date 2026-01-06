@@ -1,6 +1,6 @@
 'use client'
 
-import { Calendar, Clock, Zap, CheckCircle } from 'lucide-react'
+import { Calendar, Clock, Zap } from 'lucide-react'
 import { Input } from '../../../components/ui/input'
 import { SectionWrapper, InfoBox } from './shared'
 import { ReleaseData } from './types'
@@ -11,131 +11,86 @@ interface GoLiveDateSectionProps {
 }
 
 export function GoLiveDateSection({ releaseData, onUpdate }: GoLiveDateSectionProps) {
-  const goLiveOptions = [
-    {
-      value: 'past',
-      label: 'Already Released',
-      description: 'This release is already available elsewhere',
-      icon: Clock
-    },
-    {
-      value: 'asap',
-      label: 'As Soon As Possible',
-      description: 'Release as soon as processing is complete',
-      icon: Zap
-    },
-    {
-      value: 'future',
-      label: 'Schedule for Later',
-      description: 'Choose a specific release date',
-      icon: Calendar
-    }
-  ]
-
-  const getMinDate = () => {
-    const date = new Date()
-    date.setDate(date.getDate() + 14) // Minimum 2 weeks in advance
-    return date.toISOString().split('T')[0]
-  }
-
   return (
     <SectionWrapper
       title="Go-Live Date"
       subtitle="When should your release become available?"
     >
       <div className="space-y-6">
-        {/* Go-Live Option Selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Release Timing <span className="text-red-500">*</span>
+        <InfoBox title="Release Timing Tips" variant="info">
+          <ul className="list-disc list-inside space-y-1 text-sm">
+            <li>If scheduling a future Go-Live Date, it is best practice to allow 28 days between uploading Tracks and your Go-Live Date. This helps Chart Companies to account for your music release.</li>
+            <li>If scheduling a future Go-Live Date, and if you’re releasing physical copies alongside digital, you must schedule your release to go-live everywhere on the same day to avoid disqualification.</li>
+            <li>You can Go-Live &amp; Publish as soon as you’ve finished uploading, but you risk being excluded from Official Charts in some territories, especially if you’re also releasing physical copies offline.</li>
+          </ul>
+        </InfoBox>
+
+        <div className="space-y-4">
+          <label className="flex items-start gap-3 border rounded-2xl p-4 cursor-pointer">
+            <input
+              type="radio"
+              name="release-go-live"
+              checked={releaseData.goLiveOption === 'past'}
+              onChange={() => onUpdate('goLiveOption', 'past')}
+              className="mt-0.5 w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
+            />
+            <div className="flex-1 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <Clock className="w-4 h-4 text-purple-500" /> Go-Live was in the PAST on this date:
+              </div>
+              <Input
+                type="date"
+                value={releaseData.goLiveOption === 'past' ? releaseData.goLiveDate : ''}
+                onChange={(e) => onUpdate('goLiveDate', e.target.value)}
+                max={new Date().toISOString().split('T')[0]}
+                className="w-60"
+                disabled={releaseData.goLiveOption !== 'past'}
+              />
+            </div>
           </label>
-          <div className="grid grid-cols-3 gap-4">
-            {goLiveOptions.map((option) => {
-              const Icon = option.icon
-              const isSelected = releaseData.goLiveOption === option.value
-              return (
-                <button
-                  key={option.value}
-                  onClick={() => onUpdate('goLiveOption', option.value)}
-                  className={`
-                    relative p-4 rounded-lg border-2 transition-all text-left
-                    ${isSelected
-                      ? 'border-purple-500 bg-purple-50'
-                      : 'border-gray-200 hover:border-gray-300 bg-white'
-                    }
-                  `}
-                >
-                  {isSelected && (
-                    <CheckCircle className="absolute top-2 right-2 w-5 h-5 text-purple-500" />
-                  )}
-                  <Icon className={`w-8 h-8 mb-2 ${isSelected ? 'text-purple-500' : 'text-gray-400'}`} />
-                  <h4 className={`font-semibold ${isSelected ? 'text-purple-700' : 'text-gray-800'}`}>
-                    {option.label}
-                  </h4>
-                  <p className="text-sm text-gray-500">{option.description}</p>
-                </button>
-              )
-            })}
-          </div>
+
+          <label className="flex items-start gap-3 border rounded-2xl p-4 cursor-pointer">
+            <input
+              type="radio"
+              name="release-go-live"
+              checked={releaseData.goLiveOption === 'asap'}
+              onChange={() => {
+                onUpdate('goLiveOption', 'asap')
+                onUpdate('goLiveDate', new Date().toISOString().split('T')[0])
+              }}
+              className="mt-0.5 w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
+            />
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <Zap className="w-4 h-4 text-purple-500" /> Go-Live ASAP (within 24 hours).
+              </div>
+              <p className="text-xs text-gray-600 mt-1">We’ll stamp the go-live date with today’s date.</p>
+            </div>
+          </label>
+
+          <label className="flex items-start gap-3 border rounded-2xl p-4 cursor-pointer">
+            <input
+              type="radio"
+              name="release-go-live"
+              checked={releaseData.goLiveOption === 'future'}
+              onChange={() => onUpdate('goLiveOption', 'future')}
+              className="mt-0.5 w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
+            />
+            <div className="flex-1 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <Calendar className="w-4 h-4 text-purple-500" /> Go-Live on this FUTURE date:
+              </div>
+              <Input
+                type="date"
+                value={releaseData.goLiveOption === 'future' ? releaseData.goLiveDate : ''}
+                onChange={(e) => onUpdate('goLiveDate', e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                className="w-60"
+                disabled={releaseData.goLiveOption !== 'future'}
+              />
+            </div>
+          </label>
         </div>
-
-        {/* Date Picker for Past Release */}
-        {releaseData.goLiveOption === 'past' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Original Release Date
-            </label>
-            <Input
-              type="date"
-              value={releaseData.goLiveDate}
-              onChange={(e) => onUpdate('goLiveDate', e.target.value)}
-              max={new Date().toISOString().split('T')[0]}
-              className="w-48"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Enter the date when this release was originally made available.
-            </p>
-          </div>
-        )}
-
-        {/* Date Picker for Future Release */}
-        {releaseData.goLiveOption === 'future' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Scheduled Release Date
-            </label>
-            <Input
-              type="date"
-              value={releaseData.goLiveDate}
-              onChange={(e) => onUpdate('goLiveDate', e.target.value)}
-              min={getMinDate()}
-              className="w-48"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Must be at least 2 weeks from today to allow for processing and store delivery.
-            </p>
-          </div>
-        )}
-
-        {/* ASAP Info */}
-        {releaseData.goLiveOption === 'asap' && (
-          <InfoBox title="ASAP Release" variant="info">
-            <p>
-              Your release will go live as soon as it passes quality checks and is delivered to stores.
-              This typically takes 2-5 business days but may vary by platform.
-            </p>
-          </InfoBox>
-        )}
-
-        {/* Friday Release Tip */}
-        {releaseData.goLiveOption === 'future' && (
-          <InfoBox title="Pro Tip: Release on Friday" variant="success">
-            <p>
-              Most major releases drop on Fridays to maximize first-week streaming numbers and chart
-              eligibility. Consider scheduling your release for a Friday at midnight.
-            </p>
-          </InfoBox>
-        )}
       </div>
     </SectionWrapper>
   )

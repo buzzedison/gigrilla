@@ -27,9 +27,9 @@ export function CoverArtworkSection({ releaseData, onUpdate }: CoverArtworkSecti
         return
       }
 
-      // Check file size (max 20MB)
-      if (file.size > 20 * 1024 * 1024) {
-        setError('File size must be less than 20MB')
+      // Check file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        setError('File size must be less than 10MB')
         resolve(false)
         return
       }
@@ -40,6 +40,11 @@ export function CoverArtworkSection({ releaseData, onUpdate }: CoverArtworkSecti
         URL.revokeObjectURL(img.src)
         if (img.width < 3000 || img.height < 3000) {
           setError('Image must be at least 3000x3000 pixels')
+          resolve(false)
+          return
+        }
+        if (img.width > 6000 || img.height > 6000) {
+          setError('Image must be no more than 6000x6000 pixels')
           resolve(false)
           return
         }
@@ -104,8 +109,8 @@ export function CoverArtworkSection({ releaseData, onUpdate }: CoverArtworkSecti
 
   return (
     <SectionWrapper
-      title="Cover Artwork"
-      subtitle="Upload your release cover art"
+      title="Release Cover Artwork"
+      subtitle="Upload &amp; Caption Your Release Cover Artwork"
     >
       <div className="space-y-6">
         {/* Upload Area */}
@@ -161,7 +166,7 @@ export function CoverArtworkSection({ releaseData, onUpdate }: CoverArtworkSecti
                 className="hidden"
               />
               <p className="text-xs text-gray-500 mt-4">
-                JPG or PNG • 3000x3000 pixels minimum • Square format • Max 20MB
+                JPG or PNG • Square image between 3000x3000 and 6000x6000 pixels • Max 10MB • Recommended 72–300 DPI
               </p>
             </>
           )}
@@ -179,27 +184,27 @@ export function CoverArtworkSection({ releaseData, onUpdate }: CoverArtworkSecti
         {releaseData.coverArtwork && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Artwork Caption <span className="text-gray-400">(optional)</span>
+              Artwork Caption <span className="text-red-500">*</span>
             </label>
             <Input
               type="text"
               value={releaseData.coverCaption}
               onChange={(e) => onUpdate('coverCaption', e.target.value)}
-              placeholder="Credit the artwork creator or add a description"
+              placeholder="Write a caption for your Cover Artwork…"
             />
             <p className="mt-1 text-xs text-gray-500">
-              This will be displayed as artwork credit on supported platforms.
+              ℹ️ This image is your Specific Release’s cover artwork across Gigrilla, and forms part of your Specific Release Download Pack.
             </p>
           </div>
         )}
 
         <InfoBox title="Artwork Guidelines" variant="warning">
           <ul className="list-disc list-inside space-y-1">
-            <li>No blurry, pixelated, or stretched images</li>
-            <li>No social media handles, URLs, or QR codes</li>
-            <li>No pricing or promotional text</li>
-            <li>No explicit content without proper labeling</li>
-            <li>You must own or have rights to use the image</li>
+            <li>Images must be .jpg (preferred) or .png - a 1:1 square image with min. 3000x3000 pixels, to max. 6000x6000 pixels, max. 10MB file size, min. 72 DPI, max. 300 DPI.</li>
+            <li>No blurry, pixelated, or stretched images.</li>
+            <li>No social media handles, URLs, QR codes, pricing, or promotional text.</li>
+            <li>No explicit content without proper labeling.</li>
+            <li>You must own or have rights to use the image.</li>
           </ul>
         </InfoBox>
       </div>

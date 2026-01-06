@@ -1,89 +1,188 @@
 // Types and interfaces for ArtistMusicManager
 
+export interface TerritorySelection {
+  home: boolean
+  specific: boolean
+  worldwide: boolean
+  specificList: string[]
+}
+
+export interface RecordLabelEntry {
+  id: string
+  name: string
+  contactName: string
+  contactEmail: string
+  confirmed: boolean
+  territories: TerritorySelection
+}
+
+export interface PublisherEntry {
+  id: string
+  name: string
+  contactName: string
+  contactEmail: string
+  confirmed: boolean
+  territories: TerritorySelection
+}
+
 export interface ReleaseData {
-  gtin: string
-  gtinConfirmed: boolean
+  upc: string
+  upcConfirmed: boolean
+  ean: string
+  eanConfirmed: boolean
   releaseTitle: string
   releaseTitleConfirmed: boolean
+  releaseTitleSource: 'gtin' | 'manual'
   releaseType: 'single' | 'ep' | 'album' | ''
   trackCount: number
+  trackCountLabel: string
   releaseVersion: string
   applyVersionToAll: boolean
-  territoryType: 'home' | 'specific' | 'worldwide' | ''
-  selectedTerritories: string[]
+  countryOfOrigin: string
+  availableHome: boolean
+  availableSpecific: boolean
+  availableWorldwide: boolean
+  specificTerritories: string[]
   territoryRightsConfirmed: boolean
   goLiveOption: 'past' | 'asap' | 'future' | ''
   goLiveDate: string
-  // Master rights
-  masterRightsHolder: string
-  masterIsni: string
-  masterIpiCae: string
+  masterRightsType: 'independent' | 'label' | ''
+  recordLabels: RecordLabelEntry[]
   masterRightsConfirmed: boolean
-  // Publishing rights
-  publishingRightsHolder: string
-  publishingIsni: string
-  publishingIpiCae: string
+  publishingRightsType: 'independent' | 'publisher' | ''
+  publishers: PublisherEntry[]
+  applyPublisherToAllTracks: boolean
   publishingRightsConfirmed: boolean
-  // Royalties
   distributorName: string
   distributorConfirmed: boolean
+  distributorContactName: string
+  distributorContactEmail: string
+  wroteComposition: boolean
   proName: string
   proConfirmed: boolean
+  proContactName: string
+  proContactEmail: string
   mcsName: string
   mcsConfirmed: boolean
-  // Cover artwork
+  mcsContactName: string
+  mcsContactEmail: string
   coverArtwork: File | null
   coverCaption: string
 }
 
+const emptyTerritorySelection: TerritorySelection = {
+  home: false,
+  specific: false,
+  worldwide: false,
+  specificList: []
+}
+
+export const createRecordLabelEntry = (): RecordLabelEntry => ({
+  id: crypto.randomUUID(),
+  name: '',
+  contactName: '',
+  contactEmail: '',
+  confirmed: false,
+  territories: { ...emptyTerritorySelection }
+})
+
+export const createPublisherEntry = (): PublisherEntry => ({
+  id: crypto.randomUUID(),
+  name: '',
+  contactName: '',
+  contactEmail: '',
+  confirmed: false,
+  territories: { ...emptyTerritorySelection }
+})
+
 export const initialReleaseData: ReleaseData = {
-  gtin: '',
-  gtinConfirmed: false,
+  upc: '',
+  upcConfirmed: false,
+  ean: '',
+  eanConfirmed: false,
   releaseTitle: '',
   releaseTitleConfirmed: false,
+  releaseTitleSource: 'gtin',
   releaseType: '',
   trackCount: 1,
-  releaseVersion: '',
+  trackCountLabel: '',
+  releaseVersion: 'original-studio',
   applyVersionToAll: false,
-  territoryType: '',
-  selectedTerritories: [],
+  countryOfOrigin: '',
+  availableHome: false,
+  availableSpecific: false,
+  availableWorldwide: false,
+  specificTerritories: [],
   territoryRightsConfirmed: false,
   goLiveOption: '',
   goLiveDate: '',
-  masterRightsHolder: '',
-  masterIsni: '',
-  masterIpiCae: '',
+  masterRightsType: '',
+  recordLabels: [createRecordLabelEntry()],
   masterRightsConfirmed: false,
-  publishingRightsHolder: '',
-  publishingIsni: '',
-  publishingIpiCae: '',
+  publishingRightsType: '',
+  publishers: [createPublisherEntry()],
+  applyPublisherToAllTracks: false,
   publishingRightsConfirmed: false,
   distributorName: '',
   distributorConfirmed: false,
+  distributorContactName: '',
+  distributorContactEmail: '',
+  wroteComposition: true,
   proName: '',
   proConfirmed: false,
+  proContactName: '',
+  proContactEmail: '',
   mcsName: '',
   mcsConfirmed: false,
+  mcsContactName: '',
+  mcsContactEmail: '',
   coverArtwork: null,
   coverCaption: ''
 }
 
 export const releaseVersionOptions = [
-  { value: 'original', label: 'Original' },
-  { value: 'remix', label: 'Remix' },
-  { value: 'live', label: 'Live' },
-  { value: 'acoustic', label: 'Acoustic' },
-  { value: 'instrumental', label: 'Instrumental' },
+  { value: 'original-studio', label: 'Original Studio Version (Default)' },
+  { value: 'acoustic', label: 'Acoustic Version' },
+  { value: 'child-safe', label: 'Child-Safe Version' },
+  { value: 'deluxe', label: 'Deluxe Edition' },
+  { value: 'demo', label: 'Demo Version' },
+  { value: 'extended', label: 'Extended Version' },
   { value: 'radio-edit', label: 'Radio Edit' },
-  { value: 'extended', label: 'Extended' },
-  { value: 'remaster', label: 'Remaster' },
-  { value: 'demo', label: 'Demo' }
+  { value: 'remastered', label: 'Remastered Version' },
+  { value: 'remix', label: 'Remix Version' },
+  { value: 'instrumental', label: 'Instrumental Version' },
+  { value: 'live', label: 'Live Version' },
+  { value: 'other', label: 'Other' }
 ]
 
-export const trackCountOptions = {
-  single: [1, 2, 3],
-  ep: [4, 5, 6],
-  album: [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+export interface TrackCountOption {
+  value: number
+  label: string
+}
+
+export const trackCountOptions: Record<'single' | 'ep' | 'album', TrackCountOption[]> = {
+  single: [
+    { value: 1, label: '1 Track Single' },
+    { value: 2, label: '2 Track Single' },
+    { value: 3, label: '3 Track Single' }
+  ],
+  ep: [
+    { value: 4, label: '4 Track EP' },
+    { value: 5, label: '5 Track EP' },
+    { value: 6, label: '6 Track EP' }
+  ],
+  album: [
+    { value: 1, label: '1 Track Album (>30 mins)' },
+    { value: 2, label: '2 Track Album (>30 mins)' },
+    { value: 3, label: '3 Track Album (>30 mins)' },
+    { value: 4, label: '4 Track Album (>30 mins)' },
+    { value: 5, label: '5 Track Album (>30 mins)' },
+    { value: 6, label: '6 Track Album (>30 mins)' },
+    ...Array.from({ length: 44 }, (_, index) => {
+      const trackNumber = index + 7
+      return { value: trackNumber, label: `${trackNumber} Track Album` }
+    })
+  ]
 }
 
 export const territoryOptions = [
@@ -94,6 +193,18 @@ export const territoryOptions = [
   { value: 'africa', label: 'Africa' },
   { value: 'oceania', label: 'Oceania' },
   { value: 'middle-east', label: 'Middle East' }
+]
+
+export const countryOptions = [
+  { value: 'united-kingdom', label: 'United Kingdom' },
+  { value: 'united-states', label: 'United States' },
+  { value: 'canada', label: 'Canada' },
+  { value: 'australia', label: 'Australia' },
+  { value: 'germany', label: 'Germany' },
+  { value: 'france', label: 'France' },
+  { value: 'brazil', label: 'Brazil' },
+  { value: 'south-africa', label: 'South Africa' },
+  { value: 'japan', label: 'Japan' }
 ]
 
 // Shared UI components

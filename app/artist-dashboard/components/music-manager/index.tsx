@@ -29,6 +29,25 @@ const STEPS = [
 type StepId = typeof STEPS[number]['id']
 
 export function ArtistMusicManager() {
+  const permanentMessages = [
+    {
+      icon: '💎',
+      message: 'Together, we are making the Music Industry fairer by ensuring everyone involved gets paid properly - and where laws allow, paying 100% of Royalties.'
+    },
+    {
+      icon: '⚠️',
+      message: 'It is crucial that you enter/confirm all data and ID codes correctly, to ensure all Rights Holders get paid their fair share. Beside fairness, having proper identification codes is a sign of professionalism in the Music Industry.'
+    },
+    {
+      icon: '🚨',
+      message: 'You are legally and financially responsible for any music you upload, regardless of territory - so please pay attention to all of the tips and details.'
+    },
+    {
+      icon: '📊',
+      message: 'While some metadata is sent to us by 3rd Parties, we ask you to check and add more layers of data to make sure your music gets heard and pays properly.'
+    }
+  ]
+
   // Current step state
   const [currentStep, setCurrentStep] = useState<StepId>('guide')
 
@@ -69,23 +88,50 @@ export function ArtistMusicManager() {
 
   // Check if current step is complete
   const isStepComplete = (stepId: StepId): boolean => {
+    const hasValidTerritories =
+      releaseData.availableWorldwide ||
+      releaseData.availableHome ||
+      (releaseData.availableSpecific && releaseData.specificTerritories.length > 0)
+
+    const hasLabelDetails = releaseData.masterRightsType === 'label'
+      ? releaseData.recordLabels.some(label => label.name.trim() && label.confirmed)
+      : releaseData.masterRightsType === 'independent' && releaseData.masterRightsConfirmed
+
+    const hasPublisherDetails = releaseData.publishingRightsType === 'publisher'
+      ? releaseData.publishers.some(publisher => publisher.name.trim() && publisher.confirmed)
+      : releaseData.publishingRightsType === 'independent' && releaseData.publishingRightsConfirmed
+
+    const goLiveReady =
+      releaseData.goLiveOption === 'asap'
+        ? true
+        : releaseData.goLiveOption === ''
+          ? false
+          : Boolean(releaseData.goLiveDate)
+
     switch (stepId) {
       case 'guide':
         return uploadGuideConfirmed
       case 'registration':
-        return releaseData.releaseTitleConfirmed
+        return (
+          releaseData.releaseTitleConfirmed &&
+          (releaseData.upcConfirmed || releaseData.eanConfirmed)
+        )
       case 'type':
         return !!releaseData.releaseType && releaseData.trackCount > 0
       case 'geography':
-        return !!releaseData.territoryType && releaseData.territoryRightsConfirmed
+        return hasValidTerritories && !!releaseData.countryOfOrigin && releaseData.territoryRightsConfirmed
       case 'date':
-        return !!releaseData.goLiveOption
+        return !!releaseData.goLiveOption && goLiveReady
       case 'rights':
-        return releaseData.masterRightsConfirmed && releaseData.publishingRightsConfirmed
+        return hasLabelDetails && hasPublisherDetails
       case 'royalties':
-        return releaseData.distributorConfirmed && releaseData.proConfirmed
+        return Boolean(
+          releaseData.distributorName.trim() &&
+          releaseData.distributorConfirmed &&
+          (!releaseData.wroteComposition || (releaseData.proName.trim() && releaseData.proConfirmed))
+        )
       case 'artwork':
-        return !!releaseData.coverArtwork
+        return !!releaseData.coverArtwork && !!releaseData.coverCaption.trim()
       default:
         return false
     }
@@ -123,23 +169,46 @@ export function ArtistMusicManager() {
 
   // Check if form is valid for proceeding
   const isFormValid = () => {
+    const hasValidTerritories =
+      releaseData.availableWorldwide ||
+      releaseData.availableHome ||
+      (releaseData.availableSpecific && releaseData.specificTerritories.length > 0)
+
+    const hasLabelDetails = releaseData.masterRightsType === 'independent'
+      ? releaseData.masterRightsConfirmed
+      : releaseData.recordLabels.some(label => label.name.trim() && label.confirmed)
+
+    const hasPublisherDetails = releaseData.publishingRightsType === 'independent'
+      ? releaseData.publishingRightsConfirmed
+      : releaseData.publishers.some(publisher => publisher.name.trim() && publisher.confirmed)
+
+    const goLiveReady =
+      releaseData.goLiveOption === 'asap'
+        ? true
+        : releaseData.goLiveOption === ''
+          ? false
+          : Boolean(releaseData.goLiveDate)
+
     return (
       uploadGuideConfirmed &&
+      (releaseData.upcConfirmed || releaseData.eanConfirmed) &&
       releaseData.releaseTitleConfirmed &&
-      releaseData.releaseType &&
+      releaseData.releaseType !== '' &&
       releaseData.trackCount > 0 &&
-      releaseData.territoryType &&
+      hasValidTerritories &&
+      !!releaseData.countryOfOrigin &&
       releaseData.territoryRightsConfirmed &&
-      releaseData.goLiveOption &&
-      releaseData.masterRightsHolder &&
-      releaseData.masterRightsConfirmed &&
-      releaseData.publishingRightsHolder &&
-      releaseData.publishingRightsConfirmed &&
-      releaseData.distributorName &&
+      releaseData.goLiveOption !== '' &&
+      goLiveReady &&
+      releaseData.masterRightsType !== '' &&
+      hasLabelDetails &&
+      releaseData.publishingRightsType !== '' &&
+      hasPublisherDetails &&
+      releaseData.distributorName.trim() !== '' &&
       releaseData.distributorConfirmed &&
-      releaseData.proName &&
-      releaseData.proConfirmed &&
-      releaseData.coverArtwork
+      (!releaseData.wroteComposition || (releaseData.proName.trim() && releaseData.proConfirmed)) &&
+      releaseData.coverArtwork !== null &&
+      releaseData.coverCaption.trim() !== ''
     )
   }
 
@@ -243,6 +312,22 @@ export function ArtistMusicManager() {
 
   return (
     <div className="max-w-4xl mx-auto">
+      <div className="bg-gradient-to-br from-purple-700 to-purple-900 rounded-3xl text-white p-6 md:p-8 mb-6 shadow-lg border border-purple-600/40">
+        <p className="text-sm uppercase tracking-wide text-purple-200 font-semibold">Artist Music</p>
+        <h1 className="text-3xl md:text-4xl font-bold mt-2">Upload &amp; Manage Your Music</h1>
+        <div className="mt-6 bg-white/10 rounded-2xl p-4">
+          <p className="text-xs uppercase tracking-wide text-purple-200 mb-3">Permanent Message</p>
+          <div className="space-y-3">
+            {permanentMessages.map((item) => (
+              <div key={item.icon} className="flex gap-3 text-sm leading-relaxed">
+                <span className="text-2xl" aria-hidden="true">{item.icon}</span>
+                <p className="text-purple-50">{item.message}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Step Progress Indicator */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
         <div className="flex items-center justify-between mb-4">
