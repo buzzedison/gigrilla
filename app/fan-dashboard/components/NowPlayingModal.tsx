@@ -11,7 +11,7 @@ interface NowPlayingModalProps {
 export function NowPlayingModal({ isOpen, onClose }: NowPlayingModalProps) {
   const [isPlaying, setIsPlaying] = useState(true);
   const [isLiked, setIsLiked] = useState(false);
-  const [progress, setProgress] = useState(67); // 2:14 out of 3:14
+  const [progress] = useState(67); // 2:14 out of 3:14
 
   if (!isOpen) return null;
 

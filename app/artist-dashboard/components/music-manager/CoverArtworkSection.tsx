@@ -148,7 +148,8 @@ export function CoverArtworkSection({ releaseData, onUpdate }: CoverArtworkSecti
             </div>
           ) : (
             <>
-              <Image className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+              {/* eslint-disable-next-line jsx-a11y/alt-text */}
+              <Image className="w-12 h-12 mx-auto text-gray-400 mb-4" aria-hidden="true" />
               <p className="text-gray-600 mb-2">
                 Drag and drop your cover artwork here, or
               </p>

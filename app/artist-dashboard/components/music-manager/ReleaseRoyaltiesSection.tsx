@@ -26,7 +26,7 @@ export function ReleaseRoyaltiesSection({
       title="Release Royalties"
       subtitle="Gigrilla will only pay your Royalties to the organisations you confirm below."
     >
-      <div className="space-y-8">
+      <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
         <InfoBox title="Why this matters" variant="info">
           <p>
             This ensures that all relevant Rights Holders get paid properly and that all laws are complied with. It is important that you are fully registered to avoid missing out on money owed to you, globally.

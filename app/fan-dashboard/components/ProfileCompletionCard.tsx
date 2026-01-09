@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "../../../lib/auth-context";
-import { getClient } from "../../../lib/supabase/client";
+// getClient import removed - not used
 
 interface ProfileData {
   username: string;
@@ -27,6 +27,7 @@ export function ProfileCompletionCard() {
   useEffect(() => {
     // Always try to load, will handle no user gracefully
     loadProfileData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Reload data when component becomes visible (user navigates back)
@@ -40,6 +41,7 @@ export function ProfileCompletionCard() {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadProfileData = async () => {

@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import { useAuth } from "../../lib/auth-context"
 import { ProtectedRoute } from "../../lib/protected-route"
 import { useRouter } from "next/navigation"
-import { ArtistSidebar, ArtistDashboardSection } from "./components/ArtistSidebar"
+import { ArtistSidebar } from "./components/ArtistSidebar"
 import { ArtistProfileForm } from "./components/ArtistProfileForm"
 import { ArtistCompletionCard, CompletionItemState, CompletionSection } from "./components/ArtistCompletionCard"
 import { ArtistBiographyManager } from "./components/ArtistBiographyManager"
@@ -58,7 +58,8 @@ export default function ArtistDashboard() {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const [onboardingCompleted, setOnboardingCompleted] = useState(false)
 
-  const selectedTypeConfig = useMemo(() => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _selectedTypeConfig = useMemo(() => {
     if (!artistTypeSelection) return undefined
     return getArtistTypeConfig(artistTypeSelection.artistTypeId)
   }, [artistTypeSelection])
@@ -163,7 +164,8 @@ export default function ArtistDashboard() {
     }
   }
 
-  const sectionHasCompletion = (section: DashboardSection) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _sectionHasCompletion = (section: DashboardSection) => {
     const mappedSection: CompletionSection = section as CompletionSection
     return completionState.some(item => item.section === mappedSection && item.completed)
   }

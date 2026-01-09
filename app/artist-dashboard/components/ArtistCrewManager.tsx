@@ -7,9 +7,9 @@ import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { Badge } from '../../components/ui/badge'
 import { Switch } from '../../components/ui/switch'
-import { Separator } from '../../components/ui/separator'
+// Separator import removed - not used
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../components/ui/collapsible'
-import { ChevronDown, ChevronUp, Plus, User, Users2, Music, Mic, Guitar, Drum, Piano, Keyboard, Headphones, Briefcase, Settings } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, User, Users2, Music, Mic, Guitar, Drum, Piano, Keyboard, Briefcase, Settings } from 'lucide-react'
 import { useAuth } from '../../../lib/auth-context'
 import { cn } from '../../../lib/utils'
 
@@ -251,6 +251,7 @@ export function ArtistCrewManager() {
   useEffect(() => {
     // Load crew data from API
     loadCrewData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   const loadCrewData = async () => {

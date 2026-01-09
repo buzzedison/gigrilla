@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+// useEffect, useState imports removed - not used
 import dynamic from 'next/dynamic';
 
 // Dynamically import the entire map to avoid SSR issues

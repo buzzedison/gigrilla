@@ -1,9 +1,62 @@
 'use client'
 
-import { useState } from 'react'
-import { Save, ArrowRight, ArrowLeft, Loader2, CheckCircle } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Save, ArrowRight, ArrowLeft, Loader2, CheckCircle, Plus } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
 import { ReleaseData, initialReleaseData } from './types'
+
+// Database release type (snake_case from API)
+interface DbRelease {
+  id: string
+  user_id: string
+  upc: string | null
+  upc_confirmed: boolean
+  ean: string | null
+  ean_confirmed: boolean
+  release_title: string
+  release_title_confirmed: boolean
+  release_title_source: 'gtin' | 'manual'
+  release_type: 'single' | 'ep' | 'album' | null
+  track_count: number
+  track_count_label: string | null
+  release_version: string
+  apply_version_to_all: boolean
+  country_of_origin: string | null
+  available_home: boolean
+  available_specific: boolean
+  available_worldwide: boolean
+  specific_territories: string[]
+  territory_rights_confirmed: boolean
+  go_live_option: 'past' | 'asap' | 'future' | null
+  go_live_date: string | null
+  master_rights_type: 'independent' | 'label' | null
+  record_labels: unknown[]
+  master_rights_confirmed: boolean
+  publishing_rights_type: 'independent' | 'publisher' | null
+  publishers: unknown[]
+  apply_publisher_to_all_tracks: boolean
+  publishing_rights_confirmed: boolean
+  distributor_name: string | null
+  distributor_confirmed: boolean
+  distributor_contact_name: string | null
+  distributor_contact_email: string | null
+  wrote_composition: boolean
+  pro_name: string | null
+  pro_confirmed: boolean
+  pro_contact_name: string | null
+  pro_contact_email: string | null
+  mcs_name: string | null
+  mcs_confirmed: boolean
+  mcs_contact_name: string | null
+  mcs_contact_email: string | null
+  cover_artwork_url: string | null
+  cover_caption: string | null
+  status: 'draft' | 'pending_review' | 'approved' | 'published' | 'rejected'
+  current_step: string
+  upload_guide_confirmed: boolean
+  created_at: string
+  updated_at: string
+}
 import { UploadGuideSection } from './UploadGuideSection'
 import { ReleaseRegistrationSection } from './ReleaseRegistrationSection'
 import { ReleaseTypeSection } from './ReleaseTypeSection'
@@ -28,6 +81,102 @@ const STEPS = [
 
 type StepId = typeof STEPS[number]['id']
 
+// Convert DB release to frontend ReleaseData
+function dbToReleaseData(db: DbRelease): Partial<ReleaseData> {
+  return {
+    upc: db.upc || '',
+    upcConfirmed: db.upc_confirmed,
+    ean: db.ean || '',
+    eanConfirmed: db.ean_confirmed,
+    releaseTitle: db.release_title || '',
+    releaseTitleConfirmed: db.release_title_confirmed,
+    releaseTitleSource: db.release_title_source,
+    releaseType: db.release_type || '',
+    trackCount: db.track_count,
+    trackCountLabel: db.track_count_label || '',
+    releaseVersion: db.release_version,
+    applyVersionToAll: db.apply_version_to_all,
+    countryOfOrigin: db.country_of_origin || '',
+    availableHome: db.available_home,
+    availableSpecific: db.available_specific,
+    availableWorldwide: db.available_worldwide,
+    specificTerritories: db.specific_territories || [],
+    territoryRightsConfirmed: db.territory_rights_confirmed,
+    goLiveOption: db.go_live_option || '',
+    goLiveDate: db.go_live_date || '',
+    masterRightsType: db.master_rights_type || '',
+    recordLabels: db.record_labels as ReleaseData['recordLabels'],
+    masterRightsConfirmed: db.master_rights_confirmed,
+    publishingRightsType: db.publishing_rights_type || '',
+    publishers: db.publishers as ReleaseData['publishers'],
+    applyPublisherToAllTracks: db.apply_publisher_to_all_tracks,
+    publishingRightsConfirmed: db.publishing_rights_confirmed,
+    distributorName: db.distributor_name || '',
+    distributorConfirmed: db.distributor_confirmed,
+    distributorContactName: db.distributor_contact_name || '',
+    distributorContactEmail: db.distributor_contact_email || '',
+    wroteComposition: db.wrote_composition,
+    proName: db.pro_name || '',
+    proConfirmed: db.pro_confirmed,
+    proContactName: db.pro_contact_name || '',
+    proContactEmail: db.pro_contact_email || '',
+    mcsName: db.mcs_name || '',
+    mcsConfirmed: db.mcs_confirmed,
+    mcsContactName: db.mcs_contact_name || '',
+    mcsContactEmail: db.mcs_contact_email || '',
+    coverCaption: db.cover_caption || ''
+  }
+}
+
+// Convert frontend ReleaseData to DB format
+function releaseDataToDb(data: ReleaseData, uploadGuideConfirmed: boolean, currentStep: string) {
+  return {
+    upc: data.upc || null,
+    upc_confirmed: data.upcConfirmed,
+    ean: data.ean || null,
+    ean_confirmed: data.eanConfirmed,
+    release_title: data.releaseTitle || 'Untitled Release',
+    release_title_confirmed: data.releaseTitleConfirmed,
+    release_title_source: data.releaseTitleSource,
+    release_type: data.releaseType || null,
+    track_count: data.trackCount,
+    track_count_label: data.trackCountLabel || null,
+    release_version: data.releaseVersion,
+    apply_version_to_all: data.applyVersionToAll,
+    country_of_origin: data.countryOfOrigin || null,
+    available_home: data.availableHome,
+    available_specific: data.availableSpecific,
+    available_worldwide: data.availableWorldwide,
+    specific_territories: data.specificTerritories,
+    territory_rights_confirmed: data.territoryRightsConfirmed,
+    go_live_option: data.goLiveOption || null,
+    go_live_date: data.goLiveDate || null,
+    master_rights_type: data.masterRightsType || null,
+    record_labels: data.recordLabels,
+    master_rights_confirmed: data.masterRightsConfirmed,
+    publishing_rights_type: data.publishingRightsType || null,
+    publishers: data.publishers,
+    apply_publisher_to_all_tracks: data.applyPublisherToAllTracks,
+    publishing_rights_confirmed: data.publishingRightsConfirmed,
+    distributor_name: data.distributorName || null,
+    distributor_confirmed: data.distributorConfirmed,
+    distributor_contact_name: data.distributorContactName || null,
+    distributor_contact_email: data.distributorContactEmail || null,
+    wrote_composition: data.wroteComposition,
+    pro_name: data.proName || null,
+    pro_confirmed: data.proConfirmed,
+    pro_contact_name: data.proContactName || null,
+    pro_contact_email: data.proContactEmail || null,
+    mcs_name: data.mcsName || null,
+    mcs_confirmed: data.mcsConfirmed,
+    mcs_contact_name: data.mcsContactName || null,
+    mcs_contact_email: data.mcsContactEmail || null,
+    cover_caption: data.coverCaption || null,
+    upload_guide_confirmed: uploadGuideConfirmed,
+    current_step: currentStep
+  }
+}
+
 export function ArtistMusicManager() {
   const permanentMessages = [
     {
@@ -48,6 +197,9 @@ export function ArtistMusicManager() {
     }
   ]
 
+  // Current release ID (null for new release)
+  const [releaseId, setReleaseId] = useState<string | null>(null)
+  
   // Current step state
   const [currentStep, setCurrentStep] = useState<StepId>('guide')
 
@@ -64,8 +216,35 @@ export function ArtistMusicManager() {
   const [errorModalOpen, setErrorModalOpen] = useState(false)
 
   // Loading states
+  const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isSavingAndProceeding, setIsSavingAndProceeding] = useState(false)
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+
+  // Load existing draft release on mount
+  const loadDraftRelease = useCallback(async () => {
+    try {
+      const response = await fetch('/api/music-releases?status=draft')
+      const result = await response.json()
+      
+      if (result.data && result.data.length > 0) {
+        // Load the most recent draft
+        const draft = result.data[0] as DbRelease
+        setReleaseId(draft.id)
+        setUploadGuideConfirmed(draft.upload_guide_confirmed)
+        setCurrentStep((draft.current_step as StepId) || 'guide')
+        setReleaseData(prev => ({ ...prev, ...dbToReleaseData(draft) }))
+      }
+    } catch (error) {
+      console.error('Error loading draft release:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadDraftRelease()
+  }, [loadDraftRelease])
 
   // Get current step index
   const currentStepIndex = STEPS.findIndex(s => s.id === currentStep)
@@ -156,15 +335,76 @@ export function ArtistMusicManager() {
   }
 
   // Handle invitation submission
-  const handleInvitationSubmit = (data: InvitationData) => {
-    console.log('Invitation submitted:', data)
-    // TODO: Implement API call to send invitation
+  const handleInvitationSubmit = async (data: InvitationData) => {
+    if (!releaseId) {
+      setSaveMessage({ type: 'error', text: 'Please save your release first before sending invitations.' })
+      return
+    }
+
+    try {
+      const response = await fetch('/api/music-release-invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          releaseId,
+          invitationType: data.type,
+          organizationName: data.name,
+          contactEmail: data.email,
+          contactName: null,
+          customMessage: data.message
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setSaveMessage({ type: 'success', text: `Invitation sent to ${data.name}!` })
+        setTimeout(() => setSaveMessage(null), 4000)
+      } else {
+        setSaveMessage({ type: 'error', text: result.error || 'Failed to send invitation' })
+        setTimeout(() => setSaveMessage(null), 5000)
+      }
+    } catch (error) {
+      console.error('Error sending invitation:', error)
+      setSaveMessage({ type: 'error', text: 'Failed to send invitation. Please try again.' })
+      setTimeout(() => setSaveMessage(null), 5000)
+    }
   }
 
   // Handle error report submission
-  const handleErrorReportSubmit = (data: ErrorReportData) => {
-    console.log('Error report submitted:', data)
-    // TODO: Implement API call to submit error report
+  const handleErrorReportSubmit = async (data: ErrorReportData) => {
+    if (!releaseId) {
+      setSaveMessage({ type: 'error', text: 'Please save your release first before reporting errors.' })
+      return
+    }
+
+    try {
+      const response = await fetch('/api/music-release-errors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          releaseId,
+          field: data.field,
+          description: data.description,
+          expectedValue: data.expectedValue,
+          currentValue: releaseData.releaseTitle // Or get current value based on field
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setSaveMessage({ type: 'success', text: 'Error report submitted. Thank you for helping us improve!' })
+        setTimeout(() => setSaveMessage(null), 4000)
+      } else {
+        setSaveMessage({ type: 'error', text: result.error || 'Failed to submit error report' })
+        setTimeout(() => setSaveMessage(null), 5000)
+      }
+    } catch (error) {
+      console.error('Error submitting error report:', error)
+      setSaveMessage({ type: 'error', text: 'Failed to submit error report. Please try again.' })
+      setTimeout(() => setSaveMessage(null), 5000)
+    }
   }
 
   // Check if form is valid for proceeding
@@ -215,27 +455,77 @@ export function ArtistMusicManager() {
   // Handle save and come back later
   const handleSave = async () => {
     setIsSaving(true)
+    setSaveMessage(null)
     try {
-      // TODO: Implement API call to save release data
-      console.log('Saving release data:', releaseData)
-      await new Promise(resolve => setTimeout(resolve, 1000)) // Simulated delay
+      const dbData = releaseDataToDb(releaseData, uploadGuideConfirmed, currentStep)
+      const payload = releaseId ? { id: releaseId, ...dbData, status: 'draft' } : { ...dbData, status: 'draft' }
+      
+      const response = await fetch('/api/music-releases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        if (!releaseId && result.data?.id) {
+          setReleaseId(result.data.id)
+        }
+        setSaveMessage({ type: 'success', text: 'Progress saved successfully!' })
+        setTimeout(() => setSaveMessage(null), 3000)
+      } else {
+        setSaveMessage({ type: 'error', text: result.error || 'Failed to save' })
+      }
+    } catch (error) {
+      console.error('Error saving release:', error)
+      setSaveMessage({ type: 'error', text: 'Failed to save. Please try again.' })
     } finally {
       setIsSaving(false)
     }
   }
 
-  // Handle save and proceed
+  // Handle save and proceed (submit for review)
   const handleSaveAndProceed = async () => {
     if (!isFormValid()) return
 
     setIsSavingAndProceeding(true)
+    setSaveMessage(null)
     try {
-      // TODO: Implement API call to save and proceed
-      console.log('Saving and proceeding with release data:', releaseData)
-      await new Promise(resolve => setTimeout(resolve, 1000)) // Simulated delay
+      const dbData = releaseDataToDb(releaseData, uploadGuideConfirmed, currentStep)
+      const payload = releaseId 
+        ? { id: releaseId, ...dbData, status: 'pending_review' } 
+        : { ...dbData, status: 'pending_review' }
+      
+      const response = await fetch('/api/music-releases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        setSaveMessage({ type: 'success', text: 'Release submitted for review!' })
+        // Could redirect to a releases list or show success state
+      } else {
+        setSaveMessage({ type: 'error', text: result.error || 'Failed to submit' })
+      }
+    } catch (error) {
+      console.error('Error submitting release:', error)
+      setSaveMessage({ type: 'error', text: 'Failed to submit. Please try again.' })
     } finally {
       setIsSavingAndProceeding(false)
     }
+  }
+
+  // Start a new release
+  const handleNewRelease = () => {
+    setReleaseId(null)
+    setReleaseData(initialReleaseData)
+    setUploadGuideConfirmed(false)
+    setCurrentStep('guide')
+    setSaveMessage(null)
   }
 
   // Render current step content
@@ -310,11 +600,47 @@ export function ArtistMusicManager() {
     }
   }
 
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="max-w-4xl mx-auto flex items-center justify-center py-20">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 animate-spin text-purple-600 mx-auto mb-4" />
+          <p className="text-gray-600 font-ui">Loading your releases...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-4xl mx-auto">
+      {/* Save Message Toast */}
+      {saveMessage && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg ${
+          saveMessage.type === 'success' 
+            ? 'bg-emerald-500 text-white' 
+            : 'bg-red-500 text-white'
+        }`}>
+          {saveMessage.text}
+        </div>
+      )}
+
       <div className="bg-gradient-to-br from-purple-700 to-purple-900 rounded-3xl text-white p-6 md:p-8 mb-6 shadow-lg border border-purple-600/40">
-        <p className="text-sm uppercase tracking-wide text-purple-200 font-semibold">Artist Music</p>
-        <h1 className="text-3xl md:text-4xl font-bold mt-2">Upload &amp; Manage Your Music</h1>
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-sm uppercase tracking-wide text-purple-200 font-semibold">Artist Music</p>
+            <h1 className="text-3xl md:text-4xl font-bold mt-2">Upload &amp; Manage Your Music</h1>
+          </div>
+          {releaseId && (
+            <Button
+              onClick={handleNewRelease}
+              variant="outline"
+              className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+            >
+              <Plus className="w-4 h-4 mr-2" /> New Release
+            </Button>
+          )}
+        </div>
         <div className="mt-6 bg-white/10 rounded-2xl p-4">
           <p className="text-xs uppercase tracking-wide text-purple-200 mb-3">Permanent Message</p>
           <div className="space-y-3">

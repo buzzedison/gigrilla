@@ -124,6 +124,7 @@ export default function ArtistProfile() {
   useEffect(() => {
     if (!user) return;
     loadArtistProfile();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadArtistProfile = async () => {

@@ -4,8 +4,8 @@ import { useState } from "react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
-import { Badge } from "../../components/ui/badge";
-import { Save, Plus, MapPin, Globe, ExternalLink, Settings } from "lucide-react";
+// Badge import removed - not used
+import { Save, Plus, MapPin, Globe } from "lucide-react";
 import { InteractiveMap } from "./InteractiveMap";
 
 export function GigAbilityMapsManager() {
@@ -15,17 +15,20 @@ export function GigAbilityMapsManager() {
   const [selectedCountry, setSelectedCountry] = useState("");
   const [selectedWiderCountry, setSelectedWiderCountry] = useState("");
 
-  const countries = [
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _countries = [
     "United States", "United Kingdom", "Canada", "Australia", "Germany",
     "France", "Italy", "Spain", "Netherlands", "Belgium", "Switzerland",
     "Austria", "Sweden", "Norway", "Denmark", "Finland", "Ireland"
   ];
 
-  const durations = [
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _durations = [
     "30 mins", "45 mins", "1 hour", "1.5 hours", "2 hours", "2.5 hours", "3 hours"
   ];
 
-  const handleLocalGigFeeChange = (value: string) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _handleLocalGigFeeChange = (value: string) => {
     // Only allow numbers
     const numericValue = value.replace(/[^0-9]/g, '');
     setLocalGigFee(numericValue);

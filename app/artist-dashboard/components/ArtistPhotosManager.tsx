@@ -49,6 +49,7 @@ export function ArtistPhotosManager({ onPhotosUpdate }: ArtistPhotosManagerProps
       await loadPhotos()
     }
     loadData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   const loadPhotos = async () => {
@@ -484,6 +485,7 @@ export function ArtistPhotosManager({ onPhotosUpdate }: ArtistPhotosManagerProps
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-purple-900">
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
             <Image className="w-5 h-5" aria-hidden="true" />
             Artist Profile Photos
           </CardTitle>
@@ -590,6 +592,7 @@ export function ArtistPhotosManager({ onPhotosUpdate }: ArtistPhotosManagerProps
 
             {profilePhotos.length === 0 && (
               <div className="text-center py-8 text-gray-500">
+                {/* eslint-disable-next-line jsx-a11y/alt-text */}
                 <Image className="w-12 h-12 mx-auto mb-3 text-gray-300" aria-hidden="true" />
                 <p>No photos uploaded yet</p>
                 <p className="text-sm">Upload your first photo to get started</p>

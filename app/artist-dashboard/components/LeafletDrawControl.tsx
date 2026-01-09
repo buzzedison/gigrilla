@@ -10,7 +10,8 @@ interface LeafletDrawControlProps {
   }) => void
 }
 
-export function LeafletDrawControl({ mode, onZoneCreated }: LeafletDrawControlProps) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function LeafletDrawControl(_props: LeafletDrawControlProps) {
   // This component is no longer used - replaced by DrawingControls.tsx
   // Keeping this file to avoid any import errors
   return null

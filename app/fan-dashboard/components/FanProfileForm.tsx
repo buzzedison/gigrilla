@@ -37,6 +37,7 @@ export function FanProfileForm() {
       // Set fallback data immediately when no user
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, loading]);
 
   // Add effect to reload data when component becomes visible (user navigates back)
@@ -50,6 +51,7 @@ export function FanProfileForm() {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   const loadUserProfile = async () => {

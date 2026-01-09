@@ -12,7 +12,8 @@ interface GenreSelectionPageProps {
 }
 
 type Genre = { id: string; name: string };
-type DbGenre = { id: string | number; name: string; description?: string; parent_id?: string | number };
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _DbGenre = { id: string | number; name: string; description?: string; parent_id?: string | number };
 type DbGenreNormalized = { id: string; name: string; description?: string; parent_id?: string };
 
 const defaultFamilies = [

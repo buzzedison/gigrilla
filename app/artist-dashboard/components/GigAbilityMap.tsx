@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '../../components/ui/button'
-import { Card, CardContent } from '../../components/ui/card'
+// Card imports removed - not used
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
 import { MapPin, Maximize2, Move, Globe } from 'lucide-react'
 import dynamic from 'next/dynamic'
@@ -17,20 +17,9 @@ const TileLayer = dynamic(
   () => import('react-leaflet').then((mod) => mod.TileLayer),
   { ssr: false }
 )
-const Circle = dynamic(
-  () => import('react-leaflet').then((mod) => mod.Circle),
-  { ssr: false }
-)
-const Polygon = dynamic(
-  () => import('react-leaflet').then((mod) => mod.Polygon),
-  { ssr: false }
-)
+// Circle, Polygon, Marker, FeatureGroup imports removed - not currently used
 const Marker = dynamic(
   () => import('react-leaflet').then((mod) => mod.Marker),
-  { ssr: false }
-)
-const FeatureGroup = dynamic(
-  () => import('react-leaflet').then((mod) => mod.FeatureGroup),
   { ssr: false }
 )
 
@@ -79,11 +68,10 @@ const COUNTRIES = [
 
 export function GigAbilityMap({ title, description, value, onChange, baseLocation, mapId = 'gig-map' }: GigAbilityMapProps) {
   const [mode, setMode] = useState<'radius' | 'polygon' | 'country'>('radius')
-  const [radius, setRadius] = useState(50) // km
+  const [radius] = useState(50) // km
   const [selectedCountry, setSelectedCountry] = useState('')
-  const [isDrawing, setIsDrawing] = useState(false)
+  const [, setIsDrawing] = useState(false)
   const [polygonPoints, setPolygonPoints] = useState<MapPoint[]>([])
-  const mapRef = useRef<HTMLDivElement>(null)
 
   // Initialize map centered on base location
   useEffect(() => {
@@ -99,7 +87,8 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
     }
   }, [baseLocation])
 
-  const handleRadiusChange = () => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _handleRadiusChange = () => {
     if (!baseLocation) return
     
     const newZone: MapZone = {
@@ -110,7 +99,8 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
     onChange(newZone)
   }
 
-  const handlePolygonComplete = () => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _handlePolygonComplete = () => {
     if (polygonPoints.length < 3) {
       alert('Please draw a complete area with at least 3 points')
       return

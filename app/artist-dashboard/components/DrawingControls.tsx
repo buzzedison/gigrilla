@@ -28,7 +28,7 @@ function DrawingControlsInner({ mode, onZoneCreated }: DrawingControlsProps) {
       try {
         // Import Leaflet and Leaflet.draw
         const L = await import('leaflet')
-        const LeafletDraw = await import('leaflet-draw')
+        await import('leaflet-draw')
         
         // Wait a bit for the library to fully initialize
         await new Promise(resolve => setTimeout(resolve, 100))

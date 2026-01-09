@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, type ComponentType } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import {
   User,
-  Users,
   Users2,
   BookOpen,
   Music,
