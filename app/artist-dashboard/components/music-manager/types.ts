@@ -66,7 +66,8 @@ export interface ReleaseData {
   mcsConfirmed: boolean
   mcsContactName: string
   mcsContactEmail: string
-  coverArtwork: File | null
+  coverArtwork: File | string | null // File during selection, string URL after upload
+  coverArtworkUrl?: string // R2 URL after upload
   coverCaption: string
 }
 
@@ -137,6 +138,7 @@ export const initialReleaseData: ReleaseData = {
   mcsContactName: '',
   mcsContactEmail: '',
   coverArtwork: null,
+  coverArtworkUrl: '',
   coverCaption: ''
 }
 
@@ -220,3 +222,61 @@ export interface IdCodeCardProps {
   learnMoreUrl: string
   examples?: string[]
 }
+
+// Track-related types
+export interface TrackData {
+  id?: string
+  trackNumber: number
+  trackTitle: string
+  trackTitleConfirmed: boolean
+  trackVersion: string
+  isrc: string
+  isrcConfirmed: boolean
+  iswc: string
+  iswcConfirmed: boolean
+  isni: string
+  isniConfirmed: boolean
+  ipiCae: string
+  ipiCaeConfirmed: boolean
+  explicitContent: boolean
+  childSafeContent: 'yes-original' | 'yes-radio-edit' | 'no-adult-themes' | ''
+  audioFile: File | null
+  audioFileUrl: string
+  audioFileSize: number
+  audioFormat: string
+  lyrics: string
+  lyricsFile: File | null
+  lyricsFileUrl: string
+  durationSeconds: number
+  featuredArtists: Array<{ name: string; role: string }>
+  writers: Array<{ name: string; role: string; sharePercentage: number }>
+  uploaded: boolean
+}
+
+export const createTrackData = (trackNumber: number): TrackData => ({
+  trackNumber,
+  trackTitle: '',
+  trackTitleConfirmed: false,
+  trackVersion: '',
+  isrc: '',
+  isrcConfirmed: false,
+  iswc: '',
+  iswcConfirmed: false,
+  isni: '',
+  isniConfirmed: false,
+  ipiCae: '',
+  ipiCaeConfirmed: false,
+  explicitContent: false,
+  childSafeContent: '',
+  audioFile: null,
+  audioFileUrl: '',
+  audioFileSize: 0,
+  audioFormat: '',
+  lyrics: '',
+  lyricsFile: null,
+  lyricsFileUrl: '',
+  durationSeconds: 0,
+  featuredArtists: [],
+  writers: [],
+  uploaded: false
+})

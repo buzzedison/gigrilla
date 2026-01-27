@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Image, Upload, X, CheckCircle, AlertCircle } from 'lucide-react'
+import { Image, Upload, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
 import { Input } from '../../../components/ui/input'
 import { SectionWrapper, InfoBox } from './shared'
@@ -16,6 +16,7 @@ export function CoverArtworkSection({ releaseData, onUpdate }: CoverArtworkSecti
   const [preview, setPreview] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const validateImage = (file: File): Promise<boolean> => {
@@ -66,9 +67,42 @@ export function CoverArtworkSection({ releaseData, onUpdate }: CoverArtworkSecti
 
   const handleFileSelect = async (file: File) => {
     const isValid = await validateImage(file)
-    if (isValid) {
-      onUpdate('coverArtwork', file)
-      setPreview(URL.createObjectURL(file))
+    if (!isValid) return
+
+    // Show preview immediately
+    const previewUrl = URL.createObjectURL(file)
+    setPreview(previewUrl)
+    setIsUploading(true)
+    setError(null)
+
+    try {
+      // Upload to Cloudflare R2 via API
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('type', 'release-artwork')
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Upload failed')
+      }
+
+      const result = await response.json()
+      
+      // Store the URL in release data instead of the File object
+      onUpdate('coverArtwork', result.url)
+      onUpdate('coverArtworkUrl', result.url)
+    } catch (err) {
+      console.error('Cover artwork upload failed:', err)
+      setError(err instanceof Error ? err.message : 'Failed to upload artwork. Please try again.')
+      setPreview(null)
+      onUpdate('coverArtwork', null)
+    } finally {
+      setIsUploading(false)
     }
   }
 
@@ -100,12 +134,16 @@ export function CoverArtworkSection({ releaseData, onUpdate }: CoverArtworkSecti
 
   const handleRemove = () => {
     onUpdate('coverArtwork', null)
+    onUpdate('coverArtworkUrl', null)
     setPreview(null)
     setError(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
   }
+
+  // Determine what to show: preview from local File or stored URL
+  const displayUrl = preview || (typeof releaseData.coverArtwork === 'string' ? releaseData.coverArtwork : null)
 
   return (
     <SectionWrapper
@@ -128,23 +166,36 @@ export function CoverArtworkSection({ releaseData, onUpdate }: CoverArtworkSecti
             }
           `}
         >
-          {preview ? (
+          {displayUrl ? (
             <div className="relative inline-block">
               <img
-                src={preview}
+                src={displayUrl}
                 alt="Cover artwork preview"
                 className="w-48 h-48 object-cover rounded-lg shadow-lg"
               />
-              <button
-                onClick={handleRemove}
-                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              <div className="mt-3 flex items-center justify-center gap-1 text-green-600">
-                <CheckCircle className="w-4 h-4" />
-                <span className="text-sm">Artwork uploaded</span>
-              </div>
+              {isUploading ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
+                  <Loader2 className="w-8 h-8 text-white animate-spin" />
+                </div>
+              ) : (
+                <button
+                  onClick={handleRemove}
+                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              {!isUploading && (
+                <div className="mt-3 flex items-center justify-center gap-1 text-green-600">
+                  <CheckCircle className="w-4 h-4" />
+                  <span className="text-sm">Artwork uploaded</span>
+                </div>
+              )}
+              {isUploading && (
+                <div className="mt-3 flex items-center justify-center gap-1 text-purple-600">
+                  <span className="text-sm">Uploading...</span>
+                </div>
+              )}
             </div>
           ) : (
             <>
@@ -156,6 +207,7 @@ export function CoverArtworkSection({ releaseData, onUpdate }: CoverArtworkSecti
               <Button
                 variant="outline"
                 onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
               >
                 <Upload className="w-4 h-4 mr-2" /> Browse Files
               </Button>
@@ -182,7 +234,7 @@ export function CoverArtworkSection({ releaseData, onUpdate }: CoverArtworkSecti
         )}
 
         {/* Caption */}
-        {releaseData.coverArtwork && (
+        {(releaseData.coverArtwork || displayUrl) && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Artwork Caption <span className="text-red-500">*</span>
@@ -194,7 +246,7 @@ export function CoverArtworkSection({ releaseData, onUpdate }: CoverArtworkSecti
               placeholder="Write a caption for your Cover Artwork…"
             />
             <p className="mt-1 text-xs text-gray-500">
-              ℹ️ This image is your Specific Release’s cover artwork across Gigrilla, and forms part of your Specific Release Download Pack.
+              ℹ️ This image is your Specific Release's cover artwork across Gigrilla, and forms part of your Specific Release Download Pack.
             </p>
           </div>
         )}

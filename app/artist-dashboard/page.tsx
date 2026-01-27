@@ -15,9 +15,12 @@ import { ArtistPhotosManager } from "./components/ArtistPhotosManager"
 import { ArtistVideosManager } from "./components/ArtistVideosManager"
 import { ArtistTypeSelectorV2, ArtistTypeSelection } from "./components/ArtistTypeSelectorV2"
 import { ArtistCrewManager } from "./components/ArtistCrewManager"
+import { ArtistPaymentsManager } from "./components/ArtistPaymentsManager"
+import { ArtistAuditionsManager } from "./components/ArtistAuditionsManager"
 import { ArtistRoyaltySplitsManager } from "./components/ArtistRoyaltySplitsManager"
 import { ArtistGigAbilityManager } from "./components/ArtistGigAbilityManager"
 import { ArtistMusicManager } from "./components/ArtistMusicManager"
+import { ArtistContractStatusManager } from "./components/ArtistContractStatusManager"
 import { Badge } from "../components/ui/badge"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet"
 import { Music, Info, Menu } from "lucide-react"
@@ -34,7 +37,9 @@ interface ArtistProfileResponse {
 
 type DashboardSection =
   | 'profile'
+  | 'payments'
   | 'crew'
+  | 'auditions'
   | 'royalty'
   | 'gigability'
   | 'bio'
@@ -45,6 +50,7 @@ type DashboardSection =
   | 'videos'
   | 'music'
   | 'type'
+  | 'contract'
 
 export default function ArtistDashboard() {
   const { user } = useAuth()
@@ -112,11 +118,12 @@ export default function ArtistDashboard() {
     loadArtistProfile()
   }, [user, router])
 
-  useEffect(() => {
-    if (onboardingCompleted && activeSection === 'type') {
-      setActiveSection('profile')
-    }
-  }, [onboardingCompleted, activeSection])
+  // Allow users to change their artist type even after onboarding is completed
+  // useEffect(() => {
+  //   if (onboardingCompleted && activeSection === 'type') {
+  //     setActiveSection('profile')
+  //   }
+  // }, [onboardingCompleted, activeSection])
 
   const handleArtistTypeChange = async (selection: ArtistTypeSelection) => {
     setIsSavingArtistType(true)
@@ -223,14 +230,6 @@ export default function ArtistDashboard() {
           </div>
         )
       case 'type':
-        // Hide type selector if onboarding is completed
-        if (onboardingCompleted) {
-          return (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <p className="text-sm text-gray-600">Your artist type has been configured. Contact support if you need to change it.</p>
-            </div>
-          )
-        }
         return (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             <div className="xl:col-span-3 space-y-4">
@@ -247,11 +246,44 @@ export default function ArtistDashboard() {
             </div>
           </div>
         )
+      case 'contract':
+        return (
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <div className="xl:col-span-3">
+              <ArtistContractStatusManager />
+            </div>
+            <div className="xl:col-span-1">
+              <ArtistCompletionCard />
+            </div>
+          </div>
+        )
+      case 'payments':
+        return (
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <div className="xl:col-span-3">
+              <ArtistPaymentsManager />
+            </div>
+            <div className="xl:col-span-1">
+              <ArtistCompletionCard />
+            </div>
+          </div>
+        )
       case 'crew':
         return (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             <div className="xl:col-span-3">
               <ArtistCrewManager />
+            </div>
+            <div className="xl:col-span-1">
+              <ArtistCompletionCard />
+            </div>
+          </div>
+        )
+      case 'auditions':
+        return (
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <div className="xl:col-span-3">
+              <ArtistAuditionsManager />
             </div>
             <div className="xl:col-span-1">
               <ArtistCompletionCard />
@@ -340,12 +372,15 @@ export default function ArtistDashboard() {
 
   const headerTitleMap: Record<DashboardSection, string> = {
     profile: 'Artist Dashboard',
+    contract: 'Contract Status',
+    payments: 'Artist Payments',
+    crew: 'Artist Crew',
+    auditions: 'Auditions & Collaborations',
     logo: 'Logo/Profile Artwork',
     photos: 'Artist Photos',
     videos: 'Artist Videos',
     type: 'Artist Type & Configuration',
-    crew: 'Artist Crew',
-    royalty: 'Default Royalty Splits',
+    royalty: 'Default Gig Royalty Splits',
     gigability: 'Artist Gig-Ability',
     bio: 'Artist Biography',
     genres: 'Artist Genres',
@@ -355,12 +390,15 @@ export default function ArtistDashboard() {
 
   const headerSubtitleMap: Record<DashboardSection, string> = {
     profile: 'Manage your artist profile and content',
+    contract: 'Manage your record label, publisher, manager, and booking agent relationships',
+    payments: 'Configure banking details for payments in and out',
+    crew: 'Manage your crew roles, instruments, and band members',
+    auditions: 'Advertise auditions and collaboration opportunities',
     logo: 'Upload your logo and profile artwork',
     photos: 'Upload and manage your artist photos',
     videos: 'Embed and manage your artist videos',
     type: 'Select your official artist type and sub-types',
-    crew: 'Manage your crew roles, instruments, and band members',
-    royalty: 'Set default royalty splits for gigs and music releases',
+    royalty: 'Set default royalty splits for gigs',
     gigability: 'Set your base location and stage timing preferences',
     bio: 'Write and manage your artist biography',
     genres: 'Select your music genres and sub-genres',
@@ -383,7 +421,7 @@ export default function ArtistDashboard() {
             }}
             capabilities={capabilities}
             completedSections={completionState.filter(item => item.completed).map(item => item.section)}
-            hideTypeSection={onboardingCompleted}
+            hideTypeSection={false}
           />
         </SheetContent>
 
@@ -395,7 +433,7 @@ export default function ArtistDashboard() {
                 onSectionChange={setActiveSection}
                 capabilities={capabilities}
                 completedSections={completionState.filter(item => item.completed).map(item => item.section)}
-                hideTypeSection={onboardingCompleted}
+                hideTypeSection={false}
               />
             </div>
           </div>

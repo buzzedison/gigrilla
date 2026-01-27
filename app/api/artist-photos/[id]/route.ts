@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { deleteFromR2, extractR2KeyFromUrl } from '@/lib/cloudflare/r2'
 
 export async function PATCH(
   request: NextRequest,
@@ -170,23 +171,26 @@ export async function DELETE(
       }, { status: 500 })
     }
 
-    // Delete the file from storage
+    // Delete the file from Cloudflare R2
     if (existingPhoto.url) {
       try {
-        // Extract file path from URL
-        const urlParts = existingPhoto.url.split('/')
-        const fileName = urlParts.slice(-2).join('/') // Get user_id/type/filename
+        const r2Key = extractR2KeyFromUrl(existingPhoto.url)
         
-        const { error: storageError } = await supabase.storage
-          .from('artist-photos')
-          .remove([fileName])
-
-        if (storageError) {
-          console.error('API: Storage delete error:', storageError)
-          // Don't fail the request if storage delete fails, just log it
+        if (r2Key) {
+          const deleteResult = await deleteFromR2(r2Key)
+          
+          if (!deleteResult.success) {
+            console.error('API: R2 delete error:', deleteResult.error)
+            // Don't fail the request if R2 delete fails, just log it
+          } else {
+            console.log('API: Successfully deleted file from R2:', r2Key)
+          }
+        } else {
+          console.warn('API: Could not extract R2 key from URL:', existingPhoto.url)
         }
       } catch (storageError) {
-        console.error('API: Error parsing URL for storage delete:', storageError)
+        console.error('API: Error deleting from R2:', storageError)
+        // Don't fail the request if storage delete fails, just log it
       }
     }
 

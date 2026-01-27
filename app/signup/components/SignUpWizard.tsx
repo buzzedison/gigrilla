@@ -37,6 +37,7 @@ import { Textarea } from "../../components/ui/textarea";
 import { cn } from "../../components/ui/utils";
 import { useAuth } from "../../../lib/auth-context";
 import { getClient } from "../../../lib/supabase/client";
+import { getArtistTypeCapabilities } from "../../../lib/artist-type-config";
 
 type MemberType = "fan" | "artist" | "venue" | "service" | "pro";
 type AccountChoice = "guest" | "fan";
@@ -375,15 +376,15 @@ const ARTIST_TYPE_OPTIONS: ArtistTypeOption[] = [
       "I am a live performance and recording session musician.",
     instrumentCategories: {
       "String Instruments": [
-        "All String Instruments",
-        "Banjo",
-        "Bass Guitar", 
-        "Cello",
-        "Double Bass",
-        "Guitar",
-        "Harp",
+      "All String Instruments",
+      "Banjo",
+      "Bass Guitar",
+      "Cello",
+      "Double Bass",
+      "Guitar",
+      "Harp",
         "Lute",
-        "Mandolin",
+      "Mandolin",
         "Nyckelharpa",
         "Phonofiddle",
         "Sitar",
@@ -591,24 +592,24 @@ const FAN_MEMBERSHIP_BENEFITS = [
 ];
 
 interface StepDefinition {
-key:
-| "member-selector"
-| "membership"
-| "fan-account-basics"
-| "fan-profile-details"
-| "fan-music-preferences"
-| "fan-payment"
-| "fan-profile-picture"
-| "fan-photos"
-| "fan-videos"
-| "profile-add"
-| "artist-type"
+  key:
+    | "member-selector"
+    | "membership"
+    | "fan-account-basics"
+    | "fan-profile-details"
+    | "fan-music-preferences"
+    | "fan-payment"
+    | "fan-profile-picture"
+    | "fan-photos"
+    | "fan-videos"
+    | "profile-add"
+    | "artist-type"
 | "artist-profile-setup"
-| "venue-type"
-| "service-type"
-| "pro-type"
-| "guest-summary";
-label: string;
+    | "venue-type"
+    | "service-type"
+    | "pro-type"
+    | "guest-summary";
+  label: string;
 }
 
 const slugify = (value: string) =>
@@ -741,6 +742,11 @@ export function SignUpWizard() {
     baseLocationLat: null as number | null,
     baseLocationLon: null as number | null,
     publicGigsPerformed: 0,
+    recordingSessionGigs: 0,
+    songwritingCollaborations: 0,
+    performerIsni: "",
+    creatorIpiCae: "",
+    website: "",
     facebookUrl: "",
     instagramUrl: "",
     threadsUrl: "",
@@ -798,6 +804,31 @@ export function SignUpWizard() {
     focusAreas: "",
     hostSessions: true,
   });
+
+  // Get artist type capabilities for conditional rendering
+  const artistCapabilities = useMemo(() => {
+    if (!artistSelection.typeId) return null;
+    return getArtistTypeCapabilities(artistSelection.typeId);
+  }, [artistSelection.typeId]);
+
+  // Debug: Log capabilities when artist type changes
+  useEffect(() => {
+    if (artistCapabilities && artistSelection.typeId) {
+      console.log('🎯 Artist Type Selected:', artistSelection.typeId);
+      console.log('📋 Capabilities:', {
+        hasRecordLabel: artistCapabilities.hasRecordLabel,
+        hasMusicPublisher: artistCapabilities.hasMusicPublisher,
+        hasBookingAgent: artistCapabilities.hasBookingAgent,
+        requiresISNI: artistCapabilities.requiresISNI,
+        requiresIPICAE: artistCapabilities.requiresIPICAE,
+        optionalIPICAE: artistCapabilities.optionalIPICAE,
+        needsGigsPerformed: artistCapabilities.needsGigsPerformed,
+        hasSessionGigs: artistCapabilities.hasSessionGigs,
+        hasSongwritingCollaborations: artistCapabilities.hasSongwritingCollaborations,
+        hasTeamMembers: artistCapabilities.hasTeamMembers,
+      });
+    }
+  }, [artistCapabilities, artistSelection.typeId]);
 
   // Redirect to dashboard if user has already completed FAN onboarding and is trying to do it again
   // Allow users to add additional profile types (artist, venue, service, pro) even if they have fan profile
@@ -891,7 +922,7 @@ export function SignUpWizard() {
     };
   }, [authLoading, onboardingParam, router, user]);
 
-  
+
   // Handle email verification callback and check session when returning
   useEffect(() => {
     // Run if we have onboarding param but either:
@@ -1600,29 +1631,27 @@ export function SignUpWizard() {
     setProfilePictureState({ uploading: true, error: "" });
 
     try {
-      const supabase = getClient();
-      
       if (!user?.id) {
         throw new Error("User must be authenticated to upload profile picture");
       }
       
-      const extension = file.name.split(".").pop() || "jpg";
-      // Upload to userId/filename structure to match storage policy
-      const path = `${user.id}/${Date.now()}.${extension}`;
+      // Upload to Cloudflare R2 via API
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", "avatar");
 
-      const { error: uploadError } = await supabase.storage
-        .from(PROFILE_PICTURE_BUCKET)
-        .upload(path, file, { upsert: true });
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
 
-      if (uploadError) {
-        throw uploadError;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Upload failed");
       }
 
-      const { data: publicUrlData } = supabase.storage
-        .from(PROFILE_PICTURE_BUCKET)
-        .getPublicUrl(path);
-
-      const publicUrl = publicUrlData?.publicUrl ?? "";
+      const result = await response.json();
+      const publicUrl = result.url;
 
       setFanProfile((prev) => ({
         ...prev,
@@ -1639,6 +1668,7 @@ export function SignUpWizard() {
 
         if (user?.id) {
           try {
+            const supabase = getClient();
             const { error: userUpdateError } = await supabase
               .from("users")
               .update({ avatar_url: publicUrl })
@@ -1668,8 +1698,6 @@ export function SignUpWizard() {
     if (!fileList || fileList.length === 0) {
       return;
     }
-
-    const supabase = getClient();
     
     if (!user?.id) {
       setPhotoUploadError("User must be authenticated to upload photos");
@@ -1681,23 +1709,23 @@ export function SignUpWizard() {
 
     for (const file of Array.from(fileList)) {
       try {
-        const sanitisedName = file.name.replace(/\s+/g, "-");
-        // Upload to userId/filename structure to match storage policy
-        const path = `${user.id}/${Date.now()}-${sanitisedName}`;
+        // Upload to Cloudflare R2 via API
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("type", "fan-gallery");
 
-        const { error: uploadError } = await supabase.storage
-          .from(FAN_GALLERY_BUCKET)
-          .upload(path, file, { upsert: true });
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
 
-        if (uploadError) {
-          throw uploadError;
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Upload failed");
         }
 
-        const { data: publicUrlData } = supabase.storage
-          .from(FAN_GALLERY_BUCKET)
-          .getPublicUrl(path);
-
-        const publicUrl = publicUrlData?.publicUrl ?? "";
+        const result = await response.json();
+        const publicUrl = result.url;
 
         if (publicUrl) {
           newPhotos.push({ name: file.name, url: publicUrl });
@@ -2680,7 +2708,7 @@ export function SignUpWizard() {
                                 </span>
                               )}
                             </div>
-                          </AccordionTrigger>
+                        </AccordionTrigger>
                           <Button
                             type="button"
                             variant="ghost"
@@ -2858,7 +2886,7 @@ export function SignUpWizard() {
                                 {breadcrumb}
                               </div>
                             </div>
-                          </AccordionTrigger>
+                        </AccordionTrigger>
                           <Button
                             type="button"
                             variant="ghost"
@@ -3022,10 +3050,10 @@ export function SignUpWizard() {
                             if (card) {
                               card.classList.add('animate-pulse', 'opacity-50');
                               setTimeout(() => {
-                                setFanDetails((prev) => ({
-                                  ...prev,
-                                  subGenres: prev.subGenres.filter((sg) => sg !== subGenre),
-                                }));
+                            setFanDetails((prev) => ({
+                              ...prev,
+                              subGenres: prev.subGenres.filter((sg) => sg !== subGenre),
+                            }));
                               }, 150);
                             } else {
                               setFanDetails((prev) => ({
@@ -3169,10 +3197,10 @@ export function SignUpWizard() {
                         title="Download Terms & Conditions"
                       >
                         <Download className="h-4 w-4" />
-                      </Link>
+                </Link>
                     </div>
                     <span className="text-xs text-foreground/80">* I have read and understood the Gigrilla Terms &amp; Conditions of Membership.</span>
-                  </Label>
+              </Label>
             </div>
                 
             <div className="flex items-start gap-3">
@@ -3197,10 +3225,10 @@ export function SignUpWizard() {
                         title="Download Privacy & Payment Policy"
                       >
                         <Download className="h-4 w-4" />
-                      </Link>
+                </Link>
                     </div>
                     <span className="text-xs text-foreground/80">* I have read and understood the Gigrilla Members Privacy &amp; Payment Policy.</span>
-                  </Label>
+              </Label>
                 </div>
               </div>
             </div>
@@ -3327,14 +3355,14 @@ export function SignUpWizard() {
             <div className="flex flex-col gap-2 rounded-xl border border-border/40 bg-white/60 p-3">
               <p className="text-xs font-semibold text-foreground/70">Current profile image</p>
               <div className="flex items-center gap-3">
-                <Image
-                  src={fanProfile.profilePictureUrl}
-                  alt="Fan profile"
-                  width={128}
-                  height={128}
-                  unoptimized
-                  className="h-32 w-32 rounded-full object-cover"
-                />
+              <Image
+                src={fanProfile.profilePictureUrl}
+                alt="Fan profile"
+                width={128}
+                height={128}
+                unoptimized
+                className="h-32 w-32 rounded-full object-cover"
+              />
                 <div className="flex-1">
                   <p className="text-xs text-foreground/60 mb-2">{fanProfile.profilePictureName}</p>
                   <Button
@@ -3863,7 +3891,7 @@ export function SignUpWizard() {
                          option.id === 'type7' ? 'Choose your lyricist scope and genres (select all that apply)' : 
                          option.id === 'type8' ? 'Choose your composer scope and genres (select all that apply)' : 'Choose your specialty'}
                         <span className="text-xs font-normal text-foreground/50">(optional)</span>
-                      </Label>
+                </Label>
                       
                       {/* Type 4 uses vocal categories and availability selection */}
                       {option.id === 'type4' && option.soundBasedVoiceDescriptors && option.genreBasedVoiceDescriptors ? (
@@ -4230,7 +4258,7 @@ export function SignUpWizard() {
                               <span className="text-red-500 ml-1">*</span>
                             </Label>
                             <p className="text-xs text-gray-600">Select a category to view and pick instruments (you can switch between categories)</p>
-                            <Select
+                <Select
                               value={artistSelection.instrumentCategory?.split('|')[0] || ''}
                               onValueChange={(value) => {
                                 // Just change the view, don't reset anything
@@ -5083,21 +5111,21 @@ export function SignUpWizard() {
                           {option.subTypes && (
                             <Select
                               value={artistSelection.subType}
-                              onValueChange={(value) =>
-                                setArtistSelection((prev) => ({ ...prev, subType: value }))
-                              }
-                            >
+                  onValueChange={(value) =>
+                    setArtistSelection((prev) => ({ ...prev, subType: value }))
+                  }
+                >
                               <SelectTrigger className="h-11 border-2 font-ui hover:border-primary/50 transition-colors">
                                 <SelectValue placeholder="Select a specialty..." />
-                              </SelectTrigger>
+                  </SelectTrigger>
                               <SelectContent className="max-h-[300px]">
                                 {option.subTypes.map((sub: string) => (
                                   <SelectItem key={sub} value={sub} className="font-ui">
-                                    {sub}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                        {sub}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                           )}
                           {option.subTypes && option.subTypes.length > 8 && (
                             <p className="text-xs text-orange-700 font-semibold bg-orange-50 border border-orange-300 rounded px-3 py-2 text-center">
@@ -5134,7 +5162,7 @@ export function SignUpWizard() {
                       </p>
                     </div>
                   </div>
-                </CardContent>
+              </CardContent>
               )}
             </Card>
           );
@@ -5143,6 +5171,7 @@ export function SignUpWizard() {
       
       {/* Overall selection summary */}
       {artistSelection.typeId && (
+        <>
         <div className="flex flex-col gap-4 rounded-lg border-2 border-green-400 bg-green-50 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-3">
             <div className="text-2xl">✅</div>
@@ -5168,8 +5197,56 @@ export function SignUpWizard() {
             {isProcessingStep ? 'Working…' : 'Proceed with selection'}
           </Button>
         </div>
+
+        {/* Debug Panel - Shows what sections will appear based on artist type */}
+        {artistCapabilities && process.env.NODE_ENV === 'development' && (
+        <div className="rounded-lg border-2 border-blue-400 bg-blue-50 p-4">
+          <div className="flex gap-3">
+            <div className="text-2xl">🔧</div>
+            <div className="flex-1">
+              <div className="font-bold text-blue-900 mb-2">Debug: Form Sections (Dev Mode Only)</div>
+              <div className="grid grid-cols-2 gap-2 text-xs text-blue-800">
+                <div className={artistCapabilities.hasRecordLabel ? 'font-semibold' : 'opacity-50'}>
+                  {artistCapabilities.hasRecordLabel ? '✅' : '❌'} Record Label
+                </div>
+                <div className={artistCapabilities.hasMusicPublisher ? 'font-semibold' : 'opacity-50'}>
+                  {artistCapabilities.hasMusicPublisher ? '✅' : '❌'} Music Publisher
+                </div>
+                <div className={artistCapabilities.hasArtistManager ? 'font-semibold' : 'opacity-50'}>
+                  {artistCapabilities.hasArtistManager ? '✅' : '❌'} Artist Manager
+                </div>
+                <div className={artistCapabilities.hasBookingAgent ? 'font-semibold' : 'opacity-50'}>
+                  {artistCapabilities.hasBookingAgent ? '✅' : '❌'} Booking Agent
+                </div>
+                <div className={artistCapabilities.requiresISNI ? 'font-semibold' : 'opacity-50'}>
+                  {artistCapabilities.requiresISNI ? '✅' : '❌'} ISNI (required)
+                </div>
+                <div className={artistCapabilities.requiresIPICAE ? 'font-semibold' : artistCapabilities.optionalIPICAE ? 'font-medium' : 'opacity-50'}>
+                  {artistCapabilities.requiresIPICAE ? '✅ IPI/CAE (required)' : artistCapabilities.optionalIPICAE ? '🔸 IPI/CAE (optional)' : '❌ IPI/CAE'}
+                </div>
+                <div className={artistCapabilities.needsGigsPerformed ? 'font-semibold' : 'opacity-50'}>
+                  {artistCapabilities.needsGigsPerformed ? '✅' : '❌'} Public Gigs Tracking
+                </div>
+                <div className={artistCapabilities.hasSessionGigs ? 'font-semibold' : 'opacity-50'}>
+                  {artistCapabilities.hasSessionGigs ? '✅' : '❌'} Session Gigs Tracking
+                </div>
+                <div className={artistCapabilities.hasSongwritingCollaborations ? 'font-semibold' : 'opacity-50'}>
+                  {artistCapabilities.hasSongwritingCollaborations ? '✅' : '❌'} Songwriting Collaborations
+                </div>
+                <div className={artistCapabilities.hasTeamMembers ? 'font-semibold' : 'opacity-50'}>
+                  {artistCapabilities.hasTeamMembers ? '✅' : '❌'} Team Members
+                </div>
+                <div className={artistCapabilities.canUploadMusic ? 'font-semibold' : 'opacity-50'}>
+                  {artistCapabilities.canUploadMusic ? '✅' : '❌'} Music Upload
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        )}
+        </>
       )}
-      
+
       <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
         <div className="flex gap-3">
           <div className="text-xl">💡</div>
@@ -5258,18 +5335,51 @@ export function SignUpWizard() {
                   className="font-ui h-11 border-2 focus:border-primary"
                 />
               </div>
+              {artistCapabilities?.needsGigsPerformed && (
               <div className="space-y-2">
                 <Label htmlFor="publicGigsPerformed" className="font-semibold">Public Gigs Performed</Label>
+                <p className="text-xs text-foreground/60">It pays to be honest - used for gig stats</p>
                 <Input
                   id="publicGigsPerformed"
                   type="number"
                   min="0"
-                  placeholder="Before joining Gigrilla..."
+                  placeholder="0"
                   value={artistProfile.publicGigsPerformed}
                   onChange={(e) => setArtistProfile(prev => ({ ...prev, publicGigsPerformed: parseInt(e.target.value) || 0 }))}
                   className="font-ui h-11 border-2 focus:border-primary"
                 />
               </div>
+              )}
+              {artistCapabilities?.hasSessionGigs && (
+              <div className="space-y-2">
+                <Label htmlFor="recordingSessionGigs" className="font-semibold">Recording Session Gigs</Label>
+                <p className="text-xs text-foreground/60">It pays to be honest - used for gig stats</p>
+                <Input
+                  id="recordingSessionGigs"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={artistProfile.recordingSessionGigs}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, recordingSessionGigs: parseInt(e.target.value) || 0 }))}
+                  className="font-ui h-11 border-2 focus:border-primary"
+                />
+              </div>
+              )}
+              {artistCapabilities?.hasSongwritingCollaborations && (
+              <div className="space-y-2">
+                <Label htmlFor="songwritingCollaborations" className="font-semibold">Songwriting Collaborations Before Joining Gigrilla</Label>
+                <p className="text-xs text-foreground/60">It pays to be honest - used for stats</p>
+                <Input
+                  id="songwritingCollaborations"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={artistProfile.songwritingCollaborations}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, songwritingCollaborations: parseInt(e.target.value) || 0 }))}
+                  className="font-ui h-11 border-2 focus:border-primary"
+                />
+              </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="baseLocation" className="font-semibold">Artist Base Location</Label>
@@ -5456,7 +5566,8 @@ export function SignUpWizard() {
           </CardContent>
         </Card>
 
-        {/* Contract Status */}
+        {/* Contract Status - Only show if artist has any contract capabilities */}
+        {artistCapabilities && (artistCapabilities.hasRecordLabel || artistCapabilities.hasMusicPublisher || artistCapabilities.hasArtistManager || artistCapabilities.hasBookingAgent) && (
         <Card className="border-2 border-border/40 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="bg-gradient-to-r from-green-500/5 to-transparent pb-4">
             <div className="flex items-center gap-2">
@@ -5466,7 +5577,8 @@ export function SignUpWizard() {
             <p className="text-xs text-foreground/60 mt-1">Tell us about your industry relationships and representation</p>
           </CardHeader>
           <CardContent className="space-y-8 pt-6">
-            {/* Record Label */}
+            {/* Record Label - Only for Types 1 & 2 */}
+            {artistCapabilities.hasRecordLabel && (
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Record Label Status</Label>
@@ -5536,8 +5648,10 @@ export function SignUpWizard() {
                 </div>
               )}
             </div>
+            )}
 
-            {/* Music Publisher */}
+            {/* Music Publisher - Only for Types 1, 2, 6, 7, 8 */}
+            {artistCapabilities.hasMusicPublisher && (
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Music Publisher Status</Label>
@@ -5607,8 +5721,10 @@ export function SignUpWizard() {
                 </div>
               )}
             </div>
+            )}
 
-            {/* Artist Manager */}
+            {/* Artist Manager - All types */}
+            {artistCapabilities.hasArtistManager && (
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Artist Manager Status</Label>
@@ -5678,8 +5794,10 @@ export function SignUpWizard() {
                 </div>
               )}
             </div>
+            )}
 
-            {/* Booking Agent */}
+            {/* Booking Agent - Only for Types 1, 3, 4, 5 */}
+            {artistCapabilities.hasBookingAgent && (
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Booking Agent Status</Label>
@@ -5749,8 +5867,67 @@ export function SignUpWizard() {
                 </div>
               )}
             </div>
+            )}
           </CardContent>
         </Card>
+        )}
+
+        {/* Professional IDs - ISNI and IPI/CAE */}
+        {artistCapabilities && (artistCapabilities.requiresISNI || artistCapabilities.requiresIPICAE || artistCapabilities.optionalIPICAE) && (
+        <Card className="border-2 border-border/40 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="bg-gradient-to-r from-blue-500/5 to-transparent pb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🆔</span>
+              <h4 className="text-lg font-bold text-foreground">Professional Identification</h4>
+            </div>
+            <p className="text-xs text-foreground/60 mt-1">Industry-standard IDs for proper crediting and royalty payments</p>
+          </CardHeader>
+          <CardContent className="space-y-6 pt-6">
+            {/* ISNI - International Standard Name Identifier */}
+            {artistCapabilities.requiresISNI && (
+            <div className="space-y-2">
+              <Label htmlFor="performerIsni">
+                Artist Performer ISNI <span className="text-red-500">*</span>
+              </Label>
+              <p className="text-xs text-foreground/60 mb-2">
+                ℹ️ Your unique digital ID prevents name confusion, ensures correct crediting, and tracks all your work across platforms.
+                <a href="https://isni.org/page/search-database/" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline ml-1">
+                  Get / Find an ISNI
+                </a>
+              </p>
+              <Input
+                id="performerIsni"
+                placeholder="Start typing Performer ISNI…"
+                value={artistProfile.performerIsni}
+                onChange={(e) => setArtistProfile(prev => ({ ...prev, performerIsni: e.target.value }))}
+                className="font-ui h-11"
+              />
+            </div>
+            )}
+
+            {/* IPI/CAE - Interested Parties Number */}
+            {(artistCapabilities.requiresIPICAE || artistCapabilities.optionalIPICAE) && (
+            <div className="space-y-2">
+              <Label htmlFor="creatorIpiCae">
+                Creator IPI/CAE {artistCapabilities.requiresIPICAE && <span className="text-red-500">*</span>}
+                {artistCapabilities.optionalIPICAE && <span className="text-foreground/60 text-xs ml-1">(Optional)</span>}
+              </Label>
+              <p className="text-xs text-foreground/60 mb-2">
+                ℹ️ For Songwriters, Lyricists, and Composers. Automatically issued when joining a Performance Rights Organisation (PRO) like ASCAP, BMI, or PRS.
+                Required for accurate song registration and royalty payments.
+              </p>
+              <Input
+                id="creatorIpiCae"
+                placeholder="Start typing Creator IPI/CAE…"
+                value={artistProfile.creatorIpiCae}
+                onChange={(e) => setArtistProfile(prev => ({ ...prev, creatorIpiCae: e.target.value }))}
+                className="font-ui h-11"
+              />
+            </div>
+            )}
+          </CardContent>
+        </Card>
+        )}
 
         {/* Completion Message */}
         <div className="rounded-xl border-2 border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-6 shadow-sm">
@@ -6191,6 +6368,11 @@ export function SignUpWizard() {
                         base_location_lat: artistProfile.baseLocationLat,
                         base_location_lon: artistProfile.baseLocationLon,
                         gigs_performed: artistProfile.publicGigsPerformed,
+                        recording_session_gigs: artistProfile.recordingSessionGigs,
+                        songwriting_collaborations: artistProfile.songwritingCollaborations,
+                        performer_isni: artistProfile.performerIsni || null,
+                        creator_ipi_cae: artistProfile.creatorIpiCae || null,
+                        website: artistProfile.website || null,
                         facebook_url: artistProfile.facebookUrl,
                         instagram_url: artistProfile.instagramUrl,
                         threads_url: artistProfile.threadsUrl,

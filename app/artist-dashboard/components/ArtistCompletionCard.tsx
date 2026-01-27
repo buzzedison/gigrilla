@@ -9,6 +9,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 
 export type CompletionSection =
   | 'profile'
+  | 'payments'
   | 'crew'
   | 'royalty'
   | 'gigability'
@@ -53,6 +54,36 @@ interface ArtistProfileData {
   members_count?: number | null
   minimum_set_length?: number | null
   maximum_set_length?: number | null
+  local_gig_fee?: number | null
+  wider_gig_fee?: number | null
+}
+
+interface PhotoData {
+  id: string
+  type: 'logo' | 'header' | 'photo'
+  url: string
+}
+
+interface VideoData {
+  id: string
+  title: string
+  video_url: string
+}
+
+interface CrewMemberData {
+  id: string
+  name: string
+}
+
+interface PaymentDetailsData {
+  use_fan_banking?: boolean
+  payment_out_method?: string
+  payment_out_bank_name?: string
+  payment_out_account_number?: string
+  payment_in_same_as_out?: boolean
+  payment_in_method?: string
+  payment_in_bank_name?: string
+  payment_in_account_number?: string
 }
 
 interface ArtistCompletionCardProps {
@@ -65,6 +96,10 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
   const searchParams = useSearchParams()
   const router = useRouter()
   const [profile, setProfile] = useState<ArtistProfileData | null>(null)
+  const [photos, setPhotos] = useState<PhotoData[]>([])
+  const [videos, setVideos] = useState<VideoData[]>([])
+  const [crewMembers, setCrewMembers] = useState<CrewMemberData[]>([])
+  const [paymentDetails, setPaymentDetails] = useState<PaymentDetailsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [recentlyCompleted, setRecentlyCompleted] = useState<string | null>(null)
   const [onboardingCompleted, setOnboardingCompleted] = useState(false)
@@ -76,6 +111,7 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
     { id: 'artist_sub_types', label: 'Artist Sub-Type', required: true, dependsOn: ['artist_type'], section: 'type' },
     { id: 'established_date', label: 'Artist Formed', required: true, section: 'profile' },
     { id: 'genres', label: 'Artist Genre(s)', required: true, section: 'genres' },
+    { id: 'payments', label: 'Artist Payments', section: 'payments' },
     { id: 'crew', label: 'Artist Crew', section: 'crew' },
     { id: 'royalty_splits', label: 'Default Royalty Splits', section: 'royalty' },
     { id: 'gig_ability', label: 'Artist Gig-Ability', section: 'gigability' },
@@ -84,32 +120,49 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
     { id: 'music_publisher', label: 'Music Publisher', section: 'profile' },
     { id: 'artist_manager', label: 'Artist Manager', section: 'profile' },
     { id: 'booking_agent', label: 'Booking Agent', section: 'profile' },
-    { id: 'gig_fee', label: 'Basic Gig Fee', required: true, section: 'maps', dependsOn: ['artist_type'] },
+    { id: 'gig_fee', label: 'Basic Gig Fee', required: true, section: 'gigability' },
     { id: 'logo_artwork', label: 'Logo/Artwork', required: true, section: 'logo' },
     { id: 'photos', label: 'Photos', required: true, section: 'photos' },
     { id: 'videos', label: 'Videos', required: true, section: 'videos' }
   ]), [])
 
   const evaluatedItems = useMemo<CompletionItemState[]>(() => {
-    const membersCount = profile?.members?.length ?? profile?.members_count ?? 0
+    const hasLogo = photos.some(p => p.type === 'logo')
+    const hasPhotos = photos.some(p => p.type === 'photo')
+    const hasVideos = videos.length > 0
+    const hasCrewMembers = crewMembers.length > 0
+
+    // Check if payments are configured
+    const hasPayments = !!paymentDetails && (
+      paymentDetails.use_fan_banking === true ||
+      (
+        !!paymentDetails.payment_out_method &&
+        (
+          (paymentDetails.payment_out_method === 'direct_debit' && !!paymentDetails.payment_out_bank_name && !!paymentDetails.payment_out_account_number) ||
+          (paymentDetails.payment_out_method === 'card' && !!paymentDetails.payment_out_bank_name)
+        )
+      )
+    )
+
     const profileMetrics: Record<string, boolean> = {
       stage_name: !!profile?.stage_name,
       artist_type: !!profile?.artist_type_id,
       artist_sub_types: Array.isArray(profile?.artist_sub_types) && profile!.artist_sub_types!.length > 0,
       established_date: !!profile?.established_date,
       genres: Array.isArray(profile?.preferred_genre_ids) && profile!.preferred_genre_ids!.length > 0,
-      crew: membersCount > 0,
+      payments: hasPayments,
+      crew: hasCrewMembers,
       royalty_splits: false, // TODO: Implement royalty splits completion check
-      gig_ability: !!(profile?.minimum_set_length && profile?.maximum_set_length), // TODO: Update after migration
+      gig_ability: !!(profile?.minimum_set_length && profile?.maximum_set_length),
       bio: !!profile?.bio && profile?.bio.length > 50,
       record_label: !!profile?.record_label_status && !!profile?.record_label_name,
       music_publisher: !!profile?.music_publisher_status && !!profile?.music_publisher_name,
       artist_manager: !!profile?.artist_manager_status && !!profile?.artist_manager_name,
       booking_agent: !!profile?.booking_agent_status && !!profile?.booking_agent_name,
-      gig_fee: !!profile?.base_location,
-      logo_artwork: !!profile?.social_links?.instagram,
-      photos: !!profile?.social_links?.tiktok,
-      videos: !!profile?.social_links?.youtube
+      gig_fee: !!(profile?.local_gig_fee || profile?.wider_gig_fee),
+      logo_artwork: hasLogo,
+      photos: hasPhotos,
+      videos: hasVideos
     }
 
     return completionDefinitions.map(def => {
@@ -119,7 +172,7 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
         completed: depsMet && profileMetrics[def.id]
       }
     })
-  }, [completionDefinitions, profile])
+  }, [completionDefinitions, profile, photos, videos, crewMembers, paymentDetails])
 
   useEffect(() => {
     onCompletionStateChange?.(evaluatedItems)
@@ -143,23 +196,48 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
     const loadCompletionStatus = async () => {
       setLoading(true)
       try {
-        const response = await fetch('/api/artist-profile')
-        const result = await response.json()
+        // Fetch all data in parallel
+        const [profileResponse, photosResponse, videosResponse, crewResponse, paymentsResponse] = await Promise.all([
+          fetch('/api/artist-profile'),
+          fetch('/api/artist-photos'),
+          fetch('/api/artist-videos'),
+          fetch('/api/artist-members'),
+          fetch('/api/artist-payments')
+        ])
 
-        if (result.data) {
-          const rawProfile = result.data as ArtistProfileData & { members?: string[] | null; onboarding_completed?: boolean }
-          const membersArray = Array.isArray(rawProfile.members) ? rawProfile.members : null
-          const membersCount = membersArray?.length ?? rawProfile.members_count ?? null
-
-          setProfile({
-            ...rawProfile,
-            members: membersArray,
-            members_count: membersCount
-          })
+        // Handle profile data
+        const profileResult = await profileResponse.json()
+        if (profileResult.data) {
+          const rawProfile = profileResult.data as ArtistProfileData & { onboarding_completed?: boolean }
+          setProfile(rawProfile)
           setOnboardingCompleted(rawProfile.onboarding_completed ?? false)
         } else {
           setProfile(null)
           setOnboardingCompleted(false)
+        }
+
+        // Handle photos data
+        const photosResult = await photosResponse.json()
+        if (photosResult.data) {
+          setPhotos(photosResult.data)
+        }
+
+        // Handle videos data
+        const videosResult = await videosResponse.json()
+        if (videosResult.data) {
+          setVideos(videosResult.data)
+        }
+
+        // Handle crew data
+        const crewResult = await crewResponse.json()
+        if (crewResult.data) {
+          setCrewMembers(crewResult.data)
+        }
+
+        // Handle payments data
+        const paymentsResult = await paymentsResponse.json()
+        if (paymentsResult.data) {
+          setPaymentDetails(paymentsResult.data)
         }
       } catch (error) {
         console.error('Error loading completion status:', error)

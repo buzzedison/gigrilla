@@ -1,3 +1,8 @@
+import {
+  ArtistTypeCapabilities as DetailedCapabilities,
+  getArtistTypeCapabilities
+} from '../lib/artist-type-config'
+
 export type GigBookingMode = 'public' | 'collaboration' | 'both'
 
 export interface ArtistTypeOption {
@@ -17,7 +22,8 @@ export interface ArtistTypeGroup {
   options: ArtistTypeOption[]
 }
 
-export interface ArtistTypeCapabilities {
+// Extended capabilities that include both old and new systems
+export interface ArtistTypeCapabilities extends DetailedCapabilities {
   showGigAbility: boolean
   showMusicUploads: boolean
   gigBookingMode: GigBookingMode
@@ -190,6 +196,30 @@ const COMPOSER_OPTIONS: ArtistTypeOption[] = [
   { id: 'collaboration', label: 'Collaborative Composition' }
 ]
 
+// Helper function to merge detailed capabilities with dashboard-specific ones
+function createCapabilities(typeId: number): ArtistTypeCapabilities {
+  const detailedCaps = getArtistTypeCapabilities(typeId)
+
+  // Map detailed capabilities to dashboard capabilities
+  const showGigAbility = detailedCaps.canPerformLiveGigs || detailedCaps.hasGigPricing
+  const showMusicUploads = detailedCaps.canUploadMusic
+
+  // Determine booking mode
+  let gigBookingMode: GigBookingMode = 'public'
+  if (detailedCaps.isForHire) {
+    gigBookingMode = 'collaboration'
+  } else if (detailedCaps.canPerformLiveGigs) {
+    gigBookingMode = 'public'
+  }
+
+  return {
+    ...detailedCaps,
+    showGigAbility,
+    showMusicUploads,
+    gigBookingMode
+  }
+}
+
 export const ARTIST_TYPES: ArtistTypeConfig[] = [
   {
     id: 1,
@@ -205,11 +235,7 @@ export const ARTIST_TYPES: ArtistTypeConfig[] = [
         options: ARTIST_TYPE_ONE_SUB_TYPES
       }
     ],
-    capabilities: {
-      showGigAbility: true,
-      showMusicUploads: true,
-      gigBookingMode: 'public'
-    }
+    capabilities: createCapabilities(1)
   },
   {
     id: 2,
@@ -225,11 +251,7 @@ export const ARTIST_TYPES: ArtistTypeConfig[] = [
         options: ARTIST_TYPE_ONE_SUB_TYPES
       }
     ],
-    capabilities: {
-      showGigAbility: false,
-      showMusicUploads: true,
-      gigBookingMode: 'public'
-    }
+    capabilities: createCapabilities(2)
   },
   {
     id: 3,
@@ -245,11 +267,7 @@ export const ARTIST_TYPES: ArtistTypeConfig[] = [
         options: ARTIST_TYPE_THREE_SUB_TYPES
       }
     ],
-    capabilities: {
-      showGigAbility: true,
-      showMusicUploads: false,
-      gigBookingMode: 'public'
-    }
+    capabilities: createCapabilities(3)
   },
   {
     id: 4,
@@ -284,11 +302,7 @@ export const ARTIST_TYPES: ArtistTypeConfig[] = [
         options: VOCAL_GENRE_DESCRIPTORS
       }
     ],
-    capabilities: {
-      showGigAbility: true,
-      showMusicUploads: false,
-      gigBookingMode: 'collaboration'
-    }
+    capabilities: createCapabilities(4)
   },
   {
     id: 5,
@@ -331,11 +345,7 @@ export const ARTIST_TYPES: ArtistTypeConfig[] = [
         ]
       }
     ],
-    capabilities: {
-      showGigAbility: true,
-      showMusicUploads: false,
-      gigBookingMode: 'collaboration'
-    }
+    capabilities: createCapabilities(5)
   },
   {
     id: 6,
@@ -351,11 +361,7 @@ export const ARTIST_TYPES: ArtistTypeConfig[] = [
         options: SONGWRITER_OPTIONS
       }
     ],
-    capabilities: {
-      showGigAbility: true,
-      showMusicUploads: false,
-      gigBookingMode: 'collaboration'
-    }
+    capabilities: createCapabilities(6)
   },
   {
     id: 7,
@@ -374,11 +380,7 @@ export const ARTIST_TYPES: ArtistTypeConfig[] = [
         ]
       }
     ],
-    capabilities: {
-      showGigAbility: true,
-      showMusicUploads: false,
-      gigBookingMode: 'collaboration'
-    }
+    capabilities: createCapabilities(7)
   },
   {
     id: 8,
@@ -394,11 +396,7 @@ export const ARTIST_TYPES: ArtistTypeConfig[] = [
         options: COMPOSER_OPTIONS
       }
     ],
-    capabilities: {
-      showGigAbility: true,
-      showMusicUploads: false,
-      gigBookingMode: 'collaboration'
-    }
+    capabilities: createCapabilities(8)
   }
 ]
 
@@ -409,4 +407,11 @@ export function getArtistTypeConfig(id?: number | null) {
   return ARTIST_TYPES.find((type) => type.id === id)
 }
 
+// Re-export capabilities helpers for convenience
+export { getArtistTypeCapabilities, hasCapability, getArtistTypeName } from '../lib/artist-type-config'
 
+// Helper to get unified capabilities (includes both old and new)
+export function getUnifiedCapabilities(id?: number | null): ArtistTypeCapabilities | undefined {
+  const config = getArtistTypeConfig(id)
+  return config?.capabilities
+}

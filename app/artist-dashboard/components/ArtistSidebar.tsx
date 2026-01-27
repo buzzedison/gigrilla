@@ -23,7 +23,10 @@ import {
   Palette,
   CheckCircle2,
   DollarSign,
-  Clock
+  Clock,
+  Banknote,
+  Megaphone,
+  FileCheck
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -32,7 +35,9 @@ import { ArtistTypeCapabilities } from "../../../data/artist-types";
 
 export type ArtistDashboardSection =
   | 'profile'
+  | 'payments'
   | 'crew'
+  | 'auditions'
   | 'royalty'
   | 'gigability'
   | 'bio'
@@ -43,6 +48,7 @@ export type ArtistDashboardSection =
   | 'videos'
   | 'music'
   | 'type'
+  | 'contract'
 
 interface ArtistSidebarProps {
   activeSection?: ArtistDashboardSection
@@ -55,9 +61,14 @@ interface ArtistSidebarProps {
 
 function isSectionEnabled(section: ArtistDashboardSection, capabilities: ArtistTypeCapabilities | null | undefined, hideTypeSection?: boolean) {
   if (hideTypeSection && section === 'type') return false
+
+  // Always allow type section (users can change their artist type anytime)
+  if (section === 'type') return true
+
   if (!capabilities) {
-    // Only allow type selection until artist type is saved
-    return section === 'type'
+    // Only 'type' section is enabled until artist type is saved
+    // All other sections are disabled
+    return false
   }
 
   switch (section) {
@@ -106,8 +117,11 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange, capa
 
   const activitiesItems = [
     { icon: User, label: "Basic Artist Details", section: "profile" as ArtistDashboardSection },
+    { icon: Banknote, label: "Artist Payments", section: "payments" as ArtistDashboardSection },
     { icon: Users2, label: "Artist Crew", section: "crew" as ArtistDashboardSection },
-    { icon: DollarSign, label: "Default Royalty Splits", section: "royalty" as ArtistDashboardSection },
+    { icon: Megaphone, label: "Auditions & Collabs", section: "auditions" as ArtistDashboardSection },
+    { icon: FileCheck, label: "Contract Status", section: "contract" as ArtistDashboardSection },
+    { icon: DollarSign, label: "Default Gig Royalty Splits", section: "royalty" as ArtistDashboardSection },
     { icon: Clock, label: "Artist Gig-Ability", section: "gigability" as ArtistDashboardSection },
     { icon: BookOpen, label: "Artist Biography", section: "bio" as ArtistDashboardSection },
     { icon: Music, label: "Artist Genres", section: "genres" as ArtistDashboardSection },
@@ -160,13 +174,11 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange, capa
                 key={index}
                 onClick={() => handleSectionChange(item.section)}
                 disabled={disabled}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left ${
-                  disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
-                } ${
-                  activeSection === item.section && !disabled
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+                  } ${activeSection === item.section && !disabled
                     ? "bg-purple-600/20 text-white"
                     : "text-gray-400 hover:text-white hover:bg-purple-600/10"
-                }`}
+                  }`}
               >
                 <div className="flex items-center space-x-2">
                   <item.icon className="w-4 h-4" />
@@ -198,26 +210,24 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange, capa
             {activitiesItems.map((item, index) => {
               const disabled = !isSectionEnabled(item.section as ArtistDashboardSection, capabilities, hideTypeSection)
               return (
-              <button
-                key={index}
-                onClick={() => handleSectionChange(item.section)}
-                disabled={disabled}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left ${
-                  disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
-                } ${
-                  activeSection === item.section && !disabled
-                    ? "bg-purple-600/20 text-white"
-                    : "text-gray-400 hover:text-white hover:bg-purple-600/10"
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <item.icon className="w-4 h-4" />
-                  <span className="text-sm">{item.label}</span>
-                </div>
-                {!disabled && completedSections.includes(item.section) && (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
-                )}
-              </button>
+                <button
+                  key={index}
+                  onClick={() => handleSectionChange(item.section)}
+                  disabled={disabled}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+                    } ${activeSection === item.section && !disabled
+                      ? "bg-purple-600/20 text-white"
+                      : "text-gray-400 hover:text-white hover:bg-purple-600/10"
+                    }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <item.icon className="w-4 h-4" />
+                    <span className="text-sm">{item.label}</span>
+                  </div>
+                  {!disabled && completedSections.includes(item.section) && (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+                  )}
+                </button>
               )
             })}
           </div>
@@ -253,11 +263,10 @@ export function ArtistSidebar({ activeSection = 'profile', onSectionChange, capa
                 <Link
                   key={index}
                   href={item.path}
-                  className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
-                    pathname === item.path
+                  className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${pathname === item.path
                       ? "bg-purple-600/20 text-white"
                       : "text-gray-400 hover:text-white hover:bg-purple-600/10"
-                  }`}
+                    }`}
                 >
                   <item.icon className="w-4 h-4" />
                   <span className="text-sm">{item.label}</span>

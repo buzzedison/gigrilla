@@ -15,6 +15,18 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'pub-d65000cceb304d8497fd281ce0293955.r2.dev',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'media.gigrilla.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
 };

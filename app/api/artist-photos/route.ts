@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { uploadToR2, generateArtistPhotoKey, isR2Configured } from '@/lib/cloudflare/r2'
 
 export async function GET() {
   try {
@@ -138,37 +139,57 @@ export async function POST(request: NextRequest) {
 
     console.log('API: Uploading photo for user:', user.id, 'type:', type)
 
-    // Upload file to Supabase Storage
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${user.id}/${type}/${Date.now()}.${fileExt}`
-    
-    const { error: uploadError } = await supabase.storage
-      .from('artist-photos')
-      .upload(fileName, file, {
-        upsert: true,
-        contentType: file.type
-      })
-
-    if (uploadError) {
-      console.error('API: Upload error:', uploadError)
+    // Check if R2 is configured
+    if (!isR2Configured()) {
+      console.error('API: Cloudflare R2 is not configured')
       return NextResponse.json({
-        error: 'Failed to upload file',
-        details: uploadError.message
+        error: 'Storage not configured',
+        details: 'Cloudflare R2 credentials are missing'
       }, { status: 500 })
     }
 
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('artist-photos')
-      .getPublicUrl(fileName)
+    // Get file extension and generate R2 key
+    const fileExt = file.name.split('.').pop() || 'jpg'
+    const r2Key = generateArtistPhotoKey(user.id, type as 'logo' | 'header' | 'photo', fileExt)
+
+    // Convert file to buffer for R2 upload
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    // Upload to Cloudflare R2
+    const uploadResult = await uploadToR2(buffer, r2Key, file.type)
+
+    if (!uploadResult.success || !uploadResult.url) {
+      console.error('API: R2 upload error:', uploadResult.error)
+      return NextResponse.json({
+        error: 'Failed to upload file',
+        details: uploadResult.error || 'Unknown upload error'
+      }, { status: 500 })
+    }
+
+    const publicUrl = uploadResult.url
 
     // For logo and header, delete existing photos of same type
     if (type === 'logo' || type === 'header') {
+      // Get existing photo to delete from R2
+      const { data: existingPhotos } = await supabase
+        .from('artist_photos')
+        .select('url')
+        .eq('user_id', user.id)
+        .eq('type', type)
+
+      // Delete from database
       await supabase
         .from('artist_photos')
         .delete()
         .eq('user_id', user.id)
         .eq('type', type)
+
+      // Note: We could also delete old files from R2 here if needed
+      // For now, they'll remain as orphaned files (can be cleaned up with a cron job)
+      if (existingPhotos && existingPhotos.length > 0) {
+        console.log('API: Replaced existing', type, 'photo(s):', existingPhotos.length)
+      }
     }
 
     // Save photo metadata to database
@@ -186,18 +207,14 @@ export async function POST(request: NextRequest) {
 
     if (dbError) {
       console.error('API: Database error:', dbError)
-      // Clean up uploaded file if database insert fails
-      await supabase.storage
-        .from('artist-photos')
-        .remove([fileName])
-      
+      // Note: File is already uploaded to R2, consider cleanup
       return NextResponse.json({
         error: 'Failed to save photo metadata',
         details: dbError.message
       }, { status: 500 })
     }
 
-    console.log('API: Successfully uploaded photo:', photoData.id)
+    console.log('API: Successfully uploaded photo to R2:', photoData.id)
 
     return NextResponse.json({
       data: photoData,

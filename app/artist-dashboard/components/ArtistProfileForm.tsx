@@ -7,100 +7,24 @@ import { Input } from "../../components/ui/input"
 import { LocationAutocompleteInput, type LocationSuggestion } from "../../components/ui/location-autocomplete"
 import { Textarea } from "../../components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select"
-import { Save, Rocket, Loader2 } from "lucide-react"
+import { Save, Rocket, Loader2, Check, Info } from "lucide-react"
 
-const RECORD_LABEL_STATUS_OPTIONS = [
-  { value: "signed", label: "Signed to Label" },
-  { value: "unsigned_seeking", label: "Unsigned - Seeking Label" },
-  { value: "independent", label: "Self Signed - Independent" }
-]
-
-const MUSIC_PUBLISHER_STATUS_OPTIONS = [
-  { value: "signed", label: "Signed to Publisher" },
-  { value: "unsigned_seeking", label: "Unsigned - Seeking Publisher" },
-  { value: "independent", label: "Self Publishing - Independent" }
-]
-
-const MANAGER_STATUS_OPTIONS = [
-  { value: "signed", label: "Signed to Manager" },
-  { value: "seeking", label: "Unsigned - Seeking Manager" },
-  { value: "self_managed", label: "Self Managed - Independent" }
-]
-
-const BOOKING_AGENT_STATUS_OPTIONS = [
-  { value: "signed", label: "Signed to Booking Agent" },
-  { value: "seeking", label: "Unsigned - Seeking Booking Agent" },
-  { value: "self_managed", label: "Self Booking - Independent" }
-]
-
-const normalizeLabelPublisherStatus = (value?: string | null) => {
+const normalizeLabelStatus = (value?: string | null) => {
   const normalized = value?.toString().trim().toLowerCase() ?? ''
-
   switch (normalized) {
     case 'signed':
     case 'signed to label':
-    case 'signed to publisher':
       return 'signed'
     case 'unsigned':
     case 'seeking':
     case 'unsigned - seeking label':
-    case 'unsigned - seeking publisher':
     case 'unsigned_seeking':
       return 'unsigned_seeking'
     case 'independent':
     case 'self signed - independent':
-    case 'self publishing - independent':
     case 'self-signed':
     case 'self_signed':
       return 'independent'
-    default:
-      return ''
-  }
-}
-
-const normalizeManagerStatus = (value?: string | null) => {
-  const normalized = value?.toString().trim().toLowerCase() ?? ''
-
-  switch (normalized) {
-    case 'signed':
-    case 'managed':
-    case 'signed to manager':
-      return 'signed'
-    case 'seeking':
-    case 'unsigned':
-    case 'unsigned - seeking manager':
-      return 'seeking'
-    case 'self_managed':
-    case 'self-managed':
-    case 'self managed':
-    case 'self managed - independent':
-    case 'self booking':
-    case 'self-booking':
-      return 'self_managed'
-    default:
-      return ''
-  }
-}
-
-const normalizeBookingStatus = (value?: string | null) => {
-  const normalized = value?.toString().trim().toLowerCase() ?? ''
-
-  switch (normalized) {
-    case 'signed':
-    case 'managed':
-    case 'signed to booking agent':
-      return 'signed'
-    case 'seeking':
-    case 'unsigned':
-    case 'unsigned - seeking booking agent':
-      return 'seeking'
-    case 'self_managed':
-    case 'self-managed':
-    case 'self managed':
-    case 'self booking':
-    case 'self-booking':
-    case 'self booking - independent':
-      return 'self_managed'
     default:
       return ''
   }
@@ -116,6 +40,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
   const [initialLoading, setInitialLoading] = useState(true)
   const [existingSocialLinks, setExistingSocialLinks] = useState<Record<string, string | null>>({})
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null)
+  const [artistTypeId, setArtistTypeId] = useState<number | null>(null)
   const [formData, setFormData] = useState({
     stage_name: "",
     established_date: "",
@@ -123,6 +48,10 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
     hometown_county: "",
     hometown_country: "",
     gigs_performed: "",
+    recording_session_gigs: "",
+    performer_isni: "",
+    creator_ipi_cae: "",
+    website: "",
     record_label_status: "",
     record_label_name: "",
     record_label_contact_name: "",
@@ -143,6 +72,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
     booking_agent_contact_name: "",
     booking_agent_email: "",
     booking_agent_phone: "",
+    gig_money_routing: "",
     social_facebook: "",
     social_twitter: "",
     social_youtube: "",
@@ -159,6 +89,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
     }
   }, [user])
 
+
   useEffect(() => {
     if (!user) return
 
@@ -174,6 +105,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
         }
 
         const profile = result.data as {
+          artist_type_id?: number | null
           stage_name?: string | null
           established_date?: string | null
           base_location?: string | null
@@ -181,6 +113,10 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
           hometown_state?: string | null
           hometown_country?: string | null
           gigs_performed?: string | number | null
+          recording_session_gigs?: string | number | null
+          performer_isni?: string | null
+          creator_ipi_cae?: string | null
+          website?: string | null
           record_label_status?: string | null
           record_label_name?: string | null
           record_label_contact_name?: string | null
@@ -212,6 +148,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
 
         const socialLinks = profile.social_links ?? {}
 
+        setArtistTypeId(profile.artist_type_id ?? null)
         setExistingSocialLinks(socialLinks)
         setFormData(prev => ({
           ...prev,
@@ -222,26 +159,11 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
           hometown_county: county,
           hometown_country: country,
           gigs_performed: profile.gigs_performed ? String(profile.gigs_performed) : "",
-          record_label_status: normalizeLabelPublisherStatus(profile.record_label_status) || prev.record_label_status,
-          record_label_name: profile.record_label_name ?? "",
-          record_label_contact_name: profile.record_label_contact_name ?? "",
-          record_label_email: profile.record_label_email ?? "",
-          record_label_phone: profile.record_label_phone ?? "",
-          music_publisher_status: normalizeLabelPublisherStatus(profile.music_publisher_status) || prev.music_publisher_status,
-          music_publisher_name: profile.music_publisher_name ?? "",
-          music_publisher_contact_name: profile.music_publisher_contact_name ?? "",
-          music_publisher_email: profile.music_publisher_email ?? "",
-          music_publisher_phone: profile.music_publisher_phone ?? "",
-          artist_manager_status: normalizeManagerStatus(profile.artist_manager_status) || prev.artist_manager_status,
-          artist_manager_name: profile.artist_manager_name ?? "",
-          artist_manager_contact_name: profile.artist_manager_contact_name ?? "",
-          artist_manager_email: profile.artist_manager_email ?? "",
-          artist_manager_phone: profile.artist_manager_phone ?? "",
-          booking_agent_status: normalizeBookingStatus(profile.booking_agent_status) || prev.booking_agent_status,
-          booking_agent_name: profile.booking_agent_name ?? "",
-          booking_agent_contact_name: profile.booking_agent_contact_name ?? "",
-          booking_agent_email: profile.booking_agent_email ?? "",
-          booking_agent_phone: profile.booking_agent_phone ?? "",
+          recording_session_gigs: profile.recording_session_gigs ? String(profile.recording_session_gigs) : "",
+          performer_isni: profile.performer_isni ?? "",
+          creator_ipi_cae: profile.creator_ipi_cae ?? "",
+          website: profile.website ?? "",
+          record_label_status: normalizeLabelStatus(profile.record_label_status) || prev.record_label_status,
           bio: profile.bio ?? "",
           social_facebook: socialLinks.facebook ?? "",
           social_twitter: socialLinks.twitter ?? "",
@@ -342,27 +264,11 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
           hometown_state: formData.hometown_county,
           hometown_country: formData.hometown_country,
           gigs_performed: formData.gigs_performed,
-          social_links: buildSocialLinks(),
-          record_label_status: formData.record_label_status || null,
-          record_label_name: formData.record_label_name || null,
-          record_label_contact_name: formData.record_label_contact_name || null,
-          record_label_email: formData.record_label_email || null,
-          record_label_phone: formData.record_label_phone || null,
-          music_publisher_status: formData.music_publisher_status || null,
-          music_publisher_name: formData.music_publisher_name || null,
-          music_publisher_contact_name: formData.music_publisher_contact_name || null,
-          music_publisher_email: formData.music_publisher_email || null,
-          music_publisher_phone: formData.music_publisher_phone || null,
-          artist_manager_status: formData.artist_manager_status || null,
-          artist_manager_name: formData.artist_manager_name || null,
-          artist_manager_contact_name: formData.artist_manager_contact_name || null,
-          artist_manager_email: formData.artist_manager_email || null,
-          artist_manager_phone: formData.artist_manager_phone || null,
-          booking_agent_status: formData.booking_agent_status || null,
-          booking_agent_name: formData.booking_agent_name || null,
-          booking_agent_contact_name: formData.booking_agent_contact_name || null,
-          booking_agent_email: formData.booking_agent_email || null,
-          booking_agent_phone: formData.booking_agent_phone || null
+          recording_session_gigs: formData.recording_session_gigs || null,
+          performer_isni: formData.performer_isni || null,
+          creator_ipi_cae: formData.creator_ipi_cae || null,
+          website: formData.website || null,
+          social_links: buildSocialLinks()
         })
       })
 
@@ -410,26 +316,6 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
           hometown_country: formData.hometown_country || null,
           gigs_performed: formData.gigs_performed || null,
           social_links: buildSocialLinks(),
-          record_label_status: formData.record_label_status || null,
-          record_label_name: formData.record_label_name || null,
-          record_label_contact_name: formData.record_label_contact_name || null,
-          record_label_email: formData.record_label_email || null,
-          record_label_phone: formData.record_label_phone || null,
-          music_publisher_status: formData.music_publisher_status || null,
-          music_publisher_name: formData.music_publisher_name || null,
-          music_publisher_contact_name: formData.music_publisher_contact_name || null,
-          music_publisher_email: formData.music_publisher_email || null,
-          music_publisher_phone: formData.music_publisher_phone || null,
-          artist_manager_status: formData.artist_manager_status || null,
-          artist_manager_name: formData.artist_manager_name || null,
-          artist_manager_contact_name: formData.artist_manager_contact_name || null,
-          artist_manager_email: formData.artist_manager_email || null,
-          artist_manager_phone: formData.artist_manager_phone || null,
-          booking_agent_status: formData.booking_agent_status || null,
-          booking_agent_name: formData.booking_agent_name || null,
-          booking_agent_contact_name: formData.booking_agent_contact_name || null,
-          booking_agent_email: formData.booking_agent_email || null,
-          booking_agent_phone: formData.booking_agent_phone || null,
           is_published: true
         })
       })
@@ -470,24 +356,60 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
     )
   }
 
+  const artistTypeNames: Record<number, string> = {
+    1: "Live Gig & Original Recording Artist",
+    2: "Original Recording Artist",
+    3: "Live Gig Artist (Cover; Tribute; Classical; Theatrical)",
+    4: "Vocalist for Hire",
+    5: "Instrumentalist for Hire",
+    6: "Songwriter for Hire",
+    7: "Lyricist for Hire",
+    8: "Composer for Hire",
+  }
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100">
       <div className="p-6">
+        {artistTypeId && (
+          <div className="mb-4 rounded-lg px-4 py-3 bg-purple-50 border border-purple-200 flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-purple-900">
+                Your Artist Type: {artistTypeNames[artistTypeId] || `Type ${artistTypeId}`}
+              </div>
+              <div className="text-xs text-purple-700 mt-1">
+                This determines what features and sections are available to you
+              </div>
+            </div>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault()
+                // Trigger navigation to type section - this would need to be passed from parent
+                alert("Click 'Artist Type & Config' in the sidebar to change your artist type")
+              }}
+              className="text-xs text-purple-600 hover:text-purple-800 underline whitespace-nowrap ml-4"
+            >
+              Change Type
+            </a>
+          </div>
+        )}
         {feedback && (
           <div
-            className={`mb-4 rounded-lg px-4 py-3 text-sm ${
-              feedback.type === 'success'
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                : 'bg-rose-50 text-rose-700 border border-rose-200'
-            }`}
+            className={`mb-4 rounded-lg px-4 py-3 text-sm ${feedback.type === 'success'
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : 'bg-rose-50 text-rose-700 border border-rose-200'
+              }`}
           >
             {feedback.message}
           </div>
         )}
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Artist Stage Name */}
-          <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Basic Information</h2>
+          <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Basic Artist Details</h2>
+              <p className="text-sm text-gray-600">Essential information about your act - how you want to be known and where you&apos;re based</p>
+            </div>
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">Artist Stage Name</label>
               <Input
@@ -595,251 +517,130 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
             />
           </div>
 
-          {/* Record Label Section */}
-          <div className="bg-gray-50 rounded-lg p-4 space-y-4">
-            <h2 className="text-xl font-semibold text-gray-900">Record Label</h2>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Status</label>
-                <Select value={formData.record_label_status} onValueChange={(value) => handleInputChange('record_label_status', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Signed" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {RECORD_LABEL_STATUS_OPTIONS.map(option => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {formData.record_label_status === 'signed' && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Record Label Name</label>
-                  <Input
-                    value={formData.record_label_name}
-                    onChange={(e) => handleInputChange('record_label_name', e.target.value)}
-                    placeholder="Label name"
-                  />
-                </div>
-              )}
+
+          {/* Gig Money Splits Section */}
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-5 space-y-5 border border-green-200">
+            <div className="border-b border-green-200/50 pb-4">
+              <h2 className="text-xl font-bold text-gray-900">Gig Money Splits</h2>
+              <p className="text-sm text-gray-600 mt-1">Configure how gig payments are distributed</p>
             </div>
+
+            {/* Show Record Label routing option only if signed to a label */}
             {formData.record_label_status === 'signed' && (
-              <div className="grid md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Contact Name</label>
-                  <Input
-                    value={formData.record_label_contact_name}
-                    onChange={(e) => handleInputChange('record_label_contact_name', e.target.value)}
-                    placeholder="Contact person"
-                  />
+              <div className="space-y-4">
+                <p className="text-sm text-gray-700 font-medium">
+                  Since you&apos;re signed to a Record Label, please specify how gig money should be routed:
+                </p>
+                <div className="space-y-3">
+                  <label className="flex items-start gap-3 p-3 bg-white rounded-lg border border-green-200 cursor-pointer hover:bg-green-50 transition-colors">
+                    <input
+                      type="radio"
+                      name="gigMoneyRouting"
+                      value="via_label"
+                      checked={formData.gig_money_routing === 'via_label'}
+                      onChange={() => handleInputChange('gig_money_routing', 'via_label')}
+                      className="mt-1 w-4 h-4 text-green-600 focus:ring-green-500"
+                    />
+                    <div>
+                      <span className="font-medium text-gray-900">All Gig Money goes via our Record Label</span>
+                      <p className="text-xs text-gray-500 mt-1">
+                        When you book a Gig through Gigrilla, the Venue pays Gigrilla, then Gigrilla pays the Record Label for them to distribute accordingly. Gigrilla doesn&apos;t take a cut of your Gig money.
+                      </p>
+                    </div>
+                  </label>
+                  <label className="flex items-start gap-3 p-3 bg-white rounded-lg border border-green-200 cursor-pointer hover:bg-green-50 transition-colors">
+                    <input
+                      type="radio"
+                      name="gigMoneyRouting"
+                      value="direct_to_artist"
+                      checked={formData.gig_money_routing === 'direct_to_artist'}
+                      onChange={() => handleInputChange('gig_money_routing', 'direct_to_artist')}
+                      className="mt-1 w-4 h-4 text-green-600 focus:ring-green-500"
+                    />
+                    <div>
+                      <span className="font-medium text-gray-900">All Gig Money goes directly to the Artist Team</span>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Gig money bypasses the Record Label and goes directly to the Artist Team members according to the splits configured below.
+                      </p>
+                    </div>
+                  </label>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Email Address</label>
-                  <Input
-                    type="email"
-                    value={formData.record_label_email}
-                    onChange={(e) => handleInputChange('record_label_email', e.target.value)}
-                    placeholder="email@label.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Phone</label>
-                  <Input
-                    type="tel"
-                    value={formData.record_label_phone}
-                    onChange={(e) => handleInputChange('record_label_phone', e.target.value)}
-                    placeholder="+44 7000 000000"
-                  />
-                </div>
+
+                {formData.gig_money_routing && (
+                  <Button
+                    type="button"
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <Check className="w-4 h-4 mr-2" />
+                    Confirm Gig Money Recipient
+                  </Button>
+                )}
               </div>
             )}
-          </div>
 
-          {/* Music Publisher Section */}
-          <div className="bg-gray-50 rounded-lg p-4 space-y-4">
-            <h2 className="text-xl font-semibold text-gray-900">Music Publisher</h2>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Status</label>
-                <Select value={formData.music_publisher_status} onValueChange={(value) => handleInputChange('music_publisher_status', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Signed" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MUSIC_PUBLISHER_STATUS_OPTIONS.map(option => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {formData.music_publisher_status === 'signed' && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Music Publisher Name</label>
-                  <Input
-                    value={formData.music_publisher_name}
-                    onChange={(e) => handleInputChange('music_publisher_name', e.target.value)}
-                    placeholder="Publisher name"
-                  />
+            {/* Show Artist Team Splits if not signed to label OR if direct_to_artist is selected */}
+            {(formData.record_label_status !== 'signed' || formData.gig_money_routing === 'direct_to_artist') && (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-semibold text-gray-900">Artist Team Payment Splits</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    When you book a Gig through Gigrilla, the Venue pays Gigrilla, then Gigrilla pays the Artist Team according to these splits. Gigrilla doesn&apos;t take a cut of your Gig money. You keep 100% of your Gig money, and we pay the individuals their share, as set by you below.
+                  </p>
                 </div>
-              )}
-            </div>
-            {formData.music_publisher_status === 'signed' && (
-              <div className="grid md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Contact Name</label>
-                  <Input
-                    value={formData.music_publisher_contact_name}
-                    onChange={(e) => handleInputChange('music_publisher_contact_name', e.target.value)}
-                    placeholder="Contact person"
-                  />
+
+                <div className="flex gap-2">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex gap-2">
+                    <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-blue-800">
+                      All money owed to the Artist&apos;s members must add-up to 100% below.
+                    </p>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-2">
+                    <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-800">
+                      Money owed to individuals will be held until they sign-up to Gigrilla.
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Email Address</label>
-                  <Input
-                    type="email"
-                    value={formData.music_publisher_email}
-                    onChange={(e) => handleInputChange('music_publisher_email', e.target.value)}
-                    placeholder="email@publisher.com"
-                  />
+
+                {/* Percentage Summary */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-green-100 rounded-lg p-3 text-center">
+                    <p className="text-2xl font-bold text-green-700">0.00%</p>
+                    <p className="text-xs text-green-600">Total % Assigned</p>
+                  </div>
+                  <div className="bg-amber-100 rounded-lg p-3 text-center">
+                    <p className="text-2xl font-bold text-amber-700">100.00%</p>
+                    <p className="text-xs text-amber-600">Total % Remaining</p>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Phone</label>
-                  <Input
-                    type="tel"
-                    value={formData.music_publisher_phone}
-                    onChange={(e) => handleInputChange('music_publisher_phone', e.target.value)}
-                    placeholder="+44 7000 000000"
-                  />
+
+                {/* Team Member Splits - Placeholder for when crew is loaded */}
+                <div className="bg-gray-100 rounded-lg p-6 text-center">
+                  <p className="text-gray-500 text-sm">
+                    Your Artist Team members will appear here once you add them in the Artist Crew section.
+                  </p>
+                  <p className="text-gray-400 text-xs mt-2">
+                    Each team member will have a percentage input field to configure their share of gig payments.
+                  </p>
                 </div>
+
+                <Button
+                  type="button"
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  disabled
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Confirm Gig Money Splits
+                </Button>
               </div>
             )}
-          </div>
 
-          {/* Artist Manager Section */}
-          <div className="bg-gray-50 rounded-lg p-4 space-y-4">
-            <h2 className="text-xl font-semibold text-gray-900">Artist Manager</h2>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Status</label>
-                <Select value={formData.artist_manager_status} onValueChange={(value) => handleInputChange('artist_manager_status', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Managed" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MANAGER_STATUS_OPTIONS.map(option => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {formData.artist_manager_status === 'signed' && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Artist Manager Name</label>
-                  <Input
-                    value={formData.artist_manager_name}
-                    onChange={(e) => handleInputChange('artist_manager_name', e.target.value)}
-                    placeholder="Manager name"
-                  />
-                </div>
-              )}
-            </div>
-            {formData.artist_manager_status === 'signed' && (
-              <div className="grid md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Contact Name</label>
-                  <Input
-                    value={formData.artist_manager_contact_name}
-                    onChange={(e) => handleInputChange('artist_manager_contact_name', e.target.value)}
-                    placeholder="Contact person"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Email Address</label>
-                  <Input
-                    type="email"
-                    value={formData.artist_manager_email}
-                    onChange={(e) => handleInputChange('artist_manager_email', e.target.value)}
-                    placeholder="email@manager.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Phone</label>
-                  <Input
-                    type="tel"
-                    value={formData.artist_manager_phone}
-                    onChange={(e) => handleInputChange('artist_manager_phone', e.target.value)}
-                    placeholder="+44 7000 000000"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Booking Agent Section */}
-          <div className="bg-gray-50 rounded-lg p-4 space-y-4">
-            <h2 className="text-xl font-semibold text-gray-900">Booking Agent</h2>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Status</label>
-                <Select value={formData.booking_agent_status} onValueChange={(value) => handleInputChange('booking_agent_status', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Managed" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BOOKING_AGENT_STATUS_OPTIONS.map(option => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {formData.booking_agent_status === 'signed' && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Booking Agent Name</label>
-                  <Input
-                    value={formData.booking_agent_name}
-                    onChange={(e) => handleInputChange('booking_agent_name', e.target.value)}
-                    placeholder="Agent name"
-                  />
-                </div>
-              )}
-            </div>
-            {formData.booking_agent_status === 'signed' && (
-              <div className="grid md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Contact Name</label>
-                  <Input
-                    value={formData.booking_agent_contact_name}
-                    onChange={(e) => handleInputChange('booking_agent_contact_name', e.target.value)}
-                    placeholder="Contact person"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Email Address</label>
-                  <Input
-                    type="email"
-                    value={formData.booking_agent_email}
-                    onChange={(e) => handleInputChange('booking_agent_email', e.target.value)}
-                    placeholder="email@agent.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Phone</label>
-                  <Input
-                    type="tel"
-                    value={formData.booking_agent_phone}
-                    onChange={(e) => handleInputChange('booking_agent_phone', e.target.value)}
-                    placeholder="+44 7000 000000"
-                  />
-                </div>
-              </div>
+            {/* Show message if signed to label but no routing selected */}
+            {formData.record_label_status === 'signed' && !formData.gig_money_routing && (
+              <p className="text-sm text-gray-500 italic">
+                Please select a gig money routing option above to configure payment splits.
+              </p>
             )}
           </div>
 

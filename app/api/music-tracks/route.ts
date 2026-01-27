@@ -1,0 +1,209 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+
+export async function GET(request: NextRequest) {
+  try {
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options)
+              })
+            } catch {
+              // Server Component invocation can safely ignore cookie writes.
+            }
+          },
+        },
+      }
+    )
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const releaseId = searchParams.get('releaseId')
+
+    if (!releaseId) {
+      return NextResponse.json({ error: 'releaseId is required' }, { status: 400 })
+    }
+
+    // Fetch tracks for this release
+    const { data: tracks, error } = await supabase
+      .from('music_tracks')
+      .select('*')
+      .eq('release_id', releaseId)
+      .eq('user_id', user.id)
+      .order('track_number', { ascending: true })
+
+    if (error) {
+      console.error('Error fetching tracks:', error)
+      return NextResponse.json({ error: 'Failed to fetch tracks' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, data: tracks || [] })
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                cookieStore.set(name, value, options)
+              })
+            } catch {
+              // Server Component invocation can safely ignore cookie writes.
+            }
+          },
+        },
+      }
+    )
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const {
+      releaseId,
+      trackNumber,
+      trackTitle,
+      trackTitleConfirmed,
+      trackVersion,
+      isrc,
+      isrcConfirmed,
+      iswc,
+      iswcConfirmed,
+      isni,
+      isniConfirmed,
+      ipiCae,
+      ipiCaeConfirmed,
+      explicitContent,
+      childSafeContent,
+      audioFileUrl,
+      audioFileSize,
+      audioFormat,
+      lyrics,
+      lyricsFileUrl,
+      durationSeconds,
+      featuredArtists,
+      writers
+    } = body
+
+    if (!releaseId || !trackNumber || !trackTitle || !isrc) {
+      return NextResponse.json({ 
+        error: 'Missing required fields: releaseId, trackNumber, trackTitle, isrc' 
+      }, { status: 400 })
+    }
+
+    // Verify release belongs to user
+    const { data: release, error: releaseError } = await supabase
+      .from('music_releases')
+      .select('id')
+      .eq('id', releaseId)
+      .eq('user_id', user.id)
+      .single()
+
+    if (releaseError || !release) {
+      return NextResponse.json({ error: 'Release not found or access denied' }, { status: 404 })
+    }
+
+    // Check if track already exists
+    const { data: existingTrack } = await supabase
+      .from('music_tracks')
+      .select('id')
+      .eq('release_id', releaseId)
+      .eq('track_number', trackNumber)
+      .single()
+
+    const trackData = {
+      release_id: releaseId,
+      user_id: user.id,
+      track_number: trackNumber,
+      track_title: trackTitle,
+      track_title_confirmed: trackTitleConfirmed || false,
+      track_version: trackVersion || null,
+      isrc: isrc.replace(/-/g, '').toUpperCase(),
+      isrc_confirmed: isrcConfirmed || false,
+      iswc: iswc || null,
+      iswc_confirmed: iswcConfirmed || false,
+      isni: isni || null,
+      isni_confirmed: isniConfirmed || false,
+      ipi_cae: ipiCae || null,
+      ipi_cae_confirmed: ipiCaeConfirmed || false,
+      explicit_content: explicitContent || false,
+      child_safe_content: childSafeContent || null,
+      audio_file_url: audioFileUrl || null,
+      audio_file_size: audioFileSize || null,
+      audio_format: audioFormat || null,
+      lyrics: lyrics || null,
+      lyrics_file_url: lyricsFileUrl || null,
+      duration_seconds: durationSeconds || null,
+      featured_artists: featuredArtists || [],
+      writers: writers || []
+    }
+
+    let result
+    if (existingTrack) {
+      // Update existing track
+      const { data, error } = await supabase
+        .from('music_tracks')
+        .update(trackData)
+        .eq('id', existingTrack.id)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error updating track:', error)
+        return NextResponse.json({ error: 'Failed to update track' }, { status: 500 })
+      }
+
+      result = data
+    } else {
+      // Create new track
+      const { data, error } = await supabase
+        .from('music_tracks')
+        .insert(trackData)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error creating track:', error)
+        return NextResponse.json({ error: 'Failed to create track' }, { status: 500 })
+      }
+
+      result = data
+    }
+
+    return NextResponse.json({ success: true, data: result })
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}

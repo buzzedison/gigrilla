@@ -44,7 +44,7 @@ export async function GET() {
 
     const { data: profileData, error: profileError } = await supabase
       .from('user_profiles')
-      .select('id, user_id, profile_type, artist_type_id, artist_sub_types, artist_primary_roles, company_name, job_title, years_experience, hourly_rate, daily_rate, monthly_retainer, availability_status, preferred_genre_ids, location_details, contact_details, social_links, verification_documents, bio, stage_name, established_date, performing_members, base_location, base_location_lat, base_location_lon, hometown_city, hometown_state, hometown_country, gigs_performed, record_label_status, record_label_name, record_label_contact_name, record_label_email, record_label_phone, music_publisher_status, music_publisher_name, music_publisher_contact_name, music_publisher_email, music_publisher_phone, artist_manager_status, artist_manager_name, artist_manager_contact_name, artist_manager_email, artist_manager_phone, booking_agent_status, booking_agent_name, booking_agent_contact_name, booking_agent_email, booking_agent_phone, facebook_url, instagram_url, threads_url, x_url, tiktok_url, youtube_url, snapchat_url, website, onboarding_completed, onboarding_completed_at, created_at, updated_at, minimum_set_length, maximum_set_length, local_gig_fee, local_gig_timescale, wider_gig_fee, wider_gig_timescale, wider_fixed_logistics_fee, wider_negotiated_logistics, local_gig_area, wider_gig_area, vocal_sound_types, vocal_genre_styles, availability, instrument_category, instrument, songwriter_option, songwriter_genres, lyricist_option, lyricist_genres, composer_option, composer_genres')
+      .select('id, user_id, profile_type, artist_type_id, artist_sub_types, artist_primary_roles, company_name, job_title, years_experience, hourly_rate, daily_rate, monthly_retainer, availability_status, preferred_genre_ids, location_details, contact_details, social_links, verification_documents, bio, stage_name, established_date, performing_members, base_location, base_location_lat, base_location_lon, hometown_city, hometown_state, hometown_country, gigs_performed, recording_session_gigs, performer_isni, creator_ipi_cae, record_label_status, record_label_name, record_label_contact_name, record_label_email, record_label_phone, music_publisher_status, music_publisher_name, music_publisher_contact_name, music_publisher_email, music_publisher_phone, artist_manager_status, artist_manager_name, artist_manager_contact_name, artist_manager_email, artist_manager_phone, booking_agent_status, booking_agent_name, booking_agent_contact_name, booking_agent_email, booking_agent_phone, facebook_url, instagram_url, threads_url, x_url, tiktok_url, youtube_url, snapchat_url, website, onboarding_completed, onboarding_completed_at, created_at, updated_at, minimum_set_length, maximum_set_length, local_gig_fee, local_gig_timescale, wider_gig_fee, wider_gig_timescale, wider_fixed_logistics_fee, wider_negotiated_logistics, local_gig_area, wider_gig_area, vocal_sound_types, vocal_genre_styles, availability, instrument_category, instrument, songwriter_option, songwriter_genres, lyricist_option, lyricist_genres, composer_option, composer_genres')
       .eq('user_id', user.id)
       .eq('profile_type', 'artist')
       .maybeSingle()
@@ -137,6 +137,10 @@ export async function POST(request: NextRequest) {
       hometown_state,
       hometown_country,
       gigs_performed,
+      recording_session_gigs,
+      songwriting_collaborations,
+      performer_isni,
+      creator_ipi_cae,
       members,
       website,
       social_links,
@@ -308,6 +312,36 @@ export async function POST(request: NextRequest) {
       } else {
         profileData.gigs_performed = null
       }
+    }
+
+    if (recording_session_gigs !== undefined) {
+      if (typeof recording_session_gigs === 'number') {
+        profileData.recording_session_gigs = recording_session_gigs
+      } else if (typeof recording_session_gigs === 'string' && recording_session_gigs.trim()) {
+        const parsed = parseInt(recording_session_gigs, 10)
+        profileData.recording_session_gigs = Number.isNaN(parsed) ? null : parsed
+      } else {
+        profileData.recording_session_gigs = null
+      }
+    }
+
+    if (songwriting_collaborations !== undefined) {
+      if (typeof songwriting_collaborations === 'number') {
+        profileData.songwriting_collaborations = songwriting_collaborations
+      } else if (typeof songwriting_collaborations === 'string' && songwriting_collaborations.trim()) {
+        const parsed = parseInt(songwriting_collaborations, 10)
+        profileData.songwriting_collaborations = Number.isNaN(parsed) ? null : parsed
+      } else {
+        profileData.songwriting_collaborations = null
+      }
+    }
+
+    if (performer_isni !== undefined) {
+      profileData.performer_isni = performer_isni || null
+    }
+
+    if (creator_ipi_cae !== undefined) {
+      profileData.creator_ipi_cae = creator_ipi_cae || null
     }
 
     if (members !== undefined) {

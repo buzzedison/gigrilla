@@ -133,14 +133,25 @@ export function FanHeader({ onOpenSidebar }: FanHeaderProps) {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
-    const supabase = getClient()
     try {
-      const fileExt = file.name.split('.').pop() || 'jpg'
-      const path = `${user.id}-${Date.now()}.${fileExt}`
-      const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
-      if (upErr) throw upErr
-      const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path)
-      const publicUrl = pub?.publicUrl || ''
+      // Upload to Cloudflare R2 via API
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('type', 'avatar')
+
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json()
+        throw new Error(errorData.error || 'Upload failed')
+      }
+
+      const result = await uploadResponse.json()
+      const publicUrl = result.url
+
       if (publicUrl) {
         // Update fan_profiles via API
         const response = await fetch('/api/fan-profile', {

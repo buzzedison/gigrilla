@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
@@ -9,9 +9,20 @@ import { Badge } from '../../components/ui/badge'
 import { Switch } from '../../components/ui/switch'
 // Separator import removed - not used
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../components/ui/collapsible'
-import { ChevronDown, ChevronUp, Plus, User, Users2, Music, Mic, Guitar, Drum, Piano, Keyboard, Briefcase, Settings } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, User, Users2, Music, Mic, Guitar, Drum, Piano, Keyboard, Briefcase, Settings, ExternalLink, CheckCircle2, XCircle, AlertCircle, Loader2, Info } from 'lucide-react'
 import { useAuth } from '../../../lib/auth-context'
 import { cn } from '../../../lib/utils'
+import {
+  validateISNI,
+  validateIPI,
+  formatISNI,
+  formatIPI,
+  lookupISNI,
+  PROFESSIONAL_ID_URLS,
+  type ValidationStatus,
+  type ISNILookupResult,
+  getValidationStatusClasses
+} from '../../../lib/professional-id-utils'
 
 interface CrewMember {
   id: string
@@ -30,6 +41,8 @@ interface CrewMember {
   status?: 'joined' | 'invited' | 'invite'
   firstName?: string
   lastName?: string
+  performerIsni?: string
+  creatorIpiCae?: string
 }
 
 interface InvitationData {
@@ -248,10 +261,188 @@ export function ArtistCrewManager() {
     visible: boolean
   } | null>(null)
 
+  // ISNI validation state
+  const [isniValidation, setIsniValidation] = useState<{
+    status: ValidationStatus
+    message: string
+    ownerData?: ISNILookupResult
+    confirmed?: boolean
+  }>({ status: 'idle', message: '' })
+
+  // IPI/CAE validation state
+  const [ipiValidation, setIpiValidation] = useState<{
+    status: ValidationStatus
+    message: string
+    type?: 'CAE' | 'IPI'
+  }>({ status: 'idle', message: '' })
+
+  // Helper function to check if names match (fuzzy comparison)
+  const namesMatch = useCallback((artistName: string, isniOwnerName: string): boolean => {
+    if (!artistName || !isniOwnerName) return false
+
+    // Normalize both names (lowercase, remove extra spaces, common punctuation)
+    const normalize = (name: string) =>
+      name.toLowerCase()
+        .replace(/['".,\-]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+
+    const normalizedArtist = normalize(artistName)
+    const normalizedOwner = normalize(isniOwnerName)
+
+    // Exact match after normalization
+    if (normalizedArtist === normalizedOwner) return true
+
+    // Check if one contains the other
+    if (normalizedArtist.includes(normalizedOwner) || normalizedOwner.includes(normalizedArtist)) return true
+
+    // Check individual words for partial matches
+    const artistWords = normalizedArtist.split(' ').filter(w => w.length > 2)
+    const ownerWords = normalizedOwner.split(' ').filter(w => w.length > 2)
+
+    const matchingWords = artistWords.filter(w => ownerWords.includes(w))
+    if (matchingWords.length >= 2) return true
+
+    // Check if first name matches
+    if (artistWords[0] && ownerWords[0] && artistWords[0] === ownerWords[0]) return true
+
+    return false
+  }, [])
+
+  // ISNI validation handler with lookup and name comparison
+  const validateISNIField = useCallback(async (value: string) => {
+    if (!value.trim()) {
+      setIsniValidation({ status: 'idle', message: '' })
+      return
+    }
+
+    const result = validateISNI(value)
+    if (!result.valid) {
+      setIsniValidation({
+        status: 'invalid',
+        message: result.error || 'Invalid ISNI format'
+      })
+      return
+    }
+
+    // Format is valid, now look up the owner
+    setIsniValidation({
+      status: 'validating',
+      message: 'Looking up ISNI owner...'
+    })
+
+    const lookupResult = await lookupISNI(value)
+
+    if (lookupResult.success && lookupResult.data) {
+      // Found the owner - check if name matches
+      const artistName = profileOwner?.nickname || profileOwner?.name || ''
+      const isMatch = namesMatch(artistName, lookupResult.data.name)
+
+      if (isMatch) {
+        // Names match - mark as valid
+        setIsniValidation({
+          status: 'valid',
+          message: `✓ ISNI verified for: ${lookupResult.data.name}`,
+          ownerData: lookupResult.data,
+          confirmed: true
+        })
+      } else {
+        // Names don't match - show warning
+        setIsniValidation({
+          status: 'warning',
+          message: `This ISNI is registered to "${lookupResult.data.name}" which differs from your name "${artistName || 'Not set'}"`,
+          ownerData: lookupResult.data,
+          confirmed: false
+        })
+      }
+    } else if (lookupResult.warning) {
+      setIsniValidation({
+        status: 'valid',
+        message: lookupResult.warning
+      })
+    } else if (lookupResult.message) {
+      setIsniValidation({
+        status: 'valid',
+        message: lookupResult.message
+      })
+    } else {
+      setIsniValidation({
+        status: 'valid',
+        message: result.formatted ? `Valid ISNI: ${result.formatted}` : 'Valid ISNI format'
+      })
+    }
+  }, [profileOwner?.nickname, profileOwner?.name, namesMatch])
+
+  // Handle ISNI ownership confirmation
+  const handleISNIConfirmation = useCallback((confirmed: boolean) => {
+    setIsniValidation(prev => ({
+      ...prev,
+      status: confirmed ? 'valid' : 'warning',
+      confirmed
+    }))
+  }, [])
+
+  // IPI/CAE validation handler
+  const validateIPIField = useCallback((value: string) => {
+    if (!value.trim()) {
+      setIpiValidation({ status: 'idle', message: '', type: undefined })
+      return
+    }
+
+    const result = validateIPI(value)
+    if (result.valid) {
+      setIpiValidation({
+        status: result.error ? 'warning' : 'valid',
+        message: result.error || (result.formatted ? `Valid ${result.type}: ${result.formatted}` : 'Valid format'),
+        type: result.type
+      })
+    } else {
+      setIpiValidation({
+        status: 'invalid',
+        message: result.error || 'Invalid IPI/CAE format',
+        type: undefined
+      })
+    }
+  }, [])
+
+  // Handle ISNI input change with formatting
+  const handleISNIChange = useCallback((value: string) => {
+    const cleaned = value.replace(/[^0-9\s\-Xx]/g, '').toUpperCase()
+    updateProfileOwner({ performerIsni: cleaned })
+
+    if (isniValidation.status !== 'idle') {
+      setIsniValidation({ status: 'idle', message: '' })
+    }
+
+    const digitsOnly = cleaned.replace(/[\s\-]/g, '')
+    if (digitsOnly.length === 16) {
+      const formatted = formatISNI(digitsOnly)
+      updateProfileOwner({ performerIsni: formatted })
+      validateISNIField(digitsOnly)
+    }
+  }, [isniValidation.status, validateISNIField])
+
+  // Handle IPI/CAE input change
+  const handleIPIChange = useCallback((value: string) => {
+    const cleaned = value.replace(/[^0-9\s]/g, '')
+    updateProfileOwner({ creatorIpiCae: cleaned })
+
+    if (ipiValidation.status !== 'idle') {
+      setIpiValidation({ status: 'idle', message: '', type: undefined })
+    }
+
+    const digitsOnly = cleaned.replace(/\s/g, '')
+    if (digitsOnly.length >= 9 && digitsOnly.length <= 11) {
+      const formatted = formatIPI(digitsOnly)
+      updateProfileOwner({ creatorIpiCae: formatted })
+      validateIPIField(digitsOnly)
+    }
+  }, [ipiValidation.status, validateIPIField])
+
   useEffect(() => {
     // Load crew data from API
     loadCrewData()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   const loadCrewData = async () => {
@@ -261,7 +452,7 @@ export function ArtistCrewManager() {
       if (profileResponse.ok) {
         const profileResult = await profileResponse.json()
         const profileData = profileResult.data
-        
+
         // Load fan profile data for personal info
         const fanProfileResponse = await fetch('/api/fan-profile')
         let fanProfileData = null
@@ -283,16 +474,16 @@ export function ArtistCrewManager() {
         } else {
           console.log('Members Response:', membersResponse.status)
         }
-        
+
         if (user) {
           const dateOfBirth = user?.user_metadata?.date_of_birth || ''
           const hometown = profileData?.base_location || fanProfileData?.location_details?.city || ''
-          
+
           console.log('Extracted Date of Birth:', dateOfBirth)
           console.log('Extracted Hometown:', hometown)
           console.log('Contact Details:', fanProfileData?.contact_details)
           console.log('Location Details:', fanProfileData?.location_details)
-          
+
           const owner: CrewMember = {
             id: user.id,
             name: `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Your Name',
@@ -387,26 +578,26 @@ export function ArtistCrewManager() {
 
   const updateProfileOwner = (updates: Partial<CrewMember>) => {
     if (!profileOwner) return
-    
+
     const updated = { ...profileOwner, ...updates }
     setProfileOwner(updated)
-    setCrewMembers(prev => prev.map(member => 
+    setCrewMembers(prev => prev.map(member =>
       member.isProfileOwner ? updated : member
     ))
   }
 
   const toggleRole = (role: string) => {
     if (!profileOwner) return
-    
+
     const currentRoles = [...profileOwner.roles]
     const index = currentRoles.indexOf(role)
-    
+
     if (index > -1) {
       currentRoles.splice(index, 1)
     } else {
       currentRoles.push(role)
     }
-    
+
     updateProfileOwner({ roles: currentRoles })
   }
 
@@ -520,7 +711,7 @@ export function ArtistCrewManager() {
   }
 
   const updateMemberAdmin = (id: string, isAdmin: boolean) => {
-    setCrewMembers(prev => prev.map(member => 
+    setCrewMembers(prev => prev.map(member =>
       member.id === id ? { ...member, isAdmin } : member
     ))
   }
@@ -609,7 +800,7 @@ export function ArtistCrewManager() {
               {/* Personal Information */}
               <div className="space-y-4 p-4 rounded-lg bg-white/70 border border-purple-200">
                 <h4 className="font-semibold text-sm text-purple-900">Personal Information</h4>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-xs font-medium text-purple-700">Artist Real Name</Label>
@@ -619,16 +810,16 @@ export function ArtistCrewManager() {
                     </div>
                     <div className="flex items-center gap-4 text-xs">
                       <div className="flex items-center gap-2">
-                        <Switch 
-                          id="namePublic" 
+                        <Switch
+                          id="namePublic"
                           checked={profileOwner.isPublic}
                           onCheckedChange={(checked) => updateProfileOwner({ isPublic: checked })}
                         />
                         <label htmlFor="namePublic" className="text-purple-700">is public</label>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Switch 
-                          id="namePrivate" 
+                        <Switch
+                          id="namePrivate"
                           checked={!profileOwner.isPublic}
                           onCheckedChange={(checked) => updateProfileOwner({ isPublic: !checked })}
                         />
@@ -708,6 +899,199 @@ export function ArtistCrewManager() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Professional IDs Section */}
+              <div className="space-y-4 p-4 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200">
+                <div className="flex items-start gap-2">
+                  <Info className="w-5 h-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-sm text-blue-900">Professional Identification</h4>
+                    <p className="text-xs text-blue-700 mt-1">
+                      Each Artist Member and the Artist Entity can have individual ISNIs. Your unique digital ID prevents name confusion, ensures correct crediting, tracks all your work across platforms, and guarantees you get paid accurately.
+                    </p>
+                  </div>
+                </div>
+
+                {/* ISNI Field */}
+                <div className="bg-white/60 rounded-lg p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <Label className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                        Artist Performer ISNI
+                        {isniValidation.status === 'valid' && (
+                          <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        )}
+                        {isniValidation.status === 'invalid' && (
+                          <XCircle className="w-4 h-4 text-red-500" />
+                        )}
+                      </Label>
+                      <p className="text-xs text-blue-700 mt-1">
+                        International Standard Name Identifier (16 digits) for Creators.
+                      </p>
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <a
+                        href={PROFESSIONAL_ID_URLS.isni.search}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
+                      >
+                        Get/Find <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      value={profileOwner.performerIsni || ''}
+                      onChange={(e) => handleISNIChange(e.target.value)}
+                      onBlur={() => validateISNIField(profileOwner.performerIsni || '')}
+                      placeholder="Start Typing Performer ISNI…"
+                      className={`bg-white pr-10 font-mono border-blue-200 ${getValidationStatusClasses(isniValidation.status).border}`}
+                      maxLength={19}
+                    />
+                    {isniValidation.status === 'validating' && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                      </div>
+                    )}
+                  </div>
+                  {isniValidation.message && (
+                    <div className={`flex items-start gap-2 text-xs ${getValidationStatusClasses(isniValidation.status).text}`}>
+                      {isniValidation.status === 'invalid' ? (
+                        <XCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                      ) : isniValidation.status === 'valid' ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                      ) : isniValidation.status === 'validating' ? (
+                        <Loader2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 animate-spin" />
+                      ) : (
+                        <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                      )}
+                      <span>{isniValidation.message}</span>
+                    </div>
+                  )}
+
+                  {/* Owner Info Card - shown when ISNI owner is found */}
+                  {isniValidation.ownerData && (
+                    <div className={`rounded-lg p-3 border ${isniValidation.confirmed ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center">
+                          <span className="text-lg font-bold text-gray-600">
+                            {isniValidation.ownerData.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-gray-900 text-sm">
+                            {isniValidation.ownerData.name}
+                          </h4>
+                          {isniValidation.ownerData.creationRole && (
+                            <p className="text-xs text-gray-500">
+                              Role: {isniValidation.ownerData.creationRole}
+                            </p>
+                          )}
+                          {isniValidation.ownerData.uri && (
+                            <a
+                              href={isniValidation.ownerData.uri}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-1"
+                            >
+                              View on ISNI.org <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Confirmation checkbox */}
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isniValidation.confirmed || false}
+                            onChange={(e) => handleISNIConfirmation(e.target.checked)}
+                            className="mt-0.5 w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                          />
+                          <span className="text-xs text-gray-700">
+                            <strong>I confirm this ISNI belongs to me</strong> or I am authorized to use it.
+                          </span>
+                        </label>
+                        {!isniValidation.confirmed && (
+                          <p className="mt-2 text-xs text-amber-700 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            Please confirm this ISNI belongs to you.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* IPI/CAE Field - shown when Songwriter/Lyricist/Composer is selected */}
+                {(profileOwner.roles.some(r =>
+                  r.includes('Songwriter') || r.includes('Lyricist') || r.includes('Composer')
+                ) || profileOwner.creatorIpiCae) && (
+                    <div className="bg-white/60 rounded-lg p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <Label className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                            Creator IPI/CAE
+                            {ipiValidation.status === 'valid' && (
+                              <CheckCircle2 className="w-4 h-4 text-green-500" />
+                            )}
+                            {ipiValidation.status === 'invalid' && (
+                              <XCircle className="w-4 h-4 text-red-500" />
+                            )}
+                            {ipiValidation.type && (
+                              <span className="text-xs font-normal px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
+                                {ipiValidation.type}
+                              </span>
+                            )}
+                          </Label>
+                          <p className="text-xs text-blue-700 mt-1">
+                            Interested Parties Number for Songwriters, Lyricists, Composers, and Music Publishers. Issued by PROs like ASCAP, BMI, PRS.
+                          </p>
+                        </div>
+                        <div className="flex gap-2 flex-shrink-0">
+                          <a
+                            href={PROFESSIONAL_ID_URLS.ipi.search}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
+                          >
+                            Get/Find <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      </div>
+                      <Input
+                        value={profileOwner.creatorIpiCae || ''}
+                        onChange={(e) => handleIPIChange(e.target.value)}
+                        onBlur={() => validateIPIField(profileOwner.creatorIpiCae || '')}
+                        placeholder="Start Typing Creator IPI/CAE…"
+                        className={`bg-white font-mono border-blue-200 ${getValidationStatusClasses(ipiValidation.status).border}`}
+                        maxLength={14}
+                      />
+                      {ipiValidation.message && (
+                        <div className={`flex items-start gap-2 text-xs ${getValidationStatusClasses(ipiValidation.status).text}`}>
+                          {ipiValidation.status === 'invalid' ? (
+                            <XCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                          ) : ipiValidation.status === 'valid' ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                          ) : (
+                            <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                          )}
+                          <span>{ipiValidation.message}</span>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-2 text-xs text-blue-600">
+                        <span>Get from:</span>
+                        <a href={PROFESSIONAL_ID_URLS.ipi.ascap} target="_blank" rel="noopener noreferrer" className="hover:underline">ASCAP</a>
+                        <span>•</span>
+                        <a href={PROFESSIONAL_ID_URLS.ipi.bmi} target="_blank" rel="noopener noreferrer" className="hover:underline">BMI</a>
+                        <span>•</span>
+                        <a href={PROFESSIONAL_ID_URLS.ipi.prs} target="_blank" rel="noopener noreferrer" className="hover:underline">PRS</a>
+                      </div>
+                    </div>
+                  )}
               </div>
 
               {/* Roles Section */}
@@ -805,16 +1189,16 @@ export function ArtistCrewManager() {
             <div className="space-y-4 p-4 border-2 border-dashed border-purple-300 rounded-lg bg-purple-50/30">
               <div className="flex items-center justify-between">
                 <h4 className="font-medium text-purple-900">Add New Team Member</h4>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setShowAddMember(false)}
                   className="text-purple-700 border-purple-200"
                 >
                   Cancel
                 </Button>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium text-purple-700">
@@ -883,11 +1267,85 @@ export function ArtistCrewManager() {
                   <p className="text-xs text-purple-600">is private. Used to securely match members to Profiles and to invite non-members.</p>
                 </div>
 
+                <div className="space-y-2 md:col-span-2">
+                  <Label className="text-xs font-medium text-purple-700">
+                    Their Role(s)?
+                  </Label>
+                  <div className="bg-white border border-purple-200 rounded-lg p-3">
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {(newMember.roles || []).length > 0 ? (
+                        (newMember.roles || []).map((role) => (
+                          <Badge
+                            key={role}
+                            variant="secondary"
+                            className="bg-purple-100 text-purple-800 border-purple-300 pr-1"
+                          >
+                            {role}
+                            <button
+                              onClick={() => setNewMember(prev => ({
+                                ...prev,
+                                roles: (prev.roles || []).filter(r => r !== role)
+                              }))}
+                              className="ml-1 hover:text-purple-900"
+                            >
+                              ×
+                            </button>
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-xs text-gray-400">No roles selected</span>
+                      )}
+                    </div>
+                    <Collapsible>
+                      <CollapsibleTrigger className="w-full">
+                        <div className="flex items-center justify-between p-2 rounded bg-purple-50 hover:bg-purple-100 transition-colors">
+                          <span className="text-xs font-medium text-purple-700">+ Add Roles</span>
+                          <ChevronDown className="w-3 h-3 text-purple-600" />
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-2 max-h-48 overflow-y-auto">
+                        <div className="space-y-2 p-2 bg-purple-50/50 rounded-lg">
+                          {ROLE_CATEGORIES.map((category) => (
+                            <div key={category.id}>
+                              <p className="text-xs font-semibold text-purple-800 mb-1">{category.name}</p>
+                              <div className="flex flex-wrap gap-1">
+                                {category.items.map((item) => (
+                                  <button
+                                    key={item}
+                                    onClick={() => {
+                                      const roles = newMember.roles || []
+                                      if (!roles.includes(item)) {
+                                        setNewMember(prev => ({
+                                          ...prev,
+                                          roles: [...(prev.roles || []), item]
+                                        }))
+                                      }
+                                    }}
+                                    disabled={(newMember.roles || []).includes(item)}
+                                    className={cn(
+                                      "text-xs px-2 py-0.5 rounded transition-colors",
+                                      (newMember.roles || []).includes(item)
+                                        ? "bg-purple-200 text-purple-500 cursor-not-allowed"
+                                        : "bg-white border border-purple-200 text-purple-700 hover:bg-purple-100"
+                                    )}
+                                  >
+                                    {item}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label className="text-xs font-medium text-purple-700">
                     Artist Profile Admin Rights?
                   </Label>
-                  <select 
+                  <select
                     value={newMember.isAdmin ? 'Yes' : 'No'}
                     onChange={(e) => setNewMember(prev => ({ ...prev, isAdmin: e.target.value === 'Yes' }))}
                     className="w-full p-2 border border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
@@ -899,7 +1357,7 @@ export function ArtistCrewManager() {
               </div>
 
               <div className="flex justify-end">
-                <Button 
+                <Button
                   onClick={handleAddMember}
                   className="bg-purple-600 hover:bg-purple-700"
                 >
@@ -925,14 +1383,14 @@ export function ArtistCrewManager() {
                           {member.roles.length > 0 ? member.roles.join('; ') : 'No roles assigned'}
                         </p>
                         <div className="flex items-center gap-2 mt-2">
-                          <Badge 
+                          <Badge
                             variant={member.status === 'joined' ? 'default' : 'secondary'}
                             className={member.status === 'joined' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}
                           >
                             {member.status === 'joined' ? 'Joined' : member.status === 'invited' ? 'Invited' : 'Invite'}
                           </Badge>
                           <span className="text-xs text-purple-600">Admin</span>
-                          <select 
+                          <select
                             value={member.isAdmin ? 'Yes' : 'No'}
                             onChange={(e) => updateMemberAdmin(member.id, e.target.value === 'Yes')}
                             className="text-xs border border-purple-200 rounded px-2 py-1 focus:border-purple-400 focus:outline-none"
@@ -946,9 +1404,9 @@ export function ArtistCrewManager() {
                         <Button variant="outline" size="sm" className="text-purple-700 border-purple-200">
                           Manage
                         </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => removeMember(member.id)}
                           className="text-red-600 border-red-200 hover:bg-red-50"
                         >

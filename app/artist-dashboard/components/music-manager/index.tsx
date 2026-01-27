@@ -65,6 +65,7 @@ import { GoLiveDateSection } from './GoLiveDateSection'
 import { ReleaseRightsSection } from './ReleaseRightsSection'
 import { ReleaseRoyaltiesSection } from './ReleaseRoyaltiesSection'
 import { CoverArtworkSection } from './CoverArtworkSection'
+import { TrackUploadSection } from './TrackUploadSection'
 import { InvitationModal, ErrorReportModal, InvitationData, ErrorReportData } from './InvitationModals'
 
 // Step definitions
@@ -76,7 +77,8 @@ const STEPS = [
   { id: 'date', label: 'Go-Live Date' },
   { id: 'rights', label: 'Rights' },
   { id: 'royalties', label: 'Royalties' },
-  { id: 'artwork', label: 'Artwork' }
+  { id: 'artwork', label: 'Artwork' },
+  { id: 'tracks', label: 'Upload Tracks' }
 ] as const
 
 type StepId = typeof STEPS[number]['id']
@@ -311,6 +313,10 @@ export function ArtistMusicManager() {
         )
       case 'artwork':
         return !!releaseData.coverArtwork && !!releaseData.coverCaption.trim()
+      case 'tracks':
+        // For now, tracks step is optional - users can proceed without uploading all tracks
+        // In the future, we might want to require at least one track
+        return true
       default:
         return false
     }
@@ -592,6 +598,14 @@ export function ArtistMusicManager() {
         return (
           <CoverArtworkSection
             releaseData={releaseData}
+            onUpdate={updateReleaseData}
+          />
+        )
+      case 'tracks':
+        return (
+          <TrackUploadSection
+            releaseData={releaseData}
+            releaseId={releaseId}
             onUpdate={updateReleaseData}
           />
         )
