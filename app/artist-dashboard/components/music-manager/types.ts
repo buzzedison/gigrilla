@@ -69,6 +69,18 @@ export interface ReleaseData {
   coverArtwork: File | string | null // File during selection, string URL after upload
   coverArtworkUrl?: string // R2 URL after upload
   coverCaption: string
+  // Submission Ts&Cs & digital signature (required for pending_review)
+  agreeTermsOfUse: boolean
+  agreeDistributionPolicy: boolean
+  agreePrivacyPolicy: boolean
+  confirmDetailsTrue: boolean
+  confirmLegalLiability: boolean
+  confirmNoOtherArtistName: boolean
+  signatoryRole: 'owner' | 'representative' | ''
+  signatoryFirstName: string
+  signatoryMiddleNames: string
+  signatoryLastName: string
+  signatoryEmail: string
 }
 
 const emptyTerritorySelection: TerritorySelection = {
@@ -139,7 +151,18 @@ export const initialReleaseData: ReleaseData = {
   mcsContactEmail: '',
   coverArtwork: null,
   coverArtworkUrl: '',
-  coverCaption: ''
+  coverCaption: '',
+  agreeTermsOfUse: false,
+  agreeDistributionPolicy: false,
+  agreePrivacyPolicy: false,
+  confirmDetailsTrue: false,
+  confirmLegalLiability: false,
+  confirmNoOtherArtistName: false,
+  signatoryRole: '',
+  signatoryFirstName: '',
+  signatoryMiddleNames: '',
+  signatoryLastName: '',
+  signatoryEmail: ''
 }
 
 export const releaseVersionOptions = [
@@ -230,26 +253,89 @@ export interface TrackData {
   trackTitle: string
   trackTitleConfirmed: boolean
   trackVersion: string
+  masterRecordingDate: string // Month & Year
   isrc: string
   isrcConfirmed: boolean
   iswc: string
   iswcConfirmed: boolean
-  isni: string
-  isniConfirmed: boolean
-  ipiCae: string
-  ipiCaeConfirmed: boolean
-  explicitContent: boolean
+  musicalWorkTitle: string
+  musicalWorkTitleConfirmed: boolean
+  // Primary Artists
+  primaryArtists: Array<{
+    id: string
+    name: string
+    isni: string
+    confirmed: boolean
+  }>
+  // Featured Artists
+  featuredArtists: Array<{
+    id: string
+    name: string
+    isni: string
+    confirmed: boolean
+  }>
+  // Session Artists
+  sessionArtists: Array<{
+    id: string
+    name: string
+    isni: string
+    roles: string[]
+    confirmed: boolean
+  }>
+  // Songwriting Team (Creators)
+  creators: Array<{
+    id: string
+    name: string
+    isni: string
+    ipiCae: string
+    roles: string[] // Composer, Lyricist, Songwriter
+    confirmed: boolean
+  }>
+  // Production Team
+  producers: Array<{
+    id: string
+    name: string
+    isni: string
+    ipiCae: string
+    roles: string[] // Arranger/Adaptor, Instrument Technician, Mixing & Mastering, Producer, Sound Engineer
+    confirmed: boolean
+  }>
+  // Rights
+  coverRights: 'no-original' | 'yes-licensed' | 'yes-compulsory' | ''
+  coverLicenseUrl: string
+  remixRights: 'no-original' | 'yes-authorized' | 'yes-unauthorized' | ''
+  remixAuthorizationUrl: string
+  samplesRights: 'no-original' | 'yes-cleared' | 'yes-uncleared' | ''
+  samplesClearanceUrl: string
+  // Tags
+  primaryGenre: {
+    familyId: string
+    mainGenres: Array<{ id: string; subGenres: string[] }>
+  }
+  secondaryGenre: {
+    familyId: string
+    mainGenres: Array<{ id: string; subGenres: string[] }>
+  }
+  primaryMood: string
+  secondaryMoods: string[]
+  primaryLanguage: string
+  secondaryLanguage: string
+  explicitContent: 'no-clean-original' | 'no-clean-radio-edit' | 'yes-explicit' | ''
   childSafeContent: 'yes-original' | 'yes-radio-edit' | 'no-adult-themes' | ''
+  // Upload
   audioFile: File | null
   audioFileUrl: string
   audioFileSize: number
   audioFormat: string
+  dolbyAtmosFileUrl: string
+  previewStartTime: number // seconds for 30sFP
   lyrics: string
+  lyricsConfirmed: boolean
   lyricsFile: File | null
   lyricsFileUrl: string
+  videoUrl: string
+  videoUrlConfirmed: boolean
   durationSeconds: number
-  featuredArtists: Array<{ name: string; role: string }>
-  writers: Array<{ name: string; role: string; sharePercentage: number }>
   uploaded: boolean
 }
 
@@ -258,25 +344,110 @@ export const createTrackData = (trackNumber: number): TrackData => ({
   trackTitle: '',
   trackTitleConfirmed: false,
   trackVersion: '',
+  masterRecordingDate: '',
   isrc: '',
   isrcConfirmed: false,
   iswc: '',
   iswcConfirmed: false,
-  isni: '',
-  isniConfirmed: false,
-  ipiCae: '',
-  ipiCaeConfirmed: false,
-  explicitContent: false,
+  musicalWorkTitle: '',
+  musicalWorkTitleConfirmed: false,
+  primaryArtists: [],
+  featuredArtists: [],
+  sessionArtists: [],
+  creators: [],
+  producers: [],
+  coverRights: '',
+  coverLicenseUrl: '',
+  remixRights: '',
+  remixAuthorizationUrl: '',
+  samplesRights: '',
+  samplesClearanceUrl: '',
+  primaryGenre: { familyId: '', mainGenres: [] },
+  secondaryGenre: { familyId: '', mainGenres: [] },
+  primaryMood: '',
+  secondaryMoods: [],
+  primaryLanguage: '',
+  secondaryLanguage: '',
+  explicitContent: '',
   childSafeContent: '',
   audioFile: null,
   audioFileUrl: '',
   audioFileSize: 0,
   audioFormat: '',
+  dolbyAtmosFileUrl: '',
+  previewStartTime: 0,
   lyrics: '',
+  lyricsConfirmed: false,
   lyricsFile: null,
   lyricsFileUrl: '',
+  videoUrl: '',
+  videoUrlConfirmed: false,
   durationSeconds: 0,
-  featuredArtists: [],
-  writers: [],
   uploaded: false
 })
+
+// Mood options
+export const moodOptions = [
+  { value: '', label: 'None Selected (Default)' },
+  { value: 'angry', label: 'Angry' },
+  { value: 'break-up', label: 'Break-up' },
+  { value: 'chilled', label: 'Chilled' },
+  { value: 'euphoric', label: 'Euphoric' },
+  { value: 'feel-good', label: 'Feel-good' },
+  { value: 'focus', label: 'Focus' },
+  { value: 'happy', label: 'Happy' },
+  { value: 'loss', label: 'Loss' },
+  { value: 'loved-up', label: 'Loved-up' },
+  { value: 'meditation', label: 'Meditation' },
+  { value: 'motivational', label: 'Motivational' },
+  { value: 'party', label: 'Party' },
+  { value: 'reflective', label: 'Reflective' },
+  { value: 'relaxed', label: 'Relaxed' },
+  { value: 'romantic', label: 'Romantic' },
+  { value: 'sleepy', label: 'Sleepy' },
+  { value: 'sad', label: 'Sad' },
+  { value: 'up-beat', label: 'Up-beat' },
+  { value: 'workout-energy', label: 'Workout Energy' },
+  { value: 'other', label: 'Other' }
+]
+
+// Language options (simplified - would need full list)
+export const languageOptions = [
+  { value: 'instrumental', label: 'Instrumental' },
+  { value: 'english', label: 'English' },
+  { value: 'spanish', label: 'Spanish' },
+  { value: 'french', label: 'French' },
+  { value: 'german', label: 'German' },
+  { value: 'italian', label: 'Italian' },
+  { value: 'portuguese', label: 'Portuguese' },
+  { value: 'japanese', label: 'Japanese' },
+  { value: 'korean', label: 'Korean' },
+  { value: 'mandarin', label: 'Mandarin' },
+  { value: 'other', label: 'Other' }
+]
+
+// Role options for creators
+export const creatorRoleOptions = [
+  { value: 'composer', label: 'Composer' },
+  { value: 'lyricist', label: 'Lyricist' },
+  { value: 'songwriter', label: 'Songwriter' }
+]
+
+// Role options for producers
+export const producerRoleOptions = [
+  { value: 'arranger-adaptor', label: 'Arranger/Adaptor' },
+  { value: 'instrument-technician', label: 'Instrument Technician' },
+  { value: 'mixing-mastering', label: 'Mixing & Mastering' },
+  { value: 'producer', label: 'Producer' },
+  { value: 'sound-engineer', label: 'Sound Engineer' }
+]
+
+// Role options for session artists
+export const sessionArtistRoleOptions = [
+  { value: 'backing-vocals', label: 'Backing Vocals' },
+  { value: 'electronic-instruments', label: 'Electronic Instruments' },
+  { value: 'keyboard-instruments', label: 'Keyboard Instruments' },
+  { value: 'percussion-instruments', label: 'Percussion Instruments' },
+  { value: 'string-instruments', label: 'String Instruments' },
+  { value: 'wind-instruments', label: 'Wind Instruments' }
+]

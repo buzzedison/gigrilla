@@ -27,6 +27,17 @@ async function createSupabaseClient() {
   )
 }
 
+// Check if user is admin
+async function isAdmin(supabase: any, userId: string): Promise<boolean> {
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('user_id', userId)
+    .single()
+
+  return profile?.role === 'admin' || profile?.role === 'super_admin'
+}
+
 // GET - Fetch user's music releases
 export async function GET(request: NextRequest) {
   try {
@@ -41,14 +52,28 @@ export async function GET(request: NextRequest) {
     const releaseId = searchParams.get('id')
     const status = searchParams.get('status')
 
+    // Check if user is admin
+    const adminCheck = await isAdmin(supabase, user.id)
+
     // Fetch single release by ID
     if (releaseId) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('music_releases')
-        .select('*')
-        .eq('user_id', user.id)
+        .select(`
+          *,
+          artist_profiles!music_releases_user_id_fkey (
+            stage_name,
+            user_id
+          )
+        `)
         .eq('id', releaseId)
-        .single()
+
+      // Non-admin users can only see their own releases
+      if (!adminCheck) {
+        query = query.eq('user_id', user.id)
+      }
+
+      const { data, error } = await query.single()
 
       if (error) {
         console.error('API: Error fetching music release:', error)
@@ -150,8 +175,47 @@ export async function POST(request: NextRequest) {
       cover_caption,
       status,
       current_step,
-      upload_guide_confirmed
+      upload_guide_confirmed,
+      agree_terms_of_use,
+      agree_distribution_policy,
+      agree_privacy_policy,
+      confirm_details_true,
+      confirm_legal_liability,
+      confirm_no_other_artist_name,
+      signatory_role,
+      signatory_first_name,
+      signatory_middle_names,
+      signatory_last_name,
+      signatory_email
     } = body
+
+    // Gate: release cannot go to pending_review without Ts&Cs and digital signature
+    if (status === 'pending_review') {
+      const termsOk =
+        agree_terms_of_use === true &&
+        agree_distribution_policy === true &&
+        agree_privacy_policy === true
+      const confirmOk =
+        confirm_details_true === true &&
+        confirm_legal_liability === true &&
+        confirm_no_other_artist_name === true
+      const roleOk =
+        signatory_role === 'owner' || signatory_role === 'representative'
+      const first = typeof signatory_first_name === 'string' && signatory_first_name.trim().length > 0
+      const last = typeof signatory_last_name === 'string' && signatory_last_name.trim().length > 0
+      const emailOk =
+        typeof signatory_email === 'string' &&
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signatory_email.trim())
+      if (!termsOk || !confirmOk || !roleOk || !first || !last || !emailOk) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Submission requires all Ts&Cs confirmations and a complete digital signature (first name, last name, email).'
+          },
+          { status: 400 }
+        )
+      }
+    }
 
     const releaseData: Record<string, unknown> = {
       user_id: user.id,
@@ -210,6 +274,17 @@ export async function POST(request: NextRequest) {
     assignIfDefined('status', status)
     assignIfDefined('current_step', current_step)
     assignIfDefined('upload_guide_confirmed', upload_guide_confirmed)
+    assignIfDefined('agree_terms_of_use', agree_terms_of_use)
+    assignIfDefined('agree_distribution_policy', agree_distribution_policy)
+    assignIfDefined('agree_privacy_policy', agree_privacy_policy)
+    assignIfDefined('confirm_details_true', confirm_details_true)
+    assignIfDefined('confirm_legal_liability', confirm_legal_liability)
+    assignIfDefined('confirm_no_other_artist_name', confirm_no_other_artist_name)
+    assignIfDefined('signatory_role', signatory_role)
+    assignIfDefined('signatory_first_name', signatory_first_name?.trim?.() ?? signatory_first_name)
+    assignIfDefined('signatory_middle_names', signatory_middle_names?.trim?.() ?? signatory_middle_names)
+    assignIfDefined('signatory_last_name', signatory_last_name?.trim?.() ?? signatory_last_name)
+    assignIfDefined('signatory_email', signatory_email?.trim?.() ?? signatory_email)
 
     // Handle status transitions
     if (status === 'pending_review' && !releaseData.submitted_at) {

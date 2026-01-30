@@ -1,6 +1,6 @@
 'use client'
 
-import { X, Send, Building2, Users, Truck, Music2, Shield } from 'lucide-react'
+import { X, Send, Building2, Users, Truck, Music2, Shield, CheckCircle } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
 import { Input } from '../../../components/ui/input'
 import { Textarea } from '../../../components/ui/textarea'
@@ -10,6 +10,11 @@ interface InvitationModalProps {
   onClose: () => void
   type: 'label' | 'publisher' | 'distributor' | 'pro' | 'mcs'
   onSubmit: (data: InvitationData) => void
+  initialData?: {
+    name?: string
+    email?: string
+    contactName?: string
+  }
 }
 
 export interface InvitationData {
@@ -52,7 +57,7 @@ const modalConfig = {
   }
 }
 
-export function InvitationModal({ isOpen, onClose, type, onSubmit }: InvitationModalProps) {
+export function InvitationModal({ isOpen, onClose, type, onSubmit, initialData }: InvitationModalProps) {
   const config = modalConfig[type]
   const Icon = config.icon
 
@@ -109,6 +114,7 @@ export function InvitationModal({ isOpen, onClose, type, onSubmit }: InvitationM
               name="name"
               type="text"
               required
+              defaultValue={initialData?.name || ''}
               placeholder={`Enter ${type} name`}
             />
           </div>
@@ -121,6 +127,7 @@ export function InvitationModal({ isOpen, onClose, type, onSubmit }: InvitationM
               name="email"
               type="email"
               required
+              defaultValue={initialData?.email || ''}
               placeholder="contact@example.com"
             />
           </div>
@@ -271,6 +278,62 @@ export function ErrorReportModal({ isOpen, onClose, onSubmit }: ErrorReportModal
             </Button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+// Success Confirmation Modal
+interface SuccessModalProps {
+  isOpen: boolean
+  onClose: () => void
+  organizationName: string
+  contactEmail: string
+  type: 'label' | 'publisher' | 'distributor' | 'pro' | 'mcs'
+}
+
+export function SuccessModal({ isOpen, onClose, organizationName, contactEmail, type }: SuccessModalProps) {
+  const config = modalConfig[type]
+
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+        {/* Success Icon */}
+        <div className="text-center mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
+            <CheckCircle className="w-8 h-8 text-green-600" />
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Invitation Sent Successfully!</h3>
+          <p className="text-gray-600">
+            Your invitation to <strong>{organizationName}</strong> has been sent to{' '}
+            <strong className="text-gray-900">{contactEmail}</strong>
+          </p>
+        </div>
+
+        {/* Info Box */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <p className="text-sm text-blue-800">
+            The {config.title.toLowerCase()} will receive an email with details about your release
+            and instructions on how to accept the collaboration invitation.
+          </p>
+        </div>
+
+        {/* Close Button */}
+        <Button
+          onClick={onClose}
+          className="w-full"
+        >
+          Done
+        </Button>
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Save, ArrowRight, ArrowLeft, Loader2, CheckCircle, Plus } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
 import { ReleaseData, initialReleaseData } from './types'
@@ -54,6 +54,17 @@ interface DbRelease {
   status: 'draft' | 'pending_review' | 'approved' | 'published' | 'rejected'
   current_step: string
   upload_guide_confirmed: boolean
+  agree_terms_of_use?: boolean
+  agree_distribution_policy?: boolean
+  agree_privacy_policy?: boolean
+  confirm_details_true?: boolean
+  confirm_legal_liability?: boolean
+  confirm_no_other_artist_name?: boolean
+  signatory_role?: 'owner' | 'representative' | null
+  signatory_first_name?: string | null
+  signatory_middle_names?: string | null
+  signatory_last_name?: string | null
+  signatory_email?: string | null
   created_at: string
   updated_at: string
 }
@@ -66,7 +77,8 @@ import { ReleaseRightsSection } from './ReleaseRightsSection'
 import { ReleaseRoyaltiesSection } from './ReleaseRoyaltiesSection'
 import { CoverArtworkSection } from './CoverArtworkSection'
 import { TrackUploadSection } from './TrackUploadSection'
-import { InvitationModal, ErrorReportModal, InvitationData, ErrorReportData } from './InvitationModals'
+import { SubmitReleaseSection } from './SubmitReleaseSection'
+import { InvitationModal, ErrorReportModal, SuccessModal, InvitationData, ErrorReportData } from './InvitationModals'
 
 // Step definitions
 const STEPS = [
@@ -78,7 +90,8 @@ const STEPS = [
   { id: 'rights', label: 'Rights' },
   { id: 'royalties', label: 'Royalties' },
   { id: 'artwork', label: 'Artwork' },
-  { id: 'tracks', label: 'Upload Tracks' }
+  { id: 'tracks', label: 'Upload Tracks' },
+  { id: 'submit', label: 'Submit Release' }
 ] as const
 
 type StepId = typeof STEPS[number]['id']
@@ -126,7 +139,18 @@ function dbToReleaseData(db: DbRelease): Partial<ReleaseData> {
     mcsConfirmed: db.mcs_confirmed,
     mcsContactName: db.mcs_contact_name || '',
     mcsContactEmail: db.mcs_contact_email || '',
-    coverCaption: db.cover_caption || ''
+    coverCaption: db.cover_caption || '',
+    agreeTermsOfUse: db.agree_terms_of_use ?? false,
+    agreeDistributionPolicy: db.agree_distribution_policy ?? false,
+    agreePrivacyPolicy: db.agree_privacy_policy ?? false,
+    confirmDetailsTrue: db.confirm_details_true ?? false,
+    confirmLegalLiability: db.confirm_legal_liability ?? false,
+    confirmNoOtherArtistName: db.confirm_no_other_artist_name ?? false,
+    signatoryRole: (db.signatory_role as 'owner' | 'representative') || '',
+    signatoryFirstName: db.signatory_first_name || '',
+    signatoryMiddleNames: db.signatory_middle_names || '',
+    signatoryLastName: db.signatory_last_name || '',
+    signatoryEmail: db.signatory_email || ''
   }
 }
 
@@ -175,7 +199,18 @@ function releaseDataToDb(data: ReleaseData, uploadGuideConfirmed: boolean, curre
     mcs_contact_email: data.mcsContactEmail || null,
     cover_caption: data.coverCaption || null,
     upload_guide_confirmed: uploadGuideConfirmed,
-    current_step: currentStep
+    current_step: currentStep,
+    agree_terms_of_use: data.agreeTermsOfUse,
+    agree_distribution_policy: data.agreeDistributionPolicy,
+    agree_privacy_policy: data.agreePrivacyPolicy,
+    confirm_details_true: data.confirmDetailsTrue,
+    confirm_legal_liability: data.confirmLegalLiability,
+    confirm_no_other_artist_name: data.confirmNoOtherArtistName,
+    signatory_role: data.signatoryRole || null,
+    signatory_first_name: data.signatoryFirstName?.trim() || null,
+    signatory_middle_names: data.signatoryMiddleNames?.trim() || null,
+    signatory_last_name: data.signatoryLastName?.trim() || null,
+    signatory_email: data.signatoryEmail?.trim() || null
   }
 }
 
@@ -216,12 +251,16 @@ export function ArtistMusicManager() {
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
   const [inviteModalType, setInviteModalType] = useState<'label' | 'publisher' | 'distributor' | 'pro' | 'mcs'>('label')
   const [errorModalOpen, setErrorModalOpen] = useState(false)
+  const [successModalOpen, setSuccessModalOpen] = useState(false)
+  const [successModalData, setSuccessModalData] = useState<{ name: string; email: string; type: 'label' | 'publisher' | 'distributor' | 'pro' | 'mcs' } | null>(null)
 
   // Loading states
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isSavingAndProceeding, setIsSavingAndProceeding] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'idle'>('idle')
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Load existing draft release on mount
   const loadDraftRelease = useCallback(async () => {
@@ -257,6 +296,8 @@ export function ArtistMusicManager() {
   const goToNextStep = () => {
     if (!isLastStep) {
       setCurrentStep(STEPS[currentStepIndex + 1].id)
+      // Trigger auto-save when moving to next step
+      autoSave()
     }
   }
 
@@ -264,6 +305,8 @@ export function ArtistMusicManager() {
   const goToPreviousStep = () => {
     if (!isFirstStep) {
       setCurrentStep(STEPS[currentStepIndex - 1].id)
+      // Trigger auto-save when moving to previous step
+      autoSave()
     }
   }
 
@@ -317,9 +360,29 @@ export function ArtistMusicManager() {
         // For now, tracks step is optional - users can proceed without uploading all tracks
         // In the future, we might want to require at least one track
         return true
+      case 'submit':
+        return isSubmissionValid(releaseData)
       default:
         return false
     }
+  }
+
+  // Ts&Cs and digital signature must all be complete before release can go to pending_review
+  function isSubmissionValid(data: ReleaseData): boolean {
+    const termsOk =
+      data.agreeTermsOfUse &&
+      data.agreeDistributionPolicy &&
+      data.agreePrivacyPolicy
+    const confirmOk =
+      data.confirmDetailsTrue &&
+      data.confirmLegalLiability &&
+      data.confirmNoOtherArtistName
+    const roleOk = data.signatoryRole === 'owner' || data.signatoryRole === 'representative'
+    const signatureOk =
+      data.signatoryFirstName.trim() !== '' &&
+      data.signatoryLastName.trim() !== '' &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.signatoryEmail.trim())
+    return Boolean(termsOk && confirmOk && roleOk && signatureOk)
   }
 
   // Toggle upload guide visibility
@@ -364,8 +427,13 @@ export function ArtistMusicManager() {
       const result = await response.json()
 
       if (result.success) {
-        setSaveMessage({ type: 'success', text: `Invitation sent to ${data.name}!` })
-        setTimeout(() => setSaveMessage(null), 4000)
+        // Show success modal
+        setSuccessModalData({
+          name: data.name,
+          email: data.email,
+          type: data.type as 'label' | 'publisher' | 'distributor' | 'pro' | 'mcs'
+        })
+        setSuccessModalOpen(true)
       } else {
         setSaveMessage({ type: 'error', text: result.error || 'Failed to send invitation' })
         setTimeout(() => setSaveMessage(null), 5000)
@@ -435,7 +503,7 @@ export function ArtistMusicManager() {
           ? false
           : Boolean(releaseData.goLiveDate)
 
-    return (
+    const baseValid =
       uploadGuideConfirmed &&
       (releaseData.upcConfirmed || releaseData.eanConfirmed) &&
       releaseData.releaseTitleConfirmed &&
@@ -455,8 +523,70 @@ export function ArtistMusicManager() {
       (!releaseData.wroteComposition || (releaseData.proName.trim() && releaseData.proConfirmed)) &&
       releaseData.coverArtwork !== null &&
       releaseData.coverCaption.trim() !== ''
-    )
+
+    // On submit step, Ts&Cs and digital signature must also be complete
+    if (currentStep === 'submit') {
+      return baseValid && isSubmissionValid(releaseData)
+    }
+    return baseValid
   }
+
+  // Auto-save function (silent save without showing messages)
+  const autoSave = useCallback(async () => {
+    // Don't auto-save if we're in the guide step or if already saving
+    if (currentStep === 'guide' || isSaving || isSavingAndProceeding) return
+
+    try {
+      setAutoSaveStatus('saving')
+      const dbData = releaseDataToDb(releaseData, uploadGuideConfirmed, currentStep)
+      const payload = releaseId ? { id: releaseId, ...dbData, status: 'draft' } : { ...dbData, status: 'draft' }
+
+      const response = await fetch('/api/music-releases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        if (!releaseId && result.data?.id) {
+          setReleaseId(result.data.id)
+        }
+        setAutoSaveStatus('saved')
+        // Reset to idle after 2 seconds
+        setTimeout(() => setAutoSaveStatus('idle'), 2000)
+      } else {
+        setAutoSaveStatus('idle')
+      }
+    } catch (error) {
+      console.error('Auto-save error:', error)
+      setAutoSaveStatus('idle')
+    }
+  }, [releaseData, uploadGuideConfirmed, currentStep, releaseId, isSaving, isSavingAndProceeding])
+
+  // Auto-save when releaseData changes (debounced)
+  useEffect(() => {
+    // Don't auto-save on initial load
+    if (isLoading) return
+
+    // Clear any existing timer
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current)
+    }
+
+    // Set a new timer to auto-save after 2 seconds of inactivity
+    autoSaveTimerRef.current = setTimeout(() => {
+      autoSave()
+    }, 2000)
+
+    // Cleanup
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current)
+      }
+    }
+  }, [releaseData, autoSave, isLoading])
 
   // Handle save and come back later
   const handleSave = async () => {
@@ -465,15 +595,15 @@ export function ArtistMusicManager() {
     try {
       const dbData = releaseDataToDb(releaseData, uploadGuideConfirmed, currentStep)
       const payload = releaseId ? { id: releaseId, ...dbData, status: 'draft' } : { ...dbData, status: 'draft' }
-      
+
       const response = await fetch('/api/music-releases', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
-      
+
       const result = await response.json()
-      
+
       if (result.success) {
         if (!releaseId && result.data?.id) {
           setReleaseId(result.data.id)
@@ -609,6 +739,13 @@ export function ArtistMusicManager() {
             onUpdate={updateReleaseData}
           />
         )
+      case 'submit':
+        return (
+          <SubmitReleaseSection
+            releaseData={releaseData}
+            onUpdate={updateReleaseData}
+          />
+        )
       default:
         return null
     }
@@ -641,9 +778,29 @@ export function ArtistMusicManager() {
 
       <div className="bg-gradient-to-br from-purple-700 to-purple-900 rounded-3xl text-white p-6 md:p-8 mb-6 shadow-lg border border-purple-600/40">
         <div className="flex items-start justify-between">
-          <div>
-            <p className="text-sm uppercase tracking-wide text-purple-200 font-semibold">Artist Music</p>
-            <h1 className="text-3xl md:text-4xl font-bold mt-2">Upload &amp; Manage Your Music</h1>
+          <div className="flex-1">
+            <div className="flex items-center gap-3">
+              <div>
+                <p className="text-sm uppercase tracking-wide text-purple-200 font-semibold">Artist Music</p>
+                <h1 className="text-3xl md:text-4xl font-bold mt-2">Upload &amp; Manage Your Music</h1>
+              </div>
+              {/* Auto-save indicator */}
+              {autoSaveStatus !== 'idle' && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm">
+                  {autoSaveStatus === 'saving' ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm">Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4 text-emerald-300" />
+                      <span className="text-sm">Saved</span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           {releaseId && (
             <Button
@@ -795,6 +952,39 @@ export function ArtistMusicManager() {
         onClose={() => setInviteModalOpen(false)}
         type={inviteModalType}
         onSubmit={handleInvitationSubmit}
+        initialData={
+          inviteModalType === 'distributor'
+            ? {
+                name: releaseData.distributorName,
+                email: releaseData.distributorContactEmail,
+                contactName: releaseData.distributorContactName
+              }
+            : inviteModalType === 'pro'
+            ? {
+                name: releaseData.proName,
+                email: releaseData.proContactEmail,
+                contactName: releaseData.proContactName
+              }
+            : inviteModalType === 'mcs'
+            ? {
+                name: releaseData.mcsName,
+                email: releaseData.mcsContactEmail,
+                contactName: releaseData.mcsContactName
+              }
+            : inviteModalType === 'label' && releaseData.recordLabels.length > 0
+            ? {
+                name: releaseData.recordLabels[0].name,
+                email: releaseData.recordLabels[0].contactEmail,
+                contactName: releaseData.recordLabels[0].contactName
+              }
+            : inviteModalType === 'publisher' && releaseData.publishers.length > 0
+            ? {
+                name: releaseData.publishers[0].name,
+                email: releaseData.publishers[0].contactEmail,
+                contactName: releaseData.publishers[0].contactName
+              }
+            : undefined
+        }
       />
 
       {/* Error Report Modal */}
@@ -803,6 +993,20 @@ export function ArtistMusicManager() {
         onClose={() => setErrorModalOpen(false)}
         onSubmit={handleErrorReportSubmit}
       />
+
+      {/* Success Confirmation Modal */}
+      {successModalData && (
+        <SuccessModal
+          isOpen={successModalOpen}
+          onClose={() => {
+            setSuccessModalOpen(false)
+            setSuccessModalData(null)
+          }}
+          organizationName={successModalData.name}
+          contactEmail={successModalData.email}
+          type={successModalData.type}
+        />
+      )}
     </div>
   )
 }

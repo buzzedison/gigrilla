@@ -77,6 +77,13 @@ function buildReleaseInviteEmail(payload: ReleaseInviteEmailPayload) {
       ? `for the release <strong>"${payload.releaseTitle}"</strong>`
       : `for an upcoming music release`
 
+  // Plain text version for email subject (no HTML tags)
+  const releaseInfoPlain = payload.releaseTitle && payload.artistName
+    ? `for the release "${payload.releaseTitle}" by ${payload.artistName}`
+    : payload.releaseTitle
+      ? `for the release "${payload.releaseTitle}"`
+      : `for an upcoming music release`
+
   const customMessageSection = payload.customMessage
     ? `
       <div style="background:#1f2937;border-left:4px solid ${config.color};padding:16px;margin:24px 0;border-radius:8px">
@@ -90,7 +97,7 @@ function buildReleaseInviteEmail(payload: ReleaseInviteEmailPayload) {
     : ''
 
   return {
-    subject: `${payload.artistName ?? 'Gigrilla Artist'} invites ${payload.organizationName} to collaborate ${releaseInfo}`,
+    subject: `${payload.artistName ?? 'Gigrilla Artist'} invites ${payload.organizationName} to collaborate ${releaseInfoPlain}`,
     html: `
       <div style="font-family:Inter,Segoe UI,sans-serif;background:#0f172a;color:#e2e8f0;padding:40px 24px">
         <div style="max-width:560px;margin:0 auto">
@@ -182,7 +189,7 @@ function buildReleaseInviteEmail(payload: ReleaseInviteEmailPayload) {
 
 You're invited to collaborate on a music release
 
-${payload.artistName ?? 'An artist'} on Gigrilla would like to work with ${payload.organizationName} as their ${config.role} ${releaseInfo}.
+${payload.artistName ?? 'An artist'} on Gigrilla would like to work with ${payload.organizationName} as their ${config.role} ${releaseInfoPlain}.
 
 As the ${config.role}, you'll ${config.description} to ensure all rights holders are paid fairly.
 
