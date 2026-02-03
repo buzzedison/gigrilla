@@ -38,6 +38,23 @@ async function isAdmin(supabase: any, userId: string): Promise<boolean> {
   return profile?.role === 'admin' || profile?.role === 'super_admin'
 }
 
+// Check if user is banned
+async function isUserBanned(supabase: any, userId: string): Promise<boolean> {
+  const { data } = await supabase.rpc('is_user_banned', { p_user_id: userId })
+  return data === true
+}
+
+// Get current approval mode from platform settings
+async function getApprovalMode(supabase: any): Promise<string> {
+  const { data } = await supabase
+    .from('platform_settings')
+    .select('setting_value')
+    .eq('setting_key', 'approval_mode')
+    .single()
+
+  return data?.setting_value?.mode || 'auto' // Default to auto for beta
+}
+
 // GET - Fetch user's music releases
 export async function GET(request: NextRequest) {
   try {
@@ -128,6 +145,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Check if user is banned
+    const banned = await isUserBanned(supabase, user.id)
+    if (banned) {
+      return NextResponse.json({
+        error: 'Your account has been banned and cannot submit content.'
+      }, { status: 403 })
+    }
+
     const body = await request.json()
     const {
       id,
@@ -189,8 +214,14 @@ export async function POST(request: NextRequest) {
       signatory_email
     } = body
 
-    // Gate: release cannot go to pending_review without Ts&Cs and digital signature
-    if (status === 'pending_review') {
+    // Get approval mode from platform settings
+    const approvalMode = await getApprovalMode(supabase)
+
+    // Gate: release cannot be submitted without Ts&Cs and digital signature
+    // Check if this is a submission (status change to pending_review or published)
+    const isSubmission = status === 'pending_review' || (status === 'published' && approvalMode === 'auto')
+
+    if (isSubmission) {
       const termsOk =
         agree_terms_of_use === true &&
         agree_distribution_policy === true &&
@@ -215,6 +246,14 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         )
       }
+    }
+
+    // HYBRID APPROVAL LOGIC:
+    // Phase 1 (Beta - Auto-approval): When status is set to 'pending_review',
+    // automatically change it to 'published' if approval mode is 'auto'
+    let finalStatus = status
+    if (status === 'pending_review' && approvalMode === 'auto') {
+      finalStatus = 'published'
     }
 
     const releaseData: Record<string, unknown> = {
@@ -271,7 +310,7 @@ export async function POST(request: NextRequest) {
     assignIfDefined('mcs_contact_email', mcs_contact_email)
     assignIfDefined('cover_artwork_url', cover_artwork_url)
     assignIfDefined('cover_caption', cover_caption)
-    assignIfDefined('status', status)
+    assignIfDefined('status', finalStatus) // Use finalStatus instead of status for hybrid approval
     assignIfDefined('current_step', current_step)
     assignIfDefined('upload_guide_confirmed', upload_guide_confirmed)
     assignIfDefined('agree_terms_of_use', agree_terms_of_use)
@@ -287,10 +326,10 @@ export async function POST(request: NextRequest) {
     assignIfDefined('signatory_email', signatory_email?.trim?.() ?? signatory_email)
 
     // Handle status transitions
-    if (status === 'pending_review' && !releaseData.submitted_at) {
+    if ((status === 'pending_review' || finalStatus === 'published') && !releaseData.submitted_at) {
       releaseData.submitted_at = new Date().toISOString()
     }
-    if (status === 'published' && !releaseData.published_at) {
+    if (finalStatus === 'published' && !releaseData.published_at) {
       releaseData.published_at = new Date().toISOString()
     }
 

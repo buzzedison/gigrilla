@@ -364,7 +364,7 @@ export const createTrackData = (trackNumber: number): TrackData => ({
   samplesClearanceUrl: '',
   primaryGenre: { familyId: '', mainGenres: [] },
   secondaryGenre: { familyId: '', mainGenres: [] },
-  primaryMood: '',
+  primaryMood: 'none',
   secondaryMoods: [],
   primaryLanguage: '',
   secondaryLanguage: '',
@@ -388,7 +388,7 @@ export const createTrackData = (trackNumber: number): TrackData => ({
 
 // Mood options
 export const moodOptions = [
-  { value: '', label: 'None Selected (Default)' },
+  { value: 'none', label: 'None Selected (Default)' },
   { value: 'angry', label: 'Angry' },
   { value: 'break-up', label: 'Break-up' },
   { value: 'chilled', label: 'Chilled' },

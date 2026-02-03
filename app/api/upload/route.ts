@@ -59,6 +59,24 @@ const UPLOAD_CONFIGS = {
     maxSize: 1 * 1024 * 1024, // 1MB for lyrics files
     allowedTypes: ['text/plain', 'text/markdown', 'application/json'],
   },
+  'cover-license': {
+    folder: 'music-tracks',
+    subfolder: 'licenses',
+    maxSize: 10 * 1024 * 1024, // 10MB
+    allowedTypes: ['application/pdf', 'image/jpeg', 'image/png'],
+  },
+  'remix-authorization': {
+    folder: 'music-tracks',
+    subfolder: 'authorizations',
+    maxSize: 10 * 1024 * 1024, // 10MB
+    allowedTypes: ['application/pdf', 'image/jpeg', 'image/png'],
+  },
+  'samples-clearance': {
+    folder: 'music-tracks',
+    subfolder: 'clearances',
+    maxSize: 10 * 1024 * 1024, // 10MB
+    allowedTypes: ['application/pdf', 'image/jpeg', 'image/png'],
+  },
 } as const
 
 type UploadType = keyof typeof UPLOAD_CONFIGS
@@ -118,7 +136,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!type || !(type in UPLOAD_CONFIGS)) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'Invalid upload type',
         validTypes: Object.keys(UPLOAD_CONFIGS)
       }, { status: 400 })
@@ -128,7 +146,7 @@ export async function POST(request: NextRequest) {
 
     // Validate file type
     if (!(config.allowedTypes as readonly string[]).includes(file.type)) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'Invalid file type',
         allowed: config.allowedTypes
       }, { status: 400 })
@@ -137,7 +155,7 @@ export async function POST(request: NextRequest) {
     // Validate file size
     if (file.size > config.maxSize) {
       const maxSizeMB = config.maxSize / (1024 * 1024)
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: `File size must be less than ${maxSizeMB}MB`
       }, { status: 400 })
     }
@@ -145,7 +163,7 @@ export async function POST(request: NextRequest) {
     // Generate R2 key based on type
     const fileExt = file.name.split('.').pop() || 'jpg'
     const timestamp = Date.now()
-    
+
     let r2Key: string
     if ('subfolder' in config && config.subfolder) {
       r2Key = `${config.folder}/${user.id}/${config.subfolder}/${timestamp}.${fileExt}`

@@ -86,7 +86,12 @@ export async function GET(request: NextRequest) {
         pending_count: 0,
         approved_this_week: 0,
         rejected_this_week: 0,
-        published_count: 0
+        published_count: 0,
+        flagged_count: 0,
+        offensive_count: 0,
+        banned_users_count: 0,
+        total_releases: 0,
+        total_tracks: 0
       },
       recentReviews: recentReviews || []
     })

@@ -35,7 +35,7 @@ Use the provided script to grant admin privileges:
 
 ```bash
 # Make yourself a super admin
-node scripts/make-admin.js your-email@example.com super_admin
+node scripts/make-admin.js edison@gigrilla.com super_admin
 
 # Make someone else an admin
 node scripts/make-admin.js another-user@example.com admin

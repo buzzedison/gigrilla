@@ -400,7 +400,7 @@ export function TrackTagsSection({ track, trackIndex, onUpdate, applyToAll }: Tr
       <div>
         <Label htmlFor={`secondary-moods-${trackIndex}`}>Secondary Mood(s) (Optional)</Label>
         <div className="flex flex-wrap gap-2 mt-2">
-          {moodOptions.filter(m => m.value !== track.primaryMood && m.value !== '').map((mood) => {
+          {moodOptions.filter(m => m.value !== track.primaryMood && m.value !== 'none').map((mood) => {
             const isSelected = track.secondaryMoods.includes(mood.value)
             return (
               <button
