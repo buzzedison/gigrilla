@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Save, ArrowRight, ArrowLeft, Loader2, CheckCircle, Plus } from 'lucide-react'
+import { Save, ArrowRight, ArrowLeft, Loader2, CheckCircle, Plus, Eye } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
 import { ReleaseData, initialReleaseData } from './types'
 
@@ -65,8 +65,16 @@ interface DbRelease {
   signatory_middle_names?: string | null
   signatory_last_name?: string | null
   signatory_email?: string | null
+  submitted_at?: string | null
+  published_at?: string | null
   created_at: string
   updated_at: string
+}
+
+interface ReleasesApiResponse {
+  data?: DbRelease[]
+  user_id?: string
+  approval_mode?: 'auto' | 'manual'
 }
 import { UploadGuideSection } from './UploadGuideSection'
 import { ReleaseRegistrationSection } from './ReleaseRegistrationSection'
@@ -139,6 +147,8 @@ function dbToReleaseData(db: DbRelease): Partial<ReleaseData> {
     mcsConfirmed: db.mcs_confirmed,
     mcsContactName: db.mcs_contact_name || '',
     mcsContactEmail: db.mcs_contact_email || '',
+    coverArtwork: db.cover_artwork_url || null,
+    coverArtworkUrl: db.cover_artwork_url || '',
     coverCaption: db.cover_caption || '',
     agreeTermsOfUse: db.agree_terms_of_use ?? false,
     agreeDistributionPolicy: db.agree_distribution_policy ?? false,
@@ -197,6 +207,7 @@ function releaseDataToDb(data: ReleaseData, uploadGuideConfirmed: boolean, curre
     mcs_confirmed: data.mcsConfirmed,
     mcs_contact_name: data.mcsContactName || null,
     mcs_contact_email: data.mcsContactEmail || null,
+    cover_artwork_url: data.coverArtworkUrl || (typeof data.coverArtwork === 'string' ? data.coverArtwork : null),
     cover_caption: data.coverCaption || null,
     upload_guide_confirmed: uploadGuideConfirmed,
     current_step: currentStep,
@@ -260,13 +271,21 @@ export function ArtistMusicManager() {
   const [isSavingAndProceeding, setIsSavingAndProceeding] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'idle'>('idle')
+  const [approvalMode, setApprovalMode] = useState<'auto' | 'manual'>('auto')
+  const [publishedReleases, setPublishedReleases] = useState<DbRelease[]>([])
+  const [pendingReleases, setPendingReleases] = useState<DbRelease[]>([])
+  const [isLoadingPublished, setIsLoadingPublished] = useState(true)
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Load existing draft release on mount
   const loadDraftRelease = useCallback(async () => {
     try {
       const response = await fetch('/api/music-releases?status=draft')
-      const result = await response.json()
+      const result = await response.json() as ReleasesApiResponse
+
+      if (result.approval_mode === 'manual' || result.approval_mode === 'auto') {
+        setApprovalMode(result.approval_mode)
+      }
       
       if (result.data && result.data.length > 0) {
         // Load the most recent draft
@@ -283,9 +302,39 @@ export function ArtistMusicManager() {
     }
   }, [])
 
+  const loadPublishedReleases = useCallback(async () => {
+    try {
+      setIsLoadingPublished(true)
+      const [publishedResponse, pendingResponse] = await Promise.all([
+        fetch('/api/music-releases?status=published'),
+        fetch('/api/music-releases?status=pending_review')
+      ])
+      const [publishedResult, pendingResult] = await Promise.all([
+        publishedResponse.json() as Promise<ReleasesApiResponse>,
+        pendingResponse.json() as Promise<ReleasesApiResponse>
+      ])
+
+      if (publishedResult.approval_mode === 'manual' || publishedResult.approval_mode === 'auto') {
+        setApprovalMode(publishedResult.approval_mode)
+      } else if (pendingResult.approval_mode === 'manual' || pendingResult.approval_mode === 'auto') {
+        setApprovalMode(pendingResult.approval_mode)
+      }
+
+      setPublishedReleases(publishedResult.data || [])
+      setPendingReleases(pendingResult.data || [])
+    } catch (error) {
+      console.error('Error loading published releases:', error)
+      setPublishedReleases([])
+      setPendingReleases([])
+    } finally {
+      setIsLoadingPublished(false)
+    }
+  }, [])
+
   useEffect(() => {
     loadDraftRelease()
-  }, [loadDraftRelease])
+    loadPublishedReleases()
+  }, [loadDraftRelease, loadPublishedReleases])
 
   // Get current step index
   const currentStepIndex = STEPS.findIndex(s => s.id === currentStep)
@@ -621,9 +670,14 @@ export function ArtistMusicManager() {
     }
   }
 
-  // Handle save and proceed (submit for review)
+  // Handle save and proceed (submit/publish depending on approval mode)
   const handleSaveAndProceed = async () => {
     if (!isFormValid()) return
+
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current)
+      autoSaveTimerRef.current = null
+    }
 
     setIsSavingAndProceeding(true)
     setSaveMessage(null)
@@ -642,7 +696,19 @@ export function ArtistMusicManager() {
       const result = await response.json()
       
       if (result.success) {
-        setSaveMessage({ type: 'success', text: 'Release submitted for review!' })
+        const finalStatus = result?.data?.status as string | undefined
+        const isPublished = finalStatus === 'published'
+        const isPending = finalStatus === 'pending_review'
+        await loadPublishedReleases()
+        setSaveMessage({
+          type: 'success',
+          text:
+            isPublished
+              ? 'Release published successfully. Preview it in Fan Dashboard > Music.'
+              : isPending
+                ? 'Release submitted for review. It will appear in Fan Dashboard after approval.'
+                : 'Release saved successfully.'
+        })
         // Could redirect to a releases list or show success state
       } else {
         setSaveMessage({ type: 'error', text: result.error || 'Failed to submit' })
@@ -662,6 +728,15 @@ export function ArtistMusicManager() {
     setUploadGuideConfirmed(false)
     setCurrentStep('guide')
     setSaveMessage(null)
+  }
+
+  const formatDate = (value: string | null | undefined) => {
+    if (!value) return 'Not published yet'
+    return new Date(value).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    })
   }
 
   // Render current step content
@@ -825,6 +900,77 @@ export function ArtistMusicManager() {
         </div>
       </div>
 
+      {/* Published Releases Preview */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 font-ui">Published Releases</h2>
+            <p className="text-sm text-gray-500">
+              Approval mode: <span className="font-medium">{approvalMode === 'auto' ? 'Auto Publish' : 'Manual Review'}</span>
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => window.location.assign('/fan-dashboard')}
+            className="border-purple-200 text-purple-700 hover:bg-purple-50"
+          >
+            <Eye className="w-4 h-4 mr-2" />
+            Preview In Fan Dashboard
+          </Button>
+        </div>
+
+        {isLoadingPublished ? (
+          <p className="mt-4 text-sm text-gray-500">Loading published releases...</p>
+        ) : (
+          <div className="mt-4 space-y-4">
+            {pendingReleases.length > 0 && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-semibold text-amber-900">Pending Review ({pendingReleases.length})</p>
+                <p className="mt-1 text-xs text-amber-800">
+                  These are submitted and waiting for admin approval before they appear in Fan Dashboard.
+                </p>
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {pendingReleases.slice(0, 6).map((release) => (
+                    <div key={release.id} className="rounded-lg border border-amber-200 bg-white p-3">
+                      <p className="text-sm font-medium text-gray-900 line-clamp-1">{release.release_title}</p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        {(release.release_type || 'release').toUpperCase()} • {release.track_count || 0} track{release.track_count === 1 ? '' : 's'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Submitted {formatDate(release.submitted_at || release.created_at)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {publishedReleases.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                No releases published yet. Published releases appear here and in Fan Dashboard.
+              </p>
+            ) : (
+              <div>
+                <p className="text-sm font-semibold text-gray-900 mb-3">Live In Fan Dashboard ({publishedReleases.length})</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {publishedReleases.slice(0, 6).map((release) => (
+                    <div key={release.id} className="rounded-xl border border-gray-200 p-4 bg-gray-50">
+                      <p className="text-sm font-semibold text-gray-900 line-clamp-1">{release.release_title}</p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        {(release.release_type || 'release').toUpperCase()} • {release.track_count || 0} track{release.track_count === 1 ? '' : 's'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Published {formatDate(release.published_at || release.created_at)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Step Progress Indicator */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -930,7 +1076,7 @@ export function ArtistMusicManager() {
                 </>
               ) : (
                 <>
-                  <CheckCircle className="w-4 h-4 mr-2" /> Complete & Submit
+                  <CheckCircle className="w-4 h-4 mr-2" /> {approvalMode === 'auto' ? 'Complete & Publish' : 'Complete & Submit'}
                 </>
               )}
             </Button>

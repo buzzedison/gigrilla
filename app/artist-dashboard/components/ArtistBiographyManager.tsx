@@ -1,223 +1,209 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { Button } from "../../components/ui/button";
-import { Textarea } from "../../components/ui/textarea";
-import { Save, Upload, Cloud, X, FileImage } from "lucide-react";
+import { useEffect, useState } from "react"
+import { Button } from "../../components/ui/button"
+import { Textarea } from "../../components/ui/textarea"
+import { Save, Pencil, Trash2, Loader2 } from "lucide-react"
 
-interface UploadedFile {
-  id: string;
-  name: string;
-  progress: number;
-  url?: string;
-}
+const BIO_MAX_LENGTH = 1000
 
 export function ArtistBiographyManager() {
-  const [biography, setBiography] = useState("");
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([
-    {
-      id: "1",
-      name: "kilaabout.jpg",
-      progress: 60,
-      url: "/placeholder-image.jpg"
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [savedBio, setSavedBio] = useState("")
+  const [bioDraft, setBioDraft] = useState("")
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null)
+
+  useEffect(() => {
+    const loadBio = async () => {
+      setLoading(true)
+      try {
+        const response = await fetch('/api/artist-profile')
+        const result = await response.json()
+
+        if (!response.ok || !result?.data) {
+          setSavedBio("")
+          setBioDraft("")
+          return
+        }
+
+        const bio = typeof result.data.bio === 'string' ? result.data.bio : ""
+        setSavedBio(bio)
+        setBioDraft(bio)
+        setIsEditing(!bio)
+      } catch (error) {
+        console.error('Error loading artist bio:', error)
+        setFeedback({ type: 'error', message: 'Failed to load artist bio.' })
+      } finally {
+        setLoading(false)
+      }
     }
-  ]);
 
-  const [isDragOver, setIsDragOver] = useState(false);
+    loadBio()
+  }, [])
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  };
+  useEffect(() => {
+    if (!feedback) return
+    const timer = setTimeout(() => setFeedback(null), 4000)
+    return () => clearTimeout(timer)
+  }, [feedback])
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  };
+  const hasSavedBio = savedBio.trim().length > 0
+  const isOverLimit = bioDraft.length > BIO_MAX_LENGTH
+  const remaining = BIO_MAX_LENGTH - bioDraft.length
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
+  const handleSaveBio = async () => {
+    if (isOverLimit) {
+      setFeedback({ type: 'error', message: `Artist bio must be ${BIO_MAX_LENGTH} characters or fewer.` })
+      return
+    }
 
-    const files = Array.from(e.dataTransfer.files);
-    files.forEach(file => {
-      if (file.type.startsWith('image/')) {
-        const newFile: UploadedFile = {
-          id: Date.now().toString(),
-          name: file.name,
-          progress: 0,
-          url: URL.createObjectURL(file)
-        };
-        setUploadedFiles(prev => [...prev, newFile]);
+    setSaving(true)
+    try {
+      const nextBio = bioDraft.trim()
+      const response = await fetch('/api/artist-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          bio: nextBio || null
+        })
+      })
 
-        // Simulate upload progress
-        const interval = setInterval(() => {
-          setUploadedFiles(prevFiles =>
-            prevFiles.map(f =>
-              f.id === newFile.id
-                ? { ...f, progress: Math.min(f.progress + 10, 100) }
-                : f
-            )
-          );
-        }, 100);
-
-        setTimeout(() => {
-          clearInterval(interval);
-          setUploadedFiles(prevFiles =>
-            prevFiles.map(f =>
-              f.id === newFile.id ? { ...f, progress: 100 } : f
-            )
-          );
-        }, 1000);
+      const result = await response.json()
+      if (!response.ok || result?.error) {
+        throw new Error(result?.error || 'Failed to save bio')
       }
-    });
-  };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    files.forEach(file => {
-      if (file.type.startsWith('image/')) {
-        const newFile: UploadedFile = {
-          id: Date.now().toString(),
-          name: file.name,
-          progress: 0,
-          url: URL.createObjectURL(file)
-        };
-        setUploadedFiles(prev => [...prev, newFile]);
+      setSavedBio(nextBio)
+      setBioDraft(nextBio)
+      setIsEditing(false)
+      setFeedback({ type: 'success', message: nextBio ? 'Artist bio saved.' : 'Artist bio cleared.' })
+    } catch (error) {
+      console.error('Error saving artist bio:', error)
+      setFeedback({ type: 'error', message: 'Unable to save artist bio right now.' })
+    } finally {
+      setSaving(false)
+    }
+  }
 
-        // Simulate upload progress
-        const interval = setInterval(() => {
-          setUploadedFiles(prevFiles =>
-            prevFiles.map(f =>
-              f.id === newFile.id
-                ? { ...f, progress: Math.min(f.progress + 10, 100) }
-                : f
-            )
-          );
-        }, 100);
+  const handleEditBio = () => {
+    setBioDraft(savedBio)
+    setIsEditing(true)
+  }
 
-        setTimeout(() => {
-          clearInterval(interval);
-          setUploadedFiles(prevFiles =>
-            prevFiles.map(f =>
-              f.id === newFile.id ? { ...f, progress: 100 } : f
-            )
-          );
-        }, 1000);
+  const handleDeleteBio = async () => {
+    setDeleting(true)
+    try {
+      const response = await fetch('/api/artist-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ bio: null })
+      })
+
+      const result = await response.json()
+      if (!response.ok || result?.error) {
+        throw new Error(result?.error || 'Failed to delete bio')
       }
-    });
-  };
 
-  const removeFile = (id: string) => {
-    setUploadedFiles(prev => prev.filter(f => f.id !== id));
-  };
+      setSavedBio("")
+      setBioDraft("")
+      setIsEditing(true)
+      setFeedback({ type: 'success', message: 'Artist bio deleted.' })
+    } catch (error) {
+      console.error('Error deleting artist bio:', error)
+      setFeedback({ type: 'error', message: 'Unable to delete artist bio right now.' })
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 text-sm text-gray-600 flex items-center gap-2">
+        <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+        Loading artist bio…
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
-      {/* Biography Text Area */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <div className="mb-4">
-          <h2 className="text-xl font-semibold text-gray-900 mb-1">Write about Kendrick Lamar</h2>
-          <p className="text-gray-600 text-sm">Tell your fans about your journey, influences, and what makes you unique as an artist.</p>
+          <h2 className="text-xl font-semibold text-gray-900 mb-1">Artist Bio</h2>
+          <p className="text-sm text-gray-600">
+            Write about you, your history, your mission, and purpose.
+          </p>
         </div>
 
-        <Textarea
-          value={biography}
-          onChange={(e) => setBiography(e.target.value)}
-          placeholder="Start here..."
-          className="min-h-[300px] text-base leading-relaxed resize-none border-gray-200 focus:border-purple-300 focus:ring-purple-300"
-        />
-
-        <div className="mt-3 flex justify-between items-center text-sm text-gray-500">
-          <span>{biography.length} characters</span>
-          <span>Minimum 100 characters recommended</span>
-        </div>
-      </div>
-
-      {/* File Upload Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Upload Your Artwork for The About Section</h3>
-
-        <div
-          className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-            isDragOver
-              ? "border-purple-400 bg-purple-50"
-              : "border-gray-300 hover:border-purple-400 hover:bg-gray-50"
-          }`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <div className="flex flex-col items-center">
-            <Cloud className={`w-12 h-12 mb-4 ${isDragOver ? "text-purple-500" : "text-gray-400"}`} />
-            <p className="text-lg font-medium text-gray-900 mb-2">Drag & Drop or</p>
-            <p className="text-gray-600 mb-4">Click to Upload Your Artwork</p>
-
-            <label className="cursor-pointer">
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                className="bg-gray-50 hover:bg-gray-100"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                Choose Files
-              </Button>
-            </label>
-          </div>
-        </div>
-
-        {/* Uploaded Files */}
-        {uploadedFiles.length > 0 && (
-          <div className="mt-6 space-y-3">
-            {uploadedFiles.map((file) => (
-              <div key={file.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <FileImage className="w-8 h-8 text-gray-400" />
-                  <div>
-                    <p className="font-medium text-gray-900">{file.name}</p>
-                    <p className="text-sm text-gray-600">{file.progress}% uploaded</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <div className="w-24 bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-purple-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${file.progress}%` }}
-                    ></div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeFile(file.id)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+        {feedback && (
+          <div
+            className={`mb-4 rounded-lg px-4 py-3 text-sm ${feedback.type === 'success'
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : 'bg-rose-50 text-rose-700 border border-rose-200'
+              }`}
+          >
+            {feedback.message}
           </div>
         )}
+
+        <Textarea
+          value={bioDraft}
+          onChange={(e) => setBioDraft(e.target.value)}
+          placeholder="Write your Artist Bio section…"
+          className="min-h-[240px] text-base leading-relaxed resize-none"
+          disabled={!isEditing || saving || deleting}
+        />
+
+        <div className="mt-3 flex items-center justify-between text-sm">
+          <span className={isOverLimit ? 'text-red-600 font-medium' : 'text-gray-600'}>
+            {bioDraft.length} / {BIO_MAX_LENGTH}
+          </span>
+          <span className={remaining < 0 ? 'text-red-600' : 'text-gray-500'}>
+            {remaining >= 0 ? `${remaining} remaining` : `${Math.abs(remaining)} over limit`}
+          </span>
+        </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex justify-center space-x-4">
-        <Button variant="outline" className="px-8">
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          onClick={handleSaveBio}
+          disabled={saving || deleting || isOverLimit || (!isEditing && bioDraft === savedBio)}
+          className="bg-gray-900 hover:bg-gray-800 text-white"
+        >
           <Save className="w-4 h-4 mr-2" />
-          Save Biography
+          {saving ? 'Saving…' : 'Save Artist Bio'}
         </Button>
-        <Button className="bg-orange-500 hover:bg-orange-600 text-white px-8">
-          Publish Biography
-        </Button>
+
+        {hasSavedBio && (
+          <Button
+            variant="outline"
+            onClick={handleEditBio}
+            disabled={saving || deleting}
+          >
+            <Pencil className="w-4 h-4 mr-2" />
+            Edit Artist Bio
+          </Button>
+        )}
+
+        {hasSavedBio && (
+          <Button
+            variant="outline"
+            onClick={handleDeleteBio}
+            disabled={saving || deleting}
+            className="border-red-200 text-red-700 hover:bg-red-50"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            {deleting ? 'Deleting…' : 'Delete Artist Bio'}
+          </Button>
+        )}
       </div>
     </div>
-  );
+  )
 }

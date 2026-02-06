@@ -19,10 +19,20 @@ interface PendingRelease {
     }
 }
 
+interface PlatformSettingsResponse {
+    success: boolean
+    settings?: {
+        approval_mode?: {
+            mode?: 'auto' | 'manual'
+        }
+    }
+}
+
 export default function PendingReleasesPage() {
     const router = useRouter()
     const [releases, setReleases] = useState<PendingRelease[]>([])
     const [loading, setLoading] = useState(true)
+    const [approvalMode, setApprovalMode] = useState<'auto' | 'manual'>('auto')
 
     useEffect(() => {
         fetchPendingReleases()
@@ -31,10 +41,21 @@ export default function PendingReleasesPage() {
     const fetchPendingReleases = async () => {
         try {
             setLoading(true)
-            const response = await fetch('/api/admin/releases/pending')
-            const data = await response.json()
-            if (data.success) {
-                setReleases(data.data || [])
+            const [pendingResponse, settingsResponse] = await Promise.all([
+                fetch('/api/admin/releases/pending'),
+                fetch('/api/admin/settings')
+            ])
+
+            const pendingData = await pendingResponse.json()
+            const settingsData: PlatformSettingsResponse = await settingsResponse.json()
+
+            if (pendingData.success) {
+                setReleases(pendingData.data || [])
+            }
+
+            const mode = settingsData?.settings?.approval_mode?.mode
+            if (mode === 'auto' || mode === 'manual') {
+                setApprovalMode(mode)
             }
         } catch (error) {
             console.error('Failed to fetch pending releases:', error)
@@ -67,6 +88,23 @@ export default function PendingReleasesPage() {
                             <h1 className="text-3xl font-bold text-gray-900">Pending Approvals</h1>
                             <p className="mt-1 text-gray-500">Review and approve new release submissions</p>
                         </div>
+                        <Badge
+                            variant="outline"
+                            className={approvalMode === 'manual'
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }
+                        >
+                            {approvalMode === 'manual' ? 'Manual Review Mode' : 'Auto Publish Mode'}
+                        </Badge>
+                        <Button
+                            variant="outline"
+                            onClick={() => router.push('/admin/releases/published-recent')}
+                            className="ml-auto"
+                        >
+                            <Music className="w-4 h-4 mr-2" />
+                            Recently Published
+                        </Button>
                     </div>
                 </div>
             </div>
@@ -81,7 +119,12 @@ export default function PendingReleasesPage() {
                     <div className="text-center py-12 bg-white rounded-lg shadow">
                         <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
                         <h3 className="text-lg font-medium text-gray-900">All Caught Up!</h3>
-                        <p className="text-gray-500 mt-2">There are no pending releases to review right now.</p>
+                        <p className="text-gray-500 mt-2">
+                            {approvalMode === 'manual'
+                                ? 'There are no pending releases to review right now.'
+                                : 'Auto publish is enabled, so new submissions are published instead of queued here.'
+                            }
+                        </p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 gap-4">

@@ -57,13 +57,29 @@ export default function ReleaseReviewPage({ params }: { params: Promise<{ id: st
       setError(null)
 
       const res = await fetch(`/api/music-releases?id=${id}`)
-      if (res.status === 403) {
-        router.push('/')
+      const data = await res.json().catch(() => ({}))
+
+      if (res.status === 401) {
+        router.push('/login')
         return
       }
 
-      const data = await res.json()
-      if (data.success && data.data) {
+      if (res.status === 403) {
+        router.push('/admin/releases')
+        return
+      }
+
+      if (res.status === 404) {
+        setError('Release not found')
+        return
+      }
+
+      if (!res.ok) {
+        setError(data?.error || 'Failed to load release')
+        return
+      }
+
+      if (data?.data) {
         setRelease(data.data)
       } else {
         setError('Release not found')
@@ -108,7 +124,7 @@ export default function ReleaseReviewPage({ params }: { params: Promise<{ id: st
 
       if (data.success) {
         alert(`Release ${action}d successfully!`)
-        router.push('/admin')
+        router.push('/admin/releases')
       } else {
         alert(data.error || 'Failed to submit review')
       }
@@ -137,7 +153,7 @@ export default function ReleaseReviewPage({ params }: { params: Promise<{ id: st
         <div className="text-center">
           <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <p className="text-red-600">{error || 'Release not found'}</p>
-          <Button onClick={() => router.push('/admin')} className="mt-4">
+          <Button onClick={() => router.push('/admin/releases')} className="mt-4">
             Back to Dashboard
           </Button>
         </div>
@@ -152,7 +168,7 @@ export default function ReleaseReviewPage({ params }: { params: Promise<{ id: st
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <Button
             variant="outline"
-            onClick={() => router.push('/admin')}
+            onClick={() => router.push('/admin/releases')}
             className="mb-4"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />

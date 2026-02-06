@@ -12,6 +12,71 @@ interface ArtistGenrePath {
   subId?: string
 }
 
+function dedupeGenrePaths(paths: ArtistGenrePath[]) {
+  const seen = new Set<string>()
+  return paths.filter((path) => {
+    const key = `${path.familyId}:${path.typeId}:${path.subId ?? ''}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function parseStoredGenreEntry(entry: string, families: GenreFamily[]): ArtistGenrePath | null {
+  const value = entry.trim()
+  if (!value) return null
+
+  if (value.includes(':')) {
+    const [familyIdRaw, typeIdRaw, subIdRaw] = value.split(':')
+    const familyId = familyIdRaw?.trim()
+    const typeId = typeIdRaw?.trim()
+    const subId = subIdRaw?.trim()
+    if (!familyId || !typeId) return null
+
+    const family = families.find((candidate) => candidate.id === familyId)
+    if (!family) return null
+
+    const type = family.mainGenres.find((candidate) => candidate.id === typeId)
+    if (!type) return null
+
+    if (subId) {
+      const sub = type.subGenres?.find((candidate) => candidate.id === subId)
+      if (!sub) return null
+    }
+
+    return {
+      familyId,
+      typeId,
+      subId: subId || undefined
+    }
+  }
+
+  for (const family of families) {
+    const matchingType = family.mainGenres.find((type) => type.id === value)
+    if (matchingType) {
+      return {
+        familyId: family.id,
+        typeId: matchingType.id
+      }
+    }
+  }
+
+  for (const family of families) {
+    for (const type of family.mainGenres) {
+      const matchingSub = type.subGenres?.find((sub) => sub.id === value)
+      if (matchingSub) {
+        return {
+          familyId: family.id,
+          typeId: type.id,
+          subId: matchingSub.id
+        }
+      }
+    }
+  }
+
+  return null
+}
+
 function formatPathLabel(family: GenreFamily, type: GenreType, sub?: GenreSubType) {
   if (sub) return `${family.name} > ${type.name} > ${sub.name}`
   return `${family.name} > ${type.name}`
@@ -19,6 +84,7 @@ function formatPathLabel(family: GenreFamily, type: GenreType, sub?: GenreSubTyp
 
 export function ArtistGenresManager() {
   const [selectedGenres, setSelectedGenres] = useState<ArtistGenrePath[]>([])
+  const [storedGenreEntries, setStoredGenreEntries] = useState<string[]>([])
   const [profileLoading, setProfileLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const { families, loading: taxonomyLoading, error: taxonomyError } = useGenreTaxonomy()
@@ -30,15 +96,12 @@ export function ArtistGenresManager() {
         const response = await fetch('/api/artist-profile')
         const result = await response.json()
         if (result?.data?.preferred_genre_ids && Array.isArray(result.data.preferred_genre_ids)) {
-          const paths: ArtistGenrePath[] = result.data.preferred_genre_ids
-            .map((entry: string) => entry.split(':'))
-            .filter((parts: string[]) => parts.length >= 2)
-            .map((parts: string[]) => ({
-              familyId: parts[0],
-              typeId: parts[1],
-              subId: parts[2]
-            }))
-          setSelectedGenres(paths)
+          setStoredGenreEntries(
+            result.data.preferred_genre_ids
+              .filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
+          )
+        } else {
+          setStoredGenreEntries([])
         }
       } catch (error) {
         console.error('Error loading artist genres:', error)
@@ -48,6 +111,16 @@ export function ArtistGenresManager() {
     }
     loadGenres()
   }, [])
+
+  useEffect(() => {
+    if (families.length === 0) return
+    const parsed = dedupeGenrePaths(
+      storedGenreEntries
+        .map((entry) => parseStoredGenreEntry(entry, families))
+        .filter((path): path is ArtistGenrePath => path !== null)
+    )
+    setSelectedGenres(parsed)
+  }, [storedGenreEntries, families])
 
   const handleSave = async (paths: ArtistGenrePath[]) => {
     setSaving(true)

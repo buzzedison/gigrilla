@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { createServiceClient } from '@/lib/supabase/service-client'
 
 // Helper to create Supabase client
 async function createSupabaseClient() {
@@ -68,18 +69,16 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get('sortBy') || 'created_at'
     const sortOrder = searchParams.get('sortOrder') || 'desc'
 
+    const serviceSupabase = createServiceClient()
+
     // Build query
-    let query = supabase
+    let query = serviceSupabase
       .from('music_releases')
       .select(`
         *,
         artist:user_id (
           id,
           email
-        ),
-        artist_profiles!music_releases_user_id_fkey (
-          stage_name,
-          user_id
         )
       `, { count: 'exact' })
 
@@ -151,9 +150,39 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const userIds = Array.from(
+      new Set((data || []).map((release) => release.user_id).filter(Boolean))
+    ) as string[]
+    let stageNameByUserId = new Map<string, string>()
+
+    if (userIds.length > 0) {
+      const { data: profiles, error: profilesError } = await serviceSupabase
+        .from('user_profiles')
+        .select('user_id, stage_name')
+        .eq('profile_type', 'artist')
+        .in('user_id', userIds)
+
+      if (profilesError) {
+        console.warn('Could not hydrate artist stage names for admin content list:', profilesError)
+      } else {
+        stageNameByUserId = new Map(
+          (profiles || [])
+            .filter((profile) => typeof profile.user_id === 'string')
+            .map((profile) => [
+              profile.user_id as string,
+              (profile.stage_name as string | null) || 'Unknown Artist'
+            ])
+        )
+      }
+    }
+
     // Enhance data with moderation counts
     const enhancedData = data?.map(release => ({
       ...release,
+      artist_profiles: {
+        stage_name: stageNameByUserId.get(release.user_id) || 'Unknown Artist',
+        user_id: release.user_id
+      },
       moderation_action_count: moderationCounts[release.id] || 0
     }))
 

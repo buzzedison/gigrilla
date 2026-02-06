@@ -288,9 +288,21 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                 durationSeconds: dbTrack.duration_seconds || 0,
                 uploaded: !!dbTrack.audio_file_url
               }))
+
+              // Ensure we always render the full expected track count.
+              // Existing rows can be partial drafts when only some tracks were saved.
+              const tracksByNumber = new Map<number, TrackData>()
+              loadedTracks.forEach((track: TrackData) => {
+                tracksByNumber.set(track.trackNumber, track)
+              })
+
+              const mergedTracks: TrackData[] = []
+              for (let i = 1; i <= releaseData.trackCount; i++) {
+                mergedTracks.push(tracksByNumber.get(i) || createTrackData(i))
+              }
+
               if (!isMounted) return
-              setTracks(loadedTracks)
-              setIsLoadingTracks(false)
+              setTracks(mergedTracks)
               console.log('TrackUploadSection: Loaded existing tracks successfully')
               return // Exit early if we loaded tracks
             } else {
@@ -413,30 +425,25 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
       })
 
       if (result.success && result.url) {
-        // Update state first
-        const updatedTrack = {
-          ...tracks[index],
-          audioFileUrl: result.url,
-          audioFileSize: result.size,
-          uploaded: true
-        }
-
+        const audioFormat = file.name.split('.').pop()?.toUpperCase() || 'WAV'
+        const audioFileSize = result.size || file.size
         updateTrack(index, 'audioFileUrl', result.url)
-        updateTrack(index, 'audioFileSize', result.size)
+        updateTrack(index, 'audioFileSize', audioFileSize)
+        updateTrack(index, 'audioFormat', audioFormat)
         updateTrack(index, 'uploaded', true)
 
-        // Auto-save the track after successful upload if required fields are filled
-        setTimeout(async () => {
-          // Check if we have the minimum required fields for saving
-          if (updatedTrack.trackTitle.trim() && updatedTrack.isrc.trim() && updatedTrack.isrcConfirmed) {
-            // Has required fields, auto-save silently
-            await saveTrackSilently(index)
-            showNotification('Upload Complete', 'Your audio file has been uploaded and saved successfully!', 'success')
-          } else {
-            // Missing required fields, just show upload success
-            showNotification('Upload Complete', 'Your audio file has been uploaded! Remember to fill in track details and click "Save Track".', 'success')
-          }
-        }, 500) // Small delay to ensure state is updated
+        // Persist immediately with the uploaded file values to avoid race conditions on navigation.
+        await saveTrackSilently(index, {
+          audioFileUrl: result.url,
+          audioFileSize,
+          audioFormat,
+          uploaded: true
+        })
+        showNotification(
+          'Upload Complete',
+          'Your audio file has been uploaded and saved as a draft. You can add ISRC/title details anytime.',
+          'success'
+        )
       } else {
         showNotification('Upload Failed', result.error || 'Failed to upload audio file. Please try again.', 'error')
       }
@@ -632,54 +639,57 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
     }
   }
 
-  const saveTrackSilently = async (index: number) => {
+  const saveTrackSilently = async (index: number, overrides?: Partial<TrackData>) => {
     const track = tracks[index]
     if (!releaseId) return
+    if (!track) return
+
+    const mergedTrack: TrackData = { ...track, ...overrides }
 
     try {
       const payload = {
         releaseId,
-        trackNumber: track.trackNumber,
-        trackTitle: track.trackTitle,
-        trackTitleConfirmed: track.trackTitleConfirmed,
-        trackVersion: track.trackVersion || releaseData.releaseVersion,
-        masterRecordingDate: track.masterRecordingDate,
-        isrc: track.isrc.replace(/-/g, '').toUpperCase(),
-        isrcConfirmed: track.isrcConfirmed,
-        iswc: track.iswc,
-        iswcConfirmed: track.iswcConfirmed,
-        musicalWorkTitle: track.musicalWorkTitle,
-        musicalWorkTitleConfirmed: track.musicalWorkTitleConfirmed,
-        primaryArtists: track.primaryArtists,
-        featuredArtists: track.featuredArtists,
-        sessionArtists: track.sessionArtists,
-        creators: track.creators,
-        producers: track.producers,
-        coverRights: track.coverRights,
-        coverLicenseUrl: track.coverLicenseUrl,
-        remixRights: track.remixRights,
-        remixAuthorizationUrl: track.remixAuthorizationUrl,
-        samplesRights: track.samplesRights,
-        samplesClearanceUrl: track.samplesClearanceUrl,
-        primaryGenre: track.primaryGenre,
-        secondaryGenre: track.secondaryGenre,
-        primaryMood: track.primaryMood,
-        secondaryMoods: track.secondaryMoods,
-        primaryLanguage: track.primaryLanguage,
-        secondaryLanguage: track.secondaryLanguage,
-        explicitContent: track.explicitContent,
-        childSafeContent: track.childSafeContent,
-        audioFileUrl: track.audioFileUrl,
-        audioFileSize: track.audioFileSize,
-        audioFormat: track.audioFormat,
-        dolbyAtmosFileUrl: track.dolbyAtmosFileUrl,
-        previewStartTime: track.previewStartTime,
-        lyrics: track.lyrics,
-        lyricsConfirmed: track.lyricsConfirmed,
-        lyricsFileUrl: track.lyricsFileUrl,
-        videoUrl: track.videoUrl,
-        videoUrlConfirmed: track.videoUrlConfirmed,
-        durationSeconds: track.durationSeconds
+        trackNumber: mergedTrack.trackNumber,
+        trackTitle: mergedTrack.trackTitle,
+        trackTitleConfirmed: mergedTrack.trackTitleConfirmed,
+        trackVersion: mergedTrack.trackVersion || releaseData.releaseVersion,
+        masterRecordingDate: mergedTrack.masterRecordingDate,
+        isrc: mergedTrack.isrc.replace(/-/g, '').toUpperCase(),
+        isrcConfirmed: mergedTrack.isrcConfirmed,
+        iswc: mergedTrack.iswc,
+        iswcConfirmed: mergedTrack.iswcConfirmed,
+        musicalWorkTitle: mergedTrack.musicalWorkTitle,
+        musicalWorkTitleConfirmed: mergedTrack.musicalWorkTitleConfirmed,
+        primaryArtists: mergedTrack.primaryArtists,
+        featuredArtists: mergedTrack.featuredArtists,
+        sessionArtists: mergedTrack.sessionArtists,
+        creators: mergedTrack.creators,
+        producers: mergedTrack.producers,
+        coverRights: mergedTrack.coverRights,
+        coverLicenseUrl: mergedTrack.coverLicenseUrl,
+        remixRights: mergedTrack.remixRights,
+        remixAuthorizationUrl: mergedTrack.remixAuthorizationUrl,
+        samplesRights: mergedTrack.samplesRights,
+        samplesClearanceUrl: mergedTrack.samplesClearanceUrl,
+        primaryGenre: mergedTrack.primaryGenre,
+        secondaryGenre: mergedTrack.secondaryGenre,
+        primaryMood: mergedTrack.primaryMood,
+        secondaryMoods: mergedTrack.secondaryMoods,
+        primaryLanguage: mergedTrack.primaryLanguage,
+        secondaryLanguage: mergedTrack.secondaryLanguage,
+        explicitContent: mergedTrack.explicitContent,
+        childSafeContent: mergedTrack.childSafeContent,
+        audioFileUrl: mergedTrack.audioFileUrl,
+        audioFileSize: mergedTrack.audioFileSize,
+        audioFormat: mergedTrack.audioFormat,
+        dolbyAtmosFileUrl: mergedTrack.dolbyAtmosFileUrl,
+        previewStartTime: mergedTrack.previewStartTime,
+        lyrics: mergedTrack.lyrics,
+        lyricsConfirmed: mergedTrack.lyricsConfirmed,
+        lyricsFileUrl: mergedTrack.lyricsFileUrl,
+        videoUrl: mergedTrack.videoUrl,
+        videoUrlConfirmed: mergedTrack.videoUrlConfirmed,
+        durationSeconds: mergedTrack.durationSeconds
       }
 
       const response = await fetch('/api/music-tracks', {

@@ -3,7 +3,6 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/service-client'
 
-// Helper to create Supabase client
 async function createSupabaseClient() {
   const cookieStore = await cookies()
   return createServerClient(
@@ -28,7 +27,6 @@ async function createSupabaseClient() {
   )
 }
 
-// Check if user is admin
 async function isAdmin(supabase: any, userId: string): Promise<boolean> {
   const { data: profile } = await supabase
     .from('user_profiles')
@@ -39,44 +37,38 @@ async function isAdmin(supabase: any, userId: string): Promise<boolean> {
   return profile?.role === 'admin' || profile?.role === 'super_admin'
 }
 
-// GET - Fetch pending releases for admin review
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createSupabaseClient()
-
-    // Get authenticated user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user is admin
     const adminCheck = await isAdmin(supabase, user.id)
     if (!adminCheck) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
-    // Get query parameters
     const { searchParams } = new URL(request.url)
-    const status = searchParams.get('status') || 'pending_review'
+    const rawLimit = Number.parseInt(searchParams.get('limit') || '50', 10)
+    const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(rawLimit, 200)) : 50
 
     const serviceSupabase = createServiceClient()
 
-    // Fetch releases
     const { data: releases, error } = await serviceSupabase
       .from('music_releases')
-      .select('*')
-      .eq('status', status)
+      .select('id, user_id, release_title, status, submitted_at, published_at, created_at')
+      .in('status', ['published', 'approved'])
+      .order('published_at', { ascending: false, nullsFirst: false })
       .order('submitted_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
+      .limit(limit)
 
     if (error) {
-      console.error('Error fetching pending releases:', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch releases' },
-        { status: 500 }
-      )
+      console.error('Error fetching recent published releases:', error)
+      return NextResponse.json({ error: 'Failed to fetch recently published releases' }, { status: 500 })
     }
 
     const userIds = Array.from(
@@ -93,7 +85,7 @@ export async function GET(request: NextRequest) {
         .in('user_id', userIds)
 
       if (profilesError) {
-        console.warn('Could not hydrate artist stage names for pending releases:', profilesError)
+        console.warn('Could not hydrate artist stage names for recent published releases:', profilesError)
       } else {
         stageNameByUserId = new Map(
           (profiles || [])
@@ -119,9 +111,8 @@ export async function GET(request: NextRequest) {
       data: hydratedReleases,
       count: hydratedReleases.length
     })
-
   } catch (error) {
-    console.error('Admin pending releases API error:', error)
+    console.error('Admin recent published releases API error:', error)
     return NextResponse.json(
       {
         error: 'Internal server error',

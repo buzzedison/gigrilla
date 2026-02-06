@@ -20,6 +20,7 @@ export type CompletionSection =
   | 'photos'
   | 'videos'
   | 'type'
+  | 'contract'
 
 export interface CompletionItemDefinition {
   id: string
@@ -73,6 +74,9 @@ interface VideoData {
 interface CrewMemberData {
   id: string
   name: string
+  metadata?: {
+    gigRoyaltyShare?: number
+  }
 }
 
 interface PaymentDetailsData {
@@ -113,15 +117,15 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
     { id: 'genres', label: 'Artist Genre(s)', required: true, section: 'genres' },
     { id: 'payments', label: 'Artist Payments', section: 'payments' },
     { id: 'crew', label: 'Artist Crew', section: 'crew' },
-    { id: 'royalty_splits', label: 'Default Royalty Splits', section: 'royalty' },
+    { id: 'royalty_splits', label: 'Default Gig Royalty Splits', section: 'royalty' },
     { id: 'gig_ability', label: 'Artist Gig-Ability', section: 'gigability' },
     { id: 'bio', label: 'Artist Biography', section: 'bio' },
-    { id: 'record_label', label: 'Record Label', section: 'profile' },
-    { id: 'music_publisher', label: 'Music Publisher', section: 'profile' },
-    { id: 'artist_manager', label: 'Artist Manager', section: 'profile' },
-    { id: 'booking_agent', label: 'Booking Agent', section: 'profile' },
+    { id: 'record_label', label: 'Record Label', section: 'contract' },
+    { id: 'music_publisher', label: 'Music Publisher', section: 'contract' },
+    { id: 'artist_manager', label: 'Artist Manager', section: 'contract' },
+    { id: 'booking_agent', label: 'Booking Agent', section: 'contract' },
     { id: 'gig_fee', label: 'Basic Gig Fee', required: true, section: 'gigability' },
-    { id: 'logo_artwork', label: 'Logo/Artwork', required: true, section: 'logo' },
+    { id: 'logo_artwork', label: 'Logo/Profile Artwork', required: true, section: 'logo' },
     { id: 'photos', label: 'Photos', required: true, section: 'photos' },
     { id: 'videos', label: 'Videos', required: true, section: 'videos' }
   ]), [])
@@ -131,6 +135,17 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
     const hasPhotos = photos.some(p => p.type === 'photo')
     const hasVideos = videos.length > 0
     const hasCrewMembers = crewMembers.length > 0
+    const totalRoyaltyShare = crewMembers.reduce((sum, member) => {
+      const share = typeof member.metadata?.gigRoyaltyShare === 'number'
+        ? member.metadata.gigRoyaltyShare
+        : 0
+      return sum + share
+    }, 0)
+    const hasAnyRoyaltyShare = crewMembers.some(member => {
+      const share = member.metadata?.gigRoyaltyShare
+      return typeof share === 'number' && share > 0
+    })
+    const hasCompleteRoyaltySplits = hasCrewMembers && hasAnyRoyaltyShare && Math.abs(totalRoyaltyShare - 100) < 0.01
 
     // Check if payments are configured
     const hasPayments = !!paymentDetails && (
@@ -144,6 +159,18 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
       )
     )
 
+    const isSignedStatus = (value?: string | null) => value === 'signed'
+    const isContractStatusSet = (value?: string | null) => {
+      return ['signed', 'unsigned_seeking', 'independent', 'seeking', 'self_managed'].includes(value ?? '')
+    }
+    const isContractItemComplete = (status?: string | null, name?: string | null) => {
+      if (!isContractStatusSet(status)) return false
+      if (isSignedStatus(status)) {
+        return Boolean(name && name.trim().length > 0)
+      }
+      return true
+    }
+
     const profileMetrics: Record<string, boolean> = {
       stage_name: !!profile?.stage_name,
       artist_type: !!profile?.artist_type_id,
@@ -152,13 +179,13 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
       genres: Array.isArray(profile?.preferred_genre_ids) && profile!.preferred_genre_ids!.length > 0,
       payments: hasPayments,
       crew: hasCrewMembers,
-      royalty_splits: false, // TODO: Implement royalty splits completion check
+      royalty_splits: hasCompleteRoyaltySplits,
       gig_ability: !!(profile?.minimum_set_length && profile?.maximum_set_length),
-      bio: !!profile?.bio && profile?.bio.length > 50,
-      record_label: !!profile?.record_label_status && !!profile?.record_label_name,
-      music_publisher: !!profile?.music_publisher_status && !!profile?.music_publisher_name,
-      artist_manager: !!profile?.artist_manager_status && !!profile?.artist_manager_name,
-      booking_agent: !!profile?.booking_agent_status && !!profile?.booking_agent_name,
+      bio: Boolean(profile?.bio && profile.bio.trim().length > 0),
+      record_label: isContractItemComplete(profile?.record_label_status, profile?.record_label_name),
+      music_publisher: isContractItemComplete(profile?.music_publisher_status, profile?.music_publisher_name),
+      artist_manager: isContractItemComplete(profile?.artist_manager_status, profile?.artist_manager_name),
+      booking_agent: isContractItemComplete(profile?.booking_agent_status, profile?.booking_agent_name),
       gig_fee: !!(profile?.local_gig_fee || profile?.wider_gig_fee),
       logo_artwork: hasLogo,
       photos: hasPhotos,
@@ -230,9 +257,10 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
 
         // Handle crew data
         const crewResult = await crewResponse.json()
-        if (crewResult.data) {
-          setCrewMembers(crewResult.data)
-        }
+        const invitationMembers = Array.isArray(crewResult.invitations) ? crewResult.invitations : []
+        const activeMembers = Array.isArray(crewResult.activeMembers) ? crewResult.activeMembers : []
+        const combinedCrewMembers = [...invitationMembers, ...activeMembers]
+        setCrewMembers(combinedCrewMembers)
 
         // Handle payments data
         const paymentsResult = await paymentsResponse.json()

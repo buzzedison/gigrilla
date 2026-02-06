@@ -20,9 +20,10 @@ interface ArtistPhoto {
 
 interface ArtistPhotosManagerProps {
   onPhotosUpdate?: (photos: ArtistPhoto[]) => void
+  mode?: 'all' | 'branding' | 'photos'
 }
 
-export function ArtistPhotosManager({ onPhotosUpdate }: ArtistPhotosManagerProps) {
+export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhotosManagerProps) {
   const { user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -32,7 +33,6 @@ export function ArtistPhotosManager({ onPhotosUpdate }: ArtistPhotosManagerProps
   const [profilePhotos, setProfilePhotos] = useState<ArtistPhoto[]>([])
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string, visible: boolean } | null>(null)
 
-  // Upload states
   const [logoCaption, setLogoCaption] = useState('')
   const [headerCaption, setHeaderCaption] = useState('')
   const [photoCaption, setPhotoCaption] = useState('')
@@ -48,8 +48,9 @@ export function ArtistPhotosManager({ onPhotosUpdate }: ArtistPhotosManagerProps
     const loadData = async () => {
       await loadPhotos()
     }
+
     loadData()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   const loadPhotos = async () => {
@@ -61,8 +62,7 @@ export function ArtistPhotosManager({ onPhotosUpdate }: ArtistPhotosManagerProps
       if (response.ok) {
         const result = await response.json()
         const allPhotos = result.data || []
-        
-        // Categorize photos
+
         const logoPhoto = allPhotos.find((p: ArtistPhoto) => p.type === 'logo')
         const headerPhoto = allPhotos.find((p: ArtistPhoto) => p.type === 'header')
         const photoGallery = allPhotos.filter((p: ArtistPhoto) => p.type === 'photo')
@@ -95,14 +95,12 @@ export function ArtistPhotosManager({ onPhotosUpdate }: ArtistPhotosManagerProps
     const file = event.target.files?.[0]
     if (!file) return
 
-    // Validate file type
     const validTypes = ['image/jpeg', 'image/png', 'image/webp']
     if (!validTypes.includes(file.type)) {
       showNotification('error', 'Please upload a .jpg, .png, or .webp file')
       return
     }
 
-    // Validate file size (max 5MB)
     const maxSize = 5 * 1024 * 1024
     if (file.size > maxSize) {
       showNotification('error', 'File size must be less than 5MB')
@@ -120,7 +118,7 @@ export function ArtistPhotosManager({ onPhotosUpdate }: ArtistPhotosManagerProps
       const formData = new FormData()
       formData.append('file', file)
       formData.append('type', type)
-      
+
       const caption = type === 'logo' ? logoCaption : type === 'header' ? headerCaption : photoCaption
       if (caption.trim()) {
         formData.append('caption', caption.trim())
@@ -136,9 +134,8 @@ export function ArtistPhotosManager({ onPhotosUpdate }: ArtistPhotosManagerProps
       }
 
       const result = await response.json()
-      const newPhoto = result.data
+      const newPhoto = result.data as ArtistPhoto
 
-      // Update state based on type
       if (type === 'logo') {
         setLogo(newPhoto)
         setLogoCaption('')
@@ -150,10 +147,16 @@ export function ArtistPhotosManager({ onPhotosUpdate }: ArtistPhotosManagerProps
         setPhotoCaption('')
       }
 
-      setPhotos(prev => [...prev.filter(p => p.type !== type), newPhoto])
-      showNotification('success', `${type === 'logo' ? 'Logo' : type === 'header' ? 'Header image' : 'Photo'} uploaded successfully!`)
-      onPhotosUpdate?.(photos)
+      let nextPhotos: ArtistPhoto[] = []
+      setPhotos(prev => {
+        nextPhotos = type === 'photo'
+          ? [...prev, newPhoto]
+          : [...prev.filter(p => p.type !== type), newPhoto]
+        return nextPhotos
+      })
+      onPhotosUpdate?.(nextPhotos)
 
+      showNotification('success', `${type === 'logo' ? 'Logo' : type === 'header' ? 'Header image' : 'Photo'} uploaded successfully!`)
     } catch (error) {
       console.error('Error uploading photo:', error)
       showNotification('error', 'Failed to upload photo')
@@ -174,7 +177,6 @@ export function ArtistPhotosManager({ onPhotosUpdate }: ArtistPhotosManagerProps
         throw new Error('Failed to delete photo')
       }
 
-      // Update state
       const deletedPhoto = photos.find(p => p.id === photoId)
       if (deletedPhoto) {
         if (deletedPhoto.type === 'logo') {
@@ -184,12 +186,16 @@ export function ArtistPhotosManager({ onPhotosUpdate }: ArtistPhotosManagerProps
         } else {
           setProfilePhotos(prev => prev.filter(p => p.id !== photoId))
         }
-        setPhotos(prev => prev.filter(p => p.id !== photoId))
+
+        let nextPhotos: ArtistPhoto[] = []
+        setPhotos(prev => {
+          nextPhotos = prev.filter(p => p.id !== photoId)
+          return nextPhotos
+        })
+        onPhotosUpdate?.(nextPhotos)
       }
 
       showNotification('success', 'Photo deleted successfully')
-      onPhotosUpdate?.(photos)
-
     } catch (error) {
       console.error('Error deleting photo:', error)
       showNotification('error', 'Failed to delete photo')
@@ -212,7 +218,6 @@ export function ArtistPhotosManager({ onPhotosUpdate }: ArtistPhotosManagerProps
         throw new Error('Failed to update caption')
       }
 
-      // Update local state
       const updatePhotoInList = (photoList: ArtistPhoto[]) =>
         photoList.map(p => p.id === photoId ? { ...p, caption: newCaption } : p)
 
@@ -222,11 +227,16 @@ export function ArtistPhotosManager({ onPhotosUpdate }: ArtistPhotosManagerProps
       if (headerImage?.id === photoId) {
         setHeaderImage(prev => prev ? { ...prev, caption: newCaption } : null)
       }
-      setProfilePhotos(updatePhotoInList(profilePhotos))
-      setPhotos(updatePhotoInList(photos))
+      setProfilePhotos(prev => updatePhotoInList(prev))
+
+      let nextPhotos: ArtistPhoto[] = []
+      setPhotos(prev => {
+        nextPhotos = updatePhotoInList(prev)
+        return nextPhotos
+      })
+      onPhotosUpdate?.(nextPhotos)
 
       showNotification('success', 'Caption updated successfully')
-
     } catch (error) {
       console.error('Error updating caption:', error)
       showNotification('error', 'Failed to update caption')
@@ -248,9 +258,11 @@ export function ArtistPhotosManager({ onPhotosUpdate }: ArtistPhotosManagerProps
     )
   }
 
+  const showBranding = mode === 'all' || mode === 'branding'
+  const showPhotos = mode === 'all' || mode === 'photos'
+
   return (
     <div className="space-y-6">
-      {/* Notification */}
       {notification && notification.visible && (
         <div className={cn(
           "p-4 rounded-lg border transition-all duration-300 transform relative",
@@ -265,342 +277,325 @@ export function ArtistPhotosManager({ onPhotosUpdate }: ArtistPhotosManagerProps
         </div>
       )}
 
-      {/* Artist Profile Logo */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-purple-900">
-            <Camera className="w-5 h-5" />
-            Artist Profile Logo
-          </CardTitle>
-          <p className="text-sm text-gray-600">
-            Add your Artist Logo:
-          </p>
-          <div className="text-sm text-gray-500 space-y-1">
-            <p>• This is your Artist Profile Picture across Gigrilla</p>
-            <p>• Logo must be .jpg, .png, or .webp</p>
-            <p>• Minimum 400x400 pixels, maximum 5MB file size</p>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            {/* Upload Section */}
-            {!logo ? (
-              <div className="space-y-4">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-400 transition-colors">
-                  <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-sm text-gray-600 mb-4">
-                    Drag & drop your logo here or click to browse
-                  </p>
-                  <Input
-                    ref={fileInputRefs.logo}
-                    type="file"
-                    accept=".jpg,.jpeg,.png,.webp"
-                    className="hidden"
-                    onChange={(e) => handleFileChange(e, 'logo')}
-                  />
-                  <Textarea
-                    placeholder="Write a caption for your logo..."
-                    value={logoCaption}
-                    onChange={(e) => setLogoCaption(e.target.value)}
-                    className="mb-4"
-                    rows={2}
-                  />
-                  <Button
-                    onClick={() => handleFileSelect('logo')}
-                    disabled={saving && uploadingType === 'logo'}
-                    className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
-                  >
-                    {saving && uploadingType === 'logo' ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Uploading...
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Upload Logo
-                      </>
-                    )}
-                  </Button>
-                </div>
+      {showBranding && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-purple-900">
+                <Camera className="w-5 h-5" />
+                Artist Profile Logo
+              </CardTitle>
+              <p className="text-sm text-gray-600">Add your Artist Logo:</p>
+              <div className="text-sm text-gray-500 space-y-1">
+                <p>• This is your Artist Profile Picture across Gigrilla</p>
+                <p>• Logo must be .jpg, .png, or .webp</p>
+                <p>• Minimum 400x400 pixels, maximum 5MB file size</p>
               </div>
-            ) : (
-              /* Logo Display */
-              <div className="space-y-4">
-                <div className="flex items-center gap-6 p-4 bg-gray-50 rounded-lg">
-                  <div className="relative">
-                    <NextImage
-                      src={logo.url}
-                      alt="Artist Logo"
-                      width={96}
-                      height={96}
-                      className="w-24 h-24 object-cover rounded-lg border-2 border-gray-200"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">{logo.caption || 'Artist Logo'}</p>
-                    <p className="text-sm text-gray-500">
-                      Uploaded {new Date(logo.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const newCaption = prompt('Edit caption:', logo.caption)
-                        if (newCaption !== null) {
-                          updatePhotoCaption(logo.id, newCaption)
-                        }
-                      }}
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => deletePhoto(logo.id)}
-                      disabled={saving}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Artist Profile Header Image */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-purple-900">
-            <FileImage className="w-5 h-5" />
-            Artist Profile Header Image
-          </CardTitle>
-          <p className="text-sm text-gray-600">
-            Add your Artist Profile Header Image:
-          </p>
-          <div className="text-sm text-gray-500 space-y-1">
-            <p>• This is the image across the top of your Artist Profile</p>
-            <p>• Image must be .jpg, .png, or .webp</p>
-            <p>• Minimum 1200x400 pixels, maximum 5MB file size</p>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            {/* Upload Section */}
-            {!headerImage ? (
-              <div className="space-y-4">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-400 transition-colors">
-                  <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-sm text-gray-600 mb-4">
-                    Drag & drop your header image here or click to browse
-                  </p>
-                  <Input
-                    ref={fileInputRefs.header}
-                    type="file"
-                    accept=".jpg,.jpeg,.png,.webp"
-                    className="hidden"
-                    onChange={(e) => handleFileChange(e, 'header')}
-                  />
-                  <Textarea
-                    placeholder="Write a caption for your image..."
-                    value={headerCaption}
-                    onChange={(e) => setHeaderCaption(e.target.value)}
-                    className="mb-4"
-                    rows={2}
-                  />
-                  <Button
-                    onClick={() => handleFileSelect('header')}
-                    disabled={saving && uploadingType === 'header'}
-                    className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
-                  >
-                    {saving && uploadingType === 'header' ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Uploading...
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Upload Image
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              /* Header Image Display */
-              <div className="space-y-4">
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <div className="relative mb-4">
-                    <NextImage
-                      src={headerImage.url}
-                      alt="Artist Header"
-                      width={800}
-                      height={192}
-                      className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900">{headerImage.caption || 'Header Image'}</p>
-                      <p className="text-sm text-gray-500">
-                        Uploaded {new Date(headerImage.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const newCaption = prompt('Edit caption:', headerImage.caption)
-                          if (newCaption !== null) {
-                            updatePhotoCaption(headerImage.id, newCaption)
-                          }
-                        }}
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => deletePhoto(headerImage.id)}
-                        disabled={saving}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Artist Profile Photos */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-purple-900">
-            {/* eslint-disable-next-line jsx-a11y/alt-text */}
-            <Image className="w-5 h-5" aria-hidden="true" />
-            Artist Profile Photos
-          </CardTitle>
-          <p className="text-sm text-gray-600">
-            Add your Artist Profile Photos:
-          </p>
-          <div className="text-sm text-gray-500 space-y-1">
-            <p>• These are the images for your Artist Profile carousel</p>
-            <p>• Photos must be .jpg, .png, or .webp</p>
-            <p>• Minimum 800x800 pixels, maximum 5MB file size</p>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
-            {/* Upload Section */}
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-400 transition-colors">
-              <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-sm text-gray-600 mb-4">
-                Drag & drop your photos here or click to browse
-              </p>
-              <Input
-                ref={fileInputRefs.photo}
-                type="file"
-                accept=".jpg,.jpeg,.png,.webp"
-                className="hidden"
-                onChange={(e) => handleFileChange(e, 'photo')}
-              />
-              <Textarea
-                placeholder="Write a caption for your photo..."
-                value={photoCaption}
-                onChange={(e) => setPhotoCaption(e.target.value)}
-                className="mb-4"
-                rows={2}
-              />
-              <Button
-                onClick={() => handleFileSelect('photo')}
-                disabled={saving && uploadingType === 'photo'}
-                className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
-              >
-                {saving && uploadingType === 'photo' ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Upload Photo
-                  </>
-                )}
-              </Button>
-            </div>
-
-            {/* Photos Gallery */}
-            {profilePhotos.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {profilePhotos.map((photo) => (
-                  <div key={photo.id} className="bg-gray-50 rounded-lg p-4">
-                    <div className="relative mb-3">
-                      <NextImage
-                        src={photo.url}
-                        alt={photo.caption || 'Profile photo'}
-                        width={400}
-                        height={160}
-                        className="w-full h-40 object-cover rounded-lg border-2 border-gray-200"
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {!logo ? (
+                  <div className="space-y-4">
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-400 transition-colors">
+                      <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-sm text-gray-600 mb-4">Drag & drop your logo here or click to browse</p>
+                      <Input
+                        ref={fileInputRefs.logo}
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.webp"
+                        className="hidden"
+                        onChange={(e) => handleFileChange(e, 'logo')}
                       />
-                    </div>
-                    <p className="font-medium text-gray-900 text-sm mb-1">
-                      {photo.caption || 'Profile Photo'}
-                    </p>
-                    <p className="text-xs text-gray-500 mb-3">
-                      {new Date(photo.created_at).toLocaleDateString()}
-                    </p>
-                    <div className="flex gap-2">
+                      <Textarea
+                        placeholder="Write a caption for your logo..."
+                        value={logoCaption}
+                        onChange={(e) => setLogoCaption(e.target.value)}
+                        className="mb-4"
+                        rows={2}
+                      />
                       <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const newCaption = prompt('Edit caption:', photo.caption)
-                          if (newCaption !== null) {
-                            updatePhotoCaption(photo.id, newCaption)
-                          }
-                        }}
-                        className="flex-1"
+                        onClick={() => handleFileSelect('logo')}
+                        disabled={saving && uploadingType === 'logo'}
+                        className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
                       >
-                        <Edit3 className="w-3 h-3 mr-1" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => deletePhoto(photo.id)}
-                        disabled={saving}
-                        className="flex-1"
-                      >
-                        <Trash2 className="w-3 h-3 mr-1" />
-                        Delete
+                        {saving && uploadingType === 'logo' ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-4 h-4 mr-2" />
+                            Upload Logo
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>
-                ))}
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-6 p-4 bg-gray-50 rounded-lg">
+                      <div className="relative">
+                        <NextImage
+                          src={logo.url}
+                          alt="Artist Logo"
+                          width={96}
+                          height={96}
+                          className="w-24 h-24 object-cover rounded-lg border-2 border-gray-200"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{logo.caption || 'Artist Logo'}</p>
+                        <p className="text-sm text-gray-500">
+                          Uploaded {new Date(logo.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const newCaption = prompt('Edit caption:', logo.caption)
+                            if (newCaption !== null) {
+                              updatePhotoCaption(logo.id, newCaption)
+                            }
+                          }}
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deletePhoto(logo.id)}
+                          disabled={saving}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
+            </CardContent>
+          </Card>
 
-            {profilePhotos.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                {/* eslint-disable-next-line jsx-a11y/alt-text */}
-                <Image className="w-12 h-12 mx-auto mb-3 text-gray-300" aria-hidden="true" />
-                <p>No photos uploaded yet</p>
-                <p className="text-sm">Upload your first photo to get started</p>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-purple-900">
+                <FileImage className="w-5 h-5" />
+                Artist Profile Header Image
+              </CardTitle>
+              <p className="text-sm text-gray-600">Add your Artist Profile Header Image:</p>
+              <div className="text-sm text-gray-500 space-y-1">
+                <p>• This is the image across the top of your Artist Profile</p>
+                <p>• Image must be .jpg, .png, or .webp</p>
+                <p>• Minimum 1200x400 pixels, maximum 5MB file size</p>
               </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {!headerImage ? (
+                  <div className="space-y-4">
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-400 transition-colors">
+                      <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-sm text-gray-600 mb-4">Drag & drop your header image here or click to browse</p>
+                      <Input
+                        ref={fileInputRefs.header}
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.webp"
+                        className="hidden"
+                        onChange={(e) => handleFileChange(e, 'header')}
+                      />
+                      <Textarea
+                        placeholder="Write a caption for your image..."
+                        value={headerCaption}
+                        onChange={(e) => setHeaderCaption(e.target.value)}
+                        className="mb-4"
+                        rows={2}
+                      />
+                      <Button
+                        onClick={() => handleFileSelect('header')}
+                        disabled={saving && uploadingType === 'header'}
+                        className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
+                      >
+                        {saving && uploadingType === 'header' ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-4 h-4 mr-2" />
+                            Upload Image
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="relative mb-4">
+                        <NextImage
+                          src={headerImage.url}
+                          alt="Artist Header"
+                          width={800}
+                          height={192}
+                          className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-gray-900">{headerImage.caption || 'Header Image'}</p>
+                          <p className="text-sm text-gray-500">
+                            Uploaded {new Date(headerImage.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const newCaption = prompt('Edit caption:', headerImage.caption)
+                              if (newCaption !== null) {
+                                updatePhotoCaption(headerImage.id, newCaption)
+                              }
+                            }}
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => deletePhoto(headerImage.id)}
+                            disabled={saving}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {showPhotos && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-purple-900">
+              {/* eslint-disable-next-line jsx-a11y/alt-text */}
+              <Image className="w-5 h-5" aria-hidden="true" />
+              Artist Profile Photos
+            </CardTitle>
+            <p className="text-sm text-gray-600">Add your Artist Profile Photos:</p>
+            <div className="text-sm text-gray-500 space-y-1">
+              <p>• These are the images for your Artist Profile carousel</p>
+              <p>• Photos must be .jpg, .png, or .webp</p>
+              <p>• Minimum 800x800 pixels, maximum 5MB file size</p>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-400 transition-colors">
+                <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-sm text-gray-600 mb-4">Drag & drop your photos here or click to browse</p>
+                <Input
+                  ref={fileInputRefs.photo}
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp"
+                  className="hidden"
+                  onChange={(e) => handleFileChange(e, 'photo')}
+                />
+                <Textarea
+                  placeholder="Write a caption for your photo..."
+                  value={photoCaption}
+                  onChange={(e) => setPhotoCaption(e.target.value)}
+                  className="mb-4"
+                  rows={2}
+                />
+                <Button
+                  onClick={() => handleFileSelect('photo')}
+                  disabled={saving && uploadingType === 'photo'}
+                  className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  {saving && uploadingType === 'photo' ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Upload Photo
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {profilePhotos.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {profilePhotos.map((photo) => (
+                    <div key={photo.id} className="bg-gray-50 rounded-lg p-4">
+                      <div className="relative mb-3">
+                        <NextImage
+                          src={photo.url}
+                          alt={photo.caption || 'Profile photo'}
+                          width={400}
+                          height={160}
+                          className="w-full h-40 object-cover rounded-lg border-2 border-gray-200"
+                        />
+                      </div>
+                      <p className="font-medium text-gray-900 text-sm mb-1">{photo.caption || 'Profile Photo'}</p>
+                      <p className="text-xs text-gray-500 mb-3">
+                        {new Date(photo.created_at).toLocaleDateString()}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const newCaption = prompt('Edit caption:', photo.caption)
+                            if (newCaption !== null) {
+                              updatePhotoCaption(photo.id, newCaption)
+                            }
+                          }}
+                          className="flex-1"
+                        >
+                          <Edit3 className="w-3 h-3 mr-1" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deletePhoto(photo.id)}
+                          disabled={saving}
+                          className="flex-1"
+                        >
+                          <Trash2 className="w-3 h-3 mr-1" />
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {profilePhotos.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                  <Image className="w-12 h-12 mx-auto mb-3 text-gray-300" aria-hidden="true" />
+                  <p>No photos uploaded yet</p>
+                  <p className="text-sm">Upload your first photo to get started</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

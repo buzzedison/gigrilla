@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { createServiceClient } from '@/lib/supabase/service-client'
 
 // Helper to create Supabase client
 async function createSupabaseClient() {
@@ -54,8 +55,10 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Forbidden - Moderator access required' }, { status: 403 })
         }
 
+        const serviceSupabase = createServiceClient()
+
         // Fetch flagged releases
-        const { data: flaggedReleases, error } = await supabase
+        const { data: flaggedReleases, error } = await serviceSupabase
             .from('music_releases')
             .select(`
         id,
@@ -68,10 +71,7 @@ export async function GET(request: NextRequest) {
         is_offensive,
         do_not_recommend,
         moderation_notes,
-        flagged_at,
-        artist_profiles!music_releases_user_id_fkey (
-          stage_name
-        )
+        flagged_at
       `)
             .or('flagged_for_review.eq.true,is_offensive.eq.true')
             .order('flagged_at', { ascending: false, nullsFirst: false })
@@ -85,9 +85,43 @@ export async function GET(request: NextRequest) {
             }, { status: 500 })
         }
 
+        const userIds = Array.from(
+            new Set((flaggedReleases || []).map((release) => release.user_id).filter(Boolean))
+        ) as string[]
+
+        let stageNameByUserId = new Map<string, string>()
+
+        if (userIds.length > 0) {
+            const { data: profiles, error: profilesError } = await serviceSupabase
+                .from('user_profiles')
+                .select('user_id, stage_name')
+                .eq('profile_type', 'artist')
+                .in('user_id', userIds)
+
+            if (profilesError) {
+                console.warn('Could not hydrate artist stage names for flagged releases:', profilesError)
+            } else {
+                stageNameByUserId = new Map(
+                    (profiles || [])
+                        .filter((profile) => typeof profile.user_id === 'string')
+                        .map((profile) => [
+                            profile.user_id as string,
+                            (profile.stage_name as string | null) || 'Unknown Artist'
+                        ])
+                )
+            }
+        }
+
+        const hydratedReleases = (flaggedReleases || []).map((release) => ({
+            ...release,
+            artist_profiles: {
+                stage_name: stageNameByUserId.get(release.user_id) || 'Unknown Artist'
+            }
+        }))
+
         return NextResponse.json({
             success: true,
-            data: flaggedReleases || []
+            data: hydratedReleases
         })
 
     } catch (error) {

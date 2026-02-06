@@ -9,8 +9,6 @@ import { ArtistProfileForm } from "./components/ArtistProfileForm"
 import { ArtistCompletionCard, CompletionItemState, CompletionSection } from "./components/ArtistCompletionCard"
 import { ArtistBiographyManager } from "./components/ArtistBiographyManager"
 import { ArtistGenresManager } from "./components/ArtistGenresManager"
-import { GigAbilityMapsManager } from "./components/GigAbilityMapsManager"
-import { LogoProfileArtwork } from "./components/LogoProfileArtwork"
 import { ArtistPhotosManager } from "./components/ArtistPhotosManager"
 import { ArtistVideosManager } from "./components/ArtistVideosManager"
 import { ArtistTypeSelectorV2, ArtistTypeSelection } from "./components/ArtistTypeSelectorV2"
@@ -177,6 +175,20 @@ export default function ArtistDashboard() {
     return completionState.some(item => item.section === mappedSection && item.completed)
   }
 
+  const completedSectionsForSidebar = useMemo(() => {
+    const grouped = completionState.reduce<Record<string, CompletionItemState[]>>((acc, item) => {
+      if (!acc[item.section]) {
+        acc[item.section] = []
+      }
+      acc[item.section].push(item)
+      return acc
+    }, {})
+
+    return Object.entries(grouped)
+      .filter(([, items]) => items.length > 0 && items.every((item) => item.completed))
+      .map(([section]) => section)
+  }, [completionState])
+
   const renderGuardedSection = (section: DashboardSection, content: React.ReactNode) => {
     if (sectionIsEnabled(section)) {
       return content
@@ -200,7 +212,7 @@ export default function ArtistDashboard() {
         return (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             <div className="xl:col-span-3">
-              <LogoProfileArtwork />
+              <ArtistPhotosManager mode="branding" />
             </div>
             <div className="xl:col-span-1">
               <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
@@ -211,7 +223,7 @@ export default function ArtistDashboard() {
         return (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             <div className="xl:col-span-3">
-              <ArtistPhotosManager />
+              <ArtistPhotosManager mode="photos" />
             </div>
             <div className="xl:col-span-1">
               <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
@@ -253,7 +265,7 @@ export default function ArtistDashboard() {
               <ArtistContractStatusManager />
             </div>
             <div className="xl:col-span-1">
-              <ArtistCompletionCard />
+              <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
           </div>
         )
@@ -264,7 +276,7 @@ export default function ArtistDashboard() {
               <ArtistPaymentsManager />
             </div>
             <div className="xl:col-span-1">
-              <ArtistCompletionCard />
+              <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
           </div>
         )
@@ -275,7 +287,7 @@ export default function ArtistDashboard() {
               <ArtistCrewManager />
             </div>
             <div className="xl:col-span-1">
-              <ArtistCompletionCard />
+              <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
           </div>
         )
@@ -286,7 +298,7 @@ export default function ArtistDashboard() {
               <ArtistAuditionsManager />
             </div>
             <div className="xl:col-span-1">
-              <ArtistCompletionCard />
+              <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
           </div>
         )
@@ -297,7 +309,7 @@ export default function ArtistDashboard() {
               <ArtistRoyaltySplitsManager />
             </div>
             <div className="xl:col-span-1">
-              <ArtistCompletionCard />
+              <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
           </div>
         )
@@ -308,7 +320,7 @@ export default function ArtistDashboard() {
               <ArtistGigAbilityManager />
             </div>
             <div className="xl:col-span-1">
-              <ArtistCompletionCard />
+              <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
           </div>
         )
@@ -319,7 +331,7 @@ export default function ArtistDashboard() {
               <ArtistBiographyManager />
             </div>
             <div className="xl:col-span-1">
-              <ArtistCompletionCard />
+              <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
           </div>
         )
@@ -330,7 +342,7 @@ export default function ArtistDashboard() {
               <ArtistGenresManager />
             </div>
             <div className="xl:col-span-1">
-              <ArtistCompletionCard />
+              <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
           </div>
         )
@@ -338,10 +350,10 @@ export default function ArtistDashboard() {
         return renderGuardedSection('maps', (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             <div className="xl:col-span-3">
-              <GigAbilityMapsManager />
+              <ArtistGigAbilityManager />
             </div>
             <div className="xl:col-span-1">
-              <ArtistCompletionCard />
+              <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
           </div>
         ))
@@ -352,7 +364,7 @@ export default function ArtistDashboard() {
               <ArtistMusicManager />
             </div>
             <div className="xl:col-span-1">
-              <ArtistCompletionCard />
+              <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
           </div>
         )
@@ -363,7 +375,7 @@ export default function ArtistDashboard() {
               <ArtistProfileForm onProfileSaved={() => setCompletionRefreshKey(prev => prev + 1)} />
             </div>
             <div className="xl:col-span-1">
-              <ArtistCompletionCard />
+              <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
           </div>
         )
@@ -420,7 +432,7 @@ export default function ArtistDashboard() {
               setIsMobileNavOpen(false)
             }}
             capabilities={capabilities}
-            completedSections={completionState.filter(item => item.completed).map(item => item.section)}
+            completedSections={completedSectionsForSidebar}
             hideTypeSection={false}
           />
         </SheetContent>
@@ -432,7 +444,7 @@ export default function ArtistDashboard() {
                 activeSection={activeSection}
                 onSectionChange={setActiveSection}
                 capabilities={capabilities}
-                completedSections={completionState.filter(item => item.completed).map(item => item.section)}
+                completedSections={completedSectionsForSidebar}
                 hideTypeSection={false}
               />
             </div>

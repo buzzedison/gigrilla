@@ -243,6 +243,8 @@ export function ArtistCrewManager() {
   const { user } = useAuth()
   const [crewMembers, setCrewMembers] = useState<CrewMember[]>([])
   const [profileOwner, setProfileOwner] = useState<CrewMember | null>(null)
+  const [savingOwner, setSavingOwner] = useState(false)
+  const [updatingAdminMemberId, setUpdatingAdminMemberId] = useState<string | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['vocals', 'strings']))
   const [showAddMember, setShowAddMember] = useState(false)
   const [newMember, setNewMember] = useState<Partial<CrewMember>>({
@@ -477,7 +479,11 @@ export function ArtistCrewManager() {
 
         if (user) {
           const dateOfBirth = user?.user_metadata?.date_of_birth || ''
-          const hometown = profileData?.base_location || fanProfileData?.location_details?.city || ''
+          const hometown = [
+            profileData?.hometown_city,
+            profileData?.hometown_state,
+            profileData?.hometown_country
+          ].filter(Boolean).join(', ') || profileData?.base_location || fanProfileData?.location_details?.city || ''
 
           console.log('Extracted Date of Birth:', dateOfBirth)
           console.log('Extracted Hometown:', hometown)
@@ -490,11 +496,15 @@ export function ArtistCrewManager() {
             nickname: profileData?.stage_name || '',
             dateOfBirth: dateOfBirth,
             hometown: hometown,
-            roles: [],
+            roles: Array.isArray(profileData?.artist_primary_roles)
+              ? profileData.artist_primary_roles.filter((role: unknown): role is string => typeof role === 'string' && role.trim().length > 0)
+              : [],
             instruments: [],
             management: [],
             isPublic: false,
-            isProfileOwner: true
+            isProfileOwner: true,
+            performerIsni: profileData?.performer_isni || '',
+            creatorIpiCae: profileData?.creator_ipi_cae || ''
           }
 
           // Convert invitations to crew members
@@ -584,6 +594,49 @@ export function ArtistCrewManager() {
     setCrewMembers(prev => prev.map(member =>
       member.isProfileOwner ? updated : member
     ))
+  }
+
+  const saveProfileOwner = async () => {
+    if (!profileOwner) return
+
+    try {
+      setSavingOwner(true)
+
+      const hometownParts = profileOwner.hometown
+        ? profileOwner.hometown.split(',').map(part => part.trim()).filter(Boolean)
+        : []
+
+      const response = await fetch('/api/artist-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          stage_name: profileOwner.nickname?.trim() || null,
+          artist_primary_roles: profileOwner.roles,
+          performer_isni: profileOwner.performerIsni?.trim() || null,
+          creator_ipi_cae: profileOwner.creatorIpiCae?.trim() || null,
+          hometown_city: hometownParts[0] || null,
+          hometown_state: hometownParts[1] || null,
+          hometown_country: hometownParts[2] || null
+        })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || result?.error) {
+        console.error('Failed to save profile owner info:', result)
+        showNotification('error', `Failed to save your roles and info: ${result?.error || 'Unknown error'}`)
+        return
+      }
+
+      showNotification('success', 'Your own roles and profile info were saved successfully')
+    } catch (error) {
+      console.error('Error saving profile owner info:', error)
+      showNotification('error', 'Unable to save your roles and profile info right now.')
+    } finally {
+      setSavingOwner(false)
+    }
   }
 
   const toggleRole = (role: string) => {
@@ -710,10 +763,38 @@ export function ArtistCrewManager() {
     }
   }
 
-  const updateMemberAdmin = (id: string, isAdmin: boolean) => {
+  const updateMemberAdmin = async (id: string, isAdmin: boolean) => {
+    const previousMembers = crewMembers
     setCrewMembers(prev => prev.map(member =>
       member.id === id ? { ...member, isAdmin } : member
     ))
+    setUpdatingAdminMemberId(id)
+
+    try {
+      const response = await fetch('/api/artist-members', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          memberId: id,
+          isAdmin
+        })
+      })
+
+      const result = await response.json()
+      if (!response.ok || result?.error) {
+        throw new Error(result?.error || 'Failed to update admin rights')
+      }
+
+      showNotification('success', `Admin rights updated to ${isAdmin ? 'Yes' : 'No'}`)
+    } catch (error) {
+      console.error('Error updating member admin rights:', error)
+      setCrewMembers(previousMembers)
+      showNotification('error', 'Failed to update admin rights. Please try again.')
+    } finally {
+      setUpdatingAdminMemberId(null)
+    }
   }
 
   const getDisplayName = (member: CrewMember) => {
@@ -1158,6 +1239,16 @@ export function ArtistCrewManager() {
                   </div>
                 </div>
               )}
+
+              <div className="pt-2">
+                <Button
+                  onClick={saveProfileOwner}
+                  disabled={savingOwner}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  {savingOwner ? 'Saving…' : 'Save Your Own Roles & Info'}
+                </Button>
+              </div>
             </>
           )}
         </CardContent>
@@ -1393,6 +1484,7 @@ export function ArtistCrewManager() {
                           <select
                             value={member.isAdmin ? 'Yes' : 'No'}
                             onChange={(e) => updateMemberAdmin(member.id, e.target.value === 'Yes')}
+                            disabled={updatingAdminMemberId === member.id}
                             className="text-xs border border-purple-200 rounded px-2 py-1 focus:border-purple-400 focus:outline-none"
                           >
                             <option value="No">No</option>

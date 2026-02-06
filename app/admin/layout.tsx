@@ -26,6 +26,11 @@ const sidebarItems = [
         icon: FileCheck
     },
     {
+        name: 'Published Recent',
+        href: '/admin/releases/published-recent',
+        icon: Music
+    },
+    {
         name: 'Flagged Content',
         href: '/admin/flagged',
         icon: Flag
@@ -63,6 +68,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     const [collapsed, setCollapsed] = useState(false)
 
     const isActive = (item: typeof sidebarItems[0]) => {
+        if (item.href === '/admin/releases' && pathname.startsWith('/admin/releases/published-recent')) {
+            return false
+        }
+
         if (item.exact) {
             return pathname === item.href
         }

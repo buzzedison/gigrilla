@@ -12,6 +12,8 @@ import { GigAbilityMap } from './GigAbilityMap'
 interface ArtistProfile {
   id: string
   base_location?: string
+  base_location_lat?: number | string | null
+  base_location_lon?: number | string | null
   stage_name?: string
   minimum_set_length?: number
   maximum_set_length?: number
@@ -146,11 +148,17 @@ export function ArtistGigAbilityManager() {
         }
       }
       
-      // Set base location coordinates (placeholder - would geocode in real implementation)
-      if (profileData?.base_location_lat && profileData?.base_location_lon) {
+      const lat = profileData?.base_location_lat !== undefined && profileData?.base_location_lat !== null
+        ? (typeof profileData.base_location_lat === 'number' ? profileData.base_location_lat : parseFloat(profileData.base_location_lat))
+        : NaN
+      const lon = profileData?.base_location_lon !== undefined && profileData?.base_location_lon !== null
+        ? (typeof profileData.base_location_lon === 'number' ? profileData.base_location_lon : parseFloat(profileData.base_location_lon))
+        : NaN
+
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
         setBaseLocationCoords({
-          lat: profileData.base_location_lat,
-          lng: profileData.base_location_lon
+          lat,
+          lng: lon
         })
       } else {
         // Default to London if no coordinates

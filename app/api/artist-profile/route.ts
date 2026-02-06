@@ -2,6 +2,177 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
+const GEOAPIFY_API_KEY = process.env.GEOAPIFY_API_KEY
+
+interface GenreTaxonomyLookup {
+  familyIds: Set<string>
+  typeFamilyById: Map<string, string>
+  subTypeById: Map<string, { typeId: string; familyId: string }>
+}
+
+const areStringArraysEqual = (a: string[], b: string[]) => {
+  if (a.length !== b.length) return false
+  return a.every((value, index) => value === b[index])
+}
+
+const loadGenreTaxonomyLookup = async (supabase: ReturnType<typeof createServerClient>): Promise<GenreTaxonomyLookup> => {
+  const [{ data: families, error: familiesError }, { data: types, error: typesError }, { data: subTypes, error: subTypesError }] = await Promise.all([
+    supabase.from('genre_families').select('id'),
+    supabase.from('genre_types').select('id,family_id'),
+    supabase.from('genre_subtypes').select('id,type_id')
+  ])
+
+  if (familiesError || typesError || subTypesError) {
+    throw new Error([
+      familiesError?.message,
+      typesError?.message,
+      subTypesError?.message
+    ].filter(Boolean).join(' | '))
+  }
+
+  const familyRows = Array.isArray(families) ? families as Array<{ id: string }> : []
+  const typeRows = Array.isArray(types) ? types as Array<{ id: string; family_id: string }> : []
+  const subTypeRows = Array.isArray(subTypes) ? subTypes as Array<{ id: string; type_id: string }> : []
+
+  const familyIds = new Set<string>(familyRows.map((family) => family.id))
+  const typeFamilyById = new Map<string, string>(typeRows.map((typeRow) => [typeRow.id, typeRow.family_id]))
+
+  const subTypeEntries: Array<[string, { typeId: string; familyId: string }]> = []
+  for (const subType of subTypeRows) {
+    const familyId = typeFamilyById.get(subType.type_id)
+    if (!familyId) continue
+    subTypeEntries.push([subType.id, { typeId: subType.type_id, familyId }])
+  }
+  const subTypeById = new Map<string, { typeId: string; familyId: string }>(subTypeEntries)
+
+  return { familyIds, typeFamilyById, subTypeById }
+}
+
+const normalizePreferredGenreIds = (rawValues: unknown, taxonomy: GenreTaxonomyLookup) => {
+  if (!Array.isArray(rawValues)) return []
+
+  const normalized: string[] = []
+  const seen = new Set<string>()
+
+  for (const rawValue of rawValues) {
+    if (typeof rawValue !== 'string') continue
+    const value = rawValue.trim()
+    if (!value) continue
+
+    if (value.includes(':')) {
+      const [familyIdRaw, typeIdRaw, subIdRaw] = value.split(':')
+      const familyId = familyIdRaw?.trim()
+      const typeId = typeIdRaw?.trim()
+      const subId = subIdRaw?.trim()
+      if (!familyId || !typeId) continue
+
+      const expectedFamilyId = taxonomy.typeFamilyById.get(typeId)
+      if (!expectedFamilyId || expectedFamilyId !== familyId) continue
+
+      if (subId) {
+        const subTypeInfo = taxonomy.subTypeById.get(subId)
+        if (!subTypeInfo || subTypeInfo.typeId !== typeId || subTypeInfo.familyId !== familyId) continue
+      }
+
+      const canonicalValue = subId ? `${familyId}:${typeId}:${subId}` : `${familyId}:${typeId}`
+      if (!seen.has(canonicalValue)) {
+        seen.add(canonicalValue)
+        normalized.push(canonicalValue)
+      }
+      continue
+    }
+
+    const typeFamily = taxonomy.typeFamilyById.get(value)
+    if (typeFamily) {
+      const canonicalValue = `${typeFamily}:${value}`
+      if (!seen.has(canonicalValue)) {
+        seen.add(canonicalValue)
+        normalized.push(canonicalValue)
+      }
+      continue
+    }
+
+    const subTypeInfo = taxonomy.subTypeById.get(value)
+    if (subTypeInfo) {
+      const canonicalValue = `${subTypeInfo.familyId}:${subTypeInfo.typeId}:${value}`
+      if (!seen.has(canonicalValue)) {
+        seen.add(canonicalValue)
+        normalized.push(canonicalValue)
+      }
+      continue
+    }
+
+    if (taxonomy.familyIds.has(value)) {
+      continue
+    }
+  }
+
+  return normalized
+}
+
+const geocodeBaseLocation = async (locationQuery: string): Promise<{ lat: number; lon: number } | null> => {
+  if (!GEOAPIFY_API_KEY || !locationQuery.trim()) {
+    return null
+  }
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+  try {
+    const apiUrl = new URL('https://api.geoapify.com/v1/geocode/search')
+    apiUrl.searchParams.set('text', locationQuery)
+    apiUrl.searchParams.set('limit', '1')
+    apiUrl.searchParams.set('format', 'json')
+    apiUrl.searchParams.set('apiKey', GEOAPIFY_API_KEY)
+
+    const response = await fetch(apiUrl.toString(), {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'gigrilla-app/artist-profile'
+      },
+      cache: 'no-store',
+      signal: controller.signal
+    })
+
+    if (!response.ok) {
+      const body = await response.text()
+      console.error('Artist profile geocode failed:', response.status, body)
+      return null
+    }
+
+    const data = await response.json() as {
+      results?: Array<{ lat?: number; lon?: number }>
+      features?: Array<{ properties?: { lat?: number; lon?: number } }>
+    }
+
+    const firstResult = data.results?.[0]
+    const firstFeature = data.features?.[0]?.properties
+    const lat = typeof firstResult?.lat === 'number'
+      ? firstResult.lat
+      : typeof firstFeature?.lat === 'number'
+        ? firstFeature.lat
+        : null
+    const lon = typeof firstResult?.lon === 'number'
+      ? firstResult.lon
+      : typeof firstFeature?.lon === 'number'
+        ? firstFeature.lon
+        : null
+
+    if (lat === null || lon === null) {
+      return null
+    }
+
+    return { lat, lon }
+  } catch (error) {
+    if ((error as Error).name !== 'AbortError') {
+      console.error('Artist profile geocode request error:', error)
+    }
+    return null
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 export async function GET() {
   try {
     const cookieStore = await cookies()
@@ -73,10 +244,62 @@ export async function GET() {
       })
     }
 
-    console.log('API: Successfully fetched artist profile data:', !!profileData)
+    let responseProfileData = profileData
+    const artistGenreIds = Array.isArray(profileData.preferred_genre_ids)
+      ? profileData.preferred_genre_ids.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      : []
+
+    try {
+      const requiresNormalization = artistGenreIds.some((value) => !value.includes(':'))
+      const needsFanFallback = artistGenreIds.length === 0
+
+      if (requiresNormalization || needsFanFallback) {
+        const taxonomyLookup = await loadGenreTaxonomyLookup(supabase)
+
+        if (requiresNormalization) {
+          const normalizedArtistGenres = normalizePreferredGenreIds(artistGenreIds, taxonomyLookup)
+          if (normalizedArtistGenres.length > 0) {
+            responseProfileData = { ...responseProfileData, preferred_genre_ids: normalizedArtistGenres }
+            if (!areStringArraysEqual(artistGenreIds, normalizedArtistGenres)) {
+              await supabase
+                .from('user_profiles')
+                .update({
+                  preferred_genre_ids: normalizedArtistGenres,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', profileData.id)
+            }
+          }
+        } else if (needsFanFallback) {
+          const { data: fanProfile, error: fanProfileError } = await supabase
+            .from('fan_profiles')
+            .select('preferred_genre_ids')
+            .eq('user_id', user.id)
+            .maybeSingle()
+
+          if (!fanProfileError && Array.isArray(fanProfile?.preferred_genre_ids) && fanProfile.preferred_genre_ids.length > 0) {
+            const normalizedFanGenres = normalizePreferredGenreIds(fanProfile.preferred_genre_ids, taxonomyLookup)
+            if (normalizedFanGenres.length > 0) {
+              responseProfileData = { ...responseProfileData, preferred_genre_ids: normalizedFanGenres }
+              await supabase
+                .from('user_profiles')
+                .update({
+                  preferred_genre_ids: normalizedFanGenres,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', profileData.id)
+            }
+          }
+        }
+      }
+    } catch (genreNormalizationError) {
+      console.warn('API: Unable to normalize artist preferred_genre_ids', genreNormalizationError)
+    }
+
+    console.log('API: Successfully fetched artist profile data:', !!responseProfileData)
 
     return NextResponse.json({
-      data: profileData,
+      data: responseProfileData,
       user_id: user.id
     })
 
@@ -270,14 +493,32 @@ export async function POST(request: NextRequest) {
       profileData.base_location = base_location || null
     }
 
+    let resolvedBaseLocationLat: number | null | undefined
+    let resolvedBaseLocationLon: number | null | undefined
+
     if (base_location_lat !== undefined) {
       const latNumber = typeof base_location_lat === 'number' ? base_location_lat : parseFloat(base_location_lat)
-      profileData.base_location_lat = Number.isFinite(latNumber) ? latNumber : null
+      resolvedBaseLocationLat = Number.isFinite(latNumber) ? latNumber : null
+      profileData.base_location_lat = resolvedBaseLocationLat
     }
 
     if (base_location_lon !== undefined) {
       const lonNumber = typeof base_location_lon === 'number' ? base_location_lon : parseFloat(base_location_lon)
-      profileData.base_location_lon = Number.isFinite(lonNumber) ? lonNumber : null
+      resolvedBaseLocationLon = Number.isFinite(lonNumber) ? lonNumber : null
+      profileData.base_location_lon = resolvedBaseLocationLon
+    }
+
+    if (
+      typeof base_location === 'string' &&
+      base_location.trim() &&
+      (resolvedBaseLocationLat == null || resolvedBaseLocationLon == null)
+    ) {
+      const geocoded = await geocodeBaseLocation(base_location.trim())
+
+      if (geocoded) {
+        profileData.base_location_lat = geocoded.lat
+        profileData.base_location_lon = geocoded.lon
+      }
     }
 
     if (performing_members !== undefined) {

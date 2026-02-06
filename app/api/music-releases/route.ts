@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { createServiceClient } from '@/lib/supabase/service-client'
 
 // Helper to create Supabase client
 async function createSupabaseClient() {
@@ -45,14 +46,53 @@ async function isUserBanned(supabase: any, userId: string): Promise<boolean> {
 }
 
 // Get current approval mode from platform settings
-async function getApprovalMode(supabase: any): Promise<string> {
-  const { data } = await supabase
+function parseApprovalMode(value: unknown): 'auto' | 'manual' | null {
+  const mode =
+    typeof value === 'string'
+      ? value
+      : typeof value === 'object' && value !== null && 'mode' in value
+        ? (value as { mode?: unknown }).mode
+        : null
+
+  if (mode === 'auto' || mode === 'manual') {
+    return mode
+  }
+
+  return null
+}
+
+async function getApprovalMode(supabase: any): Promise<'auto' | 'manual'> {
+  // Try user-scoped client first.
+  const { data, error } = await supabase
     .from('platform_settings')
     .select('setting_value')
     .eq('setting_key', 'approval_mode')
     .single()
 
-  return data?.setting_value?.mode || 'auto' // Default to auto for beta
+  const userScopedMode = parseApprovalMode(data?.setting_value)
+  if (!error && userScopedMode) {
+    return userScopedMode
+  }
+
+  // Fallback to service role to avoid RLS-related misses for non-admin submitters.
+  try {
+    const serviceSupabase = createServiceClient()
+    const { data: serviceData, error: serviceError } = await serviceSupabase
+      .from('platform_settings')
+      .select('setting_value')
+      .eq('setting_key', 'approval_mode')
+      .single()
+
+    const serviceMode = parseApprovalMode(serviceData?.setting_value)
+    if (!serviceError && serviceMode) {
+      return serviceMode
+    }
+  } catch (serviceClientError) {
+    console.warn('API: Service client unavailable for approval mode lookup', serviceClientError)
+  }
+
+  // Default to auto for beta.
+  return 'auto'
 }
 
 // GET - Fetch user's music releases
@@ -68,29 +108,44 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const releaseId = searchParams.get('id')
     const status = searchParams.get('status')
+    const approvalMode = await getApprovalMode(supabase)
 
     // Check if user is admin
     const adminCheck = await isAdmin(supabase, user.id)
 
     // Fetch single release by ID
     if (releaseId) {
-      let query = supabase
-        .from('music_releases')
-        .select(`
-          *,
-          artist_profiles!music_releases_user_id_fkey (
-            stage_name,
-            user_id
-          )
-        `)
-        .eq('id', releaseId)
+      let data: any = null
+      let error: any = null
 
-      // Non-admin users can only see their own releases
-      if (!adminCheck) {
-        query = query.eq('user_id', user.id)
+      if (adminCheck) {
+        // Admin access must use service role to bypass RLS for non-owned releases.
+        try {
+          const serviceSupabase = createServiceClient()
+          const result = await serviceSupabase
+            .from('music_releases')
+            .select('*')
+            .eq('id', releaseId)
+            .maybeSingle()
+          data = result.data
+          error = result.error
+        } catch (serviceError) {
+          console.error('API: Service client error fetching admin music release:', serviceError)
+          return NextResponse.json({
+            error: 'Internal server error',
+            details: serviceError instanceof Error ? serviceError.message : 'Unknown service error'
+          }, { status: 500 })
+        }
+      } else {
+        const result = await supabase
+          .from('music_releases')
+          .select('*')
+          .eq('id', releaseId)
+          .eq('user_id', user.id)
+          .maybeSingle()
+        data = result.data
+        error = result.error
       }
-
-      const { data, error } = await query.single()
 
       if (error) {
         console.error('API: Error fetching music release:', error)
@@ -100,7 +155,13 @@ export async function GET(request: NextRequest) {
         }, { status: 500 })
       }
 
-      return NextResponse.json({ data, user_id: user.id })
+      if (!data) {
+        return NextResponse.json({
+          error: 'Release not found'
+        }, { status: 404 })
+      }
+
+      return NextResponse.json({ data, user_id: user.id, approval_mode: approvalMode })
     }
 
     // Fetch all releases with optional status filter
@@ -111,7 +172,11 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
 
     if (status) {
-      query = query.eq('status', status)
+      if (status === 'published') {
+        query = query.in('status', ['published', 'approved'])
+      } else {
+        query = query.eq('status', status)
+      }
     }
 
     const { data, error } = await query
@@ -124,7 +189,7 @@ export async function GET(request: NextRequest) {
       }, { status: 500 })
     }
 
-    return NextResponse.json({ data, user_id: user.id })
+    return NextResponse.json({ data, user_id: user.id, approval_mode: approvalMode })
 
   } catch (error) {
     console.error('API: Unexpected error:', error)
@@ -217,9 +282,41 @@ export async function POST(request: NextRequest) {
     // Get approval mode from platform settings
     const approvalMode = await getApprovalMode(supabase)
 
+    // In manual mode, never allow direct publish from client payload.
+    const requestedStatus = status === 'published' && approvalMode === 'manual'
+      ? 'pending_review'
+      : status
+
+    // Read existing row early (for updates) so we can safely handle status/timestamp transitions.
+    let existingRelease: { status: string | null; submitted_at: string | null; published_at: string | null } | null = null
+    if (id) {
+      const { data: existingData, error: existingError } = await supabase
+        .from('music_releases')
+        .select('status, submitted_at, published_at')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (existingError) {
+        console.error('API: Error fetching existing music release:', existingError)
+        return NextResponse.json({
+          error: 'Database error',
+          details: existingError.message
+        }, { status: 500 })
+      }
+
+      if (!existingData) {
+        return NextResponse.json({
+          error: 'Release not found or unauthorized'
+        }, { status: 404 })
+      }
+
+      existingRelease = existingData
+    }
+
     // Gate: release cannot be submitted without Ts&Cs and digital signature
     // Check if this is a submission (status change to pending_review or published)
-    const isSubmission = status === 'pending_review' || (status === 'published' && approvalMode === 'auto')
+    const isSubmission = requestedStatus === 'pending_review' || requestedStatus === 'published'
 
     if (isSubmission) {
       const termsOk =
@@ -251,9 +348,19 @@ export async function POST(request: NextRequest) {
     // HYBRID APPROVAL LOGIC:
     // Phase 1 (Beta - Auto-approval): When status is set to 'pending_review',
     // automatically change it to 'published' if approval mode is 'auto'
-    let finalStatus = status
-    if (status === 'pending_review' && approvalMode === 'auto') {
+    let finalStatus = requestedStatus
+    if (requestedStatus === 'pending_review' && approvalMode === 'auto') {
       finalStatus = 'published'
+    }
+
+    // Protect against accidental downgrade from auto-save after submit/publish.
+    // Once a release is in pending/published/approved, autosave must not push it back to draft.
+    if (
+      requestedStatus === 'draft' &&
+      existingRelease?.status &&
+      ['pending_review', 'approved', 'published'].includes(existingRelease.status)
+    ) {
+      finalStatus = existingRelease.status as 'pending_review' | 'approved' | 'published'
     }
 
     const releaseData: Record<string, unknown> = {
@@ -326,10 +433,13 @@ export async function POST(request: NextRequest) {
     assignIfDefined('signatory_email', signatory_email?.trim?.() ?? signatory_email)
 
     // Handle status transitions
-    if ((status === 'pending_review' || finalStatus === 'published') && !releaseData.submitted_at) {
+    if (
+      (finalStatus === 'pending_review' || finalStatus === 'published') &&
+      !existingRelease?.submitted_at
+    ) {
       releaseData.submitted_at = new Date().toISOString()
     }
-    if (finalStatus === 'published' && !releaseData.published_at) {
+    if (finalStatus === 'published' && !existingRelease?.published_at) {
       releaseData.published_at = new Date().toISOString()
     }
 

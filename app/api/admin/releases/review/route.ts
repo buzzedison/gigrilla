@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { Resend } from 'resend'
+import { createServiceClient } from '@/lib/supabase/service-client'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -88,13 +89,7 @@ export async function POST(request: NextRequest) {
     // Get the release
     const { data: release, error: releaseError } = await supabase
       .from('music_releases')
-      .select(`
-        *,
-        artist_profiles!music_releases_user_id_fkey (
-          stage_name,
-          user_id
-        )
-      `)
+      .select('*')
       .eq('id', releaseId)
       .single()
 
@@ -105,11 +100,29 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    let artistStageName = 'Artist'
+    try {
+      const serviceSupabase = createServiceClient()
+      const { data: artistProfile } = await serviceSupabase
+        .from('user_profiles')
+        .select('stage_name')
+        .eq('user_id', release.user_id)
+        .eq('profile_type', 'artist')
+        .maybeSingle()
+
+      if (artistProfile?.stage_name) {
+        artistStageName = artistProfile.stage_name
+      }
+    } catch (profileLookupError) {
+      console.warn('Could not resolve artist stage name for review email:', profileLookupError)
+    }
+
     // Determine new status based on action
     let newStatus: string
     switch (action) {
       case 'approve':
-        newStatus = 'approved'
+        // In the current workflow, admin approval should publish immediately.
+        newStatus = 'published'
         break
       case 'reject':
         newStatus = 'rejected'
@@ -128,16 +141,25 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString()
 
     // Update the release
+    const updatePayload: Record<string, unknown> = {
+      status: newStatus,
+      reviewed_at: now,
+      reviewed_by: user.id,
+      rejection_reason: action === 'reject' ? rejectionReason : null,
+      admin_notes: adminNotes || null,
+      updated_at: now
+    }
+
+    if (newStatus === 'published') {
+      updatePayload.published_at = now
+      if (!release.submitted_at) {
+        updatePayload.submitted_at = now
+      }
+    }
+
     const { error: updateError } = await supabase
       .from('music_releases')
-      .update({
-        status: newStatus,
-        reviewed_at: now,
-        reviewed_by: user.id,
-        rejection_reason: action === 'reject' ? rejectionReason : null,
-        admin_notes: adminNotes || null,
-        updated_at: now
-      })
+      .update(updatePayload)
       .eq('id', releaseId)
 
     if (updateError) {
@@ -175,7 +197,7 @@ export async function POST(request: NextRequest) {
       if (artistUser?.user?.email) {
         await sendReviewNotificationEmail({
           artistEmail: artistUser.user.email,
-          artistName: release.artist_profiles?.stage_name || 'Artist',
+          artistName: artistStageName,
           releaseTitle: release.release_title,
           action,
           rejectionReason,

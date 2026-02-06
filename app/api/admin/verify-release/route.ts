@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { createServiceClient } from '@/lib/supabase/service-client'
 
 // Helper to create Supabase client
 async function createSupabaseClient() {
@@ -187,12 +188,7 @@ export async function POST(request: NextRequest) {
     // Fetch release details
     const { data: release, error: releaseError } = await supabase
       .from('music_releases')
-      .select(`
-        *,
-        artist_profiles!music_releases_user_id_fkey (
-          stage_name
-        )
-      `)
+      .select('*')
       .eq('id', releaseId)
       .single()
 
@@ -217,7 +213,22 @@ export async function POST(request: NextRequest) {
     }
 
     const verificationResults = []
-    const artistName = release.artist_profiles?.stage_name || 'Unknown Artist'
+    let artistName = 'Unknown Artist'
+    try {
+      const serviceSupabase = createServiceClient()
+      const { data: artistProfile } = await serviceSupabase
+        .from('user_profiles')
+        .select('stage_name')
+        .eq('user_id', release.user_id)
+        .eq('profile_type', 'artist')
+        .maybeSingle()
+
+      if (artistProfile?.stage_name) {
+        artistName = artistProfile.stage_name
+      }
+    } catch (profileLookupError) {
+      console.warn('Could not resolve artist stage name for verification:', profileLookupError)
+    }
 
     // Verify GTIN (UPC/EAN) if present
     if (release.upc || release.ean) {

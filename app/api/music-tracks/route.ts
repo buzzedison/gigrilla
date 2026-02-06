@@ -135,9 +135,9 @@ export async function POST(request: NextRequest) {
       durationSeconds
     } = body
 
-    if (!releaseId || !trackNumber || !trackTitle || !isrc) {
-      return NextResponse.json({ 
-        error: 'Missing required fields: releaseId, trackNumber, trackTitle, isrc' 
+    if (!releaseId || !trackNumber) {
+      return NextResponse.json({
+        error: 'Missing required fields: releaseId, trackNumber'
       }, { status: 400 })
     }
 
@@ -161,15 +161,22 @@ export async function POST(request: NextRequest) {
       .eq('track_number', trackNumber)
       .single()
 
+    const normalizedTrackTitle = typeof trackTitle === 'string'
+      ? trackTitle.trim()
+      : ''
+    const normalizedIsrc = typeof isrc === 'string' && isrc.trim().length > 0
+      ? isrc.replace(/-/g, '').toUpperCase()
+      : null
+
     const trackData: Record<string, unknown> = {
       release_id: releaseId,
       user_id: user.id,
       track_number: trackNumber,
-      track_title: trackTitle,
+      track_title: normalizedTrackTitle,
       track_title_confirmed: trackTitleConfirmed || false,
       track_version: trackVersion || null,
       master_recording_date: masterRecordingDate || null,
-      isrc: isrc.replace(/-/g, '').toUpperCase(),
+      isrc: normalizedIsrc,
       isrc_confirmed: isrcConfirmed || false,
       iswc: iswc || null,
       iswc_confirmed: iswcConfirmed || false,
