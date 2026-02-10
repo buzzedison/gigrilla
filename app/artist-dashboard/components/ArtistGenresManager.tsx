@@ -164,7 +164,7 @@ export function ArtistGenresManager() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+      <div id="artist-genres-selector" className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 scroll-mt-28">
         <h2 className="text-xl font-semibold text-gray-900 mb-2">Artist Genres</h2>
         <p className="text-sm text-gray-600 mb-4">
           Select the main genres and sub-genres that define your artistry. These choices power discovery, search, and matching across Gigrilla.

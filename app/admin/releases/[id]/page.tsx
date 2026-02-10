@@ -33,10 +33,24 @@ interface Release {
   }
 }
 
+interface ReleaseTrack {
+  id: string
+  track_number: number
+  track_title: string | null
+  isrc: string | null
+  isrc_confirmed: boolean
+  iswc: string | null
+  iswc_confirmed: boolean
+  updated_at: string
+}
+
 export default function ReleaseReviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
   const [release, setRelease] = useState<Release | null>(null)
+  const [tracks, setTracks] = useState<ReleaseTrack[]>([])
+  const [tracksLoading, setTracksLoading] = useState(false)
+  const [tracksError, setTracksError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -71,21 +85,46 @@ export default function ReleaseReviewPage({ params }: { params: Promise<{ id: st
 
       if (res.status === 404) {
         setError('Release not found')
+        setTracks([])
         return
       }
 
       if (!res.ok) {
         setError(data?.error || 'Failed to load release')
+        setTracks([])
         return
       }
 
       if (data?.data) {
         setRelease(data.data)
+        setTracksLoading(true)
+        setTracksError(null)
+        try {
+          const tracksResponse = await fetch(`/api/admin/releases/${id}/tracks`)
+          const tracksPayload = await tracksResponse.json().catch(() => ({}))
+
+          if (tracksResponse.ok && Array.isArray(tracksPayload?.data)) {
+            setTracks(tracksPayload.data as ReleaseTrack[])
+          } else {
+            setTracks([])
+            if (tracksPayload?.error) {
+              setTracksError(tracksPayload.error)
+            }
+          }
+        } catch (trackErr) {
+          console.error('Failed to load release tracks:', trackErr)
+          setTracks([])
+          setTracksError('Failed to load track identifiers')
+        } finally {
+          setTracksLoading(false)
+        }
       } else {
         setError('Release not found')
+        setTracks([])
       }
     } catch (err) {
       setError('Failed to load release')
+      setTracks([])
       console.error(err)
     } finally {
       setLoading(false)
@@ -212,6 +251,51 @@ export default function ReleaseReviewPage({ params }: { params: Promise<{ id: st
                 { label: 'Track Count', value: release.track_count.toString() }
               ]}
             />
+
+            {/* Track ISRC/ISWC */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <Music className="w-5 h-5" />
+                Track Identifiers (ISRC / ISWC)
+              </h2>
+
+              {tracksLoading ? (
+                <div className="flex items-center gap-2 text-gray-500 text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading track identifiers...
+                </div>
+              ) : tracksError ? (
+                <p className="text-sm text-red-600">{tracksError}</p>
+              ) : tracks.length === 0 ? (
+                <p className="text-sm text-gray-500">No track identifiers submitted yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {tracks.map((track) => (
+                    <div key={track.id} className="rounded-lg border border-gray-200 p-4">
+                      <p className="font-medium text-gray-900 mb-2">
+                        Track {track.track_number}: {track.track_title || 'Untitled Track'}
+                      </p>
+                      <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <p className="text-gray-600">ISRC</p>
+                          <p className="font-mono text-gray-900">{track.isrc || 'N/A'}</p>
+                          <p className={`text-xs mt-1 ${track.isrc_confirmed ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            {track.isrc_confirmed ? 'Confirmed' : 'Not confirmed'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">ISWC</p>
+                          <p className="font-mono text-gray-900">{track.iswc || 'N/A'}</p>
+                          <p className={`text-xs mt-1 ${track.iswc_confirmed ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            {track.iswc_confirmed ? 'Confirmed' : 'Not confirmed'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Geographical Availability */}
             <DetailSection

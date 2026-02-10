@@ -309,7 +309,7 @@ export function ArtistAuditionsManager() {
       )}
 
       {/* Add/Edit Advert Form */}
-      <Card>
+      <Card id="artist-auditions-add" className="scroll-mt-28">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Megaphone className="w-5 h-5" />
@@ -602,7 +602,7 @@ export function ArtistAuditionsManager() {
       </Card>
 
       {/* Manage Adverts */}
-      <Card>
+      <Card id="artist-auditions-manage" className="scroll-mt-28">
         <CardHeader>
           <CardTitle>Manage Audition & Collaboration Adverts</CardTitle>
         </CardHeader>

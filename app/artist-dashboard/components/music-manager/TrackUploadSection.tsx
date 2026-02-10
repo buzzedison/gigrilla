@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Upload, Music, FileText, CheckCircle, AlertCircle, Loader2, X, Plus, Info, XCircle } from 'lucide-react'
+import { Upload, Music, FileText, CheckCircle, AlertCircle, Loader2, X, Plus, Info, XCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
 import { Input } from '../../../components/ui/input'
 import { Textarea } from '../../../components/ui/textarea'
@@ -12,7 +12,6 @@ import { ReleaseData, TrackData, createTrackData, releaseVersionOptions } from '
 import { TrackTalentSection } from './TrackTalentSection'
 import { TrackTagsSection } from './TrackTagsSection'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../components/ui/collapsible'
-import { ChevronDown, ChevronUp } from 'lucide-react'
 
 // Notification Modal Component
 interface NotificationModalProps {
@@ -155,6 +154,8 @@ interface TrackUploadSectionProps {
   onTracksUpdate?: (tracks: TrackData[]) => void
 }
 
+const TRACK_UPLOAD_INTRO_COLLAPSED_STORAGE_KEY = 'artist-music-manager:track-upload-intro-collapsed:v1'
+
 // Audio file validation
 const validateAudioFile = (file: File): { valid: boolean; error?: string } => {
   // Check file type
@@ -211,6 +212,7 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
   const [verifyingISWC, setVerifyingISWC] = useState<Record<number, boolean>>({})
   const [iswcErrors, setIswcErrors] = useState<Record<number, string>>({})
   const [iswcSuccess, setIswcSuccess] = useState<Record<number, string>>({})
+  const [isTrackUploadIntroCollapsed, setIsTrackUploadIntroCollapsed] = useState(false)
   const fileInputRefs = useRef<Record<number | string, HTMLInputElement | null>>({})
   const lyricsFileInputRefs = useRef<Record<number | string, HTMLInputElement | null>>({})
 
@@ -841,6 +843,24 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
     }
   }, [tracks.length])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const savedState = window.localStorage.getItem(TRACK_UPLOAD_INTRO_COLLAPSED_STORAGE_KEY)
+    if (savedState === '1') {
+      setIsTrackUploadIntroCollapsed(true)
+    }
+  }, [])
+
+  const toggleTrackUploadIntroCollapsed = () => {
+    setIsTrackUploadIntroCollapsed((prev) => {
+      const next = !prev
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(TRACK_UPLOAD_INTRO_COLLAPSED_STORAGE_KEY, next ? '1' : '0')
+      }
+      return next
+    })
+  }
+
   const toggleSection = (trackIndex: number, section: string) => {
     setExpandedSections(prev => {
       const trackSections = prev[trackIndex] || new Set()
@@ -890,54 +910,79 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
         subtitle={`Upload audio files and metadata for each track in this ${releaseData.releaseType || 'release'}`}
       >
         <div className="space-y-6">
-          {/* Important: Show upload count status */}
-          {releaseData.trackCount > 0 && !isLoadingTracks && (
-            <div className="bg-gradient-to-r from-purple-100 to-blue-100 border-2 border-purple-300 rounded-xl p-6">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0">
-                  <Music className="w-8 h-8 text-purple-600" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-bold text-gray-900 mb-2">
-                    Ready to Upload {releaseData.trackCount} Track{releaseData.trackCount > 1 ? 's' : ''}
-                  </h3>
-                  <p className="text-gray-700 mb-4">
-                    For each track below, you need to:
-                  </p>
-                  <ul className="space-y-2 text-sm text-gray-700">
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-purple-600" />
-                      <span><strong>Expand "Track Registration Details"</strong> - Enter ISRC, track title, and metadata</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-purple-600" />
-                      <span><strong>Expand "Track Uploader"</strong> - Upload your audio file (WAV/AIFF)</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-purple-600" />
-                      <span><strong>Click "Save Track"</strong> at the bottom of each track</span>
-                    </li>
-                  </ul>
-                  <p className="text-sm text-gray-600 mt-4 font-medium">
-                    💡 Tip: The first track's sections are already expanded to get you started!
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={toggleTrackUploadIntroCollapsed}
+              className="text-xs sm:text-sm"
+            >
+              {isTrackUploadIntroCollapsed ? (
+                <>
+                  <ChevronDown className="w-4 h-4 mr-2" />
+                  Expand Upload Instructions
+                </>
+              ) : (
+                <>
+                  <ChevronUp className="w-4 h-4 mr-2" />
+                  Collapse Upload Instructions
+                </>
+              )}
+            </Button>
+          </div>
 
-          <InfoBox title="Audio File Requirements" variant="info">
-            <ul className="list-disc list-inside space-y-1 text-sm">
-              <li>Audio Filenames must be = "Artist Name - Track Title.wav"</li>
-              <li>WAV/AIFF 16–24‑bit, 44.1–96 kHz. No clipping or dithering artifacts.</li>
-              <li>Loudness Tip: Aim −14 LUFS integrated; avoid limiter pumping.</li>
-              <li>Stereo required (mono not accepted).</li>
-              <li>True Peak must be &lt; -1 dBTP (to prevent clipping on streaming platforms).</li>
-              <li>No silence &gt;2 seconds at start/end of Audio.</li>
-              <li>Maximum file size: 2GB.</li>
-              <li>Minimum duration: 30 Seconds; Maximum duration: 60 Minutes.</li>
-            </ul>
-          </InfoBox>
+          {!isTrackUploadIntroCollapsed && (
+            <>
+              {/* Important: Show upload count status */}
+              {releaseData.trackCount > 0 && !isLoadingTracks && (
+                <div className="bg-gradient-to-r from-purple-100 to-blue-100 border-2 border-purple-300 rounded-xl p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0">
+                      <Music className="w-8 h-8 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-gray-900 mb-2">
+                        Ready to Upload {releaseData.trackCount} Track{releaseData.trackCount > 1 ? 's' : ''}
+                      </h3>
+                      <p className="text-gray-700 mb-4">
+                        For each track below, you need to:
+                      </p>
+                      <ul className="space-y-2 text-sm text-gray-700">
+                        <li className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-purple-600" />
+                          <span><strong>Expand "Track Registration Details"</strong> - Enter ISRC, track title, and metadata</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-purple-600" />
+                          <span><strong>Expand "Track Uploader"</strong> - Upload your audio file (WAV/AIFF)</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-purple-600" />
+                          <span><strong>Click "Save Track"</strong> at the bottom of each track</span>
+                        </li>
+                      </ul>
+                      <p className="text-sm text-gray-600 mt-4 font-medium">
+                        💡 Tip: The first track's sections are already expanded to get you started!
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <InfoBox title="Audio File Requirements" variant="info">
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  <li>Audio Filenames must be = "Artist Name - Track Title.wav"</li>
+                  <li>WAV/AIFF 16–24‑bit, 44.1–96 kHz. No clipping or dithering artifacts.</li>
+                  <li>Loudness Tip: Aim −14 LUFS integrated; avoid limiter pumping.</li>
+                  <li>Stereo required (mono not accepted).</li>
+                  <li>True Peak must be &lt; -1 dBTP (to prevent clipping on streaming platforms).</li>
+                  <li>No silence &gt;2 seconds at start/end of Audio.</li>
+                  <li>Maximum file size: 2GB.</li>
+                  <li>Minimum duration: 30 Seconds; Maximum duration: 60 Minutes.</li>
+                </ul>
+              </InfoBox>
+            </>
+          )}
 
           {/* Loading State */}
           {isLoadingTracks && (

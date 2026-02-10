@@ -11,9 +11,17 @@ interface PublishedRelease {
   id: string
   release_title: string
   status: string
+  track_count?: number
   submitted_at: string | null
   published_at: string | null
   created_at: string
+  identifier_summary?: {
+    total_tracks: number
+    tracks_with_isrc: number
+    tracks_with_iswc: number
+    confirmed_isrc: number
+    confirmed_iswc: number
+  }
   artist_profiles?: {
     stage_name?: string
   }
@@ -144,6 +152,18 @@ export default function PublishedRecentReleasesPage() {
                           Submitted {formatDate(release.submitted_at || release.created_at)}
                         </div>
                       </div>
+                      {release.identifier_summary && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+                            ISRC {release.identifier_summary.tracks_with_isrc}/{release.identifier_summary.total_tracks}
+                            {release.identifier_summary.confirmed_isrc > 0 ? ` (${release.identifier_summary.confirmed_isrc} confirmed)` : ''}
+                          </Badge>
+                          <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+                            ISWC {release.identifier_summary.tracks_with_iswc}/{release.identifier_summary.total_tracks}
+                            {release.identifier_summary.confirmed_iswc > 0 ? ` (${release.identifier_summary.confirmed_iswc} confirmed)` : ''}
+                          </Badge>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center text-gray-400">

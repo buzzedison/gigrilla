@@ -279,7 +279,7 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
 
       {showBranding && (
         <>
-          <Card>
+          <Card id="artist-logo-logo" className="scroll-mt-28">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-purple-900">
                 <Camera className="w-5 h-5" />
@@ -379,7 +379,7 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
             </CardContent>
           </Card>
 
-          <Card>
+          <Card id="artist-logo-header" className="scroll-mt-28">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-purple-900">
                 <FileImage className="w-5 h-5" />
@@ -484,7 +484,7 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
       )}
 
       {showPhotos && (
-        <Card>
+        <Card id="artist-photos-gallery" className="scroll-mt-28">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-purple-900">
               {/* eslint-disable-next-line jsx-a11y/alt-text */}

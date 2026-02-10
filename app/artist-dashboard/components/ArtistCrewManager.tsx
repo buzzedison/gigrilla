@@ -865,7 +865,7 @@ export function ArtistCrewManager() {
       )}
 
       {/* Profile Owner Section */}
-      <Card className="border-2 border-purple-200 bg-purple-50/30">
+      <Card id="artist-crew-owner" className="border-2 border-purple-200 bg-purple-50/30 scroll-mt-28">
         <CardHeader className="bg-gradient-to-r from-purple-100 to-purple-50 border-b border-purple-200">
           <CardTitle className="flex items-center gap-2 text-purple-900">
             <User className="w-5 h-5" />
@@ -1255,7 +1255,7 @@ export function ArtistCrewManager() {
       </Card>
 
       {/* Add Members & Support Team Section */}
-      <Card>
+      <Card id="artist-crew-add-members" className="scroll-mt-28">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Add Members & Support Team</span>
@@ -1458,67 +1458,69 @@ export function ArtistCrewManager() {
             </div>
           )}
 
-          {/* Manage Team Section */}
-          {crewMembers.filter(member => !member.isProfileOwner).length > 0 && (
-            <div className="space-y-4">
-              <h4 className="font-semibold text-sm text-purple-900">Manage Team</h4>
-              <div className="space-y-3">
-                {crewMembers.filter(member => !member.isProfileOwner).map((member) => (
-                  <div key={member.id} className="p-4 border border-purple-200 rounded-lg bg-white">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h5 className="font-medium text-purple-900">
-                          {getDisplayName(member)}
-                        </h5>
-                        <p className="text-sm text-purple-700 mt-1">
-                          {member.roles.length > 0 ? member.roles.join('; ') : 'No roles assigned'}
-                        </p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <Badge
-                            variant={member.status === 'joined' ? 'default' : 'secondary'}
-                            className={member.status === 'joined' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}
+          <div id="artist-crew-manage-team" className="scroll-mt-28">
+            {/* Manage Team Section */}
+            {crewMembers.filter(member => !member.isProfileOwner).length > 0 && (
+              <div className="space-y-4">
+                <h4 className="font-semibold text-sm text-purple-900">Manage Team</h4>
+                <div className="space-y-3">
+                  {crewMembers.filter(member => !member.isProfileOwner).map((member) => (
+                    <div key={member.id} className="p-4 border border-purple-200 rounded-lg bg-white">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h5 className="font-medium text-purple-900">
+                            {getDisplayName(member)}
+                          </h5>
+                          <p className="text-sm text-purple-700 mt-1">
+                            {member.roles.length > 0 ? member.roles.join('; ') : 'No roles assigned'}
+                          </p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <Badge
+                              variant={member.status === 'joined' ? 'default' : 'secondary'}
+                              className={member.status === 'joined' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}
+                            >
+                              {member.status === 'joined' ? 'Joined' : member.status === 'invited' ? 'Invited' : 'Invite'}
+                            </Badge>
+                            <span className="text-xs text-purple-600">Admin</span>
+                            <select
+                              value={member.isAdmin ? 'Yes' : 'No'}
+                              onChange={(e) => updateMemberAdmin(member.id, e.target.value === 'Yes')}
+                              disabled={updatingAdminMemberId === member.id}
+                              className="text-xs border border-purple-200 rounded px-2 py-1 focus:border-purple-400 focus:outline-none"
+                            >
+                              <option value="No">No</option>
+                              <option value="Yes">Yes</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="text-purple-700 border-purple-200">
+                            Manage
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => removeMember(member.id)}
+                            className="text-red-600 border-red-200 hover:bg-red-50"
                           >
-                            {member.status === 'joined' ? 'Joined' : member.status === 'invited' ? 'Invited' : 'Invite'}
-                          </Badge>
-                          <span className="text-xs text-purple-600">Admin</span>
-                          <select
-                            value={member.isAdmin ? 'Yes' : 'No'}
-                            onChange={(e) => updateMemberAdmin(member.id, e.target.value === 'Yes')}
-                            disabled={updatingAdminMemberId === member.id}
-                            className="text-xs border border-purple-200 rounded px-2 py-1 focus:border-purple-400 focus:outline-none"
-                          >
-                            <option value="No">No</option>
-                            <option value="Yes">Yes</option>
-                          </select>
+                            Remove
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" className="text-purple-700 border-purple-200">
-                          Manage
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => removeMember(member.id)}
-                          className="text-red-600 border-red-200 hover:bg-red-50"
-                        >
-                          Remove
-                        </Button>
-                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {crewMembers.filter(member => !member.isProfileOwner).length === 0 && !showAddMember && (
-            <div className="text-center py-8 text-gray-500">
-              <Users2 className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-              <p>No team members added yet.</p>
-              <p className="text-sm">Click &quot;Add Member&quot; to invite band members and support staff.</p>
-            </div>
-          )}
+            {crewMembers.filter(member => !member.isProfileOwner).length === 0 && !showAddMember && (
+              <div className="text-center py-8 text-gray-500">
+                <Users2 className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                <p>No team members added yet.</p>
+                <p className="text-sm">Click &quot;Add Member&quot; to invite band members and support staff.</p>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

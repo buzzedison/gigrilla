@@ -301,7 +301,7 @@ export function ArtistGigAbilityManager() {
       )}
 
       {/* Artist Base Location */}
-      <Card>
+      <Card id="artist-gigability-base" className="scroll-mt-28">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-purple-900">
             <MapPin className="w-5 h-5" />
@@ -342,7 +342,7 @@ export function ArtistGigAbilityManager() {
       </Card>
 
       {/* Artist Set Lengths */}
-      <Card>
+      <Card id="artist-gigability-sets" className="scroll-mt-28">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-purple-900">
             <Clock className="w-5 h-5" />
@@ -441,7 +441,7 @@ export function ArtistGigAbilityManager() {
       </Card>
 
       {/* Artist Local Gig Area */}
-      <Card>
+      <Card id="artist-gigability-local" className="scroll-mt-28">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-purple-900">
             <MapPin className="w-5 h-5" />
@@ -516,7 +516,7 @@ export function ArtistGigAbilityManager() {
       </Card>
 
       {/* Artist Wider Gig Area */}
-      <Card>
+      <Card id="artist-gigability-wider" className="scroll-mt-28">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-purple-900">
             <MapPin className="w-5 h-5" />

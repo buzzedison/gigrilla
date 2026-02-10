@@ -348,7 +348,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+          <div id="artist-profile-details" className="bg-gray-50 rounded-lg p-4 space-y-4 scroll-mt-28">
             <div className="mb-2">
               <h2 className="text-xl font-semibold text-gray-900">Artist Details</h2>
               <p className="text-sm text-gray-600">Populate and publish your Artist Profile so you can start making money.</p>
@@ -427,7 +427,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
             </div>
           </div>
 
-          <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+          <div id="artist-profile-social" className="bg-gray-50 rounded-lg p-4 space-y-2 scroll-mt-28">
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Artist Social Media Accounts</h2>
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
               <div className="space-y-2">

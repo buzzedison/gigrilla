@@ -106,13 +106,90 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const hydratedReleases = (releases || []).map((release) => ({
-      ...release,
-      artist_profiles: {
-        stage_name: stageNameByUserId.get(release.user_id) || 'Unknown Artist',
-        user_id: release.user_id
+    const releaseIds = (releases || [])
+      .map((release) => release.id)
+      .filter((releaseId): releaseId is string => typeof releaseId === 'string')
+
+    let trackSummaryByReleaseId = new Map<
+      string,
+      {
+        total_tracks: number
+        tracks_with_isrc: number
+        tracks_with_iswc: number
+        confirmed_isrc: number
+        confirmed_iswc: number
       }
-    }))
+    >()
+
+    if (releaseIds.length > 0) {
+      const { data: tracks, error: tracksError } = await serviceSupabase
+        .from('music_tracks')
+        .select('release_id, isrc, iswc, isrc_confirmed, iswc_confirmed')
+        .in('release_id', releaseIds)
+
+      if (tracksError) {
+        console.warn('Could not hydrate track identifiers for pending releases:', tracksError)
+      } else {
+        trackSummaryByReleaseId = (tracks || []).reduce((acc, track) => {
+          if (!track.release_id) return acc
+
+          const current = acc.get(track.release_id) || {
+            total_tracks: 0,
+            tracks_with_isrc: 0,
+            tracks_with_iswc: 0,
+            confirmed_isrc: 0,
+            confirmed_iswc: 0
+          }
+
+          current.total_tracks += 1
+          if (typeof track.isrc === 'string' && track.isrc.trim().length > 0) {
+            current.tracks_with_isrc += 1
+            if (track.isrc_confirmed) current.confirmed_isrc += 1
+          }
+          if (typeof track.iswc === 'string' && track.iswc.trim().length > 0) {
+            current.tracks_with_iswc += 1
+            if (track.iswc_confirmed) current.confirmed_iswc += 1
+          }
+
+          acc.set(track.release_id, current)
+          return acc
+        }, new Map<string, {
+          total_tracks: number
+          tracks_with_isrc: number
+          tracks_with_iswc: number
+          confirmed_isrc: number
+          confirmed_iswc: number
+        }>())
+      }
+    }
+
+    const hydratedReleases = (releases || []).map((release) => {
+      const summary = trackSummaryByReleaseId.get(release.id) || {
+        total_tracks: 0,
+        tracks_with_isrc: 0,
+        tracks_with_iswc: 0,
+        confirmed_isrc: 0,
+        confirmed_iswc: 0
+      }
+      const expectedTracks = Number.isFinite(release.track_count)
+        ? release.track_count
+        : summary.total_tracks
+
+      return {
+        ...release,
+        artist_profiles: {
+          stage_name: stageNameByUserId.get(release.user_id) || 'Unknown Artist',
+          user_id: release.user_id
+        },
+        identifier_summary: {
+          total_tracks: expectedTracks,
+          tracks_with_isrc: summary.tracks_with_isrc,
+          tracks_with_iswc: summary.tracks_with_iswc,
+          confirmed_isrc: summary.confirmed_isrc,
+          confirmed_iswc: summary.confirmed_iswc
+        }
+      }
+    })
 
     return NextResponse.json({
       success: true,

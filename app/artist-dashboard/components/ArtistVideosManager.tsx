@@ -334,7 +334,7 @@ export function ArtistVideosManager() {
       )}
 
       {/* Upload Section */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <div id="artist-videos-upload" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 scroll-mt-28">
         <div className="mb-6">
           <div className="flex items-center space-x-2 mb-2">
             <Youtube className="w-5 h-5 text-red-600" />
@@ -495,7 +495,7 @@ export function ArtistVideosManager() {
       </div>
 
       {/* Videos Grid */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <div id="artist-videos-manage" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 scroll-mt-28">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-2">
             <h2 className="text-lg font-semibold text-gray-900">Your Artist Videos</h2>

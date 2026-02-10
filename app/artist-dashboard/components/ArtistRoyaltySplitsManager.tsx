@@ -182,7 +182,7 @@ export function ArtistRoyaltySplitsManager() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <Card>
+      <Card id="artist-royalty-overview" className="scroll-mt-28">
         <CardHeader>
           <CardTitle className="text-purple-900">Default Gig Royalty Splits</CardTitle>
           <p className="text-sm text-gray-600">
@@ -215,7 +215,7 @@ export function ArtistRoyaltySplitsManager() {
       </Card>
 
       {/* Gig Royalty Splits */}
-      <Card>
+      <Card id="artist-royalty-splits" className="scroll-mt-28">
         <CardHeader>
           <div className="flex items-center justify-between">
             <h4 className="font-semibold text-purple-900">Team Members Gig Royalty Splits</h4>
@@ -281,7 +281,7 @@ export function ArtistRoyaltySplitsManager() {
 
       {/* Save Button */}
       {teamMembers.length > 0 && (
-        <Card>
+        <Card id="artist-royalty-save" className="scroll-mt-28">
           <CardContent className="pt-6">
             <div className="flex justify-end">
               <button

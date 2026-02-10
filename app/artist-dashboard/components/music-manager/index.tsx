@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Save, ArrowRight, ArrowLeft, Loader2, CheckCircle, Plus, Eye } from 'lucide-react'
+import { Save, ArrowRight, ArrowLeft, Loader2, CheckCircle, Plus, Eye, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
 import { ReleaseData, initialReleaseData } from './types'
 
@@ -103,6 +103,13 @@ const STEPS = [
 ] as const
 
 type StepId = typeof STEPS[number]['id']
+type MusicManagerView = 'upload' | 'manage'
+
+interface ArtistMusicManagerProps {
+  defaultView?: MusicManagerView
+}
+
+const MUSIC_MANAGER_INTRO_COLLAPSED_STORAGE_KEY = 'artist-music-manager:intro-collapsed:v1'
 
 // Convert DB release to frontend ReleaseData
 function dbToReleaseData(db: DbRelease): Partial<ReleaseData> {
@@ -225,7 +232,7 @@ function releaseDataToDb(data: ReleaseData, uploadGuideConfirmed: boolean, curre
   }
 }
 
-export function ArtistMusicManager() {
+export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManagerProps) {
   const permanentMessages = [
     {
       icon: '💎',
@@ -247,6 +254,7 @@ export function ArtistMusicManager() {
 
   // Current release ID (null for new release)
   const [releaseId, setReleaseId] = useState<string | null>(null)
+  const [musicView, setMusicView] = useState<MusicManagerView>(defaultView)
   
   // Current step state
   const [currentStep, setCurrentStep] = useState<StepId>('guide')
@@ -269,7 +277,9 @@ export function ArtistMusicManager() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isSavingAndProceeding, setIsSavingAndProceeding] = useState(false)
+  const [editingReleaseId, setEditingReleaseId] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [isIntroCollapsed, setIsIntroCollapsed] = useState(false)
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'idle'>('idle')
   const [approvalMode, setApprovalMode] = useState<'auto' | 'manual'>('auto')
   const [publishedReleases, setPublishedReleases] = useState<DbRelease[]>([])
@@ -335,6 +345,18 @@ export function ArtistMusicManager() {
     loadDraftRelease()
     loadPublishedReleases()
   }, [loadDraftRelease, loadPublishedReleases])
+
+  useEffect(() => {
+    setMusicView(defaultView)
+  }, [defaultView])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const savedState = window.localStorage.getItem(MUSIC_MANAGER_INTRO_COLLAPSED_STORAGE_KEY)
+    if (savedState === '1') {
+      setIsIntroCollapsed(true)
+    }
+  }, [])
 
   // Get current step index
   const currentStepIndex = STEPS.findIndex(s => s.id === currentStep)
@@ -728,6 +750,57 @@ export function ArtistMusicManager() {
     setUploadGuideConfirmed(false)
     setCurrentStep('guide')
     setSaveMessage(null)
+    setMusicView('upload')
+  }
+
+  const toggleIntroCollapsed = () => {
+    setIsIntroCollapsed((prev) => {
+      const next = !prev
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(MUSIC_MANAGER_INTRO_COLLAPSED_STORAGE_KEY, next ? '1' : '0')
+      }
+      return next
+    })
+  }
+
+  const applyReleaseToEditor = (release: DbRelease) => {
+    const nextStep = STEPS.some((step) => step.id === release.current_step)
+      ? (release.current_step as StepId)
+      : 'registration'
+
+    setReleaseId(release.id)
+    setUploadGuideConfirmed(release.upload_guide_confirmed)
+    setCurrentStep(nextStep)
+    setReleaseData({ ...initialReleaseData, ...dbToReleaseData(release) })
+    setMusicView('upload')
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
+
+  const handleEditRelease = async (release: DbRelease) => {
+    setEditingReleaseId(release.id)
+    try {
+      const response = await fetch(`/api/music-releases?id=${release.id}`)
+      const result = await response.json()
+      if (response.ok && result?.data) {
+        applyReleaseToEditor(result.data as DbRelease)
+        setSaveMessage({ type: 'success', text: `Opened "${(result.data as DbRelease).release_title}" for editing.` })
+        setTimeout(() => setSaveMessage(null), 3000)
+        return
+      }
+
+      // Fallback to list payload if detailed load fails.
+      applyReleaseToEditor(release)
+      setSaveMessage({ type: 'success', text: `Opened "${release.release_title}" for editing.` })
+      setTimeout(() => setSaveMessage(null), 3000)
+    } catch (error) {
+      console.error('Error opening release for edit:', error)
+      setSaveMessage({ type: 'error', text: 'Failed to load release for editing. Please try again.' })
+      setTimeout(() => setSaveMessage(null), 4000)
+    } finally {
+      setEditingReleaseId(null)
+    }
   }
 
   const formatDate = (value: string | null | undefined) => {
@@ -851,7 +924,7 @@ export function ArtistMusicManager() {
         </div>
       )}
 
-      <div className="bg-gradient-to-br from-purple-700 to-purple-900 rounded-3xl text-white p-6 md:p-8 mb-6 shadow-lg border border-purple-600/40">
+      <div id="artist-music-upload-intro" className="bg-gradient-to-br from-purple-700 to-purple-900 rounded-3xl text-white p-6 md:p-8 mb-6 shadow-lg border border-purple-600/40 scroll-mt-28">
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-3">
@@ -877,60 +950,147 @@ export function ArtistMusicManager() {
               )}
             </div>
           </div>
-          {releaseId && (
+          <div className="flex items-center gap-2">
+            {!isIntroCollapsed && releaseId && (
+              <Button
+                onClick={handleNewRelease}
+                variant="outline"
+                className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+              >
+                <Plus className="w-4 h-4 mr-2" /> New Release
+              </Button>
+            )}
             <Button
-              onClick={handleNewRelease}
+              type="button"
               variant="outline"
+              onClick={toggleIntroCollapsed}
               className="bg-white/10 border-white/20 text-white hover:bg-white/20"
             >
-              <Plus className="w-4 h-4 mr-2" /> New Release
+              {isIntroCollapsed ? (
+                <>
+                  <ChevronDown className="w-4 h-4 mr-2" /> Expand
+                </>
+              ) : (
+                <>
+                  <ChevronUp className="w-4 h-4 mr-2" /> Collapse
+                </>
+              )}
             </Button>
-          )}
-        </div>
-        <div className="mt-6 bg-white/10 rounded-2xl p-4">
-          <p className="text-xs uppercase tracking-wide text-purple-200 mb-3">Permanent Message</p>
-          <div className="space-y-3">
-            {permanentMessages.map((item) => (
-              <div key={item.icon} className="flex gap-3 text-sm leading-relaxed">
-                <span className="text-2xl" aria-hidden="true">{item.icon}</span>
-                <p className="text-purple-50">{item.message}</p>
-              </div>
-            ))}
           </div>
         </div>
+
+        {!isIntroCollapsed && (
+          <>
+            <div className="mt-6 bg-white/10 rounded-2xl p-4">
+              <p className="text-xs uppercase tracking-wide text-purple-200 mb-3">Permanent Message</p>
+              <div className="space-y-3">
+                {permanentMessages.map((item) => (
+                  <div key={item.icon} className="flex gap-3 text-sm leading-relaxed">
+                    <span className="text-2xl" aria-hidden="true">{item.icon}</span>
+                    <p className="text-purple-50">{item.message}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-5 inline-flex rounded-xl border border-white/20 bg-white/10 p-1">
+              <button
+                type="button"
+                onClick={() => setMusicView('upload')}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                  musicView === 'upload'
+                    ? 'bg-white text-purple-700'
+                    : 'text-purple-100 hover:bg-white/15'
+                }`}
+              >
+                Upload Music
+              </button>
+              <button
+                type="button"
+                onClick={() => setMusicView('manage')}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                  musicView === 'manage'
+                    ? 'bg-white text-purple-700'
+                    : 'text-purple-100 hover:bg-white/15'
+                }`}
+              >
+                Manage Music
+              </button>
+            </div>
+          </>
+        )}
+        {isIntroCollapsed && (
+          <div className="mt-4 text-xs text-purple-200">
+            Intro panel collapsed. Your preference is saved for next time.
+          </div>
+        )}
       </div>
 
-      {/* Published Releases Preview */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      {/* Manage Music Library */}
+      {musicView === 'manage' && (
+        <div id="artist-music-manage-library" className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6 scroll-mt-28">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 font-ui">Published Releases</h2>
+            <h2 className="text-lg font-semibold text-gray-900 font-ui">Manage Music Library</h2>
             <p className="text-sm text-gray-500">
               Approval mode: <span className="font-medium">{approvalMode === 'auto' ? 'Auto Publish' : 'Manual Review'}</span>
             </p>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => window.location.assign('/fan-dashboard')}
-            className="border-purple-200 text-purple-700 hover:bg-purple-50"
-          >
-            <Eye className="w-4 h-4 mr-2" />
-            Preview In Fan Dashboard
-          </Button>
+          <div className="flex items-center gap-2">
+            {musicView === 'manage' && (
+              <Button
+                variant="outline"
+                onClick={() => setMusicView('upload')}
+                className="border-purple-200 text-purple-700 hover:bg-purple-50"
+              >
+                Continue Upload Flow
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              onClick={() => window.location.assign('/fan-dashboard')}
+              className="border-purple-200 text-purple-700 hover:bg-purple-50"
+            >
+              <Eye className="w-4 h-4 mr-2" />
+              Preview In Fan Dashboard
+            </Button>
+          </div>
         </div>
 
         {isLoadingPublished ? (
           <p className="mt-4 text-sm text-gray-500">Loading published releases...</p>
         ) : (
           <div className="mt-4 space-y-4">
-            {pendingReleases.length > 0 && (
+            {releaseId && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-blue-900">Draft In Progress</p>
+                    <p className="mt-1 text-xs text-blue-800">
+                      You have an in-progress upload. Open Upload Music to continue editing and submit.
+                    </p>
+                  </div>
+                  {musicView === 'manage' && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setMusicView('upload')}
+                      className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                    >
+                      Continue Draft
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {approvalMode === 'manual' && pendingReleases.length > 0 && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm font-semibold text-amber-900">Pending Review ({pendingReleases.length})</p>
                 <p className="mt-1 text-xs text-amber-800">
                   These are submitted and waiting for admin approval before they appear in Fan Dashboard.
                 </p>
                 <div className="mt-3 grid gap-2 md:grid-cols-2">
-                  {pendingReleases.slice(0, 6).map((release) => (
+                  {(musicView === 'manage' ? pendingReleases : pendingReleases.slice(0, 6)).map((release) => (
                     <div key={release.id} className="rounded-lg border border-amber-200 bg-white p-3">
                       <p className="text-sm font-medium text-gray-900 line-clamp-1">{release.release_title}</p>
                       <p className="text-xs text-gray-600 mt-1">
@@ -939,6 +1099,23 @@ export function ArtistMusicManager() {
                       <p className="text-xs text-gray-500 mt-1">
                         Submitted {formatDate(release.submitted_at || release.created_at)}
                       </p>
+                      {musicView === 'manage' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditRelease(release)}
+                          disabled={editingReleaseId === release.id}
+                          className="mt-2 border-amber-300 text-amber-800 hover:bg-amber-100"
+                        >
+                          {editingReleaseId === release.id ? (
+                            <>
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Opening...
+                            </>
+                          ) : (
+                            'Edit Release'
+                          )}
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -953,7 +1130,7 @@ export function ArtistMusicManager() {
               <div>
                 <p className="text-sm font-semibold text-gray-900 mb-3">Live In Fan Dashboard ({publishedReleases.length})</p>
                 <div className="grid gap-3 md:grid-cols-2">
-                  {publishedReleases.slice(0, 6).map((release) => (
+                  {(musicView === 'manage' ? publishedReleases : publishedReleases.slice(0, 6)).map((release) => (
                     <div key={release.id} className="rounded-xl border border-gray-200 p-4 bg-gray-50">
                       <p className="text-sm font-semibold text-gray-900 line-clamp-1">{release.release_title}</p>
                       <p className="text-xs text-gray-600 mt-1">
@@ -962,6 +1139,23 @@ export function ArtistMusicManager() {
                       <p className="text-xs text-gray-500 mt-1">
                         Published {formatDate(release.published_at || release.created_at)}
                       </p>
+                      {musicView === 'manage' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditRelease(release)}
+                          disabled={editingReleaseId === release.id}
+                          className="mt-2 border-gray-300 text-gray-700 hover:bg-gray-100"
+                        >
+                          {editingReleaseId === release.id ? (
+                            <>
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Opening...
+                            </>
+                          ) : (
+                            'Edit Release'
+                          )}
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -969,128 +1163,133 @@ export function ArtistMusicManager() {
             )}
           </div>
         )}
-      </div>
+          </div>
+        )}
 
-      {/* Step Progress Indicator */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-purple-600 text-white text-sm font-bold">
-              {currentStepIndex + 1}
-            </span>
-            <div>
-              <p className="text-sm font-medium text-gray-900 font-ui">
-                {STEPS[currentStepIndex].label}
-              </p>
-              <p className="text-xs text-gray-500">
-                Step {currentStepIndex + 1} of {STEPS.length}
-              </p>
+      {musicView === 'upload' && (
+        <div id="artist-music-upload-workflow" className="scroll-mt-28">
+          {/* Step Progress Indicator */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-purple-600 text-white text-sm font-bold">
+                  {currentStepIndex + 1}
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 font-ui">
+                    {STEPS[currentStepIndex].label}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Step {currentStepIndex + 1} of {STEPS.length}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-400 font-ui">
+                  {Math.round(((currentStepIndex + 1) / STEPS.length) * 100)}% complete
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-1.5">
+              {STEPS.map((step, index) => (
+                <button
+                  key={step.id}
+                  onClick={() => {
+                    if (index <= currentStepIndex || isStepComplete(STEPS[index - 1]?.id)) {
+                      setCurrentStep(step.id)
+                    }
+                  }}
+                  className={`
+                    flex-1 h-2.5 rounded-full transition-all duration-300
+                    ${index < currentStepIndex
+                      ? 'bg-emerald-500 cursor-pointer hover:bg-emerald-400'
+                      : index === currentStepIndex
+                        ? 'bg-purple-500 shadow-sm'
+                        : 'bg-gray-200'
+                    }
+                  `}
+                  title={step.label}
+                />
+              ))}
+            </div>
+            {/* Step labels */}
+            <div className="flex justify-between mt-2 px-1">
+              {STEPS.map((step, index) => (
+                <span
+                  key={step.id}
+                  className={`text-[10px] font-ui truncate max-w-[60px] text-center ${
+                    index <= currentStepIndex ? 'text-gray-600' : 'text-gray-400'
+                  }`}
+                >
+                  {step.label}
+                </span>
+              ))}
             </div>
           </div>
-          <div className="text-right">
-            <p className="text-xs text-gray-400 font-ui">
-              {Math.round(((currentStepIndex + 1) / STEPS.length) * 100)}% complete
-            </p>
+
+          {/* Current Step Content */}
+          {renderStepContent()}
+
+          {/* Navigation Buttons */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mt-6">
+            <div className="flex justify-between items-center">
+              <div className="flex gap-3">
+                {!isFirstStep && (
+                  <Button
+                    variant="outline"
+                    onClick={goToPreviousStep}
+                    className="border-gray-300 hover:bg-gray-50"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" /> Back
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" /> Save Progress
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {isLastStep ? (
+                <Button
+                  onClick={handleSaveAndProceed}
+                  disabled={!isFormValid() || isSaving || isSavingAndProceeding}
+                  className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-md"
+                >
+                  {isSavingAndProceeding ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" /> {approvalMode === 'auto' ? 'Complete & Publish' : 'Complete & Submit'}
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  onClick={goToNextStep}
+                  disabled={!isStepComplete(currentStep)}
+                  className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
-        <div className="flex gap-1.5">
-          {STEPS.map((step, index) => (
-            <button
-              key={step.id}
-              onClick={() => {
-                if (index <= currentStepIndex || isStepComplete(STEPS[index - 1]?.id)) {
-                  setCurrentStep(step.id)
-                }
-              }}
-              className={`
-                flex-1 h-2.5 rounded-full transition-all duration-300
-                ${index < currentStepIndex
-                  ? 'bg-emerald-500 cursor-pointer hover:bg-emerald-400'
-                  : index === currentStepIndex
-                    ? 'bg-purple-500 shadow-sm'
-                    : 'bg-gray-200'
-                }
-              `}
-              title={step.label}
-            />
-          ))}
-        </div>
-        {/* Step labels */}
-        <div className="flex justify-between mt-2 px-1">
-          {STEPS.map((step, index) => (
-            <span
-              key={step.id}
-              className={`text-[10px] font-ui truncate max-w-[60px] text-center ${
-                index <= currentStepIndex ? 'text-gray-600' : 'text-gray-400'
-              }`}
-            >
-              {step.label}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* Current Step Content */}
-      {renderStepContent()}
-
-      {/* Navigation Buttons */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mt-6">
-        <div className="flex justify-between items-center">
-          <div className="flex gap-3">
-            {!isFirstStep && (
-              <Button
-                variant="outline"
-                onClick={goToPreviousStep}
-                className="border-gray-300 hover:bg-gray-50"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" /> Back
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              onClick={handleSave}
-              disabled={isSaving}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" /> Save Progress
-                </>
-              )}
-            </Button>
-          </div>
-
-          {isLastStep ? (
-            <Button
-              onClick={handleSaveAndProceed}
-              disabled={!isFormValid() || isSaving || isSavingAndProceeding}
-              className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-md"
-            >
-              {isSavingAndProceeding ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="w-4 h-4 mr-2" /> {approvalMode === 'auto' ? 'Complete & Publish' : 'Complete & Submit'}
-                </>
-              )}
-            </Button>
-          ) : (
-            <Button
-              onClick={goToNextStep}
-              disabled={!isStepComplete(currentStep)}
-              className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Invitation Modal */}
       <InvitationModal

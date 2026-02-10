@@ -17,6 +17,9 @@ import { ArtistPaymentsManager } from "./components/ArtistPaymentsManager"
 import { ArtistAuditionsManager } from "./components/ArtistAuditionsManager"
 import { ArtistRoyaltySplitsManager } from "./components/ArtistRoyaltySplitsManager"
 import { ArtistGigAbilityManager } from "./components/ArtistGigAbilityManager"
+import { ArtistGigCalendarManager } from "./components/ArtistGigCalendarManager"
+import { ArtistGigInvitesManager } from "./components/ArtistGigInvitesManager"
+import { ArtistGigRequestsManager } from "./components/ArtistGigRequestsManager"
 import { ArtistMusicManager } from "./components/ArtistMusicManager"
 import { ArtistContractStatusManager } from "./components/ArtistContractStatusManager"
 import { Badge } from "../components/ui/badge"
@@ -40,13 +43,19 @@ type DashboardSection =
   | 'auditions'
   | 'royalty'
   | 'gigability'
+  | 'gig-calendar'
+  | 'gig-create'
+  | 'gig-upcoming'
+  | 'gig-past'
+  | 'gig-invites'
+  | 'gig-requests'
   | 'bio'
   | 'genres'
-  | 'maps'
   | 'logo'
   | 'photos'
   | 'videos'
-  | 'music'
+  | 'music-upload'
+  | 'music-manage'
   | 'type'
   | 'contract'
 
@@ -61,6 +70,7 @@ export default function ArtistDashboard() {
   const [completionRefreshKey, setCompletionRefreshKey] = useState(0)
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const [onboardingCompleted, setOnboardingCompleted] = useState(false)
+  const [activeSubSectionKey, setActiveSubSectionKey] = useState<string | null>(null)
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _selectedTypeConfig = useMemo(() => {
@@ -92,11 +102,11 @@ export default function ArtistDashboard() {
         if (result.data.artist_type_id) {
           const subTypes = Array.isArray(result.data.artist_sub_types)
             ? result.data.artist_sub_types.reduce<Record<string, string[]>>((acc, value) => {
-                const [groupId, optionValue] = value.split(':')
-                if (!groupId || !optionValue) return acc
-                acc[groupId] = acc[groupId] ? [...acc[groupId], optionValue] : [optionValue]
-                return acc
-              }, {})
+              const [groupId, optionValue] = value.split(':')
+              if (!groupId || !optionValue) return acc
+              acc[groupId] = acc[groupId] ? [...acc[groupId], optionValue] : [optionValue]
+              return acc
+            }, {})
             : (result.data.artist_sub_types as Record<string, string[]>) ?? {}
 
           const selection: ArtistTypeSelection = {
@@ -123,6 +133,51 @@ export default function ArtistDashboard() {
   //   }
   // }, [onboardingCompleted, activeSection])
 
+  useEffect(() => {
+    if (!activeSubSectionKey) return
+
+    const [section, subSection] = activeSubSectionKey.split(':')
+    if (!section || !subSection || section !== activeSection) return
+
+    const targetId = `artist-${section}-${subSection}`
+    let cancelled = false
+    let attempts = 0
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const tryScroll = () => {
+      if (cancelled) return
+      const target = document.getElementById(targetId)
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        return
+      }
+
+      if (attempts < 8) {
+        attempts += 1
+        timer = setTimeout(tryScroll, 120)
+      }
+    }
+
+    timer = setTimeout(tryScroll, 0)
+
+    return () => {
+      cancelled = true
+      if (timer) {
+        clearTimeout(timer)
+      }
+    }
+  }, [activeSection, activeSubSectionKey])
+
+  const handleSectionChange = (section: DashboardSection) => {
+    setActiveSection(section)
+    setActiveSubSectionKey(null)
+  }
+
+  const handleSubSectionChange = (section: DashboardSection, subSection: string) => {
+    setActiveSection(section)
+    setActiveSubSectionKey(`${section}:${subSection}`)
+  }
+
   const handleArtistTypeChange = async (selection: ArtistTypeSelection) => {
     setIsSavingArtistType(true)
     try {
@@ -147,7 +202,7 @@ export default function ArtistDashboard() {
       const config = getArtistTypeConfig(selection.artistTypeId)
       setCapabilities(config?.capabilities ?? null)
       setCompletionRefreshKey(prev => prev + 1)
-      setActiveSection('profile')
+      handleSectionChange('profile')
     } catch (error) {
       console.error('Error saving artist type', error)
     } finally {
@@ -162,7 +217,13 @@ export default function ArtistDashboard() {
     }
 
     switch (section) {
-      case 'maps':
+      case 'gigability':
+      case 'gig-calendar':
+      case 'gig-create':
+      case 'gig-upcoming':
+      case 'gig-past':
+      case 'gig-invites':
+      case 'gig-requests':
         return capabilities.showGigAbility
       default:
         return true
@@ -194,8 +255,8 @@ export default function ArtistDashboard() {
       return content
     }
 
-    const message = section === 'maps'
-      ? 'GigAbility is hidden for your current artist type. Change your artist type to enable gig locations and pricing.'
+    const message = ['gigability', 'gig-calendar', 'gig-create', 'gig-upcoming', 'gig-past', 'gig-invites', 'gig-requests'].includes(section)
+      ? 'Gig Manager is hidden for your current artist type. Change your artist type to enable gig operations.'
       : 'This section is not available for your current artist type.'
 
     return (
@@ -245,10 +306,12 @@ export default function ArtistDashboard() {
         return (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             <div className="xl:col-span-3 space-y-4">
-              <ArtistTypeSelectorV2
-                value={artistTypeSelection}
-                onChange={handleArtistTypeChange}
-              />
+              <div id="artist-type-selector" className="scroll-mt-28">
+                <ArtistTypeSelectorV2
+                  value={artistTypeSelection}
+                  onChange={handleArtistTypeChange}
+                />
+              </div>
               {isSavingArtistType && (
                 <div className="text-sm text-gray-500">Saving artist type...</div>
               )}
@@ -314,7 +377,7 @@ export default function ArtistDashboard() {
           </div>
         )
       case 'gigability':
-        return (
+        return renderGuardedSection('gigability', (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             <div className="xl:col-span-3">
               <ArtistGigAbilityManager />
@@ -323,7 +386,63 @@ export default function ArtistDashboard() {
               <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
           </div>
-        )
+        ))
+      case 'gig-calendar':
+      case 'gig-create':
+        return renderGuardedSection('gig-create', (
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <div className="xl:col-span-3">
+              <ArtistGigCalendarManager defaultView="create" />
+            </div>
+            <div className="xl:col-span-1">
+              <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
+            </div>
+          </div>
+        ))
+      case 'gig-upcoming':
+        return renderGuardedSection('gig-upcoming', (
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <div className="xl:col-span-3">
+              <ArtistGigCalendarManager defaultView="upcoming" />
+            </div>
+            <div className="xl:col-span-1">
+              <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
+            </div>
+          </div>
+        ))
+      case 'gig-past':
+        return renderGuardedSection('gig-past', (
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <div className="xl:col-span-3">
+              <ArtistGigCalendarManager defaultView="past" />
+            </div>
+            <div className="xl:col-span-1">
+              <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
+            </div>
+          </div>
+        ))
+      case 'gig-invites':
+        return renderGuardedSection('gig-invites', (
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <div className="xl:col-span-3">
+              <ArtistGigInvitesManager />
+            </div>
+            <div className="xl:col-span-1">
+              <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
+            </div>
+          </div>
+        ))
+      case 'gig-requests':
+        return renderGuardedSection('gig-requests', (
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <div className="xl:col-span-3">
+              <ArtistGigRequestsManager />
+            </div>
+            <div className="xl:col-span-1">
+              <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
+            </div>
+          </div>
+        ))
       case 'bio':
         return (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
@@ -346,22 +465,22 @@ export default function ArtistDashboard() {
             </div>
           </div>
         )
-      case 'maps':
-        return renderGuardedSection('maps', (
+      case 'music-upload':
+        return (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             <div className="xl:col-span-3">
-              <ArtistGigAbilityManager />
+              <ArtistMusicManager defaultView="upload" />
             </div>
             <div className="xl:col-span-1">
               <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
           </div>
-        ))
-      case 'music':
+        )
+      case 'music-manage':
         return (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             <div className="xl:col-span-3">
-              <ArtistMusicManager />
+              <ArtistMusicManager defaultView="manage" />
             </div>
             <div className="xl:col-span-1">
               <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
@@ -394,10 +513,16 @@ export default function ArtistDashboard() {
     type: 'Artist Type & Configuration',
     royalty: 'Default Gig Royalty Splits',
     gigability: 'Artist Gig-Ability',
+    'gig-calendar': 'Add / Create Gig',
+    'gig-create': 'Add / Create Gig',
+    'gig-upcoming': 'Amend Upcoming Gigs',
+    'gig-past': 'Past & Unscheduled Gigs',
+    'gig-invites': 'Gig Invites',
+    'gig-requests': 'Gig Requests',
     bio: 'Artist Biography',
     genres: 'Artist Genres',
-    maps: 'GigAbility Maps',
-    music: 'Music Manager'
+    'music-upload': 'Music Manager • Upload Music',
+    'music-manage': 'Music Manager • Manage Music'
   }
 
   const headerSubtitleMap: Record<DashboardSection, string> = {
@@ -412,10 +537,16 @@ export default function ArtistDashboard() {
     type: 'Select your official artist type and sub-types',
     royalty: 'Set default royalty splits for gigs',
     gigability: 'Set your base location and stage timing preferences',
+    'gig-calendar': 'Create a new gig booking',
+    'gig-create': 'Create a new gig booking',
+    'gig-upcoming': 'Edit or amend your upcoming gig bookings',
+    'gig-past': 'View past and unscheduled gigs',
+    'gig-invites': 'Review and respond to gig invitations',
+    'gig-requests': 'Track direct gig booking requests from venues',
     bio: 'Write and manage your artist biography',
     genres: 'Select your music genres and sub-genres',
-    maps: 'Set your gig location preferences and availability',
-    music: 'Upload and manage your music releases'
+    'music-upload': 'Upload new releases and complete submission details',
+    'music-manage': 'Manage drafts, pending releases, and published catalog'
   }
 
   return (
@@ -427,8 +558,13 @@ export default function ArtistDashboard() {
           </SheetHeader>
           <ArtistSidebar
             activeSection={activeSection}
+            activeSubSectionKey={activeSubSectionKey}
             onSectionChange={(section) => {
-              setActiveSection(section)
+              handleSectionChange(section)
+              setIsMobileNavOpen(false)
+            }}
+            onSubSectionChange={(section, subSection) => {
+              handleSubSectionChange(section, subSection)
               setIsMobileNavOpen(false)
             }}
             capabilities={capabilities}
@@ -442,7 +578,9 @@ export default function ArtistDashboard() {
             <div className="fixed left-0 top-0 z-10 h-full w-64">
               <ArtistSidebar
                 activeSection={activeSection}
-                onSectionChange={setActiveSection}
+                activeSubSectionKey={activeSubSectionKey}
+                onSectionChange={handleSectionChange}
+                onSubSectionChange={handleSubSectionChange}
                 capabilities={capabilities}
                 completedSections={completedSectionsForSidebar}
                 hideTypeSection={false}

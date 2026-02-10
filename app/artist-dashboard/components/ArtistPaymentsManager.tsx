@@ -167,7 +167,7 @@ export function ArtistPaymentsManager() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="space-y-4">
+          <div id="artist-payments-preference" className="space-y-4 scroll-mt-28">
             <Label className="text-base font-medium">
               Should we use the same Banking Details for this Artist Profile payments as your Fan Profile?
             </Label>
@@ -193,7 +193,7 @@ export function ArtistPaymentsManager() {
           {!paymentDetails.use_fan_banking && (
             <div className="space-y-6 pt-4 border-t">
               {/* Payments Out Section */}
-              <div className="space-y-4">
+              <div id="artist-payments-out" className="space-y-4 scroll-mt-28">
                 <div className="flex items-start space-x-2 text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
                   <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <p>Banking details for payments you make (e.g., paying crew members, vendors)</p>
@@ -304,7 +304,7 @@ export function ArtistPaymentsManager() {
               </div>
 
               {/* Payments In Section */}
-              <div className="space-y-4 pt-4 border-t">
+              <div id="artist-payments-in" className="space-y-4 pt-4 border-t scroll-mt-28">
                 <div className="flex items-start space-x-2 text-sm text-gray-600 bg-green-50 p-3 rounded-lg">
                   <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <p>Banking details to receive payments (e.g., gig fees, royalties)</p>

@@ -304,7 +304,7 @@ export function ArtistContractStatusManager() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Record Label Section */}
-          <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+          <div id="artist-contract-label" className="bg-gray-50 rounded-lg p-4 space-y-4 scroll-mt-28">
             <h2 className="text-xl font-semibold text-gray-900">Record Label Status</h2>
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -378,7 +378,7 @@ export function ArtistContractStatusManager() {
           </div>
 
           {/* Music Publisher Section */}
-          <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+          <div id="artist-contract-publisher" className="bg-gray-50 rounded-lg p-4 space-y-4 scroll-mt-28">
             <h2 className="text-xl font-semibold text-gray-900">Music Publisher Status</h2>
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -452,7 +452,7 @@ export function ArtistContractStatusManager() {
           </div>
 
           {/* Artist Manager Section */}
-          <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+          <div id="artist-contract-manager" className="bg-gray-50 rounded-lg p-4 space-y-4 scroll-mt-28">
             <h2 className="text-xl font-semibold text-gray-900">Artist Manager Status</h2>
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -526,7 +526,7 @@ export function ArtistContractStatusManager() {
           </div>
 
           {/* Booking Agent Section */}
-          <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+          <div id="artist-contract-booking" className="bg-gray-50 rounded-lg p-4 space-y-4 scroll-mt-28">
             <h2 className="text-xl font-semibold text-gray-900">Booking Agent Status</h2>
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-2">
