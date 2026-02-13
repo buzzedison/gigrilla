@@ -3,6 +3,18 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { uploadToR2, isR2Configured, R2_CONFIG } from '@/lib/cloudflare/r2'
 
+interface UploadConfig {
+  folder: string
+  subfolder?: string
+  maxSize: number
+  allowedTypes: readonly string[]
+  minWidth?: number
+  minHeight?: number
+  maxWidth?: number
+  maxHeight?: number
+  requireSquare?: boolean
+}
+
 // Supported upload types with their configurations
 const UPLOAD_CONFIGS = {
   avatar: {
@@ -19,6 +31,16 @@ const UPLOAD_CONFIGS = {
     folder: 'cover-artwork',
     maxSize: 10 * 1024 * 1024, // 10MB
     allowedTypes: ['image/jpeg', 'image/png'],
+  },
+  'gig-artwork': {
+    folder: 'gig-artwork',
+    maxSize: 10 * 1024 * 1024, // 10MB
+    allowedTypes: ['image/jpeg', 'image/png'],
+    minWidth: 3000,
+    minHeight: 3000,
+    maxWidth: 6000,
+    maxHeight: 6000,
+    requireSquare: true,
   },
   'artist-logo': {
     folder: 'artist-photos',
@@ -77,9 +99,67 @@ const UPLOAD_CONFIGS = {
     maxSize: 10 * 1024 * 1024, // 10MB
     allowedTypes: ['application/pdf', 'image/jpeg', 'image/png'],
   },
-} as const
+} satisfies Record<string, UploadConfig>
 
 type UploadType = keyof typeof UPLOAD_CONFIGS
+
+function readImageDimensions(buffer: Buffer, mimeType: string): { width: number; height: number } | null {
+  if (mimeType === 'image/png') {
+    if (buffer.length < 24) return null
+    const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+    for (let index = 0; index < pngSignature.length; index += 1) {
+      if (buffer[index] !== pngSignature[index]) return null
+    }
+    return {
+      width: buffer.readUInt32BE(16),
+      height: buffer.readUInt32BE(20),
+    }
+  }
+
+  if (mimeType === 'image/jpeg') {
+    if (buffer.length < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8) return null
+    let offset = 2
+
+    while (offset < buffer.length) {
+      if (buffer[offset] !== 0xff) {
+        offset += 1
+        continue
+      }
+
+      while (offset < buffer.length && buffer[offset] === 0xff) {
+        offset += 1
+      }
+      if (offset >= buffer.length) break
+
+      const marker = buffer[offset]
+      offset += 1
+
+      if (marker === 0xd9 || marker === 0xda) break
+      if (offset + 1 >= buffer.length) break
+
+      const segmentLength = buffer.readUInt16BE(offset)
+      offset += 2
+      if (segmentLength < 2 || offset + segmentLength - 2 > buffer.length) break
+
+      const isStartOfFrame =
+        (marker >= 0xc0 && marker <= 0xc3) ||
+        (marker >= 0xc5 && marker <= 0xc7) ||
+        (marker >= 0xc9 && marker <= 0xcb) ||
+        (marker >= 0xcd && marker <= 0xcf)
+
+      if (isStartOfFrame) {
+        if (segmentLength < 7) return null
+        const height = buffer.readUInt16BE(offset + 1)
+        const width = buffer.readUInt16BE(offset + 3)
+        return { width, height }
+      }
+
+      offset += segmentLength - 2
+    }
+  }
+
+  return null
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -142,7 +222,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const config = UPLOAD_CONFIGS[type as UploadType]
+    const config = UPLOAD_CONFIGS[type as UploadType] as UploadConfig
 
     // Validate file type
     if (!(config.allowedTypes as readonly string[]).includes(file.type)) {
@@ -160,6 +240,33 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    // Convert file to buffer for validation and upload
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    if ('minWidth' in config || 'maxWidth' in config || 'requireSquare' in config) {
+      const dimensions = readImageDimensions(buffer, file.type)
+      if (!dimensions) {
+        return NextResponse.json({ error: 'Unable to read image dimensions from upload' }, { status: 400 })
+      }
+
+      if (config.requireSquare && dimensions.width !== dimensions.height) {
+        return NextResponse.json({ error: 'Image must be square (1:1 ratio)' }, { status: 400 })
+      }
+      if (typeof config.minWidth === 'number' && dimensions.width < config.minWidth) {
+        return NextResponse.json({ error: `Image width must be at least ${config.minWidth}px` }, { status: 400 })
+      }
+      if (typeof config.minHeight === 'number' && dimensions.height < config.minHeight) {
+        return NextResponse.json({ error: `Image height must be at least ${config.minHeight}px` }, { status: 400 })
+      }
+      if (typeof config.maxWidth === 'number' && dimensions.width > config.maxWidth) {
+        return NextResponse.json({ error: `Image width must be no more than ${config.maxWidth}px` }, { status: 400 })
+      }
+      if (typeof config.maxHeight === 'number' && dimensions.height > config.maxHeight) {
+        return NextResponse.json({ error: `Image height must be no more than ${config.maxHeight}px` }, { status: 400 })
+      }
+    }
+
     // Generate R2 key based on type
     const fileExt = file.name.split('.').pop() || 'jpg'
     const timestamp = Date.now()
@@ -174,10 +281,6 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Upload API: Uploading file for user:', user.id, 'type:', type, 'key:', r2Key)
-
-    // Convert file to buffer for R2 upload
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
 
     // Upload to Cloudflare R2
     const uploadResult = await uploadToR2(buffer, r2Key, file.type)

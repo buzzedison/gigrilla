@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
     Plus, Check, Loader2, AlertCircle, Upload, X, Info,
     Calendar, Clock, MapPin, Globe, Ticket, Image as ImageIcon,
@@ -11,6 +11,7 @@ import { Button } from '../../../components/ui/button'
 import { Input } from '../../../components/ui/input'
 import { Label } from '../../../components/ui/label'
 import { Textarea } from '../../../components/ui/textarea'
+import { LocationAutocompleteInput } from '../../../components/ui/location-autocomplete'
 
 /* ── Types ────────────────────────────────────────────── */
 
@@ -24,6 +25,20 @@ interface TicketOption {
     benefits: string
     price: string
     currency: string
+}
+
+interface VenueSuggestion {
+    id: string
+    name: string
+    address: string
+    city?: string
+    state?: string
+    country?: string
+    postalCode?: string
+    contactName?: string
+    contactEmail?: string
+    contactPhoneCode?: string
+    contactPhone?: string
 }
 
 interface GigFormData {
@@ -58,7 +73,7 @@ interface GigFormData {
     ticketPriceOnline: string
     ticketCurrency: string
     customTickets: TicketOption[]
-    ticketAvailability: 'skip' | 'full_capacity' | 'custom'
+    ticketAvailability: 'skip' | 'full_venue_capacity' | 'less_than_full_venue_capacity'
     customTicketCount: string
     // 8. Artwork
     artworkFile: File | null
@@ -71,6 +86,8 @@ interface GigFormData {
     // Description (additional)
     description: string
 }
+
+export type CreateGigFormInitialData = Partial<GigFormData>
 
 const AGE_OPTIONS = [
     'All ages',
@@ -91,19 +108,6 @@ const CURRENCIES = [
     { value: 'GHS', label: '₵ GHS', symbol: '₵' },
 ]
 
-const PHONE_CODES = [
-    { value: '+44', label: '🇬🇧 +44' },
-    { value: '+1', label: '🇺🇸 +1' },
-    { value: '+233', label: '🇬🇭 +233' },
-    { value: '+353', label: '🇮🇪 +353' },
-    { value: '+49', label: '🇩🇪 +49' },
-    { value: '+33', label: '🇫🇷 +33' },
-    { value: '+34', label: '🇪🇸 +34' },
-    { value: '+61', label: '🇦🇺 +61' },
-    { value: '+91', label: '🇮🇳 +91' },
-    { value: '+234', label: '🇳🇬 +234' },
-]
-
 const DEFAULT_FORM: GigFormData = {
     gigEventName: '',
     gigType: 'in_person',
@@ -116,7 +120,7 @@ const DEFAULT_FORM: GigFormData = {
     venueAddress: '',
     venueContactName: '',
     venueContactEmail: '',
-    venueContactPhoneCode: '+44',
+    venueContactPhoneCode: '+',
     venueContactPhone: '',
     liveStreamUrl: '',
     ageRestrictionMode: 'unknown',
@@ -163,18 +167,62 @@ function InfoBox({ children }: { children: React.ReactNode }) {
     )
 }
 
+function loadImageDimensions(file: File): Promise<{ width: number; height: number }> {
+    return new Promise((resolve, reject) => {
+        const objectUrl = URL.createObjectURL(file)
+        const image = new Image()
+
+        image.onload = () => {
+            const width = image.naturalWidth
+            const height = image.naturalHeight
+            URL.revokeObjectURL(objectUrl)
+            resolve({ width, height })
+        }
+
+        image.onerror = () => {
+            URL.revokeObjectURL(objectUrl)
+            reject(new Error('Could not read image dimensions'))
+        }
+
+        image.src = objectUrl
+    })
+}
+
 /* ── Component ────────────────────────────────────────── */
 
 interface CreateGigFormProps {
     onCancel: () => void
     onSuccess: () => void
+    mode?: 'create' | 'edit'
+    bookingId?: string
+    initialData?: CreateGigFormInitialData
 }
 
-export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
-    const [form, setForm] = useState<GigFormData>({ ...DEFAULT_FORM })
+function buildInitialFormState(initialData?: CreateGigFormInitialData): GigFormData {
+    return {
+        ...DEFAULT_FORM,
+        ...(initialData || {}),
+        venueContactPhoneCode: initialData?.venueContactPhoneCode || DEFAULT_FORM.venueContactPhoneCode,
+    }
+}
+
+export function CreateGigForm({
+    onCancel,
+    onSuccess,
+    mode = 'create',
+    bookingId,
+    initialData,
+}: CreateGigFormProps) {
+    const [form, setForm] = useState<GigFormData>(() => buildInitialFormState(initialData))
     const [submitting, setSubmitting] = useState(false)
     const [submitError, setSubmitError] = useState<string | null>(null)
     const [expandedTicketBuilder, setExpandedTicketBuilder] = useState(false)
+    const [showFanPromotionInfo, setShowFanPromotionInfo] = useState(false)
+    const [venueSuggestions, setVenueSuggestions] = useState<VenueSuggestion[]>([])
+    const [venueSuggestionsLoading, setVenueSuggestionsLoading] = useState(false)
+    const [venueSuggestionsError, setVenueSuggestionsError] = useState<string | null>(null)
+    const [venueDropdownOpen, setVenueDropdownOpen] = useState(false)
+    const venueFetchIdRef = useRef(0)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     // New ticket being built
@@ -191,12 +239,135 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
     const isStreaming = form.gigType === 'streaming'
     const hasPaidTickets = form.paidTicketOptions.length > 0
     const currencySymbol = CURRENCIES.find(c => c.value === form.ticketCurrency)?.symbol || '£'
+    const isEditMode = mode === 'edit'
+
+    useEffect(() => {
+        setForm(buildInitialFormState(initialData))
+    }, [initialData, mode])
 
     const update = <K extends keyof GigFormData>(key: K, value: GigFormData[K]) => {
         setForm(prev => ({ ...prev, [key]: value }))
     }
 
+    useEffect(() => {
+        const query = form.venueName.trim()
+
+        if (!isInPerson || query.length < 2) {
+            setVenueSuggestions([])
+            setVenueSuggestionsError(null)
+            setVenueSuggestionsLoading(false)
+            return
+        }
+
+        const fetchId = ++venueFetchIdRef.current
+        const abortController = new AbortController()
+        const debounceTimeout = window.setTimeout(async () => {
+            setVenueSuggestionsLoading(true)
+            setVenueSuggestionsError(null)
+
+            try {
+                const response = await fetch(`/api/venues/search?query=${encodeURIComponent(query)}`, {
+                    signal: abortController.signal,
+                    cache: 'no-store',
+                    headers: { Accept: 'application/json' },
+                })
+
+                const payload = await response.json().catch(() => ({}))
+                if (fetchId !== venueFetchIdRef.current) return
+
+                if (!response.ok) {
+                    setVenueSuggestions([])
+                    setVenueSuggestionsError(payload?.error || 'Unable to search venues right now.')
+                    return
+                }
+
+                const suggestions = Array.isArray(payload?.suggestions)
+                    ? payload.suggestions as VenueSuggestion[]
+                    : []
+                setVenueSuggestions(suggestions)
+            } catch (error) {
+                if (abortController.signal.aborted || fetchId !== venueFetchIdRef.current) return
+                setVenueSuggestions([])
+                setVenueSuggestionsError(error instanceof Error ? error.message : 'Unable to search venues right now.')
+            } finally {
+                if (fetchId === venueFetchIdRef.current) {
+                    setVenueSuggestionsLoading(false)
+                }
+            }
+        }, 250)
+
+        return () => {
+            abortController.abort()
+            window.clearTimeout(debounceTimeout)
+        }
+    }, [form.venueName, isInPerson])
+
+    const applyVenueSuggestion = (suggestion: VenueSuggestion) => {
+        update('venueName', suggestion.name)
+        if (suggestion.address) {
+            update('venueAddress', suggestion.address)
+        }
+        if (suggestion.contactName) {
+            update('venueContactName', suggestion.contactName)
+        }
+        if (suggestion.contactEmail) {
+            update('venueContactEmail', suggestion.contactEmail)
+        }
+        if (suggestion.contactPhoneCode) {
+            update('venueContactPhoneCode', suggestion.contactPhoneCode)
+        }
+        if (suggestion.contactPhone) {
+            update('venueContactPhone', suggestion.contactPhone)
+        }
+        setVenueDropdownOpen(false)
+    }
+
     const toggleArrayItem = (key: 'ageRestrictions' | 'freeTicketOptions' | 'paidTicketOptions', value: string) => {
+        if (key === 'ageRestrictions') {
+            setForm(prev => {
+                const current = prev.ageRestrictions
+                const alreadySelected = current.includes(value)
+
+                if (value === 'All ages') {
+                    return {
+                        ...prev,
+                        ageRestrictions: alreadySelected ? [] : ['All ages'],
+                    }
+                }
+
+                const filtered = current.filter(option => option !== 'All ages')
+                const isOver = value.startsWith('Over')
+                const isUnder = value.startsWith('Under')
+
+                if (alreadySelected) {
+                    return {
+                        ...prev,
+                        ageRestrictions: filtered.filter(option => option !== value),
+                    }
+                }
+
+                if (isOver) {
+                    return {
+                        ...prev,
+                        ageRestrictions: [...filtered.filter(option => !option.startsWith('Over')), value],
+                    }
+                }
+
+                if (isUnder) {
+                    return {
+                        ...prev,
+                        ageRestrictions: [...filtered.filter(option => !option.startsWith('Under')), value],
+                    }
+                }
+
+                return {
+                    ...prev,
+                    ageRestrictions: [...filtered, value],
+                }
+            })
+            return
+        }
+
         setForm(prev => {
             const arr = prev[key]
             return {
@@ -206,18 +377,87 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
         })
     }
 
-    const handleArtworkSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const getAgeDisplay = (selections: string[]) => {
+        if (selections.length === 0) return 'None selected'
+        if (selections.includes('All ages')) return 'Family Friendly'
+
+        const over = selections.find(option => option.startsWith('Over')) || null
+        const under = selections.find(option => option.startsWith('Under')) || null
+        const parts: string[] = []
+        if (over) parts.push(over)
+        if (under) parts.push(under)
+        return parts.length > 0 ? parts.join('. ') + '.' : selections.join(', ')
+    }
+
+    const validateAgeRestrictionSelections = (selections: string[]) => {
+        const uniqueSelections = Array.from(new Set(
+            selections.map(option => option.trim()).filter(Boolean)
+        ))
+
+        if (uniqueSelections.length === 0) {
+            throw new Error('Please choose at least one age restriction option')
+        }
+
+        if (uniqueSelections.includes('All ages') && uniqueSelections.length > 1) {
+            throw new Error('Choose either "All ages" or one "Over" and/or one "Under" option')
+        }
+
+        const unsupported = uniqueSelections.filter(option =>
+            option !== 'All ages' && !option.startsWith('Over') && !option.startsWith('Under')
+        )
+        if (unsupported.length > 0) {
+            throw new Error('One or more age restriction options are invalid')
+        }
+
+        const overCount = uniqueSelections.filter(option => option.startsWith('Over')).length
+        const underCount = uniqueSelections.filter(option => option.startsWith('Under')).length
+        if (overCount > 1 || underCount > 1) {
+            throw new Error('You can choose up to one "Over" and one "Under" age option')
+        }
+
+        return uniqueSelections
+    }
+
+    const ageDisplayPreview = getAgeDisplay(form.ageRestrictions)
+
+    const handleArtworkSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file) return
         // Validate
         if (!['image/jpeg', 'image/png'].includes(file.type)) {
             setSubmitError('Artwork must be a .jpg or .png file')
+            e.target.value = ''
             return
         }
         if (file.size > 10 * 1024 * 1024) {
             setSubmitError('Artwork must be less than 10MB')
+            e.target.value = ''
             return
         }
+
+        try {
+            const { width, height } = await loadImageDimensions(file)
+            if (width !== height) {
+                setSubmitError('Artwork must be a square image (1:1 ratio)')
+                e.target.value = ''
+                return
+            }
+            if (width < 3000 || height < 3000) {
+                setSubmitError('Artwork must be at least 3000 x 3000 pixels')
+                e.target.value = ''
+                return
+            }
+            if (width > 6000 || height > 6000) {
+                setSubmitError('Artwork must be no larger than 6000 x 6000 pixels')
+                e.target.value = ''
+                return
+            }
+        } catch (error) {
+            setSubmitError(error instanceof Error ? error.message : 'Could not validate image dimensions')
+            e.target.value = ''
+            return
+        }
+
         const previewUrl = URL.createObjectURL(file)
         update('artworkFile', file)
         update('artworkPreview', previewUrl)
@@ -225,7 +465,9 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
     }
 
     const removeArtwork = () => {
-        if (form.artworkPreview) URL.revokeObjectURL(form.artworkPreview)
+        if (form.artworkPreview?.startsWith('blob:')) {
+            URL.revokeObjectURL(form.artworkPreview)
+        }
         update('artworkFile', null)
         update('artworkPreview', '')
     }
@@ -253,44 +495,55 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
         setSubmitError(null)
 
         try {
+            if (isEditMode && !bookingId) {
+                throw new Error('Cannot edit this gig: booking ID is missing')
+            }
             // Validation
             if (!form.gigEventName.trim()) throw new Error('Please enter a Gig Event Name')
             if (!form.gigDate) throw new Error('Please enter the date of the gig')
             if (!form.setStartTime) throw new Error('Please enter your set start time')
+            const normalizedAgeRestrictions = form.ageRestrictionMode === 'has_restrictions'
+                ? validateAgeRestrictionSelections(form.ageRestrictions)
+                : []
+            if (form.publishMode === 'scheduled' && !form.publishDate) {
+                throw new Error('Please enter the date to publish this gig')
+            }
+            if (form.ticketAvailability === 'less_than_full_venue_capacity' && !form.customTicketCount) {
+                throw new Error('Please enter how many tickets are available')
+            }
 
             // Build start datetime
             const startDatetime = new Date(`${form.gigDate}T${form.setStartTime}:00`).toISOString()
             const endDatetime = form.setEndTime
                 ? new Date(`${form.gigDate}T${form.setEndTime}:00`).toISOString()
                 : undefined
+            if (endDatetime && new Date(endDatetime).getTime() <= new Date(startDatetime).getTime()) {
+                throw new Error('Set finish time must be after set start time')
+            }
 
             // Compute age display
             let ageDisplay: string | null = null
-            if (form.ageRestrictionMode === 'has_restrictions' && form.ageRestrictions.length > 0) {
-                if (form.ageRestrictions.includes('All ages')) {
-                    ageDisplay = 'Family Friendly'
-                } else {
-                    // Extract numeric ages, find lowest over and highest under
-                    const overs = form.ageRestrictions.filter(a => a.startsWith('Over')).map(a => parseInt(a.match(/\d+/)?.[0] || '0'))
-                    const unders = form.ageRestrictions.filter(a => a.startsWith('Under')).map(a => parseInt(a.match(/\d+/)?.[0] || '0'))
-                    const parts: string[] = []
-                    if (overs.length > 0) parts.push(`Over ${Math.min(...overs)}s`)
-                    if (unders.length > 0) parts.push(`Under ${Math.max(...unders)}s`)
-                    ageDisplay = parts.join('. ') + '.'
-                }
+            if (form.ageRestrictionMode === 'has_restrictions' && normalizedAgeRestrictions.length > 0) {
+                ageDisplay = getAgeDisplay(normalizedAgeRestrictions)
             }
 
             // Upload artwork if provided
             let artworkUrl: string | null = null
+            const existingArtworkUrl = form.artworkPreview && !form.artworkPreview.startsWith('blob:')
+                ? form.artworkPreview
+                : null
             if (form.artworkFile) {
                 const artworkFormData = new FormData()
                 artworkFormData.append('file', form.artworkFile)
-                artworkFormData.append('folder', 'gig-artwork')
+                artworkFormData.append('type', 'gig-artwork')
                 const uploadRes = await fetch('/api/upload', { method: 'POST', body: artworkFormData })
-                if (uploadRes.ok) {
-                    const uploadData = await uploadRes.json()
-                    artworkUrl = uploadData.url || null
+                const uploadData = await uploadRes.json()
+                if (!uploadRes.ok) {
+                    throw new Error(uploadData?.error || 'Gig artwork upload failed')
                 }
+                artworkUrl = uploadData.url || null
+            } else if (isEditMode) {
+                artworkUrl = existingArtworkUrl
             }
 
             const payload = {
@@ -300,6 +553,7 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
                 end_datetime: endDatetime,
                 description: form.description || undefined,
                 venue_name: isInPerson ? form.venueName : undefined,
+                venue_address: isInPerson ? form.venueAddress : undefined,
                 venue_city: undefined,
                 venue_country: undefined,
                 booking_fee: form.ticketPriceOnline ? parseFloat(form.ticketPriceOnline) : null,
@@ -321,7 +575,7 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
                         phone: form.venueContactPhone,
                     } : null,
                     age_restriction_mode: form.ageRestrictionMode,
-                    age_restrictions: form.ageRestrictions,
+                    age_restrictions: normalizedAgeRestrictions,
                     age_display: ageDisplay,
                     ticket_mode: form.ticketMode,
                     free_ticket_options: form.freeTicketOptions,
@@ -333,6 +587,7 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
                     custom_tickets: form.customTickets,
                     ticket_availability: form.ticketAvailability,
                     custom_ticket_count: form.customTicketCount || null,
+                    agreed_gig_date: form.gigDate,
                     artwork_url: artworkUrl,
                     artwork_caption: form.artworkCaption || null,
                     publish_mode: form.publishMode,
@@ -342,17 +597,20 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
             }
 
             const response = await fetch('/api/artist-gigs', {
-                method: 'POST',
+                method: isEditMode ? 'PUT' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
+                body: JSON.stringify(isEditMode ? {
+                    bookingId,
+                    ...payload,
+                } : payload),
             })
 
             const result = await response.json()
-            if (!response.ok) throw new Error(result.error || 'Failed to create gig')
+            if (!response.ok) throw new Error(result.error || (isEditMode ? 'Failed to update gig' : 'Failed to create gig'))
 
             onSuccess()
         } catch (err) {
-            setSubmitError(err instanceof Error ? err.message : 'Failed to create gig')
+            setSubmitError(err instanceof Error ? err.message : (isEditMode ? 'Failed to update gig' : 'Failed to create gig'))
         } finally {
             setSubmitting(false)
         }
@@ -443,7 +701,7 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
 
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         <div>
-                            <Label htmlFor="gigDate">Date of Gig *</Label>
+                            <Label htmlFor="gigDate">Agreed Gig Date *</Label>
                             <Input
                                 id="gigDate"
                                 type="date"
@@ -452,6 +710,7 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
                                 required
                                 className="mt-1"
                             />
+                            <p className="text-xs text-gray-500 mt-1">All gig timings in this form are tied to this one agreed date.</p>
                         </div>
 
                         {isInPerson && (
@@ -506,6 +765,7 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
                         </div>
                     </div>
                 </div>
+
             </div>
 
             {/* ─── VENUE (In-Person only) ───────────────────────── */}
@@ -523,22 +783,67 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="sm:col-span-2">
                             <Label htmlFor="venueName">Venue Name</Label>
-                            <Input
-                                id="venueName"
-                                placeholder="Start typing Venue name…"
-                                value={form.venueName}
-                                onChange={e => update('venueName', e.target.value)}
-                                className="mt-1"
-                            />
+                            <div className="relative mt-1">
+                                <Input
+                                    id="venueName"
+                                    placeholder="Start typing Venue name…"
+                                    value={form.venueName}
+                                    onChange={e => update('venueName', e.target.value)}
+                                    onFocus={() => setVenueDropdownOpen(true)}
+                                    onBlur={() => window.setTimeout(() => setVenueDropdownOpen(false), 120)}
+                                    autoComplete="off"
+                                />
+
+                                {venueDropdownOpen && (venueSuggestionsLoading || venueSuggestions.length > 0 || venueSuggestionsError) && (
+                                    <div className="absolute inset-x-0 top-full z-40 mt-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+                                        {venueSuggestionsLoading && (
+                                            <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600">
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                Searching Gigrilla venues...
+                                            </div>
+                                        )}
+
+                                        {!venueSuggestionsLoading && venueSuggestionsError && (
+                                            <div className="px-3 py-2 text-sm text-rose-600">{venueSuggestionsError}</div>
+                                        )}
+
+                                        {!venueSuggestionsLoading && !venueSuggestionsError && venueSuggestions.length === 0 && (
+                                            <div className="px-3 py-2 text-sm text-gray-500">
+                                                No matching Gigrilla venues yet. You can still type a new venue name.
+                                            </div>
+                                        )}
+
+                                        {!venueSuggestionsLoading && !venueSuggestionsError && venueSuggestions.length > 0 && (
+                                            <ul className="max-h-60 divide-y divide-gray-100 overflow-auto">
+                                                {venueSuggestions.map(suggestion => (
+                                                    <li key={suggestion.id}>
+                                                        <button
+                                                            type="button"
+                                                            className="w-full px-3 py-2 text-left hover:bg-gray-50"
+                                                            onMouseDown={event => event.preventDefault()}
+                                                            onClick={() => applyVenueSuggestion(suggestion)}
+                                                        >
+                                                            <p className="text-sm font-medium text-gray-900">{suggestion.name}</p>
+                                                            <p className="text-xs text-gray-500">{suggestion.address || 'Address unavailable'}</p>
+                                                        </button>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                         <div className="sm:col-span-2">
                             <Label htmlFor="venueAddress">Venue Address</Label>
-                            <Input
-                                id="venueAddress"
-                                placeholder="Start typing Venue address…"
+                            <LocationAutocompleteInput
                                 value={form.venueAddress}
-                                onChange={e => update('venueAddress', e.target.value)}
-                                className="mt-1"
+                                placeholder="Start typing Venue address…"
+                                onInputChange={value => update('venueAddress', value)}
+                                onSelect={suggestion => update('venueAddress', suggestion.formatted)}
+                                minQueryLength={2}
+                                inputClassName="mt-1"
+                                noResultsMessage="No matching addresses found. You can continue typing manually."
                             />
                         </div>
                     </div>
@@ -584,21 +889,20 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
                             <div className="sm:col-span-2">
                                 <Label>Venue Contact Phone</Label>
                                 <div className="flex gap-2 mt-1">
-                                    <select
+                                    <Input
+                                        id="venueContactPhoneCode"
+                                        placeholder="+Country code"
                                         value={form.venueContactPhoneCode}
                                         onChange={e => update('venueContactPhoneCode', e.target.value)}
-                                        className="flex h-9 w-28 shrink-0 rounded-md border border-input bg-background px-2 py-1 text-sm"
-                                    >
-                                        {PHONE_CODES.map(c => (
-                                            <option key={c.value} value={c.value}>{c.label}</option>
-                                        ))}
-                                    </select>
+                                        className="w-36 shrink-0"
+                                    />
                                     <Input
                                         placeholder="Phone number…"
                                         value={form.venueContactPhone}
                                         onChange={e => update('venueContactPhone', e.target.value)}
                                     />
                                 </div>
+                                <p className="text-xs text-gray-500 mt-1">Use any international dial code, e.g. +1, +44, +233, +971.</p>
                             </div>
                         </div>
                     </div>
@@ -668,18 +972,27 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
                 </div>
 
                 {form.ageRestrictionMode === 'has_restrictions' && (
-                    <div className="ml-6 grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
-                        {AGE_OPTIONS.map(opt => (
-                            <label key={opt} className="flex items-center gap-2 text-sm cursor-pointer py-1">
-                                <input
-                                    type="checkbox"
-                                    checked={form.ageRestrictions.includes(opt)}
-                                    onChange={() => toggleArrayItem('ageRestrictions', opt)}
-                                    className="accent-purple-600"
-                                />
-                                {opt}
-                            </label>
-                        ))}
+                    <div className="ml-6 space-y-3">
+                        <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+                            {AGE_OPTIONS.map(opt => (
+                                <label key={opt} className="flex items-center gap-2 text-sm cursor-pointer py-1">
+                                    <input
+                                        type="checkbox"
+                                        checked={form.ageRestrictions.includes(opt)}
+                                        onChange={() => toggleArrayItem('ageRestrictions', opt)}
+                                        className="accent-purple-600"
+                                    />
+                                    {opt}
+                                </label>
+                            ))}
+                        </div>
+                        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                            <p className="font-medium">Age Display Preview</p>
+                            <p className="mt-1">{ageDisplayPreview}</p>
+                            <p className="mt-1 text-xs text-blue-800">
+                                Rule: choose only &quot;All ages&quot; OR up to one &quot;Over&quot; and one &quot;Under&quot; option.
+                            </p>
+                        </div>
                     </div>
                 )}
             </div>
@@ -955,14 +1268,14 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
                                             Skip Ticket Availability Details
                                         </label>
                                         <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                            <input type="radio" name="ticketAvailability" checked={form.ticketAvailability === 'full_capacity'} onChange={() => update('ticketAvailability', 'full_capacity')} className="accent-purple-600" />
-                                            Tickets Equal Full Capacity
+                                            <input type="radio" name="ticketAvailability" checked={form.ticketAvailability === 'full_venue_capacity'} onChange={() => update('ticketAvailability', 'full_venue_capacity')} className="accent-purple-600" />
+                                            Ticket availability equals full venue capacity
                                         </label>
                                         <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                            <input type="radio" name="ticketAvailability" checked={form.ticketAvailability === 'custom'} onChange={() => update('ticketAvailability', 'custom')} className="accent-purple-600" />
-                                            Less Tickets Than Full Capacity
+                                            <input type="radio" name="ticketAvailability" checked={form.ticketAvailability === 'less_than_full_venue_capacity'} onChange={() => update('ticketAvailability', 'less_than_full_venue_capacity')} className="accent-purple-600" />
+                                            Less tickets available than full venue capacity
                                         </label>
-                                        {form.ticketAvailability === 'custom' && (
+                                        {form.ticketAvailability === 'less_than_full_venue_capacity' && (
                                             <div className="ml-6">
                                                 <Input
                                                     type="number" min="1"
@@ -1048,6 +1361,29 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
                 </p>
 
                 <div className="space-y-3">
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                        <button
+                            type="button"
+                            onClick={() => setShowFanPromotionInfo(prev => !prev)}
+                            className="flex w-full items-center justify-between text-left"
+                        >
+                            <span className="text-sm font-semibold text-blue-900">
+                                Info: Separate public display from fan promotion
+                            </span>
+                            {showFanPromotionInfo ? <ChevronUp className="w-4 h-4 text-blue-700" /> : <ChevronDown className="w-4 h-4 text-blue-700" />}
+                        </button>
+                        {showFanPromotionInfo && (
+                            <div className="mt-3 space-y-2 text-sm text-blue-900">
+                                <p>
+                                    Public Display: on the agreed publication date, official venue gig information appears across GigFinder, artist pages, and venue pages.
+                                </p>
+                                <p>
+                                    Fan Promotion: after public launch, artists control fan communications: when to send, who receives (including region targeting), and which artwork to use (artist artwork or venue artwork).
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
                     <label className="flex items-start gap-3 cursor-pointer">
                         <input
                             type="radio"
@@ -1114,9 +1450,10 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
                     <ul className="list-disc ml-4 space-y-1">
                         <li>Add it to your Artist Profile Upcoming Gig List</li>
                         <li>Add it to Gigrilla GigFinder</li>
-                        <li>Notify any Fans that are following you on Gigrilla</li>
+                        <li>Show the public gig listing based on your publish timing selection</li>
+                        <li>Keep fan communications under your control after the public listing is live</li>
                         {isInPerson && (
-                            <li>Notify other Fans that live in the local catchment area of the Venue if they follow your Music Genre, even if they don&apos;t follow you</li>
+                            <li>Use official venue data as the public source of truth when a venue override exists</li>
                         )}
                     </ul>
                     <p className="mt-2">
@@ -1127,6 +1464,9 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
                                 ? `Scheduled to be visible on ${form.publishDate} at ${form.publishTime || '00:00'}.`
                                 : 'Scheduled — please set a date above.'
                         }
+                    </p>
+                    <p>
+                        <strong>Fan promotion:</strong> artist updates are sent when you choose from fan comms controls, not automatically at publish.
                     </p>
                 </div>
 
@@ -1148,12 +1488,12 @@ export function CreateGigForm({ onCancel, onSuccess }: CreateGigFormProps) {
                         {submitting ? (
                             <>
                                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                Publishing...
+                                {isEditMode ? 'Saving...' : 'Publishing...'}
                             </>
                         ) : (
                             <>
                                 <Megaphone className="w-4 h-4 mr-2" />
-                                PUBLISH THIS GIG
+                                {isEditMode ? 'SAVE GIG CHANGES' : 'PUBLISH THIS GIG'}
                             </>
                         )}
                     </Button>

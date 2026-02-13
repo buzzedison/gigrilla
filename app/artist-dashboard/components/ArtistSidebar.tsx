@@ -358,7 +358,7 @@ export function ArtistSidebar({
   ];
 
   return (
-    <aside className={`w-64 bg-[#2a1b3d] h-full flex flex-col p-6 overflow-y-auto ${className ?? ''}`}>
+    <aside className={`w-64 bg-[#2a1b3d] h-full flex flex-col p-6 overflow-y-auto text-left ${className ?? ''}`}>
       <div className="flex items-center mb-8">
         <Image
           src="/logos/Gigrilla Logo-Word alongside Logo-Head Dark Pruple Cerise Clear-PNG 3556 x 1086.png"
@@ -413,12 +413,12 @@ export function ArtistSidebar({
         {expandedSections.musicManager && renderSectionItems(musicManagerItems)}
       </div>
 
-      <div className="mb-6">
+      <div className="mb-6 pt-4 border-t border-purple-900/50">
         <button
           onClick={() => toggleSection('gigManager')}
           className="w-full flex items-center justify-between text-gray-400 text-sm uppercase tracking-wider mb-3 hover:text-white"
         >
-          <span>MANAGE GIG BOOKINGS</span>
+          <span>GIG MANAGER</span>
           {expandedSections.gigManager ? (
             <ChevronDown className="w-4 h-4" />
           ) : (
@@ -431,9 +431,9 @@ export function ArtistSidebar({
       <div className="mb-6">
         <button
           onClick={() => toggleSection('artworkMedia')}
-          className="w-full flex items-center justify-between text-gray-400 text-sm uppercase tracking-wider mb-3 hover:text-white"
+          className="w-full flex items-center gap-2 text-gray-400 text-sm uppercase tracking-wider mb-3 hover:text-white"
         >
-          <span>ARTIST ARTWORK & MEDIA</span>
+          <span className="flex-1 text-left">ARTIST ARTWORK & MEDIA</span>
           {expandedSections.artworkMedia ? (
             <ChevronDown className="w-4 h-4" />
           ) : (

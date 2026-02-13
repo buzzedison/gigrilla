@@ -38,7 +38,7 @@ export function ArtistGigInvitesManager() {
         setLoading(true)
       }
 
-      const response = await fetchArtistGigView('invites')
+      const response = await fetchArtistGigView('invites', { limit: 200 })
       setInvites(response.data || [])
       setWarning(response.warning || null)
     } catch (err) {
@@ -148,6 +148,9 @@ export function ArtistGigInvitesManager() {
                       <p className="font-semibold text-gray-900">{invite.gigTitle}</p>
                       <p className="text-sm text-gray-600">{invite.venueName}</p>
                       <p className="text-xs text-gray-500 mt-1">{formatDate(invite.startDatetime)}</p>
+                      {invite.sourceOfTruth === 'venue' && (
+                        <p className="text-xs text-blue-700 mt-1">Venue official data supersedes artist data for this gig.</p>
+                      )}
                     </div>
                     <Badge variant="secondary">Pending</Badge>
                   </div>
@@ -195,6 +198,9 @@ export function ArtistGigInvitesManager() {
                       <p className="font-semibold text-gray-900">{invite.gigTitle}</p>
                       <p className="text-sm text-gray-600">{invite.venueName}</p>
                       <p className="text-xs text-gray-500 mt-1">{formatDate(invite.startDatetime)}</p>
+                      {invite.sourceOfTruth === 'venue' && (
+                        <p className="text-xs text-blue-700 mt-1">Venue official data supersedes artist data for this gig.</p>
+                      )}
                     </div>
                     <Badge variant={invite.bookingStatus === 'confirmed' ? 'default' : 'outline'}>
                       {invite.bookingStatus}
@@ -209,4 +215,3 @@ export function ArtistGigInvitesManager() {
     </div>
   )
 }
-

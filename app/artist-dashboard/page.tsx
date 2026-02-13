@@ -574,21 +574,19 @@ export default function ArtistDashboard() {
         </SheetContent>
 
         <div className="min-h-screen bg-[#4a2c5a] lg:flex">
-          <div className="hidden lg:block">
-            <div className="fixed left-0 top-0 z-10 h-full w-64">
-              <ArtistSidebar
-                activeSection={activeSection}
-                activeSubSectionKey={activeSubSectionKey}
-                onSectionChange={handleSectionChange}
-                onSubSectionChange={handleSubSectionChange}
-                capabilities={capabilities}
-                completedSections={completedSectionsForSidebar}
-                hideTypeSection={false}
-              />
-            </div>
+          <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:block lg:w-64">
+            <ArtistSidebar
+              activeSection={activeSection}
+              activeSubSectionKey={activeSubSectionKey}
+              onSectionChange={handleSectionChange}
+              onSubSectionChange={handleSubSectionChange}
+              capabilities={capabilities}
+              completedSections={completedSectionsForSidebar}
+              hideTypeSection={false}
+            />
           </div>
 
-          <div className="flex-1 overflow-y-auto lg:ml-64">
+          <div className="flex-1 overflow-y-auto lg:pl-64">
             <div className="p-4 sm:p-6">
               <div className="mx-auto max-w-6xl">
                 <div className="mb-6">
