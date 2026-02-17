@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { uploadToR2, isR2Configured, R2_CONFIG } from '@/lib/cloudflare/r2'
+import { readImageMetadata } from '@/lib/image-metadata'
 
 interface UploadConfig {
   folder: string
@@ -13,6 +14,9 @@ interface UploadConfig {
   maxWidth?: number
   maxHeight?: number
   requireSquare?: boolean
+  minDpi?: number
+  maxDpi?: number
+  requireDpiMetadata?: boolean
 }
 
 // Supported upload types with their configurations
@@ -41,6 +45,9 @@ const UPLOAD_CONFIGS = {
     maxWidth: 6000,
     maxHeight: 6000,
     requireSquare: true,
+    minDpi: 72,
+    maxDpi: 300,
+    requireDpiMetadata: false,
   },
   'artist-logo': {
     folder: 'artist-photos',
@@ -102,64 +109,6 @@ const UPLOAD_CONFIGS = {
 } satisfies Record<string, UploadConfig>
 
 type UploadType = keyof typeof UPLOAD_CONFIGS
-
-function readImageDimensions(buffer: Buffer, mimeType: string): { width: number; height: number } | null {
-  if (mimeType === 'image/png') {
-    if (buffer.length < 24) return null
-    const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
-    for (let index = 0; index < pngSignature.length; index += 1) {
-      if (buffer[index] !== pngSignature[index]) return null
-    }
-    return {
-      width: buffer.readUInt32BE(16),
-      height: buffer.readUInt32BE(20),
-    }
-  }
-
-  if (mimeType === 'image/jpeg') {
-    if (buffer.length < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8) return null
-    let offset = 2
-
-    while (offset < buffer.length) {
-      if (buffer[offset] !== 0xff) {
-        offset += 1
-        continue
-      }
-
-      while (offset < buffer.length && buffer[offset] === 0xff) {
-        offset += 1
-      }
-      if (offset >= buffer.length) break
-
-      const marker = buffer[offset]
-      offset += 1
-
-      if (marker === 0xd9 || marker === 0xda) break
-      if (offset + 1 >= buffer.length) break
-
-      const segmentLength = buffer.readUInt16BE(offset)
-      offset += 2
-      if (segmentLength < 2 || offset + segmentLength - 2 > buffer.length) break
-
-      const isStartOfFrame =
-        (marker >= 0xc0 && marker <= 0xc3) ||
-        (marker >= 0xc5 && marker <= 0xc7) ||
-        (marker >= 0xc9 && marker <= 0xcb) ||
-        (marker >= 0xcd && marker <= 0xcf)
-
-      if (isStartOfFrame) {
-        if (segmentLength < 7) return null
-        const height = buffer.readUInt16BE(offset + 1)
-        const width = buffer.readUInt16BE(offset + 3)
-        return { width, height }
-      }
-
-      offset += segmentLength - 2
-    }
-  }
-
-  return null
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -244,26 +193,45 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    if ('minWidth' in config || 'maxWidth' in config || 'requireSquare' in config) {
-      const dimensions = readImageDimensions(buffer, file.type)
-      if (!dimensions) {
+    if (
+      'minWidth' in config ||
+      'maxWidth' in config ||
+      'requireSquare' in config ||
+      'minDpi' in config ||
+      'maxDpi' in config
+    ) {
+      const metadata = readImageMetadata(new Uint8Array(buffer), file.type)
+      if (!metadata) {
         return NextResponse.json({ error: 'Unable to read image dimensions from upload' }, { status: 400 })
       }
 
-      if (config.requireSquare && dimensions.width !== dimensions.height) {
+      if (config.requireSquare && metadata.width !== metadata.height) {
         return NextResponse.json({ error: 'Image must be square (1:1 ratio)' }, { status: 400 })
       }
-      if (typeof config.minWidth === 'number' && dimensions.width < config.minWidth) {
+      if (typeof config.minWidth === 'number' && metadata.width < config.minWidth) {
         return NextResponse.json({ error: `Image width must be at least ${config.minWidth}px` }, { status: 400 })
       }
-      if (typeof config.minHeight === 'number' && dimensions.height < config.minHeight) {
+      if (typeof config.minHeight === 'number' && metadata.height < config.minHeight) {
         return NextResponse.json({ error: `Image height must be at least ${config.minHeight}px` }, { status: 400 })
       }
-      if (typeof config.maxWidth === 'number' && dimensions.width > config.maxWidth) {
+      if (typeof config.maxWidth === 'number' && metadata.width > config.maxWidth) {
         return NextResponse.json({ error: `Image width must be no more than ${config.maxWidth}px` }, { status: 400 })
       }
-      if (typeof config.maxHeight === 'number' && dimensions.height > config.maxHeight) {
+      if (typeof config.maxHeight === 'number' && metadata.height > config.maxHeight) {
         return NextResponse.json({ error: `Image height must be no more than ${config.maxHeight}px` }, { status: 400 })
+      }
+
+      const dpiValues = [metadata.dpiX, metadata.dpiY].filter((value): value is number => typeof value === 'number')
+      if (config.requireDpiMetadata && dpiValues.length !== 2) {
+        return NextResponse.json({ error: 'Image must include DPI metadata (72-300 DPI)' }, { status: 400 })
+      }
+      const minDpi = typeof config.minDpi === 'number' ? config.minDpi : null
+      if (minDpi !== null && dpiValues.some(value => value < minDpi)) {
+        return NextResponse.json({ error: `Image DPI must be at least ${minDpi}` }, { status: 400 })
+      }
+      const maxDpi = typeof config.maxDpi === 'number' ? config.maxDpi : null
+      if (maxDpi !== null && dpiValues.some(value => value > maxDpi)) {
+        return NextResponse.json({ error: `Image DPI must be no more than ${maxDpi}` }, { status: 400 })
       }
     }
 

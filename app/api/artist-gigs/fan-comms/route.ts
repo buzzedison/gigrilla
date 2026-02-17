@@ -5,13 +5,29 @@ import { createServiceClient } from '@/lib/supabase/service-client'
 import {
   appendFanCommsEntryToMetadata,
   createGigFanCommsEntry,
+  dispatchDueFanCommsForArtistGigs,
   getFanCommsQueue,
   getGigArtworkOptions,
+  normalizeFanCommsInput,
+  replaceFanCommsQueueInMetadata,
 } from '@/lib/gig-fan-comms'
 
 interface FanCommsRequestBody {
   bookingId?: string
   sendMode?: 'now' | 'scheduled'
+  scheduledDate?: string
+  scheduledTime?: string
+  audienceMode?: 'all_followers' | 'specific_regions'
+  regions?: string[] | string
+  artworkChoice?: 'artist' | 'venue'
+  title?: string
+  message?: string
+}
+
+interface FanCommsPatchBody {
+  bookingId?: string
+  entryId?: string
+  action?: 'cancel_scheduled' | 'update_scheduled'
   scheduledDate?: string
   scheduledTime?: string
   audienceMode?: 'all_followers' | 'specific_regions'
@@ -102,7 +118,7 @@ async function getOwnedBookingAndGig(serviceSupabase: ReturnType<typeof createSe
 async function getArtistDisplayName(serviceSupabase: ReturnType<typeof createServiceClient>, userId: string) {
   const { data: artistProfile, error: artistProfileError } = await serviceSupabase
     .from('artist_profiles')
-    .select('stage_name')
+    .select('*')
     .eq('user_id', userId)
     .maybeSingle()
 
@@ -110,8 +126,17 @@ async function getArtistDisplayName(serviceSupabase: ReturnType<typeof createSer
     console.warn('fan-comms: failed to load artist profile stage name', artistProfileError)
   }
 
-  const stageName = toTrimmedString((artistProfile as { stage_name?: unknown } | null)?.stage_name)
-  if (stageName) return stageName
+  const artistProfileRecord = artistProfile && typeof artistProfile === 'object'
+    ? artistProfile as Record<string, unknown>
+    : null
+  const artistProfileName = toTrimmedString(
+    artistProfileRecord?.stage_name ??
+    artistProfileRecord?.artist_stage_name ??
+    artistProfileRecord?.artist_name ??
+    artistProfileRecord?.name ??
+    artistProfileRecord?.display_name
+  )
+  if (artistProfileName) return artistProfileName
 
   const { data: userRow, error: userError } = await serviceSupabase
     .from('users')
@@ -153,14 +178,37 @@ export async function GET(request: NextRequest) {
 
     const serviceSupabase = createServiceClient()
     const { gig } = await getOwnedBookingAndGig(serviceSupabase, user.id, bookingId)
+    const artistDisplayName = await getArtistDisplayName(serviceSupabase, user.id)
 
-    const queue = getFanCommsQueue(gig.metadata)
-    const artworkOptions = getGigArtworkOptions(gig.metadata)
+    let gigMetadata = gig.metadata
+    if (gig.gig_status === 'published') {
+      const dispatchResult = await dispatchDueFanCommsForArtistGigs({
+        serviceSupabase,
+        artistUserId: user.id,
+        artistDisplayName,
+        gigs: [{
+          id: gig.id,
+          title: gig.title,
+          venue_id: gig.venue_id || null,
+          metadata: gig.metadata || null,
+          gig_status: gig.gig_status || null,
+        }],
+      })
+
+      const updatedMetadata = dispatchResult.updatedGigMetadataById.get(gig.id)
+      if (updatedMetadata) {
+        gigMetadata = updatedMetadata
+      }
+    }
+
+    const queue = getFanCommsQueue(gigMetadata)
+    const artworkOptions = getGigArtworkOptions(gigMetadata)
     const summary = {
       total: queue.length,
       sent: queue.filter((entry) => entry.status === 'sent').length,
       scheduled: queue.filter((entry) => entry.status === 'scheduled').length,
       failed: queue.filter((entry) => entry.status === 'failed').length,
+      cancelled: queue.filter((entry) => entry.status === 'cancelled').length,
     }
 
     return NextResponse.json({
@@ -292,6 +340,7 @@ export async function POST(request: NextRequest) {
 
     if (
       message.includes('required') ||
+      message.includes('require a date') ||
       message.includes('must be') ||
       message.includes('Select at least one region') ||
       message.includes('can only be sent after public launch') ||
@@ -308,6 +357,155 @@ export async function POST(request: NextRequest) {
     }
 
     console.error('fan-comms POST: unexpected error', error)
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: message
+    }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const supabase = await createSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json() as FanCommsPatchBody
+    const bookingId = toTrimmedString(body.bookingId)
+    const entryId = toTrimmedString(body.entryId)
+    const action = body.action
+
+    if (!bookingId) {
+      return NextResponse.json({ error: 'bookingId is required' }, { status: 400 })
+    }
+    if (!entryId) {
+      return NextResponse.json({ error: 'entryId is required' }, { status: 400 })
+    }
+    if (action !== 'cancel_scheduled' && action !== 'update_scheduled') {
+      return NextResponse.json({ error: 'Unsupported action' }, { status: 400 })
+    }
+
+    const serviceSupabase = createServiceClient()
+    const { gig } = await getOwnedBookingAndGig(serviceSupabase, user.id, bookingId)
+    const queue = getFanCommsQueue(gig.metadata)
+    const existingEntry = queue.find((entry) => entry.id === entryId)
+    if (!existingEntry) {
+      return NextResponse.json({ error: 'Fan update entry not found' }, { status: 404 })
+    }
+    if (existingEntry.status !== 'scheduled') {
+      return NextResponse.json({ error: 'Only scheduled fan updates can be edited or cancelled' }, { status: 400 })
+    }
+    const artworkOptions = getGigArtworkOptions(gig.metadata)
+
+    const nextQueue = queue.map((entry) => {
+      if (entry.id !== entryId) return entry
+
+      if (action === 'cancel_scheduled') {
+        return {
+          ...entry,
+          status: 'cancelled' as const,
+          scheduled_for: null,
+          failure_reason: 'Cancelled by artist',
+        }
+      }
+
+      const normalized = normalizeFanCommsInput({
+        sendMode: 'scheduled',
+        scheduledDate: body.scheduledDate,
+        scheduledTime: body.scheduledTime,
+        audienceMode: body.audienceMode ?? entry.audience_mode,
+        regions: body.regions ?? entry.regions,
+        artworkChoice: body.artworkChoice ?? entry.artwork_choice,
+        title: body.title ?? entry.title,
+        message: toTrimmedString(body.message) || entry.message,
+      })
+      const selectedArtworkUrl = normalized.artworkChoice === 'venue'
+        ? (artworkOptions.venueArtworkUrl || artworkOptions.artistArtworkUrl)
+        : (artworkOptions.artistArtworkUrl || artworkOptions.venueArtworkUrl)
+
+      return {
+        ...entry,
+        status: 'scheduled' as const,
+        send_mode: 'scheduled' as const,
+        scheduled_for: normalized.scheduledFor,
+        sent_at: null,
+        audience_mode: normalized.audienceMode,
+        regions: normalized.regions,
+        artwork_choice: normalized.artworkChoice,
+        artwork_url: selectedArtworkUrl,
+        title: normalized.title,
+        message: normalized.message,
+        recipient_count: null,
+        failure_reason: null,
+      }
+    })
+
+    const updatedMetadata = replaceFanCommsQueueInMetadata(gig.metadata, nextQueue)
+    const { error: updateError } = await serviceSupabase
+      .from('gigs')
+      .update({
+        metadata: updatedMetadata,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', gig.id)
+
+    if (updateError) {
+      return NextResponse.json({
+        error: action === 'cancel_scheduled'
+          ? 'Failed to cancel scheduled fan update'
+          : 'Failed to update scheduled fan update',
+        details: updateError.message,
+      }, { status: 500 })
+    }
+
+    const updatedQueue = getFanCommsQueue(updatedMetadata)
+    const updatedEntry = updatedQueue.find((entry) => entry.id === entryId) || null
+    const summary = {
+      total: updatedQueue.length,
+      sent: updatedQueue.filter((entry) => entry.status === 'sent').length,
+      scheduled: updatedQueue.filter((entry) => entry.status === 'scheduled').length,
+      failed: updatedQueue.filter((entry) => entry.status === 'failed').length,
+      cancelled: updatedQueue.filter((entry) => entry.status === 'cancelled').length,
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        bookingId,
+        gigId: gig.id,
+        entry: updatedEntry,
+        queue: updatedQueue,
+        summary,
+      },
+      message: action === 'cancel_scheduled'
+        ? 'Scheduled fan update cancelled successfully'
+        : 'Scheduled fan update updated successfully',
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    if (
+      message.includes('required') ||
+      message.includes('require a date') ||
+      message.includes('not found') ||
+      message.includes('Unsupported action') ||
+      message.includes('Only scheduled') ||
+      message.includes('Select at least one region') ||
+      message.includes('must be') ||
+      message.includes('Forbidden') ||
+      message.includes('not available yet')
+    ) {
+      const status = message === 'Forbidden'
+        ? 403
+        : message.includes('not found')
+          ? 404
+          : 400
+      return NextResponse.json({ error: message }, { status })
+    }
+
+    console.error('fan-comms PATCH: unexpected error', error)
     return NextResponse.json({
       error: 'Internal server error',
       details: message

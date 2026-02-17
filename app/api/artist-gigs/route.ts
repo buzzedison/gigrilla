@@ -525,11 +525,19 @@ function resolveGigDisplayForArtistView(args: {
     ? venueEndDatetime
     : fallbackEndDatetime
 
-  const agreedDate = readString(metadata.agreed_gig_date)
-    || (resolvedStartDatetime ? formatDateInTimezone(new Date(resolvedStartDatetime), readString(gig?.timezone) || 'UTC') : null)
+  const timezone = readString(gig?.timezone) || 'UTC'
+  const derivedStartDate = resolvedStartDatetime
+    ? formatDateInTimezone(new Date(resolvedStartDatetime), timezone)
+    : null
+  const derivedFinishDate = resolvedEndDatetime
+    ? formatDateInTimezone(new Date(resolvedEndDatetime), timezone)
+    : derivedStartDate
+  const agreedDate = readString(metadata.agreed_gig_date) || derivedStartDate
+  const gigStartDate = readString(metadata.gig_start_date) || agreedDate
+  const gigFinishDate = readString(metadata.gig_finish_date) || derivedFinishDate || gigStartDate
 
-  const artistSpecificStart = toIsoOnDate(agreedDate || '', artistSetStart || '') || resolvedStartDatetime
-  const artistSpecificEnd = toIsoOnDate(agreedDate || '', artistSetEnd || '') || resolvedEndDatetime
+  const artistSpecificStart = toIsoOnDate(gigStartDate || '', artistSetStart || '') || resolvedStartDatetime
+  const artistSpecificEnd = toIsoOnDate(gigFinishDate || '', artistSetEnd || '') || resolvedEndDatetime
   const otherArtists = readStringArray(metadata.other_artists)
 
   return {
@@ -772,15 +780,24 @@ export async function GET(request: NextRequest) {
     let currentArtistDisplayName: string | null = null
     const { data: artistProfileRow, error: artistProfileError } = await serviceSupabase
       .from('artist_profiles')
-      .select('stage_name')
+      .select('*')
       .eq('user_id', user.id)
       .maybeSingle()
 
     if (artistProfileError && !isMissingTableError(artistProfileError)) {
       console.warn('Artist gigs GET: artist profile lookup failed', artistProfileError)
     } else {
-      const stageName = readString((artistProfileRow as { stage_name?: unknown } | null)?.stage_name)
-      currentArtistDisplayName = stageName
+      const artistProfileRecord = artistProfileRow && typeof artistProfileRow === 'object'
+        ? artistProfileRow as Record<string, unknown>
+        : null
+      const stageName = readString(
+        artistProfileRecord?.stage_name ??
+        artistProfileRecord?.artist_stage_name ??
+        artistProfileRecord?.artist_name ??
+        artistProfileRecord?.name ??
+        artistProfileRecord?.display_name
+      )
+      currentArtistDisplayName = stageName || null
     }
 
     const gigsForFanCommsDispatch = Array.from(gigsById.values()).map((gig) => ({
@@ -1174,12 +1191,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const startDateKey = formatDateInTimezone(startDate, timezone)
-    if (endDate) {
-      const endDateKey = formatDateInTimezone(endDate, timezone)
-      if (endDateKey !== startDateKey) {
-        return NextResponse.json({ error: 'start_datetime and end_datetime must be on the same agreed date.' }, { status: 400 })
-      }
-    }
+    const endDateKey = endDate ? formatDateInTimezone(endDate, timezone) : startDateKey
 
     const description = body.description === undefined
       ? existingGig.description
@@ -1203,6 +1215,20 @@ export async function PUT(request: NextRequest) {
       : ''
     if (incomingAgreedDate && incomingAgreedDate !== startDateKey) {
       return NextResponse.json({ error: 'agreed_gig_date must match the start date.' }, { status: 400 })
+    }
+
+    const incomingGigStartDate = typeof mergedMetadata.gig_start_date === 'string'
+      ? mergedMetadata.gig_start_date.trim()
+      : ''
+    if (incomingGigStartDate && incomingGigStartDate !== startDateKey) {
+      return NextResponse.json({ error: 'gig_start_date must match start_datetime date.' }, { status: 400 })
+    }
+
+    const incomingGigFinishDate = typeof mergedMetadata.gig_finish_date === 'string'
+      ? mergedMetadata.gig_finish_date.trim()
+      : ''
+    if (incomingGigFinishDate && incomingGigFinishDate !== endDateKey) {
+      return NextResponse.json({ error: 'gig_finish_date must match end_datetime date.' }, { status: 400 })
     }
 
     const ticketAvailability = typeof mergedMetadata.ticket_availability === 'string'
@@ -1325,6 +1351,8 @@ export async function PUT(request: NextRequest) {
         metadata: {
           ...mergedMetadata,
           agreed_gig_date: startDateKey,
+          gig_start_date: startDateKey,
+          gig_finish_date: endDateKey,
           gig_type: gigType,
           live_stream_url: liveStreamUrl || null,
           age_restriction_mode: normalizedAgeMetadata.ageRestrictionMode,
@@ -1423,12 +1451,7 @@ export async function POST(request: NextRequest) {
     }
 
     const startDateKey = formatDateInTimezone(startDatetime, timezone)
-    if (endDatetime) {
-      const endDateKey = formatDateInTimezone(endDatetime, timezone)
-      if (endDateKey !== startDateKey) {
-        return NextResponse.json({ error: 'Start and end date/time must be on a single agreed date.' }, { status: 400 })
-      }
-    }
+    const endDateKey = endDatetime ? formatDateInTimezone(endDatetime, timezone) : startDateKey
 
     const description = toOptionalTrimmedString(body.description)
     const venueName = toOptionalTrimmedString(body.venue_name)
@@ -1450,6 +1473,16 @@ export async function POST(request: NextRequest) {
     const agreedDateInput = typeof metadata.agreed_gig_date === 'string' ? metadata.agreed_gig_date.trim() : ''
     if (agreedDateInput && agreedDateInput !== startDateKey) {
       return NextResponse.json({ error: 'agreed_gig_date must match the start date.' }, { status: 400 })
+    }
+
+    const gigStartDateInput = typeof metadata.gig_start_date === 'string' ? metadata.gig_start_date.trim() : ''
+    if (gigStartDateInput && gigStartDateInput !== startDateKey) {
+      return NextResponse.json({ error: 'gig_start_date must match start_datetime date.' }, { status: 400 })
+    }
+
+    const gigFinishDateInput = typeof metadata.gig_finish_date === 'string' ? metadata.gig_finish_date.trim() : ''
+    if (gigFinishDateInput && gigFinishDateInput !== endDateKey) {
+      return NextResponse.json({ error: 'gig_finish_date must match end_datetime date.' }, { status: 400 })
     }
 
     const gigType = inferGigType(eventType, metadata)
@@ -1569,6 +1602,8 @@ export async function POST(request: NextRequest) {
     const mergedMetadata = {
       ...metadata,
       agreed_gig_date: startDateKey,
+      gig_start_date: startDateKey,
+      gig_finish_date: endDateKey,
       gig_type: gigType,
       live_stream_url: liveStreamUrl || null,
       age_restriction_mode: normalizedAgeMetadata.ageRestrictionMode,

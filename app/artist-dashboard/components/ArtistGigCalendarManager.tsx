@@ -16,7 +16,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog'
-import { fetchArtistGigView, sendGigFanComms, updateArtistGig } from './gig-manager/api'
+import {
+  cancelScheduledGigFanComms,
+  fetchArtistGigView,
+  fetchGigFanCommsState,
+  sendGigFanComms,
+  updateScheduledGigFanComms,
+  updateArtistGig,
+  type GigFanCommsQueueEntry,
+} from './gig-manager/api'
 import { ArtistGigRecord } from './gig-manager/types'
 import { CreateGigForm, type CreateGigFormInitialData } from './gig-manager/CreateGigForm'
 
@@ -44,7 +52,18 @@ interface FanCommsSummary {
   sent: number
   scheduled: number
   failed: number
+  cancelled: number
   total: number
+}
+
+interface ScheduledFanCommsEditState {
+  scheduledDate: string
+  scheduledTime: string
+  audienceMode: 'all_followers' | 'specific_regions'
+  regionsInput: string
+  artworkChoice: 'artist' | 'venue'
+  title: string
+  message: string
 }
 
 function formatDateOnly(value: string | null) {
@@ -134,6 +153,14 @@ function toGigFormInitialData(gig: ArtistGigRecord): CreateGigFormInitialData {
 
   const derivedSetStart = readMetadataString(metadata, 'set_start_time') || toTimeInput(gig.startDatetime)
   const derivedSetEnd = readMetadataString(metadata, 'set_end_time') || toTimeInput(gig.endDatetime)
+  const derivedStartDate =
+    readMetadataString(metadata, 'gig_start_date') ||
+    readMetadataString(metadata, 'agreed_gig_date') ||
+    toDateInput(gig.startDatetime)
+  const derivedFinishDate =
+    readMetadataString(metadata, 'gig_finish_date') ||
+    toDateInput(gig.endDatetime) ||
+    derivedStartDate
   const ticketAvailabilityRaw = readMetadataString(metadata, 'ticket_availability')
   const ticketAvailability = ticketAvailabilityRaw === 'full_venue_capacity' || ticketAvailabilityRaw === 'less_than_full_venue_capacity'
     ? ticketAvailabilityRaw
@@ -146,7 +173,8 @@ function toGigFormInitialData(gig: ArtistGigRecord): CreateGigFormInitialData {
   return {
     gigEventName: gig.gigTitle || '',
     gigType: isStreaming ? 'streaming' : 'in_person',
-    gigDate: toDateInput(gig.startDatetime),
+    gigStartDate: derivedStartDate,
+    gigFinishDate: derivedFinishDate,
     doorsOpen: readMetadataString(metadata, 'doors_open'),
     streamOpens: readMetadataString(metadata, 'stream_opens'),
     setStartTime: derivedSetStart,
@@ -192,15 +220,47 @@ function parseRegionInput(input: string) {
   )
 }
 
+function formatDateTime(value: string | null) {
+  if (!value) return 'Not set'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Not set'
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function toLocalDateInput(value: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function toLocalTimeInput(value: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${hours}:${minutes}`
+}
+
 function getFanCommsSummary(metadata: Record<string, unknown> | null | undefined): FanCommsSummary {
   if (!metadata || typeof metadata !== 'object') {
-    return { sent: 0, scheduled: 0, failed: 0, total: 0 }
+    return { sent: 0, scheduled: 0, failed: 0, cancelled: 0, total: 0 }
   }
 
   const fanComms = readMetadataObject(metadata, 'fan_comms')
   const summary = fanComms ? readMetadataObject(fanComms, 'summary') : null
   if (!summary) {
-    return { sent: 0, scheduled: 0, failed: 0, total: 0 }
+    return { sent: 0, scheduled: 0, failed: 0, cancelled: 0, total: 0 }
   }
 
   const toCount = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
@@ -208,6 +268,7 @@ function getFanCommsSummary(metadata: Record<string, unknown> | null | undefined
     sent: toCount(summary.sent),
     scheduled: toCount(summary.scheduled),
     failed: toCount(summary.failed),
+    cancelled: toCount(summary.cancelled),
     total: toCount(summary.total),
   }
 }
@@ -226,12 +287,24 @@ export function ArtistGigCalendarManager({ defaultView = 'create' }: ArtistGigCa
   const [fanCommsGig, setFanCommsGig] = useState<ArtistGigRecord | null>(null)
   const [fanCommsOpen, setFanCommsOpen] = useState(false)
   const [fanCommsSaving, setFanCommsSaving] = useState(false)
+  const [fanCommsLoading, setFanCommsLoading] = useState(false)
+  const [fanCommsActioningEntryId, setFanCommsActioningEntryId] = useState<string | null>(null)
+  const [editingScheduledEntryId, setEditingScheduledEntryId] = useState<string | null>(null)
   const [fanCommsError, setFanCommsError] = useState<string | null>(null)
   const [fanCommsSuccess, setFanCommsSuccess] = useState<string | null>(null)
+  const [fanCommsQueue, setFanCommsQueue] = useState<GigFanCommsQueueEntry[]>([])
+  const [fanCommsSummary, setFanCommsSummary] = useState<FanCommsSummary>({
+    sent: 0,
+    scheduled: 0,
+    failed: 0,
+    cancelled: 0,
+    total: 0,
+  })
   const [fanCommsAssets, setFanCommsAssets] = useState<FanCommsAssetState>({
     artistArtworkUrl: null,
     venueArtworkUrl: null,
   })
+  const [brokenGigArtwork, setBrokenGigArtwork] = useState<Record<string, boolean>>({})
   const [fanCommsForm, setFanCommsForm] = useState<FanCommsFormState>({
     sendMode: 'now',
     scheduledDate: getTomorrowDateInput(),
@@ -242,6 +315,64 @@ export function ArtistGigCalendarManager({ defaultView = 'create' }: ArtistGigCa
     title: '',
     message: '',
   })
+  const [scheduledEditForm, setScheduledEditForm] = useState<ScheduledFanCommsEditState>({
+    scheduledDate: getTomorrowDateInput(),
+    scheduledTime: '10:00',
+    audienceMode: 'all_followers',
+    regionsInput: '',
+    artworkChoice: 'artist',
+    title: '',
+    message: '',
+  })
+
+  const hydrateFanCommsState = useCallback(async (gig: ArtistGigRecord, fallbackAssets: FanCommsAssetState) => {
+    try {
+      setFanCommsLoading(true)
+      setFanCommsError(null)
+
+      const payload = await fetchGigFanCommsState(gig.id)
+      const queue = Array.isArray(payload?.data?.queue)
+        ? [...payload.data.queue].sort((a, b) => {
+            const left = new Date(a.created_at).getTime()
+            const right = new Date(b.created_at).getTime()
+            return Number.isFinite(right) && Number.isFinite(left) ? right - left : 0
+          })
+        : []
+
+      const apiArtistArtwork = payload?.data?.artwork?.artistArtworkUrl || null
+      const apiVenueArtwork = payload?.data?.artwork?.venueArtworkUrl || null
+      const mergedAssets = {
+        artistArtworkUrl: apiArtistArtwork || fallbackAssets.artistArtworkUrl,
+        venueArtworkUrl: apiVenueArtwork || fallbackAssets.venueArtworkUrl,
+      }
+
+      const summaryFromApi = payload?.data?.summary
+      setFanCommsQueue(queue)
+      setFanCommsSummary({
+        sent: typeof summaryFromApi?.sent === 'number' ? summaryFromApi.sent : queue.filter((entry) => entry.status === 'sent').length,
+        scheduled: typeof summaryFromApi?.scheduled === 'number' ? summaryFromApi.scheduled : queue.filter((entry) => entry.status === 'scheduled').length,
+        failed: typeof summaryFromApi?.failed === 'number' ? summaryFromApi.failed : queue.filter((entry) => entry.status === 'failed').length,
+        cancelled: typeof summaryFromApi?.cancelled === 'number' ? summaryFromApi.cancelled : queue.filter((entry) => entry.status === 'cancelled').length,
+        total: typeof summaryFromApi?.total === 'number' ? summaryFromApi.total : queue.length,
+      })
+      setFanCommsAssets(mergedAssets)
+      setFanCommsForm((prev) => {
+        const canUseArtist = Boolean(mergedAssets.artistArtworkUrl || mergedAssets.venueArtworkUrl)
+        const canUseVenue = Boolean(mergedAssets.venueArtworkUrl || mergedAssets.artistArtworkUrl)
+        const artworkChoice = prev.artworkChoice === 'venue'
+          ? (canUseVenue ? 'venue' : 'artist')
+          : (canUseArtist ? 'artist' : 'venue')
+        return {
+          ...prev,
+          artworkChoice,
+        }
+      })
+    } catch (err) {
+      setFanCommsError(err instanceof Error ? err.message : 'Failed to load fan communication history')
+    } finally {
+      setFanCommsLoading(false)
+    }
+  }, [])
 
   const load = useCallback(async (isRefresh = false) => {
     try {
@@ -299,6 +430,28 @@ export function ArtistGigCalendarManager({ defaultView = 'create' }: ArtistGigCa
     setFanCommsForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  const handleScheduledEditField = <K extends keyof ScheduledFanCommsEditState>(
+    key: K,
+    value: ScheduledFanCommsEditState[K]
+  ) => {
+    setScheduledEditForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const beginScheduledFanCommsEdit = (entry: GigFanCommsQueueEntry) => {
+    setEditingScheduledEntryId(entry.id)
+    setScheduledEditForm({
+      scheduledDate: toLocalDateInput(entry.scheduled_for) || getTomorrowDateInput(),
+      scheduledTime: toLocalTimeInput(entry.scheduled_for) || '10:00',
+      audienceMode: entry.audience_mode,
+      regionsInput: entry.regions.join(', '),
+      artworkChoice: entry.artwork_choice,
+      title: entry.title || '',
+      message: entry.message || '',
+    })
+    setFanCommsError(null)
+    setFanCommsSuccess(null)
+  }
+
   const openFanCommsDialog = (gig: ArtistGigRecord) => {
     const metadata = gig.metadata && typeof gig.metadata === 'object' ? gig.metadata : null
     const venueOverride = readMetadataObject(metadata, 'venue_override')
@@ -321,6 +474,15 @@ export function ArtistGigCalendarManager({ defaultView = 'create' }: ArtistGigCa
       artistArtworkUrl,
       venueArtworkUrl,
     })
+    setFanCommsQueue([])
+    setEditingScheduledEntryId(null)
+    setFanCommsSummary({
+      sent: 0,
+      scheduled: 0,
+      failed: 0,
+      cancelled: 0,
+      total: 0,
+    })
     setFanCommsForm({
       sendMode: 'now',
       scheduledDate: getTomorrowDateInput(),
@@ -334,6 +496,10 @@ export function ArtistGigCalendarManager({ defaultView = 'create' }: ArtistGigCa
     setFanCommsError(null)
     setFanCommsSuccess(null)
     setFanCommsOpen(true)
+    void hydrateFanCommsState(gig, {
+      artistArtworkUrl,
+      venueArtworkUrl,
+    })
   }
 
 
@@ -391,11 +557,69 @@ export function ArtistGigCalendarManager({ defaultView = 'create' }: ArtistGigCa
       )
       setFanCommsOpen(false)
       setFanCommsGig(null)
+      setFanCommsQueue([])
+      setEditingScheduledEntryId(null)
       await load(true)
     } catch (err) {
       setFanCommsError(err instanceof Error ? err.message : 'Failed to send fan communication')
     } finally {
       setFanCommsSaving(false)
+    }
+  }
+
+  const handleCancelScheduledFanComms = async (entryId: string) => {
+    if (!fanCommsGig) return
+    try {
+      setFanCommsActioningEntryId(entryId)
+      setFanCommsError(null)
+      await cancelScheduledGigFanComms(fanCommsGig.id, entryId)
+      setFanCommsSuccess('Scheduled fan update cancelled.')
+      await hydrateFanCommsState(fanCommsGig, fanCommsAssets)
+      await load(true)
+    } catch (err) {
+      setFanCommsError(err instanceof Error ? err.message : 'Failed to cancel scheduled fan update')
+    } finally {
+      setFanCommsActioningEntryId(null)
+    }
+  }
+
+  const handleUpdateScheduledFanComms = async (entryId: string) => {
+    if (!fanCommsGig) return
+    try {
+      setFanCommsActioningEntryId(entryId)
+      setFanCommsError(null)
+
+      const message = scheduledEditForm.message.trim()
+      if (!message) {
+        throw new Error('Please enter a fan communication message')
+      }
+      if (!scheduledEditForm.scheduledDate) {
+        throw new Error('Please choose a date for scheduled fan communication')
+      }
+
+      const regions = parseRegionInput(scheduledEditForm.regionsInput)
+      if (scheduledEditForm.audienceMode === 'specific_regions' && regions.length === 0) {
+        throw new Error('Please enter at least one target region')
+      }
+
+      await updateScheduledGigFanComms(fanCommsGig.id, entryId, {
+        scheduledDate: scheduledEditForm.scheduledDate,
+        scheduledTime: scheduledEditForm.scheduledTime,
+        audienceMode: scheduledEditForm.audienceMode,
+        regions: scheduledEditForm.audienceMode === 'specific_regions' ? regions : undefined,
+        artworkChoice: scheduledEditForm.artworkChoice,
+        title: scheduledEditForm.title.trim() || undefined,
+        message,
+      })
+
+      setEditingScheduledEntryId(null)
+      setFanCommsSuccess('Scheduled fan update updated.')
+      await hydrateFanCommsState(fanCommsGig, fanCommsAssets)
+      await load(true)
+    } catch (err) {
+      setFanCommsError(err instanceof Error ? err.message : 'Failed to update scheduled fan update')
+    } finally {
+      setFanCommsActioningEntryId(null)
     }
   }
 
@@ -622,6 +846,8 @@ export function ArtistGigCalendarManager({ defaultView = 'create' }: ArtistGigCa
                     const performanceStart = gig.artistTile?.performanceStartDatetime || gig.startDatetime
                     const performanceEnd = gig.artistTile?.performanceEndDatetime || gig.endDatetime
                     const sourceOfTruth = gig.sourceOfTruth || gig.publicDisplay?.sourceOfTruth || 'artist'
+                    const gigArtworkUrl = gig.publicDisplay?.artworkUrl || readMetadataString(gig.metadata || null, 'artwork_url') || ''
+                    const showGigArtwork = Boolean(gigArtworkUrl) && !brokenGigArtwork[gig.id]
                     const fanCommsSummary = getFanCommsSummary(gig.metadata || null)
                     const fanCommsLabel = fanCommsSummary.total > 0
                       ? `Fan updates: ${fanCommsSummary.sent} sent, ${fanCommsSummary.scheduled} scheduled${fanCommsSummary.failed > 0 ? `, ${fanCommsSummary.failed} failed` : ''}`
@@ -630,9 +856,23 @@ export function ArtistGigCalendarManager({ defaultView = 'create' }: ArtistGigCa
 
                     return (
                       <div key={gig.id} className="rounded-xl border border-gray-200 bg-white overflow-hidden hover:shadow-md transition-shadow">
-                        <div className="h-40 bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
-                          <CalendarDays className="w-12 h-12 text-white/60" />
-                        </div>
+                        {showGigArtwork ? (
+                          <div className="relative h-40 w-full overflow-hidden">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={gigArtworkUrl}
+                              alt={`${gig.gigTitle} artwork`}
+                              className="absolute inset-0 block h-full w-full scale-[1.3] object-cover object-center"
+                              onError={() => {
+                                setBrokenGigArtwork((prev) => ({ ...prev, [gig.id]: true }))
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="h-40 bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
+                            <CalendarDays className="w-12 h-12 text-white/60" />
+                          </div>
+                        )}
 
                         <div className="p-4 space-y-2">
                           <h3 className="font-bold text-gray-900 text-lg leading-tight">{gig.gigTitle}</h3>
@@ -732,6 +972,15 @@ export function ArtistGigCalendarManager({ defaultView = 'create' }: ArtistGigCa
           if (!open) {
             setFanCommsGig(null)
             setFanCommsError(null)
+            setFanCommsQueue([])
+            setEditingScheduledEntryId(null)
+            setFanCommsSummary({
+              sent: 0,
+              scheduled: 0,
+              failed: 0,
+              cancelled: 0,
+              total: 0,
+            })
           }
         }}>
           <DialogContent className="sm:max-w-2xl">
@@ -746,6 +995,12 @@ export function ArtistGigCalendarManager({ defaultView = 'create' }: ArtistGigCa
               {fanCommsError && (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                   {fanCommsError}
+                </div>
+              )}
+
+              {fanCommsSuccess && (
+                <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                  {fanCommsSuccess}
                 </div>
               )}
 
@@ -902,6 +1157,225 @@ export function ArtistGigCalendarManager({ defaultView = 'create' }: ArtistGigCa
                   />
                   <p className="text-xs text-gray-500 mt-1">{fanCommsForm.message.length} / 500</p>
                 </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-gray-900">Fan Update History</p>
+                  {fanCommsLoading && (
+                    <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Loading...
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-5 text-xs text-gray-600">
+                  <div className="rounded border border-gray-200 bg-white px-2 py-1">Sent: {fanCommsSummary.sent}</div>
+                  <div className="rounded border border-gray-200 bg-white px-2 py-1">Scheduled: {fanCommsSummary.scheduled}</div>
+                  <div className="rounded border border-gray-200 bg-white px-2 py-1">Failed: {fanCommsSummary.failed}</div>
+                  <div className="rounded border border-gray-200 bg-white px-2 py-1">Cancelled: {fanCommsSummary.cancelled}</div>
+                  <div className="rounded border border-gray-200 bg-white px-2 py-1">Total: {fanCommsSummary.total}</div>
+                </div>
+
+                {!fanCommsLoading && fanCommsQueue.length === 0 ? (
+                  <p className="text-xs text-gray-500">No previous fan updates for this gig.</p>
+                ) : (
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {fanCommsQueue.map((entry) => {
+                      const statusStyles = entry.status === 'sent'
+                        ? 'bg-green-100 text-green-800'
+                        : entry.status === 'scheduled'
+                          ? 'bg-blue-100 text-blue-800'
+                          : entry.status === 'cancelled'
+                            ? 'bg-gray-100 text-gray-700'
+                            : 'bg-red-100 text-red-800'
+
+                      return (
+                        <div key={entry.id} className="rounded border border-gray-200 bg-white p-2 text-xs space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`inline-flex rounded px-2 py-0.5 font-medium ${statusStyles}`}>
+                              {entry.status}
+                            </span>
+                            <span className="text-gray-500">{formatDateTime(entry.created_at)}</span>
+                          </div>
+                          <p className="text-gray-700">{entry.title || 'Fan Update'}</p>
+                          <p className="text-gray-500 line-clamp-2">{entry.message}</p>
+                          <div className="flex items-center justify-between gap-2 text-gray-500">
+                            <span>Audience: {entry.audience_mode === 'all_followers' ? 'All followers' : `Specific regions (${entry.regions.length})`}</span>
+                            <span>Recipients: {entry.recipient_count ?? 0}</span>
+                          </div>
+                          {entry.status === 'scheduled' && (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-gray-500">Scheduled for {formatDateTime(entry.scheduled_for)}</span>
+                                <div className="flex items-center gap-2">
+                                  {editingScheduledEntryId !== entry.id && (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 px-2 text-xs"
+                                      onClick={() => beginScheduledFanCommsEdit(entry)}
+                                      disabled={Boolean(fanCommsActioningEntryId) || fanCommsSaving}
+                                    >
+                                      Edit
+                                    </Button>
+                                  )}
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-xs"
+                                    onClick={() => handleCancelScheduledFanComms(entry.id)}
+                                    disabled={fanCommsActioningEntryId === entry.id || fanCommsSaving}
+                                  >
+                                    {fanCommsActioningEntryId === entry.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      'Cancel'
+                                    )}
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {editingScheduledEntryId === entry.id && (
+                                <div className="rounded border border-blue-200 bg-blue-50 p-2 space-y-2">
+                                  <div className="grid gap-2 sm:grid-cols-2">
+                                    <div>
+                                      <Label className="text-[11px]">Scheduled Date</Label>
+                                      <Input
+                                        type="date"
+                                        value={scheduledEditForm.scheduledDate}
+                                        onChange={(event) => handleScheduledEditField('scheduledDate', event.target.value)}
+                                        className="h-8 mt-1"
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label className="text-[11px]">Scheduled Time</Label>
+                                      <Input
+                                        type="time"
+                                        value={scheduledEditForm.scheduledTime}
+                                        onChange={(event) => handleScheduledEditField('scheduledTime', event.target.value)}
+                                        className="h-8 mt-1"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <Label className="text-[11px]">Audience</Label>
+                                    <div className="flex flex-wrap gap-3">
+                                      <label className="inline-flex items-center gap-1.5">
+                                        <input
+                                          type="radio"
+                                          checked={scheduledEditForm.audienceMode === 'all_followers'}
+                                          onChange={() => handleScheduledEditField('audienceMode', 'all_followers')}
+                                          className="accent-purple-600"
+                                        />
+                                        <span>All followers</span>
+                                      </label>
+                                      <label className="inline-flex items-center gap-1.5">
+                                        <input
+                                          type="radio"
+                                          checked={scheduledEditForm.audienceMode === 'specific_regions'}
+                                          onChange={() => handleScheduledEditField('audienceMode', 'specific_regions')}
+                                          className="accent-purple-600"
+                                        />
+                                        <span>Specific regions</span>
+                                      </label>
+                                    </div>
+                                    {scheduledEditForm.audienceMode === 'specific_regions' && (
+                                      <Input
+                                        value={scheduledEditForm.regionsInput}
+                                        onChange={(event) => handleScheduledEditField('regionsInput', event.target.value)}
+                                        placeholder="e.g. London, UK, Berlin"
+                                        className="h-8"
+                                      />
+                                    )}
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <Label className="text-[11px]">Artwork</Label>
+                                    <div className="flex flex-wrap gap-3">
+                                      <label className="inline-flex items-center gap-1.5">
+                                        <input
+                                          type="radio"
+                                          checked={scheduledEditForm.artworkChoice === 'artist'}
+                                          onChange={() => handleScheduledEditField('artworkChoice', 'artist')}
+                                          className="accent-purple-600"
+                                        />
+                                        <span>Artist</span>
+                                      </label>
+                                      <label className="inline-flex items-center gap-1.5">
+                                        <input
+                                          type="radio"
+                                          checked={scheduledEditForm.artworkChoice === 'venue'}
+                                          onChange={() => handleScheduledEditField('artworkChoice', 'venue')}
+                                          className="accent-purple-600"
+                                        />
+                                        <span>Venue</span>
+                                      </label>
+                                    </div>
+                                  </div>
+
+                                  <div className="grid gap-2">
+                                    <div>
+                                      <Label className="text-[11px]">Headline</Label>
+                                      <Input
+                                        value={scheduledEditForm.title}
+                                        onChange={(event) => handleScheduledEditField('title', event.target.value)}
+                                        maxLength={120}
+                                        className="h-8 mt-1"
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label className="text-[11px]">Message</Label>
+                                      <Textarea
+                                        value={scheduledEditForm.message}
+                                        onChange={(event) => handleScheduledEditField('message', event.target.value)}
+                                        rows={3}
+                                        maxLength={500}
+                                        className="mt-1"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="flex justify-end gap-2">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setEditingScheduledEntryId(null)}
+                                      disabled={fanCommsActioningEntryId === entry.id}
+                                    >
+                                      Cancel Edit
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      className="bg-purple-600 hover:bg-purple-700"
+                                      onClick={() => handleUpdateScheduledFanComms(entry.id)}
+                                      disabled={fanCommsActioningEntryId === entry.id}
+                                    >
+                                      {fanCommsActioningEntryId === entry.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : (
+                                        'Save Schedule'
+                                      )}
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {entry.status === 'failed' && entry.failure_reason && (
+                            <p className="text-red-700">{entry.failure_reason}</p>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 

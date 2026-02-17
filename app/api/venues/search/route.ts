@@ -93,6 +93,8 @@ export async function GET(request: NextRequest) {
     const { data, error } = await serviceSupabase
       .from('venues')
       .select('id, name, address, contact_details')
+      .eq('is_verified', true)
+      .eq('is_active', true)
       .ilike('name', `%${query}%`)
       .limit(limit)
 

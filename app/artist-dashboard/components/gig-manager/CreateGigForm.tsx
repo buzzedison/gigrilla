@@ -12,6 +12,7 @@ import { Input } from '../../../components/ui/input'
 import { Label } from '../../../components/ui/label'
 import { Textarea } from '../../../components/ui/textarea'
 import { LocationAutocompleteInput } from '../../../components/ui/location-autocomplete'
+import { readImageMetadata } from '@/lib/image-metadata'
 
 /* ── Types ────────────────────────────────────────────── */
 
@@ -47,7 +48,8 @@ interface GigFormData {
     // 2. Type
     gigType: GigType
     // 3. Date/Time
-    gigDate: string
+    gigStartDate: string
+    gigFinishDate: string
     doorsOpen: string
     streamOpens: string
     setStartTime: string
@@ -108,10 +110,21 @@ const CURRENCIES = [
     { value: 'GHS', label: '₵ GHS', symbol: '₵' },
 ]
 
+const ARTWORK_REQUIREMENTS = {
+    type: 'File type must be .jpg (preferred) or .png',
+    shape: 'Image must be square (1:1 ratio)',
+    dimensions: 'Dimensions must be between 3000×3000 and 6000×6000 pixels',
+    size: 'File size must be 10MB or less',
+    dpi: 'If DPI metadata is present, it must be between 72 and 300 (recommended)',
+} as const
+
+type ArtworkRequirementKey = keyof typeof ARTWORK_REQUIREMENTS
+
 const DEFAULT_FORM: GigFormData = {
     gigEventName: '',
     gigType: 'in_person',
-    gigDate: '',
+    gigStartDate: '',
+    gigFinishDate: '',
     doorsOpen: '',
     streamOpens: '',
     setStartTime: '',
@@ -167,27 +180,6 @@ function InfoBox({ children }: { children: React.ReactNode }) {
     )
 }
 
-function loadImageDimensions(file: File): Promise<{ width: number; height: number }> {
-    return new Promise((resolve, reject) => {
-        const objectUrl = URL.createObjectURL(file)
-        const image = new Image()
-
-        image.onload = () => {
-            const width = image.naturalWidth
-            const height = image.naturalHeight
-            URL.revokeObjectURL(objectUrl)
-            resolve({ width, height })
-        }
-
-        image.onerror = () => {
-            URL.revokeObjectURL(objectUrl)
-            reject(new Error('Could not read image dimensions'))
-        }
-
-        image.src = objectUrl
-    })
-}
-
 /* ── Component ────────────────────────────────────────── */
 
 interface CreateGigFormProps {
@@ -199,9 +191,14 @@ interface CreateGigFormProps {
 }
 
 function buildInitialFormState(initialData?: CreateGigFormInitialData): GigFormData {
+    const fallbackStartDate = initialData?.gigStartDate || ''
+    const fallbackFinishDate = initialData?.gigFinishDate || fallbackStartDate
+
     return {
         ...DEFAULT_FORM,
         ...(initialData || {}),
+        gigStartDate: fallbackStartDate,
+        gigFinishDate: fallbackFinishDate,
         venueContactPhoneCode: initialData?.venueContactPhoneCode || DEFAULT_FORM.venueContactPhoneCode,
     }
 }
@@ -222,6 +219,9 @@ export function CreateGigForm({
     const [venueSuggestionsLoading, setVenueSuggestionsLoading] = useState(false)
     const [venueSuggestionsError, setVenueSuggestionsError] = useState<string | null>(null)
     const [venueDropdownOpen, setVenueDropdownOpen] = useState(false)
+    const [isArtworkDragActive, setIsArtworkDragActive] = useState(false)
+    const [artworkValidationError, setArtworkValidationError] = useState<string | null>(null)
+    const [artworkFailedRequirement, setArtworkFailedRequirement] = useState<ArtworkRequirementKey | null>(null)
     const venueFetchIdRef = useRef(0)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -240,13 +240,34 @@ export function CreateGigForm({
     const hasPaidTickets = form.paidTicketOptions.length > 0
     const currencySymbol = CURRENCIES.find(c => c.value === form.ticketCurrency)?.symbol || '£'
     const isEditMode = mode === 'edit'
+    const isOvernightGig = Boolean(
+        form.gigStartDate &&
+        form.gigFinishDate &&
+        form.gigFinishDate > form.gigStartDate
+    )
 
     useEffect(() => {
         setForm(buildInitialFormState(initialData))
     }, [initialData, mode])
 
+    useEffect(() => {
+        return () => {
+            if (form.artworkPreview?.startsWith('blob:')) {
+                URL.revokeObjectURL(form.artworkPreview)
+            }
+        }
+    }, [form.artworkPreview])
+
     const update = <K extends keyof GigFormData>(key: K, value: GigFormData[K]) => {
         setForm(prev => ({ ...prev, [key]: value }))
+    }
+
+    const handleStartDateChange = (value: string) => {
+        setForm(prev => ({
+            ...prev,
+            gigStartDate: value,
+            gigFinishDate: !prev.gigFinishDate || prev.gigFinishDate < value ? value : prev.gigFinishDate,
+        }))
     }
 
     useEffect(() => {
@@ -420,48 +441,101 @@ export function CreateGigForm({
 
     const ageDisplayPreview = getAgeDisplay(form.ageRestrictions)
 
-    const handleArtworkSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
-        // Validate
+    const mapArtworkRequirementFromError = (message: string): ArtworkRequirementKey | null => {
+        const normalized = message.toLowerCase()
+        if (normalized.includes('.jpg') || normalized.includes('.png') || normalized.includes('file type')) return 'type'
+        if (normalized.includes('10mb') || normalized.includes('file size')) return 'size'
+        if (normalized.includes('square') || normalized.includes('1:1')) return 'shape'
+        if (normalized.includes('3000') || normalized.includes('6000') || normalized.includes('pixel')) return 'dimensions'
+        if (normalized.includes('dpi')) return 'dpi'
+        return null
+    }
+
+    const validateAndSetArtworkFile = async (file: File) => {
         if (!['image/jpeg', 'image/png'].includes(file.type)) {
-            setSubmitError('Artwork must be a .jpg or .png file')
-            e.target.value = ''
-            return
+            throw new Error('Artwork must be a .jpg or .png file')
         }
         if (file.size > 10 * 1024 * 1024) {
-            setSubmitError('Artwork must be less than 10MB')
-            e.target.value = ''
-            return
+            throw new Error('Artwork must be less than 10MB')
         }
 
-        try {
-            const { width, height } = await loadImageDimensions(file)
-            if (width !== height) {
-                setSubmitError('Artwork must be a square image (1:1 ratio)')
-                e.target.value = ''
-                return
-            }
-            if (width < 3000 || height < 3000) {
-                setSubmitError('Artwork must be at least 3000 x 3000 pixels')
-                e.target.value = ''
-                return
-            }
-            if (width > 6000 || height > 6000) {
-                setSubmitError('Artwork must be no larger than 6000 x 6000 pixels')
-                e.target.value = ''
-                return
-            }
-        } catch (error) {
-            setSubmitError(error instanceof Error ? error.message : 'Could not validate image dimensions')
-            e.target.value = ''
-            return
+        const bytes = new Uint8Array(await file.arrayBuffer())
+        const metadata = readImageMetadata(bytes, file.type)
+        if (!metadata) {
+            throw new Error('Could not read artwork metadata')
+        }
+
+        if (metadata.width !== metadata.height) {
+            throw new Error('Artwork must be a square image (1:1 ratio)')
+        }
+        if (metadata.width < 3000 || metadata.height < 3000) {
+            throw new Error('Artwork must be at least 3000 x 3000 pixels')
+        }
+        if (metadata.width > 6000 || metadata.height > 6000) {
+            throw new Error('Artwork must be no larger than 6000 x 6000 pixels')
+        }
+
+        const dpiValues = [metadata.dpiX, metadata.dpiY].filter((value): value is number => typeof value === 'number')
+        if (dpiValues.some(value => value < 72 || value > 300)) {
+            throw new Error('Artwork DPI must be between 72 and 300')
+        }
+
+        if (form.artworkPreview?.startsWith('blob:')) {
+            URL.revokeObjectURL(form.artworkPreview)
         }
 
         const previewUrl = URL.createObjectURL(file)
         update('artworkFile', file)
         update('artworkPreview', previewUrl)
+        setArtworkValidationError(null)
+        setArtworkFailedRequirement(null)
         setSubmitError(null)
+    }
+
+    const handleArtworkSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        try {
+            await validateAndSetArtworkFile(file)
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Could not validate artwork'
+            setArtworkValidationError(message)
+            setArtworkFailedRequirement(mapArtworkRequirementFromError(message))
+            setSubmitError(message)
+        } finally {
+            e.target.value = ''
+        }
+    }
+
+    const handleArtworkDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setIsArtworkDragActive(true)
+    }
+
+    const handleArtworkDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setIsArtworkDragActive(false)
+    }
+
+    const handleArtworkDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setIsArtworkDragActive(false)
+
+        const file = e.dataTransfer.files?.[0]
+        if (!file) return
+
+        try {
+            await validateAndSetArtworkFile(file)
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Could not validate artwork'
+            setArtworkValidationError(message)
+            setArtworkFailedRequirement(mapArtworkRequirementFromError(message))
+            setSubmitError(message)
+        }
     }
 
     const removeArtwork = () => {
@@ -470,6 +544,8 @@ export function CreateGigForm({
         }
         update('artworkFile', null)
         update('artworkPreview', '')
+        setArtworkValidationError(null)
+        setArtworkFailedRequirement(null)
     }
 
     const addCustomTicket = () => {
@@ -500,8 +576,16 @@ export function CreateGigForm({
             }
             // Validation
             if (!form.gigEventName.trim()) throw new Error('Please enter a Gig Event Name')
-            if (!form.gigDate) throw new Error('Please enter the date of the gig')
+            if (!form.gigStartDate) throw new Error('Please enter the gig start date')
             if (!form.setStartTime) throw new Error('Please enter your set start time')
+            const resolvedFinishDate = form.gigFinishDate || form.gigStartDate
+            if (!resolvedFinishDate) throw new Error('Please enter the gig finish date')
+            if (resolvedFinishDate < form.gigStartDate) {
+                throw new Error('Gig finish date cannot be before the gig start date')
+            }
+            if (resolvedFinishDate > form.gigStartDate && !form.setEndTime) {
+                throw new Error('Please enter your set finish time for overnight gigs')
+            }
             const normalizedAgeRestrictions = form.ageRestrictionMode === 'has_restrictions'
                 ? validateAgeRestrictionSelections(form.ageRestrictions)
                 : []
@@ -513,9 +597,9 @@ export function CreateGigForm({
             }
 
             // Build start datetime
-            const startDatetime = new Date(`${form.gigDate}T${form.setStartTime}:00`).toISOString()
+            const startDatetime = new Date(`${form.gigStartDate}T${form.setStartTime}:00`).toISOString()
             const endDatetime = form.setEndTime
-                ? new Date(`${form.gigDate}T${form.setEndTime}:00`).toISOString()
+                ? new Date(`${resolvedFinishDate}T${form.setEndTime}:00`).toISOString()
                 : undefined
             if (endDatetime && new Date(endDatetime).getTime() <= new Date(startDatetime).getTime()) {
                 throw new Error('Set finish time must be after set start time')
@@ -539,7 +623,10 @@ export function CreateGigForm({
                 const uploadRes = await fetch('/api/upload', { method: 'POST', body: artworkFormData })
                 const uploadData = await uploadRes.json()
                 if (!uploadRes.ok) {
-                    throw new Error(uploadData?.error || 'Gig artwork upload failed')
+                    const uploadError = uploadData?.error || 'Gig artwork upload failed'
+                    setArtworkValidationError(uploadError)
+                    setArtworkFailedRequirement(mapArtworkRequirementFromError(uploadError))
+                    throw new Error(uploadError)
                 }
                 artworkUrl = uploadData.url || null
             } else if (isEditMode) {
@@ -587,7 +674,9 @@ export function CreateGigForm({
                     custom_tickets: form.customTickets,
                     ticket_availability: form.ticketAvailability,
                     custom_ticket_count: form.customTicketCount || null,
-                    agreed_gig_date: form.gigDate,
+                    agreed_gig_date: form.gigStartDate,
+                    gig_start_date: form.gigStartDate,
+                    gig_finish_date: resolvedFinishDate,
                     artwork_url: artworkUrl,
                     artwork_caption: form.artworkCaption || null,
                     publish_mode: form.publishMode,
@@ -701,16 +790,30 @@ export function CreateGigForm({
 
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         <div>
-                            <Label htmlFor="gigDate">Agreed Gig Date *</Label>
+                            <Label htmlFor="gigStartDate">Gig Start Date *</Label>
                             <Input
-                                id="gigDate"
+                                id="gigStartDate"
                                 type="date"
-                                value={form.gigDate}
-                                onChange={e => update('gigDate', e.target.value)}
+                                value={form.gigStartDate}
+                                onChange={e => handleStartDateChange(e.target.value)}
                                 required
                                 className="mt-1"
                             />
-                            <p className="text-xs text-gray-500 mt-1">All gig timings in this form are tied to this one agreed date.</p>
+                            <p className="text-xs text-gray-500 mt-1">Date your set begins.</p>
+                        </div>
+
+                        <div>
+                            <Label htmlFor="gigFinishDate">Gig Finish Date *</Label>
+                            <Input
+                                id="gigFinishDate"
+                                type="date"
+                                value={form.gigFinishDate}
+                                onChange={e => update('gigFinishDate', e.target.value)}
+                                required
+                                className="mt-1"
+                                min={form.gigStartDate || undefined}
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Set next day for overnight gigs.</p>
                         </div>
 
                         {isInPerson && (
@@ -762,6 +865,11 @@ export function CreateGigForm({
                                 onChange={e => update('setEndTime', e.target.value)}
                                 className="mt-1"
                             />
+                            {isOvernightGig && (
+                                <p className="text-xs text-blue-700 mt-1">
+                                    Overnight set: finish time is on the selected Gig Finish Date.
+                                </p>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -1302,7 +1410,10 @@ export function CreateGigForm({
                     This is your Gig Artwork across Gigrilla.
                 </p>
                 <p className="text-xs text-gray-500">
-                    Artwork must be: .jpg (preferred) or .png — a 1:1 square image with min. 3000×3000 pixels, max. 6000×6000 pixels, max. 10MB file size, min. 72 DPI, max. 300 DPI.
+                    Artwork must be: .jpg (preferred) or .png — a 1:1 square image with min. 3000×3000 pixels, max. 6000×6000 pixels, max. 10MB file size. If DPI metadata is present, keep it between 72 and 300 DPI.
+                </p>
+                <p className="text-xs text-gray-500">
+                    Tip: if your editor does not expose DPI settings, export at the correct square pixel size; DPI metadata is recommended but not required.
                 </p>
 
                 {form.artworkPreview ? (
@@ -1335,11 +1446,28 @@ export function CreateGigForm({
                     </div>
                 ) : (
                     <div
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={e => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                fileInputRef.current?.click()
+                            }
+                        }}
                         onClick={() => fileInputRef.current?.click()}
-                        className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-8 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/30 transition-colors"
+                        onDragOver={handleArtworkDragOver}
+                        onDragLeave={handleArtworkDragLeave}
+                        onDrop={handleArtworkDrop}
+                        className={`rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${
+                            isArtworkDragActive
+                                ? 'border-purple-500 bg-purple-50/50'
+                                : 'border-gray-300 bg-gray-50 hover:border-purple-400 hover:bg-purple-50/30'
+                        }`}
                     >
                         <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm font-medium text-gray-700">Drag &amp; Drop or Upload From Device</p>
+                        <p className="text-sm font-medium text-gray-700">
+                            {isArtworkDragActive ? 'Drop image to upload' : 'Drag &amp; Drop or Upload From Device'}
+                        </p>
                         <p className="text-xs text-gray-500 mt-1">.jpg or .png, square (3000×3000 to 6000×6000), max 10MB</p>
                     </div>
                 )}
@@ -1350,6 +1478,28 @@ export function CreateGigForm({
                     onChange={handleArtworkSelect}
                     className="hidden"
                 />
+                <div className="space-y-1 text-xs text-gray-500">
+                    {(Object.entries(ARTWORK_REQUIREMENTS) as [ArtworkRequirementKey, string][]).map(([key, line]) => {
+                        const isFailed = artworkFailedRequirement === key
+                        return (
+                            <p key={key} className={isFailed ? 'font-medium text-red-700' : ''}>
+                                {isFailed ? 'x ' : '- '}
+                                {line}
+                            </p>
+                        )
+                    })}
+                </div>
+                {artworkValidationError && (
+                    <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                        <p>{artworkValidationError}</p>
+                        {artworkFailedRequirement && (
+                            <p className="mt-1">
+                                <span className="font-semibold">Failed requirement:</span>{' '}
+                                {ARTWORK_REQUIREMENTS[artworkFailedRequirement]}
+                            </p>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* ─── 4. SCHEDULE PUBLISHING ───────────────────────── */}

@@ -633,3 +633,10 @@ export function appendFanCommsEntryToMetadata(
 export function getFanCommsQueue(metadata: Record<string, unknown> | null | undefined) {
   return readQueueFromMetadata(metadata)
 }
+
+export function replaceFanCommsQueueInMetadata(
+  metadata: Record<string, unknown> | null | undefined,
+  queue: GigFanCommsQueueEntry[]
+) {
+  return writeQueueToMetadata(metadata, queue)
+}

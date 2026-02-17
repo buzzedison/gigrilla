@@ -134,6 +134,44 @@ export interface SendGigFanCommsPayload {
   message: string
 }
 
+export interface GigFanCommsQueueEntry {
+  id: string
+  status: 'scheduled' | 'sent' | 'failed' | 'cancelled'
+  created_at: string
+  send_mode: 'now' | 'scheduled'
+  scheduled_for: string | null
+  sent_at: string | null
+  audience_mode: 'all_followers' | 'specific_regions'
+  regions: string[]
+  artwork_choice: 'artist' | 'venue'
+  artwork_url: string | null
+  title: string
+  message: string
+  recipient_count: number | null
+  failure_reason?: string | null
+}
+
+export interface GigFanCommsStateResponse {
+  success: boolean
+  data: {
+    bookingId: string
+    gigId: string
+    gigStatus: string | null
+    artwork: {
+      artistArtworkUrl: string | null
+      venueArtworkUrl: string | null
+    }
+    queue: GigFanCommsQueueEntry[]
+    summary: {
+      total: number
+      sent: number
+      scheduled: number
+      failed: number
+      cancelled?: number
+    }
+  }
+}
+
 export async function sendGigFanComms(data: SendGigFanCommsPayload) {
   const response = await fetch('/api/artist-gigs/fan-comms', {
     method: 'POST',
@@ -146,6 +184,78 @@ export async function sendGigFanComms(data: SendGigFanCommsPayload) {
   const payload = await response.json()
   if (!response.ok) {
     throw new Error(payload?.error || 'Failed to send fan communication')
+  }
+
+  return payload
+}
+
+export async function fetchGigFanCommsState(bookingId: string) {
+  const query = new URLSearchParams({ bookingId })
+  const response = await fetch(`/api/artist-gigs/fan-comms?${query.toString()}`, {
+    method: 'GET',
+    cache: 'no-store',
+  })
+
+  const payload = await response.json()
+  if (!response.ok) {
+    throw new Error(payload?.error || 'Failed to load fan promotion status')
+  }
+
+  return payload as GigFanCommsStateResponse
+}
+
+export async function cancelScheduledGigFanComms(bookingId: string, entryId: string) {
+  const response = await fetch('/api/artist-gigs/fan-comms', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      bookingId,
+      entryId,
+      action: 'cancel_scheduled',
+    }),
+  })
+
+  const payload = await response.json()
+  if (!response.ok) {
+    throw new Error(payload?.error || 'Failed to cancel scheduled fan update')
+  }
+
+  return payload
+}
+
+export interface UpdateScheduledGigFanCommsPayload {
+  scheduledDate: string
+  scheduledTime?: string
+  audienceMode: 'all_followers' | 'specific_regions'
+  regions?: string[]
+  artworkChoice: 'artist' | 'venue'
+  title?: string
+  message: string
+}
+
+export async function updateScheduledGigFanComms(
+  bookingId: string,
+  entryId: string,
+  data: UpdateScheduledGigFanCommsPayload
+) {
+  const response = await fetch('/api/artist-gigs/fan-comms', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      bookingId,
+      entryId,
+      action: 'update_scheduled',
+      ...data,
+    }),
+  })
+
+  const payload = await response.json()
+  if (!response.ok) {
+    throw new Error(payload?.error || 'Failed to update scheduled fan update')
   }
 
   return payload
