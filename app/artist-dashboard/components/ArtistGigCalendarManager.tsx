@@ -27,6 +27,7 @@ import {
 } from './gig-manager/api'
 import { ArtistGigRecord } from './gig-manager/types'
 import { CreateGigForm, type CreateGigFormInitialData } from './gig-manager/CreateGigForm'
+import { formatDateDDMMMyyyy, formatDateTimeDDMMMyyyy } from '@/lib/date-format'
 
 interface ArtistGigCalendarManagerProps {
   defaultView?: 'create' | 'upcoming' | 'past'
@@ -68,13 +69,7 @@ interface ScheduledFanCommsEditState {
 
 function formatDateOnly(value: string | null) {
   if (!value) return 'Date TBD'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Date TBD'
-  return date.toLocaleDateString(undefined, {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).toUpperCase()
+  return formatDateDDMMMyyyy(value, 'Date TBD')
 }
 
 function formatTime(value: string | null) {
@@ -222,15 +217,7 @@ function parseRegionInput(input: string) {
 
 function formatDateTime(value: string | null) {
   if (!value) return 'Not set'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Not set'
-  return date.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return formatDateTimeDDMMMyyyy(value, 'Not set')
 }
 
 function toLocalDateInput(value: string | null) {

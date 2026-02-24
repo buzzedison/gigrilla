@@ -9,6 +9,7 @@ import { useAuth } from '../../../lib/auth-context'
 import { Upload, Image, Edit3, Trash2, Plus, Camera, FileImage } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import NextImage from 'next/image'
+import { formatDateDDMMMyyyy } from '@/lib/date-format'
 
 interface ArtistPhoto {
   id: string
@@ -347,7 +348,7 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                       <div className="flex-1">
                         <p className="font-medium text-gray-900">{logo.caption || 'Artist Logo'}</p>
                         <p className="text-sm text-gray-500">
-                          Uploaded {new Date(logo.created_at).toLocaleDateString()}
+                          Uploaded {formatDateDDMMMyyyy(logo.created_at)}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -448,7 +449,7 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                         <div>
                           <p className="font-medium text-gray-900">{headerImage.caption || 'Header Image'}</p>
                           <p className="text-sm text-gray-500">
-                            Uploaded {new Date(headerImage.created_at).toLocaleDateString()}
+                            Uploaded {formatDateDDMMMyyyy(headerImage.created_at)}
                           </p>
                         </div>
                         <div className="flex gap-2">
@@ -551,7 +552,7 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                       </div>
                       <p className="font-medium text-gray-900 text-sm mb-1">{photo.caption || 'Profile Photo'}</p>
                       <p className="text-xs text-gray-500 mb-3">
-                        {new Date(photo.created_at).toLocaleDateString()}
+                        {formatDateDDMMMyyyy(photo.created_at)}
                       </p>
                       <div className="flex gap-2">
                         <Button

@@ -9,6 +9,7 @@ import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Card, CardContent } from '../../components/ui/card'
 import { toast } from 'sonner'
+import { formatDateDDMMMyyyy } from '@/lib/date-format'
 
 interface Moderator {
     id: string
@@ -189,7 +190,7 @@ export default function ModeratorsPage() {
 
                                     <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-400 flex items-center gap-1">
                                         <Calendar className="w-3 h-3" />
-                                        Joined {new Date(mod.created_at).toLocaleDateString()}
+                                        Joined {formatDateDDMMMyyyy(mod.created_at)}
                                     </div>
                                 </CardContent>
                             </Card>

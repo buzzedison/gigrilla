@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useAuth } from "../../lib/auth-context"
 import { ProtectedRoute } from "../../lib/protected-route"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { ArtistSidebar } from "./components/ArtistSidebar"
 import { ArtistProfileForm } from "./components/ArtistProfileForm"
 import { ArtistCompletionCard, CompletionItemState, CompletionSection } from "./components/ArtistCompletionCard"
@@ -22,6 +22,7 @@ import { ArtistGigInvitesManager } from "./components/ArtistGigInvitesManager"
 import { ArtistGigRequestsManager } from "./components/ArtistGigRequestsManager"
 import { ArtistMusicManager } from "./components/ArtistMusicManager"
 import { ArtistContractStatusManager } from "./components/ArtistContractStatusManager"
+import { ArtistInboxManager } from "./components/ArtistInboxManager"
 import { Badge } from "../components/ui/badge"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet"
 import { Music, Info, Menu } from "lucide-react"
@@ -56,12 +57,44 @@ type DashboardSection =
   | 'videos'
   | 'music-upload'
   | 'music-manage'
+  | 'messages'
   | 'type'
   | 'contract'
+
+const DASHBOARD_SECTIONS: DashboardSection[] = [
+  'profile',
+  'payments',
+  'crew',
+  'auditions',
+  'royalty',
+  'gigability',
+  'gig-calendar',
+  'gig-create',
+  'gig-upcoming',
+  'gig-past',
+  'gig-invites',
+  'gig-requests',
+  'bio',
+  'genres',
+  'logo',
+  'photos',
+  'videos',
+  'music-upload',
+  'music-manage',
+  'messages',
+  'type',
+  'contract',
+]
+
+function isDashboardSection(value: string | null): value is DashboardSection {
+  return Boolean(value && (DASHBOARD_SECTIONS as string[]).includes(value))
+}
 
 export default function ArtistDashboard() {
   const { user } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [activeSection, setActiveSection] = useState<DashboardSection>('profile')
   const [artistTypeSelection, setArtistTypeSelection] = useState<ArtistTypeSelection | null>(null)
   const [capabilities, setCapabilities] = useState<ArtistTypeCapabilities | null>(null)
@@ -71,6 +104,8 @@ export default function ArtistDashboard() {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const [onboardingCompleted, setOnboardingCompleted] = useState(false)
   const [activeSubSectionKey, setActiveSubSectionKey] = useState<string | null>(null)
+  const [unreadMessages, setUnreadMessages] = useState(0)
+  const deepLinkedMessageFolder = searchParams?.get('folder') || null
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _selectedTypeConfig = useMemo(() => {
@@ -168,14 +203,77 @@ export default function ArtistDashboard() {
     }
   }, [activeSection, activeSubSectionKey])
 
+  const replaceDashboardQuery = useCallback((section: DashboardSection, folderId?: string | null) => {
+    const params = new URLSearchParams(searchParams?.toString() || '')
+
+    if (section === 'profile') {
+      params.delete('section')
+      params.delete('folder')
+    } else {
+      params.set('section', section)
+      if (section === 'messages') {
+        if (folderId && folderId !== 'all') {
+          params.set('folder', folderId)
+        } else {
+          params.delete('folder')
+        }
+      } else {
+        params.delete('folder')
+      }
+    }
+
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+  }, [pathname, router, searchParams])
+
+  useEffect(() => {
+    const requestedSection = searchParams?.get('section')
+    if (!isDashboardSection(requestedSection)) return
+
+    setActiveSection(requestedSection)
+    if (requestedSection === 'messages') {
+      const folder = searchParams?.get('folder')
+      setActiveSubSectionKey(folder ? `messages:${folder}` : null)
+      return
+    }
+
+    setActiveSubSectionKey(null)
+  }, [searchParams])
+
+  const loadUnreadSummary = useCallback(async () => {
+    try {
+      const response = await fetch('/api/inbox?audience=artist&summary=true', { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok || !payload?.success) return
+      const unread = typeof payload?.data?.unreadTotal === 'number' ? payload.data.unreadTotal : 0
+      setUnreadMessages(unread)
+    } catch {
+      // keep the current unread count when refresh fails
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadUnreadSummary()
+    const interval = window.setInterval(() => {
+      void loadUnreadSummary()
+    }, 45000)
+    return () => window.clearInterval(interval)
+  }, [loadUnreadSummary])
+
   const handleSectionChange = (section: DashboardSection) => {
     setActiveSection(section)
     setActiveSubSectionKey(null)
+    replaceDashboardQuery(section, section === 'messages' ? deepLinkedMessageFolder : null)
   }
 
   const handleSubSectionChange = (section: DashboardSection, subSection: string) => {
     setActiveSection(section)
     setActiveSubSectionKey(`${section}:${subSection}`)
+    if (section === 'messages') {
+      replaceDashboardQuery(section, subSection)
+      return
+    }
+    replaceDashboardQuery(section)
   }
 
   const handleArtistTypeChange = async (selection: ArtistTypeSelection) => {
@@ -487,6 +585,24 @@ export default function ArtistDashboard() {
             </div>
           </div>
         )
+      case 'messages':
+        return (
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <div className="xl:col-span-3">
+              <ArtistInboxManager
+                initialFolderId={deepLinkedMessageFolder}
+                onFolderChange={(folderId) => {
+                  setActiveSubSectionKey(folderId === 'all' ? null : `messages:${folderId}`)
+                  replaceDashboardQuery('messages', folderId)
+                }}
+                onUnreadCountChange={setUnreadMessages}
+              />
+            </div>
+            <div className="xl:col-span-1">
+              <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
+            </div>
+          </div>
+        )
       default:
         return (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
@@ -522,7 +638,8 @@ export default function ArtistDashboard() {
     bio: 'Artist Biography',
     genres: 'Artist Genres',
     'music-upload': 'Music Manager • Upload Music',
-    'music-manage': 'Music Manager • Manage Music'
+    'music-manage': 'Music Manager • Manage Music',
+    messages: 'Artist Messages'
   }
 
   const headerSubtitleMap: Record<DashboardSection, string> = {
@@ -546,13 +663,14 @@ export default function ArtistDashboard() {
     bio: 'Write and manage your artist biography',
     genres: 'Select your music genres and sub-genres',
     'music-upload': 'Upload new releases and complete submission details',
-    'music-manage': 'Manage drafts, pending releases, and published catalog'
+    'music-manage': 'Manage drafts, pending releases, and published catalog',
+    messages: 'Read and manage in-app notifications and updates'
   }
 
   return (
     <ProtectedRoute>
       <Sheet open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
-        <SheetContent side="left" className="w-64 p-0 bg-[#2a1b3d]">
+        <SheetContent side="left" className="w-full max-w-[20rem] p-0 bg-[#2a1b3d] sm:max-w-sm">
           <SheetHeader className="sr-only">
             <SheetTitle>Artist dashboard navigation</SheetTitle>
           </SheetHeader>
@@ -568,6 +686,7 @@ export default function ArtistDashboard() {
               setIsMobileNavOpen(false)
             }}
             capabilities={capabilities}
+            unreadMessages={unreadMessages}
             completedSections={completedSectionsForSidebar}
             hideTypeSection={false}
           />
@@ -581,6 +700,7 @@ export default function ArtistDashboard() {
               onSectionChange={handleSectionChange}
               onSubSectionChange={handleSubSectionChange}
               capabilities={capabilities}
+              unreadMessages={unreadMessages}
               completedSections={completedSectionsForSidebar}
               hideTypeSection={false}
             />

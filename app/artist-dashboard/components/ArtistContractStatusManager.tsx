@@ -104,6 +104,51 @@ const normalizeBookingStatus = (value?: string | null) => {
   }
 }
 
+const parseContactName = (value?: string | null) => {
+  const trimmed = value?.trim() ?? ''
+  if (!trimmed) {
+    return { firstName: '', lastName: '' }
+  }
+
+  const parts = trimmed.split(/\s+/)
+  if (parts.length === 1) {
+    return { firstName: parts[0], lastName: '' }
+  }
+
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(' ')
+  }
+}
+
+const buildContactName = (firstName: string, lastName: string) => {
+  return [firstName.trim(), lastName.trim()].filter(Boolean).join(' ')
+}
+
+const parsePhone = (value?: string | null) => {
+  const trimmed = value?.trim() ?? ''
+  if (!trimmed) {
+    return { code: '+', number: '' }
+  }
+
+  const match = trimmed.match(/^(\+\d{1,4})[\s-]*(.*)$/)
+  if (match) {
+    return {
+      code: match[1],
+      number: (match[2] ?? '').trim()
+    }
+  }
+
+  return { code: '+', number: trimmed }
+}
+
+const buildPhone = (code: string, number: string) => {
+  const normalizedCode = code.trim() || '+'
+  const normalizedNumber = number.trim()
+  if (!normalizedNumber) return ''
+  return `${normalizedCode} ${normalizedNumber}`.trim()
+}
+
 export function ArtistContractStatusManager() {
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
@@ -112,24 +157,32 @@ export function ArtistContractStatusManager() {
   const [formData, setFormData] = useState({
     record_label_status: "",
     record_label_name: "",
-    record_label_contact_name: "",
+    record_label_contact_first_name: "",
+    record_label_contact_last_name: "",
     record_label_email: "",
-    record_label_phone: "",
+    record_label_phone_code: "+",
+    record_label_phone_number: "",
     music_publisher_status: "",
     music_publisher_name: "",
-    music_publisher_contact_name: "",
+    music_publisher_contact_first_name: "",
+    music_publisher_contact_last_name: "",
     music_publisher_email: "",
-    music_publisher_phone: "",
+    music_publisher_phone_code: "+",
+    music_publisher_phone_number: "",
     artist_manager_status: "",
     artist_manager_name: "",
-    artist_manager_contact_name: "",
+    artist_manager_contact_first_name: "",
+    artist_manager_contact_last_name: "",
     artist_manager_email: "",
-    artist_manager_phone: "",
+    artist_manager_phone_code: "+",
+    artist_manager_phone_number: "",
     booking_agent_status: "",
     booking_agent_name: "",
-    booking_agent_contact_name: "",
+    booking_agent_contact_first_name: "",
+    booking_agent_contact_last_name: "",
     booking_agent_email: "",
-    booking_agent_phone: "",
+    booking_agent_phone_code: "+",
+    booking_agent_phone_number: "",
   })
 
   useEffect(() => {
@@ -175,28 +228,45 @@ export function ArtistContractStatusManager() {
           booking_agent_phone?: string | null
         }
 
+        const recordLabelName = parseContactName(profile.record_label_contact_name)
+        const recordLabelPhone = parsePhone(profile.record_label_phone)
+        const publisherName = parseContactName(profile.music_publisher_contact_name)
+        const publisherPhone = parsePhone(profile.music_publisher_phone)
+        const managerName = parseContactName(profile.artist_manager_contact_name)
+        const managerPhone = parsePhone(profile.artist_manager_phone)
+        const bookingName = parseContactName(profile.booking_agent_contact_name)
+        const bookingPhone = parsePhone(profile.booking_agent_phone)
+
         setFormData(prev => ({
           ...prev,
           record_label_status: normalizeLabelPublisherStatus(profile.record_label_status) || prev.record_label_status,
           record_label_name: profile.record_label_name ?? "",
-          record_label_contact_name: profile.record_label_contact_name ?? "",
+          record_label_contact_first_name: recordLabelName.firstName,
+          record_label_contact_last_name: recordLabelName.lastName,
           record_label_email: profile.record_label_email ?? "",
-          record_label_phone: profile.record_label_phone ?? "",
+          record_label_phone_code: recordLabelPhone.code,
+          record_label_phone_number: recordLabelPhone.number,
           music_publisher_status: normalizeLabelPublisherStatus(profile.music_publisher_status) || prev.music_publisher_status,
           music_publisher_name: profile.music_publisher_name ?? "",
-          music_publisher_contact_name: profile.music_publisher_contact_name ?? "",
+          music_publisher_contact_first_name: publisherName.firstName,
+          music_publisher_contact_last_name: publisherName.lastName,
           music_publisher_email: profile.music_publisher_email ?? "",
-          music_publisher_phone: profile.music_publisher_phone ?? "",
+          music_publisher_phone_code: publisherPhone.code,
+          music_publisher_phone_number: publisherPhone.number,
           artist_manager_status: normalizeManagerStatus(profile.artist_manager_status) || prev.artist_manager_status,
           artist_manager_name: profile.artist_manager_name ?? "",
-          artist_manager_contact_name: profile.artist_manager_contact_name ?? "",
+          artist_manager_contact_first_name: managerName.firstName,
+          artist_manager_contact_last_name: managerName.lastName,
           artist_manager_email: profile.artist_manager_email ?? "",
-          artist_manager_phone: profile.artist_manager_phone ?? "",
+          artist_manager_phone_code: managerPhone.code,
+          artist_manager_phone_number: managerPhone.number,
           booking_agent_status: normalizeBookingStatus(profile.booking_agent_status) || prev.booking_agent_status,
           booking_agent_name: profile.booking_agent_name ?? "",
-          booking_agent_contact_name: profile.booking_agent_contact_name ?? "",
+          booking_agent_contact_first_name: bookingName.firstName,
+          booking_agent_contact_last_name: bookingName.lastName,
           booking_agent_email: profile.booking_agent_email ?? "",
-          booking_agent_phone: profile.booking_agent_phone ?? "",
+          booking_agent_phone_code: bookingPhone.code,
+          booking_agent_phone_number: bookingPhone.number,
         }))
       } catch (error) {
         console.error('Error loading contract status:', error)
@@ -232,24 +302,24 @@ export function ArtistContractStatusManager() {
         body: JSON.stringify({
           record_label_status: formData.record_label_status || null,
           record_label_name: formData.record_label_name || null,
-          record_label_contact_name: formData.record_label_contact_name || null,
+          record_label_contact_name: buildContactName(formData.record_label_contact_first_name, formData.record_label_contact_last_name) || null,
           record_label_email: formData.record_label_email || null,
-          record_label_phone: formData.record_label_phone || null,
+          record_label_phone: buildPhone(formData.record_label_phone_code, formData.record_label_phone_number) || null,
           music_publisher_status: formData.music_publisher_status || null,
           music_publisher_name: formData.music_publisher_name || null,
-          music_publisher_contact_name: formData.music_publisher_contact_name || null,
+          music_publisher_contact_name: buildContactName(formData.music_publisher_contact_first_name, formData.music_publisher_contact_last_name) || null,
           music_publisher_email: formData.music_publisher_email || null,
-          music_publisher_phone: formData.music_publisher_phone || null,
+          music_publisher_phone: buildPhone(formData.music_publisher_phone_code, formData.music_publisher_phone_number) || null,
           artist_manager_status: formData.artist_manager_status || null,
           artist_manager_name: formData.artist_manager_name || null,
-          artist_manager_contact_name: formData.artist_manager_contact_name || null,
+          artist_manager_contact_name: buildContactName(formData.artist_manager_contact_first_name, formData.artist_manager_contact_last_name) || null,
           artist_manager_email: formData.artist_manager_email || null,
-          artist_manager_phone: formData.artist_manager_phone || null,
+          artist_manager_phone: buildPhone(formData.artist_manager_phone_code, formData.artist_manager_phone_number) || null,
           booking_agent_status: formData.booking_agent_status || null,
           booking_agent_name: formData.booking_agent_name || null,
-          booking_agent_contact_name: formData.booking_agent_contact_name || null,
+          booking_agent_contact_name: buildContactName(formData.booking_agent_contact_first_name, formData.booking_agent_contact_last_name) || null,
           booking_agent_email: formData.booking_agent_email || null,
-          booking_agent_phone: formData.booking_agent_phone || null
+          booking_agent_phone: buildPhone(formData.booking_agent_phone_code, formData.booking_agent_phone_number) || null
         })
       })
 
@@ -348,11 +418,18 @@ export function ArtistContractStatusManager() {
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Record Label Contact Name</label>
-                    <Input
-                      value={formData.record_label_contact_name}
-                      onChange={(e) => handleInputChange('record_label_contact_name', e.target.value)}
-                      placeholder="Start typing contact name…"
-                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <Input
+                        value={formData.record_label_contact_first_name}
+                        onChange={(e) => handleInputChange('record_label_contact_first_name', e.target.value)}
+                        placeholder="First/Given Name"
+                      />
+                      <Input
+                        value={formData.record_label_contact_last_name}
+                        onChange={(e) => handleInputChange('record_label_contact_last_name', e.target.value)}
+                        placeholder="Last/Family Name"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Record Label Contact Email</label>
@@ -365,12 +442,20 @@ export function ArtistContractStatusManager() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Record Label Contact Phone</label>
-                    <Input
-                      type="tel"
-                      value={formData.record_label_phone}
-                      onChange={(e) => handleInputChange('record_label_phone', e.target.value)}
-                      placeholder="+44 7000 000000"
-                    />
+                    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-2">
+                      <Input
+                        type="tel"
+                        value={formData.record_label_phone_code}
+                        onChange={(e) => handleInputChange('record_label_phone_code', e.target.value)}
+                        placeholder="+44"
+                      />
+                      <Input
+                        type="tel"
+                        value={formData.record_label_phone_number}
+                        onChange={(e) => handleInputChange('record_label_phone_number', e.target.value)}
+                        placeholder="Phone number…"
+                      />
+                    </div>
                   </div>
                 </div>
               </>
@@ -422,11 +507,18 @@ export function ArtistContractStatusManager() {
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Music Publisher Contact Name</label>
-                    <Input
-                      value={formData.music_publisher_contact_name}
-                      onChange={(e) => handleInputChange('music_publisher_contact_name', e.target.value)}
-                      placeholder="Start typing contact name…"
-                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <Input
+                        value={formData.music_publisher_contact_first_name}
+                        onChange={(e) => handleInputChange('music_publisher_contact_first_name', e.target.value)}
+                        placeholder="First/Given Name"
+                      />
+                      <Input
+                        value={formData.music_publisher_contact_last_name}
+                        onChange={(e) => handleInputChange('music_publisher_contact_last_name', e.target.value)}
+                        placeholder="Last/Family Name"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Music Publisher Contact Email</label>
@@ -439,12 +531,20 @@ export function ArtistContractStatusManager() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Music Publisher Contact Phone</label>
-                    <Input
-                      type="tel"
-                      value={formData.music_publisher_phone}
-                      onChange={(e) => handleInputChange('music_publisher_phone', e.target.value)}
-                      placeholder="+44 7000 000000"
-                    />
+                    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-2">
+                      <Input
+                        type="tel"
+                        value={formData.music_publisher_phone_code}
+                        onChange={(e) => handleInputChange('music_publisher_phone_code', e.target.value)}
+                        placeholder="+44"
+                      />
+                      <Input
+                        type="tel"
+                        value={formData.music_publisher_phone_number}
+                        onChange={(e) => handleInputChange('music_publisher_phone_number', e.target.value)}
+                        placeholder="Phone number…"
+                      />
+                    </div>
                   </div>
                 </div>
               </>
@@ -496,11 +596,18 @@ export function ArtistContractStatusManager() {
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Artist Manager Contact Name</label>
-                    <Input
-                      value={formData.artist_manager_contact_name}
-                      onChange={(e) => handleInputChange('artist_manager_contact_name', e.target.value)}
-                      placeholder="Start typing contact name…"
-                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <Input
+                        value={formData.artist_manager_contact_first_name}
+                        onChange={(e) => handleInputChange('artist_manager_contact_first_name', e.target.value)}
+                        placeholder="First/Given Name"
+                      />
+                      <Input
+                        value={formData.artist_manager_contact_last_name}
+                        onChange={(e) => handleInputChange('artist_manager_contact_last_name', e.target.value)}
+                        placeholder="Last/Family Name"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Artist Manager Contact Email</label>
@@ -513,12 +620,20 @@ export function ArtistContractStatusManager() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Artist Manager Contact Phone</label>
-                    <Input
-                      type="tel"
-                      value={formData.artist_manager_phone}
-                      onChange={(e) => handleInputChange('artist_manager_phone', e.target.value)}
-                      placeholder="+44 7000 000000"
-                    />
+                    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-2">
+                      <Input
+                        type="tel"
+                        value={formData.artist_manager_phone_code}
+                        onChange={(e) => handleInputChange('artist_manager_phone_code', e.target.value)}
+                        placeholder="+44"
+                      />
+                      <Input
+                        type="tel"
+                        value={formData.artist_manager_phone_number}
+                        onChange={(e) => handleInputChange('artist_manager_phone_number', e.target.value)}
+                        placeholder="Phone number…"
+                      />
+                    </div>
                   </div>
                 </div>
               </>
@@ -570,11 +685,18 @@ export function ArtistContractStatusManager() {
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Booking Agent Contact Name</label>
-                    <Input
-                      value={formData.booking_agent_contact_name}
-                      onChange={(e) => handleInputChange('booking_agent_contact_name', e.target.value)}
-                      placeholder="Start typing contact name…"
-                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <Input
+                        value={formData.booking_agent_contact_first_name}
+                        onChange={(e) => handleInputChange('booking_agent_contact_first_name', e.target.value)}
+                        placeholder="First/Given Name"
+                      />
+                      <Input
+                        value={formData.booking_agent_contact_last_name}
+                        onChange={(e) => handleInputChange('booking_agent_contact_last_name', e.target.value)}
+                        placeholder="Last/Family Name"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Booking Agent Contact Email</label>
@@ -587,12 +709,20 @@ export function ArtistContractStatusManager() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Booking Agent Contact Phone</label>
-                    <Input
-                      type="tel"
-                      value={formData.booking_agent_phone}
-                      onChange={(e) => handleInputChange('booking_agent_phone', e.target.value)}
-                      placeholder="+44 7000 000000"
-                    />
+                    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-2">
+                      <Input
+                        type="tel"
+                        value={formData.booking_agent_phone_code}
+                        onChange={(e) => handleInputChange('booking_agent_phone_code', e.target.value)}
+                        placeholder="+44"
+                      />
+                      <Input
+                        type="tel"
+                        value={formData.booking_agent_phone_number}
+                        onChange={(e) => handleInputChange('booking_agent_phone_number', e.target.value)}
+                        placeholder="Phone number…"
+                      />
+                    </div>
                   </div>
                 </div>
               </>

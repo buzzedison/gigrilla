@@ -16,6 +16,7 @@ import {
 } from '../../components/ui/dialog'
 import { YouTubeVideoModal } from '../../components/ui/youtube-video-modal'
 import { addYouTubeRelParam } from '../../../lib/utils'
+import { formatDateDDMMMyyyy } from '@/lib/date-format'
 
 interface VideoItem {
   id: string
@@ -274,7 +275,7 @@ export function ArtistVideosManager() {
     ? Math.max(...videos.map(video => new Date(video.updated_at || video.created_at).getTime()))
     : null
   const lastUpdatedLabel = lastUpdatedTimestamp
-    ? new Date(lastUpdatedTimestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    ? formatDateDDMMMyyyy(lastUpdatedTimestamp)
     : 'Not yet added'
 
   return (
@@ -552,7 +553,7 @@ export function ArtistVideosManager() {
                   <div className="p-4 flex flex-col flex-1">
                     <p className="text-sm font-semibold text-gray-900 line-clamp-2">{video.title}</p>
                     <p className="text-xs text-gray-500 mt-1">
-                      Added {new Date(video.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      Added {formatDateDDMMMyyyy(video.created_at)}
                     </p>
                     <div className="mt-auto">
                       <Button
@@ -603,7 +604,7 @@ export function ArtistVideosManager() {
                 <div className="p-4 text-sm text-gray-600 space-y-1">
                   <p className="font-semibold text-gray-900">{selectedVideo.title}</p>
                   <p className="text-xs text-gray-500">
-                    Added {new Date(selectedVideo.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    Added {formatDateDDMMMyyyy(selectedVideo.created_at)}
                   </p>
                   <a
                     href={selectedVideo.video_url}

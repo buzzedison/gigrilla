@@ -10,9 +10,11 @@ import { getClient } from "../../../lib/supabase/client";
 
 interface FanHeaderProps {
   onOpenSidebar?: () => void
+  onOpenMessages?: () => void
+  unreadMessages?: number
 }
 
-export function FanHeader({ onOpenSidebar }: FanHeaderProps) {
+export function FanHeader({ onOpenSidebar, onOpenMessages, unreadMessages = 0 }: FanHeaderProps) {
   const { user, signOut, loading } = useAuth();
   const [displayName, setDisplayName] = useState<string>("");
   const [initial, setInitial] = useState<string>("U");
@@ -205,8 +207,21 @@ export function FanHeader({ onOpenSidebar }: FanHeaderProps) {
         </div>
 
         <div className="flex items-center justify-end gap-3">
-          <button className="rounded-full p-2 text-gray-400 transition hover:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-[#2a1b3d]">
+          <button
+            type="button"
+            onClick={onOpenMessages}
+            className={`relative rounded-full p-2 transition focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-[#2a1b3d] ${
+            unreadMessages > 0
+              ? 'bg-emerald-600/20 text-emerald-200 hover:text-emerald-100'
+              : 'text-gray-400 hover:text-white'
+          }`}
+          >
             <Bell className="h-5 w-5" />
+            {unreadMessages > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-semibold text-white">
+                {unreadMessages > 99 ? '99+' : unreadMessages}
+              </span>
+            )}
           </button>
           <div className="flex items-center gap-3">
             <label className="relative cursor-pointer">

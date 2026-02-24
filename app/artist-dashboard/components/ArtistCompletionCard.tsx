@@ -5,7 +5,7 @@ import { useAuth } from "../../../lib/auth-context"
 import { HelpCircle, CheckCircle2, Circle, PartyPopper } from "lucide-react"
 import { Badge } from "../../components/ui/badge"
 import { Button } from "../../components/ui/button"
-import { useSearchParams, useRouter } from "next/navigation"
+import { useSearchParams, useRouter, usePathname } from "next/navigation"
 
 export type CompletionSection =
   | 'profile'
@@ -37,7 +37,7 @@ export interface CompletionItemState extends CompletionItemDefinition {
 interface ArtistProfileData {
   stage_name?: string | null
   artist_type_id?: number | null
-  artist_sub_types?: string[] | null
+  artist_sub_types?: string[] | Record<string, string[] | string | null | undefined> | null
   established_date?: string | null
   preferred_genre_ids?: string[] | null
   bio?: string | null
@@ -99,6 +99,7 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
   const { user } = useAuth()
   const searchParams = useSearchParams()
   const router = useRouter()
+  const pathname = usePathname()
   const [profile, setProfile] = useState<ArtistProfileData | null>(null)
   const [photos, setPhotos] = useState<PhotoData[]>([])
   const [videos, setVideos] = useState<VideoData[]>([])
@@ -171,10 +172,23 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
       return true
     }
 
+    const hasArtistSubTypes = (() => {
+      const raw = profile?.artist_sub_types
+      if (!raw) return false
+      if (Array.isArray(raw)) return raw.length > 0
+      if (typeof raw === 'object') {
+        return Object.values(raw).some(value => {
+          if (Array.isArray(value)) return value.length > 0
+          return typeof value === 'string' && value.trim().length > 0
+        })
+      }
+      return false
+    })()
+
     const profileMetrics: Record<string, boolean> = {
       stage_name: !!profile?.stage_name,
       artist_type: !!profile?.artist_type_id,
-      artist_sub_types: Array.isArray(profile?.artist_sub_types) && profile!.artist_sub_types!.length > 0,
+      artist_sub_types: hasArtistSubTypes,
       established_date: !!profile?.established_date,
       genres: Array.isArray(profile?.preferred_genre_ids) && profile!.preferred_genre_ids!.length > 0,
       payments: hasPayments,
@@ -309,6 +323,37 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
     }
   }
 
+  const sectionToDashboardQuery: Record<CompletionSection, string | null> = {
+    profile: null,
+    payments: 'payments',
+    crew: 'crew',
+    royalty: 'royalty',
+    gigability: 'gigability',
+    bio: 'bio',
+    genres: 'genres',
+    maps: 'gigability',
+    logo: 'logo',
+    photos: 'photos',
+    videos: 'videos',
+    type: 'type',
+    contract: 'contract'
+  }
+
+  const navigateToItemSection = (item: CompletionItemState) => {
+    const section = sectionToDashboardQuery[item.section]
+    if (!section) {
+      router.push(pathname)
+      return
+    }
+
+    const params = new URLSearchParams(searchParams?.toString() || '')
+    params.set('section', section)
+    if (section !== 'messages') {
+      params.delete('folder')
+    }
+    router.push(`${pathname}?${params.toString()}`)
+  }
+
   return (
     <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-xl shadow-sm">
       <h2 className="sr-only">Artist profile completion</h2>
@@ -336,9 +381,16 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
         </div>
 
         <div className="px-6 pb-1">
+          <p className="mb-2 text-xs text-gray-500">Tap an item to jump to that section.</p>
           <div className="space-y-1.5">
             {evaluatedItems.map((item) => (
-              <div key={item.id} className="flex items-center justify-between py-0.5">
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => navigateToItemSection(item)}
+                className="w-full flex items-center justify-between py-0.5 text-left rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                aria-label={`Go to ${item.label}`}
+              >
                 <div className="flex items-center space-x-2.5">
                   {item.completed ? (
                     <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -356,7 +408,7 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
                     )}
                   </div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>

@@ -12,12 +12,15 @@ import { Checkbox } from '../../components/ui/checkbox'
 import { useAuth } from '../../../lib/auth-context'
 import { Megaphone, Plus, Edit3, Trash2, CheckCircle, X, Calendar, Clock } from 'lucide-react'
 import { cn } from '../../../lib/utils'
+import { formatDateDDMMMyyyy } from '@/lib/date-format'
 
 interface AuditionAdvert {
   id: string
   advert_type: string
   instrument?: string
   vocalist_type?: string
+  vocalist_sound_descriptor?: string
+  vocalist_genre_descriptor?: string
   producer_type?: string
   lyricist_type?: string
   composer_type?: string
@@ -70,6 +73,81 @@ const INSTRUMENTS = [
 ]
 
 const VOCALIST_TYPES = ['Lead', 'Backing', 'Harmony']
+const VOCAL_SOUND_DESCRIPTORS = [
+  'Any',
+  'Ballad Voice',
+  'Breathy Voice',
+  'Bright Voice',
+  'Classical Baritone Voice',
+  'Classical Bass Voice',
+  'Classical Contralto Voice',
+  'Classical Countertenor Voice',
+  'Classical Mezzo-Soprano Voice',
+  'Classical Soprano Voice',
+  'Classical Tenor Voice',
+  'Coloratura Voice',
+  'Deep Bassy Voice',
+  'Dramatic Voice',
+  'Edgy Voice',
+  'Emotional Voice',
+  'Ethereal Voice',
+  'Gritty Voice',
+  'Haunting Voice',
+  'High Pitched Voice',
+  'Husky Voice',
+  'Lyric Voice',
+  'Mellow Voice',
+  'Nasal Voice',
+  'Powerful Voice',
+  'Raspy Voice',
+  'Resonant Voice',
+  'Robust Voice',
+  'Silky Voice',
+  'Smoky Voice',
+  'Soft Voice',
+  'Soulful Voice',
+  'Velvety Voice',
+  'Vibrato Voice',
+  'Warm Voice',
+  'Whimsical Voice'
+]
+const VOCAL_GENRE_DESCRIPTORS = [
+  'Any',
+  'A Cappella Voice',
+  'Alternative Voice',
+  'Arabic Voice',
+  'Blues Voice',
+  'Bhangra Voice',
+  'Bossa Nova Voice',
+  'Choral Voice',
+  'Classical Crossover Voice',
+  'Country Voice',
+  'Electronic Voice',
+  'Enka Voice',
+  'Fado Voice',
+  'Flamenco Voice',
+  'Folk Voice',
+  'Gospel Voice',
+  'Gregorian Chant Voice',
+  'Hip-Hop Voice',
+  'Hindustani Classical Voice',
+  'Indie Voice',
+  'Jazz Voice',
+  'K-Pop Voice',
+  'Kabuki Voice',
+  'Latin Voice',
+  'Metal Voice',
+  'Musical Theatre Voice',
+  'Opera Voice',
+  'Pop Voice',
+  'Punk Voice',
+  'Qawwali Voice',
+  'R&B Voice',
+  'Reggae Voice',
+  'Rock Voice',
+  'Samba Voice',
+  'Soul Voice'
+]
 const PRODUCER_STUDIO_TYPES = ['Editing/Tuning', 'Mixing/Mastering', 'Studio Overseer']
 const PRODUCER_CREATIVE_TYPES = ['All-in-One', 'Beatmaker', 'Coach/Mentor']
 const LYRICIST_TYPES = ['Entire Lyrics', 'Part Lyrics', 'Co-write Lyrics']
@@ -96,6 +174,8 @@ export function ArtistAuditionsManager() {
   const [advertType, setAdvertType] = useState('')
   const [instrument, setInstrument] = useState('')
   const [vocalistType, setVocalistType] = useState('')
+  const [vocalistSoundDescriptor, setVocalistSoundDescriptor] = useState('Any')
+  const [vocalistGenreDescriptor, setVocalistGenreDescriptor] = useState('Any')
   const [producerType, setProducerType] = useState('')
   const [lyricistType, setLyricistType] = useState('')
   const [composerType, setComposerType] = useState('')
@@ -136,6 +216,8 @@ export function ArtistAuditionsManager() {
     setAdvertType('')
     setInstrument('')
     setVocalistType('')
+    setVocalistSoundDescriptor('Any')
+    setVocalistGenreDescriptor('Any')
     setProducerType('')
     setLyricistType('')
     setComposerType('')
@@ -158,6 +240,8 @@ export function ArtistAuditionsManager() {
     setAdvertType(advert.advert_type)
     setInstrument(advert.instrument || '')
     setVocalistType(advert.vocalist_type || '')
+    setVocalistSoundDescriptor(advert.vocalist_sound_descriptor || 'Any')
+    setVocalistGenreDescriptor(advert.vocalist_genre_descriptor || 'Any')
     setProducerType(advert.producer_type || '')
     setLyricistType(advert.lyricist_type || '')
     setComposerType(advert.composer_type || '')
@@ -200,6 +284,52 @@ export function ArtistAuditionsManager() {
       return
     }
 
+    if (deadlineType === 'specific' && !deadlineDate) {
+      showNotification('error', 'Please select a Deadline Date')
+      return
+    }
+
+    const maxDate = getMaxDate()
+    if (deadlineType === 'specific' && deadlineDate && deadlineDate > maxDate) {
+      showNotification('error', 'Deadline Date must be within 3 months from today')
+      return
+    }
+
+    if (expiryDate > maxDate) {
+      showNotification('error', 'Advert Expiry Date must be within 3 months from today')
+      return
+    }
+
+    if (selectedAdvertType?.requiresVocalistType && !vocalistType) {
+      showNotification('error', 'Please select a Vocalist Type')
+      return
+    }
+
+    if (selectedAdvertType?.requiresInstrument && !instrument) {
+      showNotification('error', 'Please select an Instrument')
+      return
+    }
+
+    if (selectedAdvertType?.requiresProducerType && !producerType) {
+      showNotification('error', 'Please select a Producer Type')
+      return
+    }
+
+    if (selectedAdvertType?.requiresLyricistType && !lyricistType) {
+      showNotification('error', 'Please select a Lyricist Type')
+      return
+    }
+
+    if (selectedAdvertType?.requiresComposerType && !composerType) {
+      showNotification('error', 'Please select a Composer Type')
+      return
+    }
+
+    if (selectedAdvertType?.requiresDirection && !collaborationDirection) {
+      showNotification('error', 'Please select a Direction')
+      return
+    }
+
     try {
       setSaving(true)
       const payload = {
@@ -207,6 +337,8 @@ export function ArtistAuditionsManager() {
         advert_type: advertType,
         instrument,
         vocalist_type: vocalistType,
+        vocalist_sound_descriptor: selectedAdvertType?.requiresVocalistType ? vocalistSoundDescriptor : null,
+        vocalist_genre_descriptor: selectedAdvertType?.requiresVocalistType ? vocalistGenreDescriptor : null,
         producer_type: producerType,
         lyricist_type: lyricistType,
         composer_type: composerType,
@@ -285,6 +417,11 @@ export function ArtistAuditionsManager() {
     return maxDate.toISOString().split('T')[0]
   }
 
+  const applyMaxAdvertDuration = () => {
+    setExpiryDate(getMaxDate())
+    setExpiryTime('23:59')
+  }
+
   const selectedAdvertType = ADVERT_TYPES.find(t => t.value === advertType)
 
   return (
@@ -320,7 +457,18 @@ export function ArtistAuditionsManager() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="advert-type">Type of Advert *</Label>
-              <Select value={advertType} onValueChange={setAdvertType}>
+              <Select value={advertType} onValueChange={(value) => {
+                setAdvertType(value)
+                const typeConfig = ADVERT_TYPES.find(type => type.value === value)
+                if (typeConfig?.requiresVocalistType) {
+                  setVocalistSoundDescriptor(prev => prev || 'Any')
+                  setVocalistGenreDescriptor(prev => prev || 'Any')
+                } else {
+                  setVocalistType('')
+                  setVocalistSoundDescriptor('Any')
+                  setVocalistGenreDescriptor('Any')
+                }
+              }}>
                 <SelectTrigger id="advert-type">
                   <SelectValue placeholder="Select advert type..." />
                 </SelectTrigger>
@@ -353,20 +501,54 @@ export function ArtistAuditionsManager() {
             )}
 
             {selectedAdvertType?.requiresVocalistType && (
-              <div className="space-y-2">
-                <Label htmlFor="vocalist-type">Vocalist Type *</Label>
-                <Select value={vocalistType} onValueChange={setVocalistType}>
-                  <SelectTrigger id="vocalist-type">
-                    <SelectValue placeholder="Select vocalist type..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VOCALIST_TYPES.map(type => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="vocalist-type">Vocalist Type *</Label>
+                  <Select value={vocalistType} onValueChange={setVocalistType}>
+                    <SelectTrigger id="vocalist-type">
+                      <SelectValue placeholder="Select vocalist type..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VOCALIST_TYPES.map(type => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="vocal-sound-desc">Sound-Based Vocal Description</Label>
+                  <Select value={vocalistSoundDescriptor} onValueChange={setVocalistSoundDescriptor}>
+                    <SelectTrigger id="vocal-sound-desc">
+                      <SelectValue placeholder="Select sound descriptor..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VOCAL_SOUND_DESCRIPTORS.map(type => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="vocal-genre-desc">Genre-Based Vocal Description</Label>
+                  <Select value={vocalistGenreDescriptor} onValueChange={setVocalistGenreDescriptor}>
+                    <SelectTrigger id="vocal-genre-desc">
+                      <SelectValue placeholder="Select genre descriptor..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VOCAL_GENRE_DESCRIPTORS.map(type => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
 
@@ -578,6 +760,18 @@ export function ArtistAuditionsManager() {
                 />
               </div>
             </div>
+
+            <div className="flex justify-start">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={applyMaxAdvertDuration}
+                className="border-purple-200 text-purple-700 hover:bg-purple-50"
+              >
+                <Clock className="w-4 h-4 mr-2" />
+                Advertise for Maximum 3 Months from Today
+              </Button>
+            </div>
           </div>
 
           <div className="flex justify-end space-x-2">
@@ -624,6 +818,8 @@ export function ArtistAuditionsManager() {
                     {advert.advert_type.replace(/-/g, ' ')}
                     {advert.instrument && ` - ${advert.instrument}`}
                     {advert.vocalist_type && ` - ${advert.vocalist_type}`}
+                    {advert.vocalist_sound_descriptor && advert.vocalist_sound_descriptor !== 'Any' && ` - ${advert.vocalist_sound_descriptor}`}
+                    {advert.vocalist_genre_descriptor && advert.vocalist_genre_descriptor !== 'Any' && ` - ${advert.vocalist_genre_descriptor}`}
                   </div>
                   {(advert.lyricist_type || advert.composer_type) && (
                     <div className="text-sm text-gray-600">
@@ -654,13 +850,18 @@ export function ArtistAuditionsManager() {
                       <span className="font-medium">Deadline:</span>{' '}
                       {advert.deadline_type === 'asap'
                         ? 'ASAP'
-                        : new Date(advert.deadline_date!).toLocaleDateString()}
+                        : formatDateDDMMMyyyy(advert.deadline_date)}
+                    </div>
+                    <div>
+                      <span className="font-medium">Ad Expires:</span>{' '}
+                      {formatDateDDMMMyyyy(advert.expiry_date)}
+                      {advert.expiry_time ? ` ${advert.expiry_time}` : ''}
                     </div>
                   </div>
                   <div className="text-xs text-gray-500 space-y-1 pt-2 border-t">
-                    <div>Published on {new Date(advert.published_at).toLocaleDateString()}</div>
+                    <div>Published on {formatDateDDMMMyyyy(advert.published_at)}</div>
                     {advert.edited_at && (
-                      <div>Edited on {new Date(advert.edited_at).toLocaleDateString()}</div>
+                      <div>Edited on {formatDateDDMMMyyyy(advert.edited_at)}</div>
                     )}
                   </div>
                   <div className="flex space-x-2 pt-2">

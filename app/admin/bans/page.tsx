@@ -9,6 +9,7 @@ import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Card, CardContent } from '../../components/ui/card'
 import { toast } from 'sonner'
+import { formatDateDDMMMyyyy } from '@/lib/date-format'
 
 interface BannedUser {
     id: string
@@ -86,11 +87,7 @@ export default function BannedUsersPage() {
 
     const formatDate = (dateString?: string) => {
         if (!dateString) return 'N/A'
-        return new Date(dateString).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        })
+        return formatDateDDMMMyyyy(dateString, 'N/A')
     }
 
     return (

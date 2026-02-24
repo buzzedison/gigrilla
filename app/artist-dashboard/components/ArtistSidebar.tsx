@@ -30,7 +30,8 @@ import {
   Mail,
   Inbox,
   Plus,
-  Edit
+  Edit,
+  MessageSquare
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -57,6 +58,7 @@ export type ArtistDashboardSection =
   | 'videos'
   | 'music-upload'
   | 'music-manage'
+  | 'messages'
   | 'type'
   | 'contract'
 
@@ -66,6 +68,7 @@ interface ArtistSidebarProps {
   onSectionChange?: (section: ArtistDashboardSection) => void
   onSubSectionChange?: (section: ArtistDashboardSection, subSection: string) => void
   capabilities?: ArtistTypeCapabilities | null
+  unreadMessages?: number
   completedSections?: string[]
   hideTypeSection?: boolean
   className?: string
@@ -177,6 +180,13 @@ const sectionSubSections: Partial<Record<ArtistDashboardSection, SidebarSubSecti
   'music-manage': [
     { id: 'library', label: 'Library' }
   ],
+  messages: [
+    { id: 'gig_invites', label: 'Gig Invites' },
+    { id: 'gig_requests', label: 'Gig Requests' },
+    { id: 'release_updates', label: 'Release Updates' },
+    { id: 'venue_updates', label: 'Venue Updates' },
+    { id: 'system', label: 'System' }
+  ],
   type: [
     { id: 'selector', label: 'Type Selector' }
   ]
@@ -188,6 +198,7 @@ export function ArtistSidebar({
   onSectionChange,
   onSubSectionChange,
   capabilities,
+  unreadMessages = 0,
   completedSections = [],
   hideTypeSection,
   className
@@ -233,11 +244,12 @@ export function ArtistSidebar({
   }
 
   const mainMenuItems: { icon: typeof FileText; label: string; section: ArtistDashboardSection }[] = [
-    { icon: FileText, label: "Main Dashboard", section: "profile" }
+    { icon: FileText, label: "Main Dashboard", section: "profile" },
+    { icon: MessageSquare, label: "Messages", section: "messages" }
   ]
 
   const profileItems = [
-    { icon: User, label: "Basic Artist Details", section: "profile" as ArtistDashboardSection },
+    { icon: User, label: "Artist Details", section: "profile" as ArtistDashboardSection },
     { icon: Banknote, label: "Artist Payments", section: "payments" as ArtistDashboardSection },
     { icon: Users2, label: "Artist Crew", section: "crew" as ArtistDashboardSection },
     { icon: Megaphone, label: "Auditions & Collabs", section: "auditions" as ArtistDashboardSection },
@@ -323,24 +335,35 @@ export function ArtistSidebar({
     <div className="space-y-1">
       {items.map((item, index) => {
         const disabled = !isSectionEnabled(item.section as ArtistDashboardSection, capabilities, hideTypeSection)
+        const hasUnreadMessages = item.section === 'messages' && unreadMessages > 0
+        const isActive = activeSection === item.section && !disabled
+        const itemClass = isActive
+          ? "bg-purple-600/20 text-white"
+          : hasUnreadMessages
+            ? "bg-emerald-700/20 text-emerald-200 hover:bg-emerald-700/30"
+            : "text-gray-400 hover:text-white hover:bg-purple-600/10"
         return (
           <button
             key={index}
             onClick={() => handleSectionChange(item.section)}
             disabled={disabled}
             className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
-              } ${activeSection === item.section && !disabled
-                ? "bg-purple-600/20 text-white"
-                : "text-gray-400 hover:text-white hover:bg-purple-600/10"
-              }`}
+              } ${itemClass}`}
           >
             <div className="flex items-center space-x-2">
               <item.icon className="w-4 h-4" />
               <span className="text-sm">{item.label}</span>
             </div>
-            {!disabled && completedSections.includes(item.section) && (
-              <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
-            )}
+            <div className="flex items-center gap-2">
+              {hasUnreadMessages && (
+                <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                  {unreadMessages > 99 ? '99+' : unreadMessages}
+                </span>
+              )}
+              {!disabled && completedSections.includes(item.section) && (
+                <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+              )}
+            </div>
           </button>
         )
       })}
@@ -358,7 +381,7 @@ export function ArtistSidebar({
   ];
 
   return (
-    <aside className={`w-64 bg-[#2a1b3d] h-full flex flex-col p-6 overflow-y-auto text-left ${className ?? ''}`}>
+    <aside className={`h-full w-full max-w-[20rem] bg-[#2a1b3d] p-6 text-left flex flex-col overflow-y-auto lg:w-64 ${className ?? ''}`}>
       <div className="flex items-center mb-8">
         <Image
           src="/logos/Gigrilla Logo-Word alongside Logo-Head Dark Pruple Cerise Clear-PNG 3556 x 1086.png"

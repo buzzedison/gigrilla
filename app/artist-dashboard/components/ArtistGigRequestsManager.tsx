@@ -7,20 +7,13 @@ import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
 import { fetchArtistGigView, updateArtistGig } from './gig-manager/api'
 import { ArtistGigRecord } from './gig-manager/types'
+import { formatDateTimeDDMMMyyyy } from '@/lib/date-format'
 
 type RequestFilter = 'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'
 
 function formatDate(value: string | null) {
   if (!value) return 'Date TBD'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Date TBD'
-  return date.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
-  })
+  return formatDateTimeDDMMMyyyy(value, 'Date TBD')
 }
 
 export function ArtistGigRequestsManager() {

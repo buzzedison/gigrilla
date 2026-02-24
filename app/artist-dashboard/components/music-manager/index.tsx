@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Save, ArrowRight, ArrowLeft, Loader2, CheckCircle, Plus, Eye, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
+import { formatDateDDMMMyyyy } from '@/lib/date-format'
 import { ReleaseData, initialReleaseData } from './types'
 
 // Database release type (snake_case from API)
@@ -805,11 +806,7 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
 
   const formatDate = (value: string | null | undefined) => {
     if (!value) return 'Not published yet'
-    return new Date(value).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    })
+    return formatDateDDMMMyyyy(value, 'Not published yet')
   }
 
   // Render current step content

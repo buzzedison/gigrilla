@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { NowPlayingModal } from "./NowPlayingModal"
+import { formatDateDDMMMyyyy } from "@/lib/date-format"
 
 interface PublishedRelease {
   id: string
@@ -95,11 +96,7 @@ export function FanMusicContent() {
 
   const formatDate = (dateValue: string | null, fallback: string) => {
     const dateString = dateValue || fallback
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    })
+    return formatDateDDMMMyyyy(dateString)
   }
 
   const sortedReleases = useMemo(() => {

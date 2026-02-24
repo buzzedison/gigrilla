@@ -6,6 +6,7 @@ import { Music, Clock, User, ChevronRight, CheckCircle, XCircle, FileCheck } fro
 import { Button } from '../../../components/ui/button'
 import { Card, CardContent } from '../../../components/ui/card'
 import { Badge } from '../../../components/ui/badge'
+import { formatDateTimeDDMMMyyyy } from '@/lib/date-format'
 
 interface PublishedRelease {
   id: string
@@ -64,13 +65,7 @@ export default function PublishedRecentReleasesPage() {
 
   const formatDate = (dateString?: string | null) => {
     if (!dateString) return 'N/A'
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    return formatDateTimeDDMMMyyyy(dateString, 'N/A')
   }
 
   return (

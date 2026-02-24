@@ -8,6 +8,7 @@ import {
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
+import { formatDateDDMMMyyyy } from '@/lib/date-format'
 
 interface UserProfile {
     id: string
@@ -88,11 +89,7 @@ export default function UsersPage() {
 
     const formatDate = (dateString: string) => {
         if (!dateString) return 'Never'
-        return new Date(dateString).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        })
+        return formatDateDDMMMyyyy(dateString, 'Never')
     }
 
     return (

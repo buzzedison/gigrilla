@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
     lastName,
     nickname,
     email,
+    phone,
     role,
     roles,
     dateOfBirth,
@@ -106,6 +107,7 @@ export async function POST(request: NextRequest) {
   if (trimmedFirst) metadata.firstName = trimmedFirst
   if (trimmedLast) metadata.lastName = trimmedLast
   if (trimmedNickname) metadata.nickname = trimmedNickname
+  if (typeof phone === 'string' && phone.trim().length > 0) metadata.phone = phone.trim()
   if (dateOfBirth) metadata.dateOfBirth = dateOfBirth
   if (incomeShare !== undefined && incomeShare !== null && incomeShare !== '') {
     const numericShare = typeof incomeShare === 'number'
@@ -186,17 +188,48 @@ export async function POST(request: NextRequest) {
       expiresAt: invitationExpiresAt.toISOString()
     })
     console.log('📬 Email send result:', emailResult)
+
+    // Mark as sent when email dispatch succeeds
+    await supabase
+      .from('artist_member_invitations')
+      .update({
+        status: 'sent',
+        metadata: {
+          ...(data.metadata && typeof data.metadata === 'object' ? data.metadata as Record<string, unknown> : {}),
+          inviteEmailStatus: 'sent',
+          inviteEmailLastAttemptAt: new Date().toISOString()
+        }
+      })
+      .eq('id', data.id)
+      .eq('user_id', user.id)
+      .eq('artist_profile_id', profile.id)
   } catch (functionError) {
     console.error('❌ Artist members POST: failed to send invite email via Resend', functionError)
 
+    const updatedMetadata = {
+      ...(data.metadata && typeof data.metadata === 'object' ? data.metadata as Record<string, unknown> : {}),
+      inviteEmailStatus: 'failed',
+      inviteEmailLastAttemptAt: new Date().toISOString()
+    }
+
     await supabase
       .from('artist_member_invitations')
-      .delete()
+      .update({
+        status: 'pending',
+        metadata: updatedMetadata
+      })
       .eq('id', data.id)
       .eq('user_id', user.id)
       .eq('artist_profile_id', profile.id)
 
-    return NextResponse.json({ error: 'Failed to send invitation email. Please try again.' }, { status: 500 })
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...data,
+        metadata: updatedMetadata
+      },
+      warning: 'Invitation saved, but we could not send the email right now. You can resend it from Manage Team.'
+    })
   }
 
   return NextResponse.json({ success: true, data, message: 'Invitation sent' })
@@ -446,4 +479,3 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to update member royalty splits' }, { status: 500 })
   }
 }
-

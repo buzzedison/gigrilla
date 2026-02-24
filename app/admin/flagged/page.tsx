@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Card, CardContent } from '../../components/ui/card'
+import { formatDateTimeDDMMMyyyy } from '@/lib/date-format'
 
 interface FlaggedRelease {
     id: string
@@ -50,13 +51,7 @@ export default function FlaggedContentPage() {
 
     const formatDate = (dateString?: string) => {
         if (!dateString) return 'N/A'
-        return new Date(dateString).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        })
+        return formatDateTimeDDMMMyyyy(dateString, 'N/A')
     }
 
     if (loading) {

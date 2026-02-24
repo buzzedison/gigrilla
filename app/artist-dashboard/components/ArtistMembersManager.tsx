@@ -5,6 +5,7 @@ import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Badge } from "../../components/ui/badge"
 import { Save, Trash2, Loader2, RefreshCcw, Mail } from "lucide-react"
+import { formatDateDDMMMyyyy, formatDateTimeDDMMMyyyy } from "@/lib/date-format"
 
 interface MemberMetadata {
   firstName?: string
@@ -588,12 +589,12 @@ export function ArtistMembersManager() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mt-4">
                       <div>
                         <span className="text-gray-600">Invited:</span>
-                        <span className="font-medium ml-2">{new Date(member.invited_at).toLocaleString()}</span>
+                        <span className="font-medium ml-2">{formatDateTimeDDMMMyyyy(member.invited_at)}</span>
                       </div>
                       {dob && (
                         <div>
                           <span className="text-gray-600">Date of Birth:</span>
-                          <span className="font-medium ml-2">{new Date(dob).toLocaleDateString()}</span>
+                          <span className="font-medium ml-2">{formatDateDDMMMyyyy(dob)}</span>
                           {displayAge && age !== null && (
                             <span className="text-gray-500 ml-2">(Age {age})</span>
                           )}
@@ -614,7 +615,7 @@ export function ArtistMembersManager() {
 
                     {member.responded_at && (
                       <p className="text-xs text-gray-500 mt-3">
-                        Responded {new Date(member.responded_at).toLocaleString()}
+                        Responded {formatDateTimeDDMMMyyyy(member.responded_at)}
                       </p>
                     )}
                   </div>
@@ -668,14 +669,14 @@ export function ArtistMembersManager() {
                           </p>
                         )}
                       </div>
-                      <span className="text-xs text-gray-500">Joined {new Date(member.joined_at).toLocaleString()}</span>
+                      <span className="text-xs text-gray-500">Joined {formatDateTimeDDMMMyyyy(member.joined_at)}</span>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mt-4">
                       {dob && (
                         <div>
                           <span className="text-gray-600">Date of Birth:</span>
-                          <span className="font-medium ml-2">{new Date(dob).toLocaleDateString()}</span>
+                          <span className="font-medium ml-2">{formatDateDDMMMyyyy(dob)}</span>
                           {displayAge && age !== null && (
                             <span className="text-gray-500 ml-2">(Age {age})</span>
                           )}

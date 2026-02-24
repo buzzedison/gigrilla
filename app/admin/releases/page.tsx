@@ -8,6 +8,7 @@ import {
 import { Button } from '../../components/ui/button'
 import { Card, CardContent } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
+import { formatDateTimeDDMMMyyyy } from '@/lib/date-format'
 
 interface PendingRelease {
     id: string
@@ -73,13 +74,7 @@ export default function PendingReleasesPage() {
 
     const formatDate = (dateString?: string) => {
         if (!dateString) return 'N/A'
-        return new Date(dateString).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        })
+        return formatDateTimeDDMMMyyyy(dateString, 'N/A')
     }
 
     return (

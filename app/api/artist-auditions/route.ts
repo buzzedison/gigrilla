@@ -124,6 +124,8 @@ export async function POST(request: NextRequest) {
       advert_type: body.advert_type,
       instrument: body.instrument || null,
       vocalist_type: body.vocalist_type || null,
+      vocalist_sound_descriptor: body.vocalist_sound_descriptor || null,
+      vocalist_genre_descriptor: body.vocalist_genre_descriptor || null,
       producer_type: body.producer_type || null,
       lyricist_type: body.lyricist_type || null,
       composer_type: body.composer_type || null,

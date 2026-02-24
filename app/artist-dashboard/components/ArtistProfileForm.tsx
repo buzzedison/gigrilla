@@ -5,7 +5,7 @@ import { useAuth } from "../../../lib/auth-context"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { LocationAutocompleteInput, type LocationSuggestion } from "../../components/ui/location-autocomplete"
-import { Save, Rocket, Loader2, Users, MapPin, Info } from "lucide-react"
+import { Save, Rocket, Loader2, Users, MapPin } from "lucide-react"
 
 interface ArtistProfileFormProps {
   onProfileSaved?: () => void
@@ -436,6 +436,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                   value={formData.social_facebook}
                   onChange={(e) => handleInputChange('social_facebook', e.target.value)}
                   placeholder="facebook.com/artist"
+                  className="text-gray-900 placeholder:text-gray-400"
                 />
               </div>
               <div className="space-y-2">
@@ -444,6 +445,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                   value={formData.social_instagram}
                   onChange={(e) => handleInputChange('social_instagram', e.target.value)}
                   placeholder="instagram.com/artist"
+                  className="text-gray-900 placeholder:text-gray-400"
                 />
               </div>
               <div className="space-y-2">
@@ -452,6 +454,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                   value={formData.social_threads}
                   onChange={(e) => handleInputChange('social_threads', e.target.value)}
                   placeholder="threads.com/@artist"
+                  className="text-gray-900 placeholder:text-gray-400"
                 />
               </div>
               <div className="space-y-2">
@@ -460,6 +463,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                   value={formData.social_x}
                   onChange={(e) => handleInputChange('social_x', e.target.value)}
                   placeholder="x.com/artist"
+                  className="text-gray-900 placeholder:text-gray-400"
                 />
               </div>
               <div className="space-y-2">
@@ -468,6 +472,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                   value={formData.social_tiktok}
                   onChange={(e) => handleInputChange('social_tiktok', e.target.value)}
                   placeholder="tiktok.com/@artist"
+                  className="text-gray-900 placeholder:text-gray-400"
                 />
               </div>
               <div className="space-y-2">
@@ -476,6 +481,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                   value={formData.social_youtube}
                   onChange={(e) => handleInputChange('social_youtube', e.target.value)}
                   placeholder="youtube.com/@artist"
+                  className="text-gray-900 placeholder:text-gray-400"
                 />
               </div>
               <div className="space-y-2 md:col-span-2 xl:col-span-3">
@@ -484,18 +490,9 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                   value={formData.social_snapchat}
                   onChange={(e) => handleInputChange('social_snapchat', e.target.value)}
                   placeholder="snapchat.com/add/artist"
+                  className="text-gray-900 placeholder:text-gray-400"
                 />
               </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 flex gap-2">
-            <Info className="w-4 h-4 mt-0.5 text-amber-600" />
-            <div>
-              <p className="font-semibold">Related Step 6 sections are handled in dedicated tabs:</p>
-              <p>
-                Artist Biography, Artist Payments, Artist Crew, Default Gig Royalty Splits, Artist Gig-Ability, and media uploads each have their own manager in the left sidebar.
-              </p>
             </div>
           </div>
 

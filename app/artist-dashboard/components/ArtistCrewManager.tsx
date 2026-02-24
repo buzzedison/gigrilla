@@ -55,6 +55,7 @@ interface InvitationData {
     nickname?: string
     firstName?: string
     lastName?: string
+    phone?: string
     dateOfBirth?: string
     roles?: string[]
     instruments?: string[]
@@ -73,6 +74,7 @@ interface MemberData {
     nickname?: string
     firstName?: string
     lastName?: string
+    phone?: string
     dateOfBirth?: string
     roles?: string[]
     instruments?: string[]
@@ -245,6 +247,7 @@ export function ArtistCrewManager() {
   const [profileOwner, setProfileOwner] = useState<CrewMember | null>(null)
   const [savingOwner, setSavingOwner] = useState(false)
   const [updatingAdminMemberId, setUpdatingAdminMemberId] = useState<string | null>(null)
+  const [resendingInviteMemberId, setResendingInviteMemberId] = useState<string | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['vocals', 'strings']))
   const [showAddMember, setShowAddMember] = useState(false)
   const [newMember, setNewMember] = useState<Partial<CrewMember>>({
@@ -257,6 +260,12 @@ export function ArtistCrewManager() {
     isAdmin: false,
     status: 'invite'
   })
+  const [memberValidationErrors, setMemberValidationErrors] = useState<Partial<Record<'firstName' | 'lastName' | 'email' | 'phone', string>>>({})
+  const [memberValidationSummary, setMemberValidationSummary] = useState<string | null>(null)
+  const [memberActionFeedback, setMemberActionFeedback] = useState<{
+    type: 'success' | 'error' | 'info'
+    message: string
+  } | null>(null)
   const [notification, setNotification] = useState<{
     type: 'success' | 'error' | 'info'
     message: string
@@ -515,7 +524,7 @@ export function ArtistCrewManager() {
             firstName: inv.metadata?.firstName || '',
             lastName: inv.metadata?.lastName || '',
             email: inv.email,
-            phone: '',
+            phone: typeof inv.metadata?.phone === 'string' ? inv.metadata.phone : '',
             roles: inv.roles || [],
             isAdmin: inv.metadata?.isAdmin || false,
             status: inv.status === 'pending' ? 'invited' : inv.status === 'accepted' ? 'joined' : 'invited',
@@ -658,13 +667,54 @@ export function ArtistCrewManager() {
     return profileOwner?.roles.includes(role) || false
   }
 
+  const expandAllRoleCategories = () => {
+    setExpandedCategories(new Set(ROLE_CATEGORIES.map((category) => category.id)))
+  }
+
+  const validateNewMember = (member: Partial<CrewMember>) => {
+    const errors: Partial<Record<'firstName' | 'lastName' | 'email' | 'phone', string>> = {}
+    const firstName = member.firstName?.trim() || ''
+    const lastName = member.lastName?.trim() || ''
+    const email = member.email?.trim() || ''
+    const phone = member.phone?.trim() || ''
+    const normalizedPhoneDigits = phone.replace(/\D/g, '')
+
+    if (!firstName) {
+      errors.firstName = 'Given/First Name is required.'
+    }
+
+    if (!lastName) {
+      errors.lastName = 'Surname/Family Name is required.'
+    }
+
+    if (!email) {
+      errors.email = 'Email is required.'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = 'Enter a valid email address.'
+    }
+
+    if (!phone) {
+      errors.phone = 'Phone number is required.'
+    } else if (normalizedPhoneDigits.length < 7) {
+      errors.phone = 'Enter a valid phone number.'
+    }
+
+    return errors
+  }
+
   const addNewMember = () => {
     setShowAddMember(true)
+    setMemberValidationErrors({})
+    setMemberValidationSummary(null)
+    setMemberActionFeedback(null)
   }
 
   const handleAddMember = async () => {
-    if (!newMember.firstName || !newMember.email) {
-      showNotification('error', 'Please fill in at least First Name and Email fields')
+    const validationErrors = validateNewMember(newMember)
+    if (Object.keys(validationErrors).length > 0) {
+      setMemberValidationErrors(validationErrors)
+      setMemberValidationSummary('Please fix the highlighted fields before inviting this member.')
+      setMemberActionFeedback(null)
       return
     }
 
@@ -690,7 +740,10 @@ export function ArtistCrewManager() {
 
       if (!response.ok) {
         console.error('Failed to add member:', result)
-        showNotification('error', `Failed to send invitation: ${result.error || 'Unknown error'}`)
+        setMemberActionFeedback({
+          type: 'error',
+          message: result?.error || 'Failed to save team member invitation.'
+        })
         return
       }
 
@@ -725,14 +778,21 @@ export function ArtistCrewManager() {
         isAdmin: false,
         status: 'invite'
       })
+      setMemberValidationErrors({})
+      setMemberValidationSummary(null)
       setShowAddMember(false)
-
-      showNotification('success', `Invitation sent successfully to ${newMember.email}!`)
-      console.log('Member invitation sent:', result.data)
+      setMemberActionFeedback({
+        type: result?.warning ? 'info' : 'success',
+        message: result?.warning || `Invitation saved successfully for ${newMember.email}.`
+      })
+      console.log('Member invitation sent/saved:', result.data)
 
     } catch (error) {
       console.error('Error adding member:', error)
-      showNotification('error', 'Failed to send invitation. Please try again.')
+      setMemberActionFeedback({
+        type: 'error',
+        message: 'Failed to save team member invitation. Please try again.'
+      })
     }
   }
 
@@ -794,6 +854,43 @@ export function ArtistCrewManager() {
       showNotification('error', 'Failed to update admin rights. Please try again.')
     } finally {
       setUpdatingAdminMemberId(null)
+    }
+  }
+
+  const resendInvite = async (member: CrewMember) => {
+    if (!member.id || member.status === 'joined') return
+
+    setResendingInviteMemberId(member.id)
+    try {
+      const response = await fetch('/api/artist-members/resend', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ invitationId: member.id })
+      })
+
+      const result = await response.json()
+      if (!response.ok) {
+        setMemberActionFeedback({
+          type: 'error',
+          message: result?.error || 'Failed to resend invitation email.'
+        })
+        return
+      }
+
+      setMemberActionFeedback({
+        type: 'success',
+        message: `Invitation email resent${member.email ? ` to ${member.email}` : ''}.`
+      })
+    } catch (error) {
+      console.error('Error resending invitation:', error)
+      setMemberActionFeedback({
+        type: 'error',
+        message: 'Failed to resend invitation email. Please try again.'
+      })
+    } finally {
+      setResendingInviteMemberId(null)
     }
   }
 
@@ -1179,7 +1276,12 @@ export function ArtistCrewManager() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold text-sm text-purple-900">Roles & Skills</h4>
-                  <Button variant="outline" size="sm" className="text-purple-700 border-purple-200 hover:bg-purple-50">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={expandAllRoleCategories}
+                    className="text-purple-700 border-purple-200 hover:bg-purple-50"
+                  >
                     <Plus className="w-4 h-4 mr-2" />
                     Add Roles
                   </Button>
@@ -1293,27 +1395,45 @@ export function ArtistCrewManager() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium text-purple-700">
-                    Given/FirstName?
+                    Given/First Name?
                   </Label>
                   <Input
                     value={newMember.firstName || ''}
-                    onChange={(e) => setNewMember(prev => ({ ...prev, firstName: e.target.value }))}
+                    onChange={(e) => {
+                      setNewMember(prev => ({ ...prev, firstName: e.target.value }))
+                      setMemberValidationErrors(prev => ({ ...prev, firstName: undefined }))
+                    }}
                     placeholder="First name"
-                    className="border-purple-200 focus:border-purple-400"
+                    className={cn(
+                      "border-purple-200 focus:border-purple-400",
+                      memberValidationErrors.firstName ? "border-red-300 focus:border-red-400" : ""
+                    )}
                   />
+                  {memberValidationErrors.firstName && (
+                    <p className="text-xs text-red-600">{memberValidationErrors.firstName}</p>
+                  )}
                   <p className="text-xs text-purple-600">is private by default; they can choose to make this public.</p>
                 </div>
 
                 <div className="space-y-2">
                   <Label className="text-xs font-medium text-purple-700">
-                    Surname/FamilyName?
+                    Surname/Family Name?
                   </Label>
                   <Input
                     value={newMember.lastName || ''}
-                    onChange={(e) => setNewMember(prev => ({ ...prev, lastName: e.target.value }))}
+                    onChange={(e) => {
+                      setNewMember(prev => ({ ...prev, lastName: e.target.value }))
+                      setMemberValidationErrors(prev => ({ ...prev, lastName: undefined }))
+                    }}
                     placeholder="Last name"
-                    className="border-purple-200 focus:border-purple-400"
+                    className={cn(
+                      "border-purple-200 focus:border-purple-400",
+                      memberValidationErrors.lastName ? "border-red-300 focus:border-red-400" : ""
+                    )}
                   />
+                  {memberValidationErrors.lastName && (
+                    <p className="text-xs text-red-600">{memberValidationErrors.lastName}</p>
+                  )}
                   <p className="text-xs text-purple-600">is private by default; they can choose to make this public.</p>
                 </div>
 
@@ -1337,10 +1457,19 @@ export function ArtistCrewManager() {
                   <Input
                     type="email"
                     value={newMember.email || ''}
-                    onChange={(e) => setNewMember(prev => ({ ...prev, email: e.target.value }))}
+                    onChange={(e) => {
+                      setNewMember(prev => ({ ...prev, email: e.target.value }))
+                      setMemberValidationErrors(prev => ({ ...prev, email: undefined }))
+                    }}
                     placeholder="Email address"
-                    className="border-purple-200 focus:border-purple-400"
+                    className={cn(
+                      "border-purple-200 focus:border-purple-400",
+                      memberValidationErrors.email ? "border-red-300 focus:border-red-400" : ""
+                    )}
                   />
+                  {memberValidationErrors.email && (
+                    <p className="text-xs text-red-600">{memberValidationErrors.email}</p>
+                  )}
                   <p className="text-xs text-purple-600">is private. Used to securely match members to Profiles and to invite non-members.</p>
                 </div>
 
@@ -1351,10 +1480,19 @@ export function ArtistCrewManager() {
                   <Input
                     type="tel"
                     value={newMember.phone || ''}
-                    onChange={(e) => setNewMember(prev => ({ ...prev, phone: e.target.value }))}
+                    onChange={(e) => {
+                      setNewMember(prev => ({ ...prev, phone: e.target.value }))
+                      setMemberValidationErrors(prev => ({ ...prev, phone: undefined }))
+                    }}
                     placeholder="Phone number"
-                    className="border-purple-200 focus:border-purple-400"
+                    className={cn(
+                      "border-purple-200 focus:border-purple-400",
+                      memberValidationErrors.phone ? "border-red-300 focus:border-red-400" : ""
+                    )}
                   />
+                  {memberValidationErrors.phone && (
+                    <p className="text-xs text-red-600">{memberValidationErrors.phone}</p>
+                  )}
                   <p className="text-xs text-purple-600">is private. Used to securely match members to Profiles and to invite non-members.</p>
                 </div>
 
@@ -1447,6 +1585,12 @@ export function ArtistCrewManager() {
                 </div>
               </div>
 
+              {memberValidationSummary && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                  {memberValidationSummary}
+                </div>
+              )}
+
               <div className="flex justify-end">
                 <Button
                   onClick={handleAddMember}
@@ -1458,11 +1602,24 @@ export function ArtistCrewManager() {
             </div>
           )}
 
-          <div id="artist-crew-manage-team" className="scroll-mt-28">
+          <div id="artist-crew-manage-team" className="scroll-mt-28 space-y-4">
+            {memberActionFeedback && (
+              <div
+                className={cn(
+                  "rounded-lg border px-3 py-2 text-xs",
+                  memberActionFeedback.type === 'success' && "border-green-200 bg-green-50 text-green-700",
+                  memberActionFeedback.type === 'error' && "border-red-200 bg-red-50 text-red-700",
+                  memberActionFeedback.type === 'info' && "border-blue-200 bg-blue-50 text-blue-700"
+                )}
+              >
+                {memberActionFeedback.message}
+              </div>
+            )}
+
             {/* Manage Team Section */}
-            {crewMembers.filter(member => !member.isProfileOwner).length > 0 && (
-              <div className="space-y-4">
-                <h4 className="font-semibold text-sm text-purple-900">Manage Team</h4>
+            <div className="space-y-4">
+              <h4 className="font-semibold text-sm text-purple-900">Manage Team</h4>
+              {crewMembers.filter(member => !member.isProfileOwner).length > 0 ? (
                 <div className="space-y-3">
                   {crewMembers.filter(member => !member.isProfileOwner).map((member) => (
                     <div key={member.id} className="p-4 border border-purple-200 rounded-lg bg-white">
@@ -1494,9 +1651,21 @@ export function ArtistCrewManager() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="text-purple-700 border-purple-200">
-                            Manage
-                          </Button>
+                          {member.status === 'joined' ? (
+                            <Button variant="outline" size="sm" disabled className="text-purple-700 border-purple-200">
+                              Joined
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => resendInvite(member)}
+                              disabled={resendingInviteMemberId === member.id}
+                              className="text-purple-700 border-purple-200 hover:bg-purple-50"
+                            >
+                              {resendingInviteMemberId === member.id ? 'Resending…' : 'Resend Invite'}
+                            </Button>
+                          )}
                           <Button
                             variant="outline"
                             size="sm"
@@ -1510,16 +1679,14 @@ export function ArtistCrewManager() {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {crewMembers.filter(member => !member.isProfileOwner).length === 0 && !showAddMember && (
-              <div className="text-center py-8 text-gray-500">
-                <Users2 className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                <p>No team members added yet.</p>
-                <p className="text-sm">Click &quot;Add Member&quot; to invite band members and support staff.</p>
-              </div>
-            )}
+              ) : (
+                <div className="text-center py-8 text-gray-500 border border-dashed border-purple-200 rounded-lg bg-white/50">
+                  <Users2 className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                  <p>No team members added yet.</p>
+                  <p className="text-sm">Use “Add Member” to invite band members and support staff.</p>
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

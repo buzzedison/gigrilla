@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
+import { formatDateTimeDDMMMyyyy } from '@/lib/date-format'
 
 interface DashboardStats {
   pending_count: number
@@ -141,13 +142,7 @@ export default function AdminDashboard() {
 
   const formatDate = (dateString: string) => {
     if (!dateString) return 'N/A'
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    return formatDateTimeDDMMMyyyy(dateString, 'N/A')
   }
 
   if (loading) {

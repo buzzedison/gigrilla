@@ -335,7 +335,7 @@ export function ArtistGigAbilityManager() {
             </div>
             
             <div className="text-sm text-gray-600">
-              <p>To update your base location, go to <strong>Basic Artist Details</strong> and edit your profile information.</p>
+              <p>To update your base location, go to <strong>Artist Details</strong> and edit your profile information.</p>
             </div>
           </div>
         </CardContent>

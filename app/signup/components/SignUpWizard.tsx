@@ -1382,7 +1382,9 @@ export function SignUpWizard() {
       case "artist-type":
         return Boolean(artistSelection.typeId);
       case "artist-profile-setup":
-        return Boolean(artistProfile.stageName?.trim());
+        return Boolean(artistProfile.stageName?.trim()) && (
+          !artistCapabilities?.requiresIPICAE || Boolean(artistProfile.creatorIpiCae?.trim())
+        );
       case "venue-type":
         return Boolean(venueSelection.typeId);
       case "service-type":
@@ -5909,12 +5911,22 @@ export function SignUpWizard() {
             {(artistCapabilities.requiresIPICAE || artistCapabilities.optionalIPICAE) && (
             <div className="space-y-2">
               <Label htmlFor="creatorIpiCae">
-                Creator IPI/CAE {artistCapabilities.requiresIPICAE && <span className="text-red-500">*</span>}
-                {artistCapabilities.optionalIPICAE && <span className="text-foreground/60 text-xs ml-1">(Optional)</span>}
+                Creator IPI/CAE
+                {!artistCapabilities.requiresIPICAE && artistCapabilities.optionalIPICAE && (
+                  <span className="text-foreground/60 text-xs ml-1">(Optional)</span>
+                )}
               </Label>
               <p className="text-xs text-foreground/60 mb-2">
-                ℹ️ For Songwriters, Lyricists, and Composers. Automatically issued when joining a Performance Rights Organisation (PRO) like ASCAP, BMI, or PRS.
-                Required for accurate song registration and royalty payments.
+                ℹ️ <span className="font-semibold text-foreground/80">For Songwriters, Lyricists, and Composers.</span>{' '}
+                Automatically issued when joining a Performance Rights Organisation (PRO) like ASCAP, BMI, or PRS.
+                {artistCapabilities.requiresIPICAE ? (
+                  <span className="font-semibold text-foreground/80"> Required for this selected artist type.</span>
+                ) : (
+                  <span> Optional unless you write lyrics and/or musical composition.</span>
+                )}
+                <a href="https://members.cisac.org/CisacPortal/search.do" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline ml-1">
+                  Get / Find an IPI/CAE
+                </a>
               </p>
               <Input
                 id="creatorIpiCae"

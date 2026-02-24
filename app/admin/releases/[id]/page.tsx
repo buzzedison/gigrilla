@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { CheckCircle, XCircle, ArrowLeft, FileText, Music, Globe, Calendar, Shield, DollarSign, Image as ImageIcon, Loader2 } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
 import { Textarea } from '../../../components/ui/textarea'
+import { formatDateDDMMMyyyy } from '@/lib/date-format'
 
 interface Release {
   id: string
@@ -312,7 +313,7 @@ export default function ReleaseReviewPage({ params }: { params: Promise<{ id: st
               title="Go-Live Date"
               icon={<Calendar className="w-5 h-5" />}
               items={[
-                { label: 'Scheduled Date', value: release.go_live_date ? new Date(release.go_live_date).toLocaleDateString() : 'ASAP' }
+                { label: 'Scheduled Date', value: release.go_live_date ? formatDateDDMMMyyyy(release.go_live_date) : 'ASAP' }
               ]}
             />
 
@@ -350,7 +351,7 @@ export default function ReleaseReviewPage({ params }: { params: Promise<{ id: st
                 </div>
                 <div>
                   <label className="text-sm text-gray-600">Submitted</label>
-                  <p className="font-medium">{new Date(release.submitted_at || release.created_at).toLocaleDateString()}</p>
+                  <p className="font-medium">{formatDateDDMMMyyyy(release.submitted_at || release.created_at)}</p>
                 </div>
               </div>
             </div>
