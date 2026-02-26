@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { Textarea } from '../../components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '../../components/ui/select'
 import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group'
 import { Checkbox } from '../../components/ui/checkbox'
 import { useAuth } from '../../../lib/auth-context'
@@ -67,9 +67,45 @@ const ADVERT_TYPES = [
   { value: 'vocalist-rehearsal', label: 'Vocalist - Wanted For Rehearsal', requiresVocalistType: true }
 ]
 
-const INSTRUMENTS = [
-  'Acoustic Guitar', 'Bass Guitar', 'Cello', 'Clarinet', 'Drums', 'Electric Guitar',
-  'Flute', 'Keyboard', 'Piano', 'Saxophone', 'Trumpet', 'Violin', 'Other'
+const INSTRUMENT_GROUPS = [
+  {
+    name: 'String Instruments',
+    items: [
+      'Banjo', 'Bass Guitar', 'Cello', 'Double Bass', 'Guitar', 'Harp',
+      'Lute', 'Mandolin', 'Nyckelharpa', 'Phonofiddle', 'Sitar',
+      'Ukulele', 'Viola', 'Violin', 'Zither'
+    ]
+  },
+  {
+    name: 'Wind Instruments',
+    items: [
+      'Alboka', 'Clarinet', 'Didgeridoo', 'Flute', 'Harmonica', 'Jaw Harp',
+      'Kazoo', 'Kubing', 'Lur', 'Nose Flute', 'Oboe', 'Recorder',
+      'Saxophone', 'Shawm', 'Triton Shell', 'Trumpet', 'Vuvuzela', 'Whistle', 'Xun'
+    ]
+  },
+  {
+    name: 'Percussion Instruments',
+    items: [
+      'Cowbell', 'Drum Set', 'Hand Drums', 'Mallet Percussion',
+      'Metal Percussion', 'Shakers', 'Misc. Percussion'
+    ]
+  },
+  {
+    name: 'Keyboard Instruments',
+    items: [
+      'Accordion', 'Celesta', 'Clavichord', 'Harpsichord',
+      'Melodica', 'Organ', 'Piano'
+    ]
+  },
+  {
+    name: 'Electronic Instruments',
+    items: ['Electronic Keyboard', 'Sampler', 'Synthesizer']
+  },
+  {
+    name: 'Other',
+    items: ['Other']
+  }
 ]
 
 const VOCALIST_TYPES = ['Lead', 'Backing', 'Harmony']
@@ -490,10 +526,15 @@ export function ArtistAuditionsManager() {
                     <SelectValue placeholder="Select instrument..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {INSTRUMENTS.map(inst => (
-                      <SelectItem key={inst} value={inst}>
-                        {inst}
-                      </SelectItem>
+                    {INSTRUMENT_GROUPS.map(group => (
+                      <SelectGroup key={group.name}>
+                        <SelectLabel>{group.name}</SelectLabel>
+                        {group.items.map(inst => (
+                          <SelectItem key={inst} value={inst}>
+                            {inst}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     ))}
                   </SelectContent>
                 </Select>

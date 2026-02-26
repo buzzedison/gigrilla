@@ -5,6 +5,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { DatePicker } from "./ui/calendar";
 import { useAuth } from "../../lib/auth-context";
 import { useRouter } from "next/navigation";
 import { Crown, Star, CreditCard, MapPin, Phone, User } from "lucide-react";
@@ -107,52 +108,46 @@ export function FullFanUpgrade({ onClose }: FullFanUpgradeProps) {
     }
 
     try {
-      console.log('FullFanUpgrade: Starting upgrade for user:', user.id);
-      console.log('FullFanUpgrade: Form data:', formData);
-      
-      // Use the specific upgrade function to ensure proper full fan upgrade
-      // For now, we'll use the same API endpoint with a method override or create a separate endpoint
-      // TODO: Create /api/fan-upgrade endpoint for the upgrade_to_full_fan RPC call
+      console.log('FullFanUpgrade: Saving setup details before genre/payment steps:', {
+        userId: user.id,
+        username: formData.username
+      });
 
-      // For now, simulate success - the actual RPC call would be handled server-side
-      const { data: result, error } = { data: { success: true }, error: null };
+      const saveResponse = await fetch('/api/fan-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          accountType: 'guest',
+          username: formData.username.trim(),
+          displayName: formData.username.trim(),
+          dateOfBirth: formData.dateOfBirth,
+          address: formData.address.trim(),
+          phone: formData.phoneNumber.trim(),
+          onboardingCompleted: false,
+        }),
+      });
 
-      console.log('FullFanUpgrade: Upgrade result:', { result, error });
-
-      console.log('FullFanUpgrade: Update result:', result);
-
-      if (error) {
-        console.error('FullFanUpgrade: RPC call error:', error);
-        setError('Failed to upgrade profile');
+      const saveResult = await saveResponse.json();
+      if (!saveResponse.ok || saveResult?.error) {
+        const details = saveResult?.details || saveResult?.error || 'Failed to save setup details';
+        console.error('FullFanUpgrade: Failed to save setup details:', {
+          status: saveResponse.status,
+          details
+        });
+        setError(`Failed to save details: ${details}`);
         setLoading(false);
         return;
       }
 
-      if (result && !result.success) {
-        console.error('FullFanUpgrade: Upgrade failed');
-        setError('Failed to upgrade profile');
-        setLoading(false);
-        return;
-      }
-
-      console.log('FullFanUpgrade: Upgrade successful, proceed to Stripe Connect simulation before confirming full access');
-      
-      // Auto-simulate Stripe Connect step BEFORE finalizing access (no blocking prompt)
-      setLoading(true);
-      setError('');
-      setTimeout(() => {
-        console.log('FullFanUpgrade: Stripe Connect simulation complete');
-        setLoading(false);
-        if (onClose) onClose();
-        router.push('/fan-dashboard');
-      }, 1000);
+      console.log('FullFanUpgrade: Details saved, routing to genre selection step');
+      router.push('/fan-dashboard/genres?from=full-fan-upgrade');
     } catch (error) {
       console.error('FullFanUpgrade: Caught error:', error);
       setError(`Upgrade error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
-      console.log('FullFanUpgrade: Setting loading to false');
-      // Ensure we never get stuck in loading state
-      setTimeout(() => setLoading(false), 100);
+      setLoading(false);
     }
   };
 
@@ -265,11 +260,10 @@ export function FullFanUpgrade({ onClose }: FullFanUpgradeProps) {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Date of Birth *
                   </label>
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={formData.dateOfBirth}
-                    onChange={(e) => setFormData(prev => ({ ...prev, dateOfBirth: e.target.value }))}
-                    required
+                    onChange={(value) => setFormData(prev => ({ ...prev, dateOfBirth: value }))}
+                    maxYear={new Date().getFullYear()}
                   />
                 </div>
 
@@ -319,7 +313,7 @@ export function FullFanUpgrade({ onClose }: FullFanUpgradeProps) {
                     disabled={loading}
                     className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
                   >
-                    {loading ? "Saving..." : "Next"}
+                    {loading ? "Saving..." : "Next: Genres"}
                   </Button>
                 </div>
               </form>

@@ -132,8 +132,7 @@ const sectionSubSections: Partial<Record<ArtistDashboardSection, SidebarSubSecti
   ],
   royalty: [
     { id: 'overview', label: 'Overview' },
-    { id: 'splits', label: 'Team Splits' },
-    { id: 'save', label: 'Save' }
+    { id: 'splits', label: 'Team Splits' }
   ],
   gigability: [
     { id: 'base', label: 'Base Location' },
@@ -207,11 +206,11 @@ export function ArtistSidebar({
   const pathname = usePathname();
   const { signOut } = useAuth();
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    profile: true,
-    musicManager: true,
-    gigManager: true,
-    artworkMedia: true,
-    administration: true
+    profile: false,
+    musicManager: false,
+    gigManager: false,
+    artworkMedia: false,
+    administration: false
   });
 
   const handleSignOut = async () => {
@@ -244,12 +243,11 @@ export function ArtistSidebar({
   }
 
   const mainMenuItems: { icon: typeof FileText; label: string; section: ArtistDashboardSection }[] = [
-    { icon: FileText, label: "Main Dashboard", section: "profile" },
+    { icon: FileText, label: "Artist Dashboard", section: "profile" },
     { icon: MessageSquare, label: "Messages", section: "messages" }
   ]
 
   const profileItems = [
-    { icon: User, label: "Artist Details", section: "profile" as ArtistDashboardSection },
     { icon: Banknote, label: "Artist Payments", section: "payments" as ArtistDashboardSection },
     { icon: Users2, label: "Artist Crew", section: "crew" as ArtistDashboardSection },
     { icon: Megaphone, label: "Auditions & Collabs", section: "auditions" as ArtistDashboardSection },
@@ -305,7 +303,7 @@ export function ArtistSidebar({
                 <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
               )}
             </button>
-            {!disabled && isActive && subSections.length > 0 && (
+            {!disabled && isActive && subSections.length > 1 && (
               <div className="ml-6 mt-1 space-y-1 border-l border-purple-400/30 pl-3">
                 {subSections.map((subSection) => {
                   const subKey = `${item.section}:${subSection.id}`

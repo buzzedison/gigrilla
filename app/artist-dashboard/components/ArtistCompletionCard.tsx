@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useAuth } from "../../../lib/auth-context"
 import { HelpCircle, CheckCircle2, Circle, PartyPopper } from "lucide-react"
 import { Badge } from "../../components/ui/badge"
@@ -226,70 +226,76 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
   const requiredCompletedCount = useMemo(() => requiredItems.filter(item => item.completed).length, [requiredItems])
   const allRequiredComplete = requiredCompletedCount === requiredItems.length && requiredItems.length > 0
 
+  const loadCompletionStatus = useCallback(async () => {
+    if (!user) return
+
+    setLoading(true)
+    try {
+      const noCache = { cache: 'no-store' as const }
+      const [profileResponse, photosResponse, videosResponse, crewResponse, paymentsResponse] = await Promise.all([
+        fetch('/api/artist-profile', noCache),
+        fetch('/api/artist-photos', noCache),
+        fetch('/api/artist-videos', noCache),
+        fetch('/api/artist-members', noCache),
+        fetch('/api/artist-payments', noCache)
+      ])
+
+      const profileResult = await profileResponse.json()
+      if (profileResult.data) {
+        const rawProfile = profileResult.data as ArtistProfileData & { onboarding_completed?: boolean }
+        setProfile(rawProfile)
+        setOnboardingCompleted(rawProfile.onboarding_completed ?? false)
+      } else {
+        setProfile(null)
+        setOnboardingCompleted(false)
+      }
+
+      const photosResult = await photosResponse.json()
+      if (photosResult.data) {
+        setPhotos(photosResult.data)
+      }
+
+      const videosResult = await videosResponse.json()
+      if (videosResult.data) {
+        setVideos(videosResult.data)
+      }
+
+      const crewResult = await crewResponse.json()
+      const invitationMembers = Array.isArray(crewResult.invitations) ? crewResult.invitations : []
+      const activeMembers = Array.isArray(crewResult.activeMembers) ? crewResult.activeMembers : []
+      const combinedCrewMembers = [...invitationMembers, ...activeMembers]
+      setCrewMembers(combinedCrewMembers)
+
+      const paymentsResult = await paymentsResponse.json()
+      if (paymentsResult.data) {
+        setPaymentDetails(paymentsResult.data)
+      }
+    } catch (error) {
+      console.error('Error loading completion status:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [user])
+
   useEffect(() => {
     const recent = searchParams.get('completed')
     if (recent) setRecentlyCompleted(recent)
   }, [searchParams])
 
   useEffect(() => {
-    if (!user) return
+    void loadCompletionStatus()
+  }, [loadCompletionStatus, refreshKey])
 
-    const loadCompletionStatus = async () => {
-      setLoading(true)
-      try {
-        // Fetch all data in parallel
-        const [profileResponse, photosResponse, videosResponse, crewResponse, paymentsResponse] = await Promise.all([
-          fetch('/api/artist-profile'),
-          fetch('/api/artist-photos'),
-          fetch('/api/artist-videos'),
-          fetch('/api/artist-members'),
-          fetch('/api/artist-payments')
-        ])
-
-        // Handle profile data
-        const profileResult = await profileResponse.json()
-        if (profileResult.data) {
-          const rawProfile = profileResult.data as ArtistProfileData & { onboarding_completed?: boolean }
-          setProfile(rawProfile)
-          setOnboardingCompleted(rawProfile.onboarding_completed ?? false)
-        } else {
-          setProfile(null)
-          setOnboardingCompleted(false)
-        }
-
-        // Handle photos data
-        const photosResult = await photosResponse.json()
-        if (photosResult.data) {
-          setPhotos(photosResult.data)
-        }
-
-        // Handle videos data
-        const videosResult = await videosResponse.json()
-        if (videosResult.data) {
-          setVideos(videosResult.data)
-        }
-
-        // Handle crew data
-        const crewResult = await crewResponse.json()
-        const invitationMembers = Array.isArray(crewResult.invitations) ? crewResult.invitations : []
-        const activeMembers = Array.isArray(crewResult.activeMembers) ? crewResult.activeMembers : []
-        const combinedCrewMembers = [...invitationMembers, ...activeMembers]
-        setCrewMembers(combinedCrewMembers)
-
-        // Handle payments data
-        const paymentsResult = await paymentsResponse.json()
-        if (paymentsResult.data) {
-          setPaymentDetails(paymentsResult.data)
-        }
-      } catch (error) {
-        console.error('Error loading completion status:', error)
-      } finally {
-        setLoading(false)
-      }
+  useEffect(() => {
+    const handleProfileUpdated = () => {
+      void loadCompletionStatus()
     }
 
-    loadCompletionStatus()
-  }, [user, refreshKey])
+    window.addEventListener('artist-profile-updated', handleProfileUpdated)
+    return () => {
+      window.removeEventListener('artist-profile-updated', handleProfileUpdated)
+    }
+  }, [loadCompletionStatus])
 
   const lastCompletedLabel = useMemo(() => {
     if (!recentlyCompleted) return null

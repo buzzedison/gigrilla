@@ -2,6 +2,7 @@ import { AlertTriangle, CheckCircle2, Clock, Mail } from 'lucide-react'
 import Link from 'next/link'
 
 import { createServiceClient } from '../../../lib/supabase/service-client'
+import { formatDateTimeDDMMMyyyy } from '../../../lib/date-format'
 import { Button } from '../../components/ui/button'
 
 interface ArtistMemberInvitationRecord {
@@ -60,11 +61,7 @@ function formatRole(invite: ArtistMemberInvitationRecord) {
 
 function formatDate(value: string | null) {
   if (!value) return null
-  try {
-    return new Date(value).toLocaleString()
-  } catch {
-    return value
-  }
+  return formatDateTimeDDMMMyyyy(value, value)
 }
 
 export const revalidate = 0
@@ -300,5 +297,4 @@ export default async function ArtistMemberInvitePage({
     </main>
   )
 }
-
 

@@ -44,8 +44,8 @@ export function LocationAutocompleteInput({
   noResultsMessage = 'No matching locations found.',
   searchingMessage = 'Searching…'
 }: LocationAutocompleteProps) {
-  const [inputValue, setInputValue] = useState(value)
-  const [debouncedValue, setDebouncedValue] = useState(value)
+  const [inputValue, setInputValue] = useState(value ?? '')
+  const [debouncedValue, setDebouncedValue] = useState(value ?? '')
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -56,7 +56,7 @@ export function LocationAutocompleteInput({
   const cacheRef = useRef<Map<string, LocationSuggestion[]>>(new Map())
 
   useEffect(() => {
-    setInputValue(value)
+    setInputValue(value ?? '')
   }, [value])
 
   useEffect(() => {
@@ -69,7 +69,7 @@ export function LocationAutocompleteInput({
   }, [inputValue, debouncedValue])
 
   useEffect(() => {
-    const query = debouncedValue.trim()
+    const query = (debouncedValue ?? '').trim()
 
     if (query.length < minQueryLength) {
       setSuggestions([])
@@ -188,7 +188,7 @@ export function LocationAutocompleteInput({
   return (
     <div ref={containerRef} className={cn('relative', className)}>
       <Input
-        value={inputValue}
+        value={inputValue ?? ''}
         onChange={handleInputChangeInternal}
         onFocus={handleFocus}
         onBlur={handleBlur}
@@ -252,4 +252,3 @@ export function LocationAutocompleteInput({
 }
 
 export type { LocationAutocompleteProps }
-

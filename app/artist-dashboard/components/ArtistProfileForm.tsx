@@ -5,7 +5,8 @@ import { useAuth } from "../../../lib/auth-context"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { LocationAutocompleteInput, type LocationSuggestion } from "../../components/ui/location-autocomplete"
-import { Save, Rocket, Loader2, Users, MapPin } from "lucide-react"
+import { Save, Rocket, Loader2, Users, MapPin, Globe } from "lucide-react"
+import { ARTIST_TYPES } from "../../../data/artist-types"
 
 interface ArtistProfileFormProps {
   onProfileSaved?: () => void
@@ -13,6 +14,7 @@ interface ArtistProfileFormProps {
 
 interface ArtistProfileData {
   artist_type_id?: number | null
+  artist_sub_types?: string[] | Record<string, string[]> | null
   stage_name?: string | null
   established_date?: string | null
   performing_members?: number | null
@@ -23,6 +25,7 @@ interface ArtistProfileData {
   hometown_state?: string | null
   hometown_country?: string | null
   gigs_performed?: number | null
+  website?: string | null
   facebook_url?: string | null
   instagram_url?: string | null
   threads_url?: string | null
@@ -30,6 +33,8 @@ interface ArtistProfileData {
   tiktok_url?: string | null
   youtube_url?: string | null
   snapchat_url?: string | null
+  mastodon_url?: string | null
+  bluesky_url?: string | null
   social_links?: Record<string, string | null> | null
 }
 
@@ -42,6 +47,7 @@ interface FormData {
   hometown_state: string
   hometown_country: string
   gigs_performed: string
+  website: string
   social_facebook: string
   social_instagram: string
   social_threads: string
@@ -49,6 +55,8 @@ interface FormData {
   social_tiktok: string
   social_youtube: string
   social_snapchat: string
+  social_mastodon: string
+  social_bluesky: string
 }
 
 const toMonthInput = (value?: string | null) => {
@@ -82,6 +90,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
   const [initialLoading, setInitialLoading] = useState(true)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null)
   const [artistTypeId, setArtistTypeId] = useState<number | null>(null)
+  const [artistSubTypeLabels, setArtistSubTypeLabels] = useState<string[]>([])
   const [existingSocialLinks, setExistingSocialLinks] = useState<Record<string, string | null>>({})
   const [baseLocationCoordinates, setBaseLocationCoordinates] = useState<{ lat: number | null; lon: number | null }>({
     lat: null,
@@ -96,13 +105,16 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
     hometown_state: "",
     hometown_country: "",
     gigs_performed: "",
+    website: "",
     social_facebook: "",
     social_instagram: "",
     social_threads: "",
     social_x: "",
     social_tiktok: "",
     social_youtube: "",
-    social_snapchat: ""
+    social_snapchat: "",
+    social_mastodon: "",
+    social_bluesky: ""
   })
 
   useEffect(() => {
@@ -130,7 +142,31 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
         const locationBits = splitLocation(baseLocation)
         const socialLinks = profile.social_links ?? {}
 
-        setArtistTypeId(profile.artist_type_id ?? null)
+        const typeId = profile.artist_type_id ?? null
+        setArtistTypeId(typeId)
+
+        // Resolve artist sub-type option labels from stored IDs
+        if (typeId && profile.artist_sub_types) {
+          const typeConfig = ARTIST_TYPES.find(t => t.id === typeId)
+          if (typeConfig) {
+            // Normalise: API may return array of "groupId:optionId" strings or a Record
+            const rawSubs = profile.artist_sub_types
+            const optionIds: string[] = Array.isArray(rawSubs)
+              ? rawSubs.flatMap(s => {
+                  const parts = String(s).split(':')
+                  return parts.length === 2 ? [parts[1]] : [String(s)]
+                })
+              : Object.values(rawSubs as Record<string, string[]>).flat()
+
+            const labels = optionIds
+              .map(id => typeConfig.groups.flatMap(g => g.options).find(o => o.id === id)?.label)
+              .filter((l): l is string => Boolean(l))
+            setArtistSubTypeLabels(labels)
+          }
+        } else {
+          setArtistSubTypeLabels([])
+        }
+
         setExistingSocialLinks(socialLinks)
         setBaseLocationCoordinates({
           lat: typeof profile.base_location_lat === 'number' ? profile.base_location_lat : null,
@@ -145,13 +181,16 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
           hometown_state: profile.hometown_state ?? locationBits.state,
           hometown_country: profile.hometown_country ?? locationBits.country,
           gigs_performed: profile.gigs_performed ? String(profile.gigs_performed) : "",
+          website: profile.website ?? "",
           social_facebook: profile.facebook_url ?? socialLinks.facebook ?? "",
           social_instagram: profile.instagram_url ?? socialLinks.instagram ?? "",
           social_threads: profile.threads_url ?? socialLinks.threads ?? "",
           social_x: profile.x_url ?? socialLinks.x ?? socialLinks.twitter ?? "",
           social_tiktok: profile.tiktok_url ?? socialLinks.tiktok ?? "",
           social_youtube: profile.youtube_url ?? socialLinks.youtube ?? "",
-          social_snapchat: profile.snapchat_url ?? socialLinks.snapchat ?? ""
+          social_snapchat: profile.snapchat_url ?? socialLinks.snapchat ?? "",
+          social_mastodon: profile.mastodon_url ?? socialLinks.mastodon ?? "",
+          social_bluesky: profile.bluesky_url ?? socialLinks.bluesky ?? ""
         })
       } catch (error) {
         console.error('Error loading artist profile for form:', error)
@@ -221,7 +260,9 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
       twitter: xValue,
       tiktok: formData.social_tiktok.trim() || null,
       youtube: formData.social_youtube.trim() || null,
-      snapchat: formData.social_snapchat.trim() || null
+      snapchat: formData.social_snapchat.trim() || null,
+      mastodon: formData.social_mastodon.trim() || null,
+      bluesky: formData.social_bluesky.trim() || null
     }
   }
 
@@ -236,6 +277,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
     hometown_state: formData.hometown_state.trim() || null,
     hometown_country: formData.hometown_country.trim() || null,
     gigs_performed: formData.gigs_performed.trim() || null,
+    website: formData.website.trim() || null,
     facebook_url: formData.social_facebook.trim() || null,
     instagram_url: formData.social_instagram.trim() || null,
     threads_url: formData.social_threads.trim() || null,
@@ -243,6 +285,8 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
     tiktok_url: formData.social_tiktok.trim() || null,
     youtube_url: formData.social_youtube.trim() || null,
     snapchat_url: formData.social_snapchat.trim() || null,
+    mastodon_url: formData.social_mastodon.trim() || null,
+    bluesky_url: formData.social_bluesky.trim() || null,
     social_links: buildSocialLinks(),
     ...(isPublished ? { is_published: true } : {})
   })
@@ -330,6 +374,18 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
             <div className="text-sm font-semibold text-purple-900">
               Your Artist Type: {artistTypeNames[artistTypeId] || `Type ${artistTypeId}`}
             </div>
+            {artistSubTypeLabels.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {artistSubTypeLabels.map(label => (
+                  <span
+                    key={label}
+                    className="inline-block text-xs px-2 py-0.5 rounded-full bg-purple-200 text-purple-900 font-medium"
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="text-xs text-purple-700 mt-1">
               This determines what features and sections are available to you.
             </div>
@@ -427,71 +483,99 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
             </div>
           </div>
 
-          <div id="artist-profile-social" className="bg-gray-50 rounded-lg p-4 space-y-2 scroll-mt-28">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Artist Social Media Accounts</h2>
-            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Facebook URL</label>
-                <Input
-                  value={formData.social_facebook}
-                  onChange={(e) => handleInputChange('social_facebook', e.target.value)}
-                  placeholder="facebook.com/artist"
-                  className="text-gray-900 placeholder:text-gray-400"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Instagram URL</label>
-                <Input
-                  value={formData.social_instagram}
-                  onChange={(e) => handleInputChange('social_instagram', e.target.value)}
-                  placeholder="instagram.com/artist"
-                  className="text-gray-900 placeholder:text-gray-400"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Threads URL</label>
-                <Input
-                  value={formData.social_threads}
-                  onChange={(e) => handleInputChange('social_threads', e.target.value)}
-                  placeholder="threads.com/@artist"
-                  className="text-gray-900 placeholder:text-gray-400"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">X URL</label>
-                <Input
-                  value={formData.social_x}
-                  onChange={(e) => handleInputChange('social_x', e.target.value)}
-                  placeholder="x.com/artist"
-                  className="text-gray-900 placeholder:text-gray-400"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">TikTok URL</label>
-                <Input
-                  value={formData.social_tiktok}
-                  onChange={(e) => handleInputChange('social_tiktok', e.target.value)}
-                  placeholder="tiktok.com/@artist"
-                  className="text-gray-900 placeholder:text-gray-400"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">YouTube URL</label>
-                <Input
-                  value={formData.social_youtube}
-                  onChange={(e) => handleInputChange('social_youtube', e.target.value)}
-                  placeholder="youtube.com/@artist"
-                  className="text-gray-900 placeholder:text-gray-400"
-                />
-              </div>
-              <div className="space-y-2 md:col-span-2 xl:col-span-3">
-                <label className="text-sm font-medium text-gray-700">Snapchat URL</label>
-                <Input
-                  value={formData.social_snapchat}
-                  onChange={(e) => handleInputChange('social_snapchat', e.target.value)}
-                  placeholder="snapchat.com/add/artist"
-                  className="text-gray-900 placeholder:text-gray-400"
-                />
+          <div id="artist-profile-social" className="bg-gray-50 rounded-lg p-4 space-y-4 scroll-mt-28">
+            <h2 className="text-xl font-semibold text-gray-900">Artist Online Presence</h2>
+
+            {/* Website — full width */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-gray-500" />
+                Website
+              </label>
+              <Input
+                value={formData.website}
+                onChange={(e) => handleInputChange('website', e.target.value)}
+                placeholder="https://yourartistsite.com"
+                className="max-w-xl"
+              />
+            </div>
+
+            {/* Social media grid */}
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-3">Social Media</p>
+              <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Facebook</label>
+                  <Input
+                    value={formData.social_facebook}
+                    onChange={(e) => handleInputChange('social_facebook', e.target.value)}
+                    placeholder="facebook.com/artist"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Instagram</label>
+                  <Input
+                    value={formData.social_instagram}
+                    onChange={(e) => handleInputChange('social_instagram', e.target.value)}
+                    placeholder="instagram.com/artist"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Threads</label>
+                  <Input
+                    value={formData.social_threads}
+                    onChange={(e) => handleInputChange('social_threads', e.target.value)}
+                    placeholder="threads.net/@artist"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">X (Twitter)</label>
+                  <Input
+                    value={formData.social_x}
+                    onChange={(e) => handleInputChange('social_x', e.target.value)}
+                    placeholder="x.com/artist"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">TikTok</label>
+                  <Input
+                    value={formData.social_tiktok}
+                    onChange={(e) => handleInputChange('social_tiktok', e.target.value)}
+                    placeholder="tiktok.com/@artist"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">YouTube</label>
+                  <Input
+                    value={formData.social_youtube}
+                    onChange={(e) => handleInputChange('social_youtube', e.target.value)}
+                    placeholder="youtube.com/@artist"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Snapchat</label>
+                  <Input
+                    value={formData.social_snapchat}
+                    onChange={(e) => handleInputChange('social_snapchat', e.target.value)}
+                    placeholder="snapchat.com/add/artist"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Mastodon</label>
+                  <Input
+                    value={formData.social_mastodon}
+                    onChange={(e) => handleInputChange('social_mastodon', e.target.value)}
+                    placeholder="mastodon.social/@artist"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Bluesky</label>
+                  <Input
+                    value={formData.social_bluesky}
+                    onChange={(e) => handleInputChange('social_bluesky', e.target.value)}
+                    placeholder="bsky.app/profile/artist"
+                  />
+                </div>
               </div>
             </div>
           </div>

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '../../components/ui/button'
 // Card imports removed - not used
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
-import { MapPin, Maximize2, Move, Globe } from 'lucide-react'
+import { MapPin, Maximize2, Move, Globe, X } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { DrawingControls } from './DrawingControls'
 
@@ -30,7 +30,7 @@ interface MapPoint {
 
 interface MapZone {
   type: 'radius' | 'polygon' | 'country'
-  data: MapPoint[] | string
+  data: MapPoint[] | string | string[]
   radius?: number // for radius type
 }
 
@@ -70,6 +70,7 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
   const [mode, setMode] = useState<'radius' | 'polygon' | 'country'>('radius')
   const [radius] = useState(50) // km
   const [selectedCountry, setSelectedCountry] = useState('')
+  const [selectedCountries, setSelectedCountries] = useState<string[]>([])
   const [, setIsDrawing] = useState(false)
   const [polygonPoints, setPolygonPoints] = useState<MapPoint[]>([])
 
@@ -118,11 +119,30 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
   const handleCountrySelect = () => {
     if (!selectedCountry) return
 
+    const nextCountries = selectedCountries.includes(selectedCountry)
+      ? selectedCountries
+      : [...selectedCountries, selectedCountry]
+    setSelectedCountries(nextCountries)
+
     const newZone: MapZone = {
       type: 'country',
-      data: selectedCountry
+      data: nextCountries
     }
     onChange(newZone)
+    setSelectedCountry('')
+  }
+
+  const handleCountryRemove = (countryCode: string) => {
+    const nextCountries = selectedCountries.filter((code) => code !== countryCode)
+    setSelectedCountries(nextCountries)
+    if (nextCountries.length === 0) {
+      onChange(null)
+      return
+    }
+    onChange({
+      type: 'country',
+      data: nextCountries
+    })
   }
 
   const clearMap = () => {
@@ -130,7 +150,18 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
     setPolygonPoints([])
     setIsDrawing(false)
     setSelectedCountry('')
+    setSelectedCountries([])
   }
+
+  useEffect(() => {
+    if (value?.type !== 'country') return
+    const countries = Array.isArray(value.data)
+      ? value.data
+      : typeof value.data === 'string'
+        ? [value.data]
+        : []
+    setSelectedCountries(countries.filter((country): country is string => typeof country === 'string' && country.length > 0))
+  }, [value])
 
   // Polygon drawing will be handled by Leaflet.draw plugin in future enhancement
   // For now, users can use the radius mode or manually set polygon points
@@ -173,76 +204,69 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
           onClick={() => setMode('country')}
         >
           <Globe className="w-4 h-4 mr-1" />
-          Select Country
+          Select Countries
         </Button>
       </div>
 
       {/* Mode-specific Controls */}
       {mode === 'radius' && (
-        <div className="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <span className="text-sm text-blue-800">
             🎯 Click the circle tool on the map to draw your radius. Drag to adjust size, click to place. The radius will be automatically calculated and displayed.
           </span>
-          <Button 
-            size="sm" 
-            variant="outline"
-            onClick={() => {
-              console.log('Checking for drawing controls...')
-              const controls = document.querySelectorAll('.leaflet-draw-control')
-              console.log('Found draw controls:', controls.length)
-              const editControls = document.querySelectorAll('.leaflet-draw-edit-edit')
-              console.log('Found edit controls:', editControls.length)
-              const mapContainer = document.querySelector('.leaflet-container')
-              console.log('Map container found:', !!mapContainer)
-              console.log('Map elements:', document.querySelectorAll('#gig-map').length)
-            }}
-          >
-            Debug
-          </Button>
         </div>
       )}
 
       {mode === 'polygon' && (
-        <div className="flex items-center gap-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
           <span className="text-sm text-green-800">
             ✏️ Click the drawing tools on the map to draw your custom gig zone. Use the polygon tool to create your coverage area.
           </span>
-          <Button 
-            size="sm" 
-            variant="outline"
-            onClick={() => {
-              console.log('Checking for drawing controls...')
-              const controls = document.querySelectorAll('.leaflet-draw-control')
-              console.log('Found draw controls:', controls.length)
-              const editControls = document.querySelectorAll('.leaflet-draw-edit-edit')
-              console.log('Found edit controls:', editControls.length)
-              const mapContainer = document.querySelector('.leaflet-container')
-              console.log('Map container found:', !!mapContainer)
-              console.log('Map elements:', document.querySelectorAll('#gig-map').length)
-            }}
-          >
-            Debug
-          </Button>
         </div>
       )}
 
       {mode === 'country' && (
-        <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-          <Select value={selectedCountry} onValueChange={setSelectedCountry}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Select a country" />
-            </SelectTrigger>
-            <SelectContent>
-              {COUNTRIES.map((country) => (
-                <SelectItem key={country.code} value={country.code}>
-                  {country.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button size="sm" onClick={handleCountrySelect} disabled={!selectedCountry}>
-            Apply Country
-          </Button>
+        <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-center gap-4">
+            <Select value={selectedCountry} onValueChange={setSelectedCountry}>
+              <SelectTrigger className="w-56">
+                <SelectValue placeholder="Select a country" />
+              </SelectTrigger>
+              <SelectContent>
+                {COUNTRIES.map((country) => (
+                  <SelectItem key={country.code} value={country.code}>
+                    {country.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={handleCountrySelect} disabled={!selectedCountry}>
+              Add Country
+            </Button>
+          </div>
+          {selectedCountries.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selectedCountries.map((countryCode) => {
+                const countryName = COUNTRIES.find((country) => country.code === countryCode)?.name || countryCode
+                return (
+                  <span
+                    key={countryCode}
+                    className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-3 py-1 text-sm text-gray-700"
+                  >
+                    {countryName}
+                    <button
+                      type="button"
+                      className="text-gray-400 hover:text-red-500 transition-colors"
+                      onClick={() => handleCountryRemove(countryCode)}
+                      aria-label={`Remove ${countryName}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -287,9 +311,11 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
         {value?.type === 'country' && (
           <div className="absolute inset-0 flex items-center justify-center bg-blue-500 bg-opacity-90 z-10 pointer-events-none">
             <div className="bg-white px-6 py-3 rounded-lg shadow-lg">
-              <p className="text-sm text-gray-600">Selected Country:</p>
+              <p className="text-sm text-gray-600">Selected Countries:</p>
               <p className="text-xl font-bold text-blue-600">
-                {COUNTRIES.find(c => c.code === (value.data as string))?.name || (value.data as string)}
+                {(Array.isArray(value.data) ? value.data : [value.data])
+                  .map((code) => COUNTRIES.find((country) => country.code === code)?.name || code)
+                  .join(', ')}
               </p>
             </div>
           </div>
@@ -301,7 +327,11 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
         <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-sm font-medium text-blue-900">
             Current selection: {value.type === 'radius' ? `${value.radius}km radius` : 
-                             value.type === 'country' ? COUNTRIES.find(c => c.code === value.data)?.name :
+                             value.type === 'country'
+                               ? (Array.isArray(value.data) ? value.data : [value.data])
+                                   .map((code) => COUNTRIES.find((country) => country.code === code)?.name || code)
+                                   .join(', ')
+                               :
                              `${Array.isArray(value.data) ? value.data.length : 0} points`}
           </p>
         </div>

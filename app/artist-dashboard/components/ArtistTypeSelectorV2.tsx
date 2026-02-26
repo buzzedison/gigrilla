@@ -387,7 +387,7 @@ export function ArtistTypeSelectorV2({ value, onChange }: ArtistTypeSelectorProp
 
                     <div className="flex justify-between items-center pt-4 border-t border-gray-100 flex-wrap gap-3">
                       <div className="flex-1 space-y-2">
-                        <div className="font-semibold text-sm text-gray-900 mb-2">Your Selections:</div>
+                        <div className="font-semibold text-sm text-gray-900 mb-2">Your Selection:</div>
                         {Object.entries(selections).map(([groupId, ids]) => {
                           const group = config.groups.find((g) => g.id === groupId)
                           if (!group || !ids.length) return null

@@ -363,7 +363,7 @@ export async function PUT(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { memberId, gigRoyaltyShare, musicRoyaltyShare, isAdmin } = body ?? {}
+  const { memberId, gigRoyaltyShare, musicRoyaltyShare, isAdmin, roles } = body ?? {}
 
   if (!memberId || typeof memberId !== 'string') {
     return NextResponse.json({ error: 'Member ID is required' }, { status: 400 })
@@ -405,9 +405,14 @@ export async function PUT(request: NextRequest) {
         updatedMetadata.isAdmin = !!isAdmin
       }
 
+      const invitationUpdate: Record<string, unknown> = { metadata: updatedMetadata }
+      if (Array.isArray(roles)) {
+        invitationUpdate.roles = roles.filter((v: unknown): v is string => typeof v === 'string' && v.trim().length > 0)
+      }
+
       const { data, error } = await supabase
         .from('artist_member_invitations')
-        .update({ metadata: updatedMetadata })
+        .update(invitationUpdate)
         .eq('id', memberId)
         .eq('user_id', user.id)
         .eq('artist_profile_id', profile.id)
@@ -456,9 +461,14 @@ export async function PUT(request: NextRequest) {
         updatedMetadata.isAdmin = !!isAdmin
       }
 
+      const activeUpdate: Record<string, unknown> = { metadata: updatedMetadata, updated_at: new Date().toISOString() }
+      if (Array.isArray(roles)) {
+        activeUpdate.roles = roles.filter((v: unknown): v is string => typeof v === 'string' && v.trim().length > 0)
+      }
+
       const { data, error } = await supabase
         .from('artist_members_active')
-        .update({ metadata: updatedMetadata, updated_at: new Date().toISOString() })
+        .update(activeUpdate)
         .eq('id', memberId)
         .eq('artist_profile_id', profile.id)
         .select('id, invitation_id, name, email, roles, metadata, joined_at')

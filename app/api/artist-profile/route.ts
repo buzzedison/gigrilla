@@ -4,6 +4,24 @@ import { cookies } from 'next/headers'
 
 const GEOAPIFY_API_KEY = process.env.GEOAPIFY_API_KEY
 
+const ARTIST_PROFILE_SELECT_FIELDS = 'id, user_id, profile_type, artist_type_id, artist_sub_types, artist_primary_roles, company_name, job_title, years_experience, hourly_rate, daily_rate, monthly_retainer, availability_status, preferred_genre_ids, location_details, contact_details, social_links, verification_documents, bio, stage_name, established_date, performing_members, base_location, base_location_lat, base_location_lon, hometown_city, hometown_state, hometown_country, gigs_performed, recording_session_gigs, performer_isni, creator_ipi_cae, record_label_status, record_label_name, record_label_contact_name, record_label_email, record_label_phone, music_publisher_status, music_publisher_name, music_publisher_contact_name, music_publisher_email, music_publisher_phone, artist_manager_status, artist_manager_name, artist_manager_contact_name, artist_manager_email, artist_manager_phone, booking_agent_status, booking_agent_name, booking_agent_contact_name, booking_agent_email, booking_agent_phone, facebook_url, instagram_url, threads_url, x_url, tiktok_url, youtube_url, snapchat_url, mastodon_url, bluesky_url, website, onboarding_completed, onboarding_completed_at, created_at, updated_at, minimum_set_length, maximum_set_length, local_gig_fee, local_gig_timescale, wider_gig_fee, wider_gig_timescale, wider_fixed_logistics_fee, wider_negotiated_logistics, local_gig_area, wider_gig_area, vocal_sound_types, vocal_genre_styles, availability, instrument_category, instrument, songwriter_option, songwriter_genres, lyricist_option, lyricist_genres, composer_option, composer_genres'
+const ARTIST_PROFILE_SELECT_FIELDS_LEGACY = ARTIST_PROFILE_SELECT_FIELDS.replace(', mastodon_url, bluesky_url', '')
+
+type DbErrorLike = {
+  code?: string | null
+  message?: string | null
+  details?: string | null
+  hint?: string | null
+}
+
+const isMissingSocialColumnError = (error: DbErrorLike | null | undefined) => {
+  if (!error) return false
+  if (error.code !== '42703') return false
+
+  const details = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase()
+  return details.includes('mastodon_url') || details.includes('bluesky_url')
+}
+
 interface GenreTaxonomyLookup {
   familyIds: Set<string>
   typeFamilyById: Map<string, string>
@@ -213,12 +231,28 @@ export async function GET() {
 
     console.log('API: Fetching artist profile for user:', user.id)
 
-    const { data: profileData, error: profileError } = await supabase
+    const initialProfileQuery = await supabase
       .from('user_profiles')
-      .select('id, user_id, profile_type, artist_type_id, artist_sub_types, artist_primary_roles, company_name, job_title, years_experience, hourly_rate, daily_rate, monthly_retainer, availability_status, preferred_genre_ids, location_details, contact_details, social_links, verification_documents, bio, stage_name, established_date, performing_members, base_location, base_location_lat, base_location_lon, hometown_city, hometown_state, hometown_country, gigs_performed, recording_session_gigs, performer_isni, creator_ipi_cae, record_label_status, record_label_name, record_label_contact_name, record_label_email, record_label_phone, music_publisher_status, music_publisher_name, music_publisher_contact_name, music_publisher_email, music_publisher_phone, artist_manager_status, artist_manager_name, artist_manager_contact_name, artist_manager_email, artist_manager_phone, booking_agent_status, booking_agent_name, booking_agent_contact_name, booking_agent_email, booking_agent_phone, facebook_url, instagram_url, threads_url, x_url, tiktok_url, youtube_url, snapchat_url, website, onboarding_completed, onboarding_completed_at, created_at, updated_at, minimum_set_length, maximum_set_length, local_gig_fee, local_gig_timescale, wider_gig_fee, wider_gig_timescale, wider_fixed_logistics_fee, wider_negotiated_logistics, local_gig_area, wider_gig_area, vocal_sound_types, vocal_genre_styles, availability, instrument_category, instrument, songwriter_option, songwriter_genres, lyricist_option, lyricist_genres, composer_option, composer_genres')
+      .select(ARTIST_PROFILE_SELECT_FIELDS)
       .eq('user_id', user.id)
       .eq('profile_type', 'artist')
       .maybeSingle()
+
+    let profileData = initialProfileQuery.data as Record<string, unknown> | null
+    let profileError = initialProfileQuery.error as DbErrorLike | null
+
+    if (profileError && isMissingSocialColumnError(profileError)) {
+      console.warn('API: mastodon/bluesky columns missing in user_profiles, falling back to legacy select')
+      const retry = await supabase
+        .from('user_profiles')
+        .select(ARTIST_PROFILE_SELECT_FIELDS_LEGACY)
+        .eq('user_id', user.id)
+        .eq('profile_type', 'artist')
+        .maybeSingle()
+
+      profileData = retry.data as Record<string, unknown> | null
+      profileError = retry.error as DbErrorLike | null
+    }
 
     if (profileError) {
       console.error('API: Database error:', profileError)
@@ -244,10 +278,19 @@ export async function GET() {
       })
     }
 
-    let responseProfileData = profileData
-    const artistGenreIds = Array.isArray(profileData.preferred_genre_ids)
-      ? profileData.preferred_genre_ids.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    let responseProfileData: Record<string, unknown> = { ...profileData }
+    if (responseProfileData.mastodon_url === undefined) {
+      responseProfileData = {
+        ...responseProfileData,
+        mastodon_url: null,
+        bluesky_url: null
+      }
+    }
+    const artistGenreIds = Array.isArray(responseProfileData.preferred_genre_ids)
+      ? (responseProfileData.preferred_genre_ids as unknown[]).filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
       : []
+
+    const profileId = typeof responseProfileData.id === 'string' ? responseProfileData.id : null
 
     try {
       const requiresNormalization = artistGenreIds.some((value) => !value.includes(':'))
@@ -260,14 +303,14 @@ export async function GET() {
           const normalizedArtistGenres = normalizePreferredGenreIds(artistGenreIds, taxonomyLookup)
           if (normalizedArtistGenres.length > 0) {
             responseProfileData = { ...responseProfileData, preferred_genre_ids: normalizedArtistGenres }
-            if (!areStringArraysEqual(artistGenreIds, normalizedArtistGenres)) {
+            if (!areStringArraysEqual(artistGenreIds, normalizedArtistGenres) && profileId) {
               await supabase
                 .from('user_profiles')
                 .update({
                   preferred_genre_ids: normalizedArtistGenres,
                   updated_at: new Date().toISOString()
                 })
-                .eq('id', profileData.id)
+                .eq('id', profileId)
             }
           }
         } else if (needsFanFallback) {
@@ -281,13 +324,15 @@ export async function GET() {
             const normalizedFanGenres = normalizePreferredGenreIds(fanProfile.preferred_genre_ids, taxonomyLookup)
             if (normalizedFanGenres.length > 0) {
               responseProfileData = { ...responseProfileData, preferred_genre_ids: normalizedFanGenres }
-              await supabase
-                .from('user_profiles')
-                .update({
-                  preferred_genre_ids: normalizedFanGenres,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', profileData.id)
+              if (profileId) {
+                await supabase
+                  .from('user_profiles')
+                  .update({
+                    preferred_genre_ids: normalizedFanGenres,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', profileId)
+              }
             }
           }
         }
@@ -370,6 +415,7 @@ export async function POST(request: NextRequest) {
       artist_type_id,
       artist_sub_types,
       preferred_genre_ids,
+      location_details,
       record_label_status,
       record_label_name,
       record_label_contact_name,
@@ -400,6 +446,8 @@ export async function POST(request: NextRequest) {
       tiktok_url,
       youtube_url,
       snapchat_url,
+      mastodon_url,
+      bluesky_url,
       artist_primary_roles,
       is_published,
       onboarding_completed,
@@ -698,6 +746,8 @@ export async function POST(request: NextRequest) {
     assignIfDefined('tiktok_url', tiktok_url)
     assignIfDefined('youtube_url', youtube_url)
     assignIfDefined('snapchat_url', snapchat_url)
+    assignIfDefined('mastodon_url', mastodon_url)
+    assignIfDefined('bluesky_url', bluesky_url)
 
     if (artist_primary_roles !== undefined) {
       profileData.artist_primary_roles = Array.isArray(artist_primary_roles)
@@ -715,6 +765,10 @@ export async function POST(request: NextRequest) {
 
     if (preferred_genre_ids !== undefined) {
       profileData.preferred_genre_ids = preferred_genre_ids
+    }
+
+    if (location_details !== undefined) {
+      profileData.location_details = location_details || null
     }
 
     if (is_published !== undefined) {
@@ -839,13 +893,31 @@ export async function POST(request: NextRequest) {
       fieldCount: Object.keys(profileData).length
     })
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('user_profiles')
       .upsert(profileData, {
         onConflict: 'user_id,profile_type'
       })
       .select()
       .single()
+
+    if (error && isMissingSocialColumnError(error)) {
+      console.warn('API: mastodon/bluesky columns missing in user_profiles, retrying upsert without those fields')
+      const legacyProfileData = { ...profileData }
+      delete legacyProfileData.mastodon_url
+      delete legacyProfileData.bluesky_url
+
+      const retry = await supabase
+        .from('user_profiles')
+        .upsert(legacyProfileData, {
+          onConflict: 'user_id,profile_type'
+        })
+        .select()
+        .single()
+
+      data = retry.data
+      error = retry.error
+    }
 
     if (error) {
       console.error('API: Error creating/updating artist profile:', error)

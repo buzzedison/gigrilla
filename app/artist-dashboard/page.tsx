@@ -203,22 +203,33 @@ export default function ArtistDashboard() {
     }
   }, [activeSection, activeSubSectionKey])
 
-  const replaceDashboardQuery = useCallback((section: DashboardSection, folderId?: string | null) => {
+  const replaceDashboardQuery = useCallback((
+    section: DashboardSection,
+    options?: { folderId?: string | null; subSection?: string | null }
+  ) => {
     const params = new URLSearchParams(searchParams?.toString() || '')
 
     if (section === 'profile') {
       params.delete('section')
       params.delete('folder')
+      params.delete('subSection')
     } else {
       params.set('section', section)
       if (section === 'messages') {
+        const folderId = options?.folderId
         if (folderId && folderId !== 'all') {
           params.set('folder', folderId)
         } else {
           params.delete('folder')
         }
+        params.delete('subSection')
       } else {
         params.delete('folder')
+        if (options?.subSection) {
+          params.set('subSection', options.subSection)
+        } else {
+          params.delete('subSection')
+        }
       }
     }
 
@@ -237,7 +248,8 @@ export default function ArtistDashboard() {
       return
     }
 
-    setActiveSubSectionKey(null)
+    const subSection = searchParams?.get('subSection')
+    setActiveSubSectionKey(subSection ? `${requestedSection}:${subSection}` : null)
   }, [searchParams])
 
   const loadUnreadSummary = useCallback(async () => {
@@ -263,17 +275,20 @@ export default function ArtistDashboard() {
   const handleSectionChange = (section: DashboardSection) => {
     setActiveSection(section)
     setActiveSubSectionKey(null)
-    replaceDashboardQuery(section, section === 'messages' ? deepLinkedMessageFolder : null)
+    replaceDashboardQuery(section, {
+      folderId: section === 'messages' ? deepLinkedMessageFolder : null,
+      subSection: null
+    })
   }
 
   const handleSubSectionChange = (section: DashboardSection, subSection: string) => {
     setActiveSection(section)
     setActiveSubSectionKey(`${section}:${subSection}`)
     if (section === 'messages') {
-      replaceDashboardQuery(section, subSection)
+      replaceDashboardQuery(section, { folderId: subSection })
       return
     }
-    replaceDashboardQuery(section)
+    replaceDashboardQuery(section, { subSection })
   }
 
   const handleArtistTypeChange = async (selection: ArtistTypeSelection) => {
@@ -593,7 +608,7 @@ export default function ArtistDashboard() {
                 initialFolderId={deepLinkedMessageFolder}
                 onFolderChange={(folderId) => {
                   setActiveSubSectionKey(folderId === 'all' ? null : `messages:${folderId}`)
-                  replaceDashboardQuery('messages', folderId)
+                  replaceDashboardQuery('messages', { folderId })
                 }}
                 onUnreadCountChange={setUnreadMessages}
               />

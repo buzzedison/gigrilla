@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Download } from "lucide-react";
+import { Loader2, Download, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -34,10 +34,14 @@ import {
   AccordionTrigger,
 } from "../../components/ui/accordion";
 import { Textarea } from "../../components/ui/textarea";
+import { DatePicker, MonthYearPicker } from "../../components/ui/calendar";
+import { LocationAutocompleteInput } from "../../components/ui/location-autocomplete";
+import type { LocationSuggestion } from "../../components/ui/location-autocomplete";
 import { cn } from "../../components/ui/utils";
 import { useAuth } from "../../../lib/auth-context";
 import { getClient } from "../../../lib/supabase/client";
 import { getArtistTypeCapabilities } from "../../../lib/artist-type-config";
+import { COUNTRY_DIAL_CODE_OPTIONS } from "../../../lib/country-dial-codes";
 
 type MemberType = "fan" | "artist" | "venue" | "service" | "pro";
 type AccountChoice = "guest" | "fan";
@@ -124,6 +128,13 @@ const DEFAULT_SUB_GENRES = [
 
 const PROFILE_PICTURE_BUCKET = "avatars";
 const FAN_GALLERY_BUCKET = "fan-gallery";
+
+const getDialCodeLabel = (option: { code: string; countries: string[] }) => {
+  const [primaryCountry, ...rest] = option.countries
+  if (!primaryCountry) return option.code
+  if (rest.length === 0) return `${option.code} - ${primaryCountry}`
+  return `${option.code} - ${primaryCountry} (+${rest.length})`
+}
 
 const ADDITIONAL_PROFILE_OPTIONS: Array<{
   key: AdditionalProfileKey;
@@ -643,6 +654,63 @@ const validatePassword = (password: string): { valid: boolean; errors: string[] 
   }
 }
 
+type FanProfileSnapshot = {
+  account_type?: string | null
+  onboarding_completed?: boolean | null
+  username?: string | null
+  contact_details?: Record<string, unknown> | null
+  location_details?: Record<string, unknown> | null
+  music_preferences?: Record<string, unknown> | null
+  avatar_url?: string | null
+}
+
+const toTrimmedString = (value: unknown) => {
+  if (typeof value !== "string") return ""
+  return value.trim()
+}
+
+const toStringArray = (value: unknown) => {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+}
+
+const isFanProfileActuallyComplete = (profile: FanProfileSnapshot | null | undefined) => {
+  if (!profile) return false
+
+  const contact = (profile.contact_details ?? {}) as Record<string, unknown>
+  const location = (profile.location_details ?? {}) as Record<string, unknown>
+  const music = (profile.music_preferences ?? {}) as Record<string, unknown>
+
+  const hasUsername = toTrimmedString(profile.username).length > 0
+  const hasPhone = toTrimmedString(contact.phone).length > 0
+  const hasAddress = toTrimmedString(location.address).length > 0
+  const hasGenreFamily = toStringArray(music.genre_families).length >= 1
+  const hasMainGenre = toStringArray(music.main_genres).length >= 1
+  const hasAvatar = toTrimmedString(profile.avatar_url).length > 0
+
+  return (
+    profile.account_type === "full" &&
+    profile.onboarding_completed === true &&
+    hasUsername &&
+    hasPhone &&
+    hasAddress &&
+    hasGenreFamily &&
+    hasMainGenre &&
+    hasAvatar
+  )
+}
+
+const hasCompletedFullFanProfile = (profile: FanProfileSnapshot | null | undefined) => {
+  if (!profile) return false
+
+  // Prefer explicit completion flag when present, and keep strict fallback
+  if (profile.account_type === "full" && profile.onboarding_completed === true) {
+    return true
+  }
+
+  return isFanProfileActuallyComplete(profile)
+}
+
 export function SignUpWizard() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -650,7 +718,7 @@ export function SignUpWizard() {
   const onboardingParam = searchParams?.get('onboarding') as MemberType | null;
   const [isRegistered, setIsRegistered] = useState<boolean>(() => Boolean(user));
   const [selectedMemberType, setSelectedMemberType] = useState<MemberType | null>(onboardingParam || null);
-  const [accountChoice, setAccountChoice] = useState<AccountChoice | null>(null);
+  const [accountChoice, setAccountChoice] = useState<AccountChoice | null>(onboardingParam ? "fan" : null);
   const [stepIndex, setStepIndex] = useState(0);
   const [selectedExtendedProfiles, setSelectedExtendedProfiles] = useState<AdditionalProfileKey[]>([]);
   const [isProcessingStep, setIsProcessingStep] = useState(false);
@@ -670,8 +738,18 @@ export function SignUpWizard() {
   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
   const [hasCheckedEmailVerification, setHasCheckedEmailVerification] = useState(false);
   const [hasResumedOnboarding, setHasResumedOnboarding] = useState(false);
+  const [fanProfileCompletedFromDb, setFanProfileCompletedFromDb] = useState(false);
+  const [fanCompletionCheckFinished, setFanCompletionCheckFinished] = useState(!onboardingParam);
   const [subscriptionConfirmed, setSubscriptionConfirmed] = useState(false);
   const [artistRedirectLoading, setArtistRedirectLoading] = useState(onboardingParam === 'artist');
+
+  // --- ISNI / IPI-CAE lookup state ---
+  const [isniLookup, setIsniLookup] = useState<{
+    status: 'idle' | 'loading' | 'found' | 'not_found' | 'error' | 'invalid'
+    name?: string
+  }>({ status: 'idle' });
+  const [ipiFormat, setIpiFormat] = useState<'idle' | 'valid' | 'invalid'>('idle');
+
   const [openSoundGroup, setOpenSoundGroup] = useState<string | null>(null);
   const [openGenreGroup, setOpenGenreGroup] = useState<string | null>(null);
   const [openInstrumentCategory, setOpenInstrumentCategory] = useState<string | null>(null);
@@ -754,37 +832,37 @@ export function SignUpWizard() {
     tiktokUrl: "",
     youtubeUrl: "",
     snapchatUrl: "",
+    mastodonUrl: "",
+    blueskyUrl: "",
     recordLabelStatus: "independent",
     recordLabelName: "",
-    recordLabelContactName: "",
+    recordLabelContactFirstName: "",
+    recordLabelContactLastName: "",
     recordLabelContactEmail: "",
-    recordLabelContactPhone: "",
+    recordLabelContactPhoneCode: "+44",
+    recordLabelContactPhoneNumber: "",
     musicPublisherStatus: "independent",
     musicPublisherName: "",
-    musicPublisherContactName: "",
+    musicPublisherContactFirstName: "",
+    musicPublisherContactLastName: "",
     musicPublisherContactEmail: "",
-    musicPublisherContactPhone: "",
+    musicPublisherContactPhoneCode: "+44",
+    musicPublisherContactPhoneNumber: "",
     artistManagerStatus: "self_managed",
     artistManagerName: "",
-    artistManagerContactName: "",
+    artistManagerContactFirstName: "",
+    artistManagerContactLastName: "",
     artistManagerContactEmail: "",
-    artistManagerContactPhone: "",
+    artistManagerContactPhoneCode: "+44",
+    artistManagerContactPhoneNumber: "",
     bookingAgentStatus: "self_managed",
     bookingAgentName: "",
-    bookingAgentContactName: "",
+    bookingAgentContactFirstName: "",
+    bookingAgentContactLastName: "",
     bookingAgentContactEmail: "",
-    bookingAgentContactPhone: "",
+    bookingAgentContactPhoneCode: "+44",
+    bookingAgentContactPhoneNumber: "",
   });
-
-  const [locationSuggestions, setLocationSuggestions] = useState<Array<{
-    id: string;
-    formatted: string;
-    city?: string;
-    state?: string;
-    country?: string;
-    lat?: number;
-    lon?: number;
-  }>>([]);
 
   const [venueSelection, setVenueSelection] = useState({
     typeId: "",
@@ -833,15 +911,36 @@ export function SignUpWizard() {
   // Redirect to dashboard if user has already completed FAN onboarding and is trying to do it again
   // Allow users to add additional profile types (artist, venue, service, pro) even if they have fan profile
   useEffect(() => {
+    if (!onboardingParam) {
+      setFanCompletionCheckFinished(true)
+      return
+    }
+
+    if (authLoading) return
+
+    if (!user) {
+      // New/unverified session: do not block flow on fan-completion check
+      setFanCompletionCheckFinished(true)
+      return
+    }
+
+    let cancelled = false
+
     const checkOnboardingStatus = async () => {
+      setFanCompletionCheckFinished(false)
+
       if (!user || !onboardingParam) return;
 
       try {
         // Check database for actual fan onboarding status
         const response = await fetch('/api/fan-profile');
         const result = await response.json();
-        
-        const dbOnboardingCompleted = result.data?.onboarding_completed;
+
+        const profile = (result.data ?? null) as FanProfileSnapshot | null;
+        const dbOnboardingCompleted = hasCompletedFullFanProfile(profile);
+        if (!cancelled) {
+          setFanProfileCompletedFromDb(dbOnboardingCompleted)
+        }
         
         console.log('SignUpWizard: Onboarding check', {
           dbOnboardingCompleted,
@@ -857,20 +956,27 @@ export function SignUpWizard() {
           } else {
             console.log('SignUpWizard: User completed fan onboarding, setting up for additional profile...');
             // Set up for additional profile type selection
-            setAccountChoice("fan");
-            setSelectedMemberType(onboardingParam);
-            setIsRegistered(true);
-            setHasResumedOnboarding(true);
+            if (!cancelled) {
+              setAccountChoice("fan")
+              setSelectedMemberType(onboardingParam)
+              setIsRegistered(true)
+            }
           }
         }
       } catch (error) {
         console.error('SignUpWizard: Error checking onboarding status', error);
         // Don't redirect on error, let user continue
+      } finally {
+        if (!cancelled) {
+          setFanCompletionCheckFinished(true)
+        }
       }
     };
 
-    if (!authLoading && user && onboardingParam) {
-      checkOnboardingStatus();
+    checkOnboardingStatus();
+
+    return () => {
+      cancelled = true
     }
   }, [authLoading, user, onboardingParam, router]);
 
@@ -881,12 +987,14 @@ export function SignUpWizard() {
       return;
     }
 
+    // Wait for auth to settle before deciding — prevents flash of step-0 content
+    // while user is null but auth is still loading
+    if (authLoading) return;
+
     if (!user) {
       setArtistRedirectLoading(false);
       return;
     }
-
-    if (authLoading) return;
 
     let cancelled = false;
 
@@ -1096,14 +1204,19 @@ export function SignUpWizard() {
     }
   }, [onboardingParam, selectedMemberType, accountChoice]);
 
-  // Auto-advance to membership step when onboarding param is set and member type is selected
+  // Auto-advance to membership step when onboarding param is set and member type is selected.
+  // Uses a functional updater (prev => prev === 0 ? 1 : prev) so that if the resume logic
+  // has already moved the wizard past step 0 (e.g. to fan-profile-details after email
+  // confirmation), this timer does NOT overwrite that position.
+  // The cleanup cancels the timer whenever deps change, preventing stale timeouts from
+  // firing after the component has already advanced via the resume effect.
   useEffect(() => {
     if (onboardingParam && selectedMemberType && stepIndex === 0 && accountChoice) {
       console.log('Auto-advancing from member-selector due to onboarding param:', onboardingParam);
-      // Use setTimeout to ensure state updates have completed
-      setTimeout(() => {
-        setStepIndex(1); // Move to membership step
+      const timer = setTimeout(() => {
+        setStepIndex(prev => prev === 0 ? 1 : prev); // Only advance if still at step 0
       }, 100);
+      return () => clearTimeout(timer);
     }
   }, [onboardingParam, selectedMemberType, stepIndex, accountChoice]);
 
@@ -1154,13 +1267,34 @@ export function SignUpWizard() {
     return { key: "artist-profile-setup", label: "Artist Profile Setup" };
   }, [selectedMemberType, artistSelection.typeId]);
 
+  const shouldSkipFanMembershipStep = useMemo(
+    () => Boolean(onboardingParam) && onboardingParam !== "fan" && fanProfileCompletedFromDb,
+    [onboardingParam, fanProfileCompletedFromDb],
+  )
+
   const steps = useMemo(() => {
-    const stepList = personaStep ? [...baseSteps, personaStep] : baseSteps;
+    const effectiveBaseSteps = shouldSkipFanMembershipStep
+      ? baseSteps.filter(
+          (step) =>
+            ![
+              "membership",
+              "fan-account-basics",
+              "fan-profile-details",
+              "fan-music-preferences",
+              "fan-payment",
+              "fan-profile-picture",
+              "fan-photos",
+              "fan-videos",
+            ].includes(step.key),
+        )
+      : baseSteps
+
+    const stepList = personaStep ? [...effectiveBaseSteps, personaStep] : effectiveBaseSteps;
     if (artistProfileSetupStep) {
       stepList.push(artistProfileSetupStep);
     }
     return stepList;
-  }, [baseSteps, personaStep, artistProfileSetupStep]);
+  }, [baseSteps, personaStep, artistProfileSetupStep, shouldSkipFanMembershipStep]);
 
   // Jump to profile-add step after steps are built and user has completed fan onboarding
   useEffect(() => {
@@ -1195,6 +1329,7 @@ export function SignUpWizard() {
       authReady: !authLoading,
       hasUser: !!user,
       hasOnboardingParam: !!onboardingParam,
+      fanCompletionChecked: fanCompletionCheckFinished,
       hasSelectedMemberType: !!selectedMemberType,
       accountChoiceIsFan: accountChoice === "fan",
       registered: isRegistered,
@@ -1228,6 +1363,16 @@ export function SignUpWizard() {
       return;
     }
 
+    if (fanProfileCompletedFromDb && onboardingParam !== "fan") {
+      const profileAddIndex = steps.findIndex((step) => step.key === "profile-add")
+      if (profileAddIndex !== -1) {
+        console.log('✅ Fan onboarding already complete. Jumping straight to Add Profile step')
+        setStepIndex(profileAddIndex)
+        setHasResumedOnboarding(true)
+      }
+      return
+    }
+
     if (selectedMemberType === "artist") {
       const targetStepIndex = steps.findIndex((step) => step.key === "fan-music-preferences");
       console.log('🎯 Looking for music preferences step:', {
@@ -1257,7 +1402,7 @@ export function SignUpWizard() {
       setStepIndex(profileDetailsIndex);
       setHasResumedOnboarding(true);
     }
-  }, [authLoading, user, onboardingParam, selectedMemberType, accountChoice, isRegistered, isProcessingStep, steps, hasResumedOnboarding, stepIndex]);
+  }, [authLoading, user, onboardingParam, fanCompletionCheckFinished, fanProfileCompletedFromDb, selectedMemberType, accountChoice, isRegistered, isProcessingStep, steps, hasResumedOnboarding, stepIndex]);
 
   useEffect(() => {
     if (steps.length === 0) return;
@@ -1298,6 +1443,38 @@ export function SignUpWizard() {
       setAccountChoice("fan");
     }
   }, [selectedMemberType, accountChoice]);
+
+  // --- ISNI debounced lookup ---
+  useEffect(() => {
+    const raw = artistProfile.performerIsni.replace(/[\s\-]/g, '').toUpperCase();
+    if (!raw) { setIsniLookup({ status: 'idle' }); return; }
+    if (!/^\d{15}[\dX]$/i.test(raw)) { setIsniLookup({ status: 'invalid' }); return; }
+
+    setIsniLookup({ status: 'loading' });
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/isni-lookup?isni=${raw}`);
+        const data = await res.json();
+        if (!res.ok) { setIsniLookup({ status: 'error' }); return; }
+        if (data.found) {
+          setIsniLookup({ status: 'found', name: data.name });
+        } else {
+          setIsniLookup({ status: 'not_found' });
+        }
+      } catch {
+        setIsniLookup({ status: 'error' });
+      }
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [artistProfile.performerIsni]);
+
+  // --- IPI/CAE format validation ---
+  useEffect(() => {
+    const raw = artistProfile.creatorIpiCae.replace(/[\s\-]/g, '');
+    if (!raw) { setIpiFormat('idle'); return; }
+    // IPI base number: 11 digits; sometimes written with leading zeros
+    setIpiFormat(/^\d{9,11}$/.test(raw) ? 'valid' : 'invalid');
+  }, [artistProfile.creatorIpiCae]);
 
   const currentStep = steps[stepIndex] ?? steps[0];
   const isLastStep = stepIndex === steps.length - 1;
@@ -1382,9 +1559,7 @@ export function SignUpWizard() {
       case "artist-type":
         return Boolean(artistSelection.typeId);
       case "artist-profile-setup":
-        return Boolean(artistProfile.stageName?.trim()) && (
-          !artistCapabilities?.requiresIPICAE || Boolean(artistProfile.creatorIpiCae?.trim())
-        );
+        return Boolean(artistProfile.stageName?.trim());
       case "venue-type":
         return Boolean(venueSelection.typeId);
       case "service-type":
@@ -1993,26 +2168,28 @@ export function SignUpWizard() {
                 tiktok_url: artistProfile.tiktokUrl,
                 youtube_url: artistProfile.youtubeUrl,
                 snapchat_url: artistProfile.snapchatUrl,
+                mastodon_url: artistProfile.mastodonUrl,
+                bluesky_url: artistProfile.blueskyUrl,
                 record_label_status: artistProfile.recordLabelStatus,
                 record_label_name: artistProfile.recordLabelName,
-                record_label_contact_name: artistProfile.recordLabelContactName,
+                record_label_contact_name: [artistProfile.recordLabelContactFirstName, artistProfile.recordLabelContactLastName].filter(Boolean).join(' ') || null,
                 record_label_email: artistProfile.recordLabelContactEmail,
-                record_label_phone: artistProfile.recordLabelContactPhone,
+                record_label_phone: artistProfile.recordLabelContactPhoneNumber ? `${artistProfile.recordLabelContactPhoneCode} ${artistProfile.recordLabelContactPhoneNumber}`.trim() : null,
                 music_publisher_status: artistProfile.musicPublisherStatus,
                 music_publisher_name: artistProfile.musicPublisherName,
-                music_publisher_contact_name: artistProfile.musicPublisherContactName,
+                music_publisher_contact_name: [artistProfile.musicPublisherContactFirstName, artistProfile.musicPublisherContactLastName].filter(Boolean).join(' ') || null,
                 music_publisher_email: artistProfile.musicPublisherContactEmail,
-                music_publisher_phone: artistProfile.musicPublisherContactPhone,
+                music_publisher_phone: artistProfile.musicPublisherContactPhoneNumber ? `${artistProfile.musicPublisherContactPhoneCode} ${artistProfile.musicPublisherContactPhoneNumber}`.trim() : null,
                 artist_manager_status: artistProfile.artistManagerStatus,
                 artist_manager_name: artistProfile.artistManagerName,
-                artist_manager_contact_name: artistProfile.artistManagerContactName,
+                artist_manager_contact_name: [artistProfile.artistManagerContactFirstName, artistProfile.artistManagerContactLastName].filter(Boolean).join(' ') || null,
                 artist_manager_email: artistProfile.artistManagerContactEmail,
-                artist_manager_phone: artistProfile.artistManagerContactPhone,
+                artist_manager_phone: artistProfile.artistManagerContactPhoneNumber ? `${artistProfile.artistManagerContactPhoneCode} ${artistProfile.artistManagerContactPhoneNumber}`.trim() : null,
                 booking_agent_status: artistProfile.bookingAgentStatus,
                 booking_agent_name: artistProfile.bookingAgentName,
-                booking_agent_contact_name: artistProfile.bookingAgentContactName,
+                booking_agent_contact_name: [artistProfile.bookingAgentContactFirstName, artistProfile.bookingAgentContactLastName].filter(Boolean).join(' ') || null,
                 booking_agent_email: artistProfile.bookingAgentContactEmail,
-                booking_agent_phone: artistProfile.bookingAgentContactPhone,
+                booking_agent_phone: artistProfile.bookingAgentContactPhoneNumber ? `${artistProfile.bookingAgentContactPhoneCode} ${artistProfile.bookingAgentContactPhoneNumber}`.trim() : null,
                 artist_type_id: artistSelection.typeId ? parseInt(artistSelection.typeId.replace('type', '')) : null,
                 artist_sub_types: artistSelection.subType ? [artistSelection.subType] : []
               })
@@ -2407,14 +2584,10 @@ export function SignUpWizard() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1">
               <Label htmlFor="fan-dob">Date of Birth *</Label>
-              <Input
-                id="fan-dob"
-                type="date"
+              <DatePicker
                 value={fanDetails.dob}
-                onChange={(event) =>
-                  setFanDetails((prev) => ({ ...prev, dob: event.target.value }))
-                }
-                required
+                onChange={(v) => setFanDetails((prev) => ({ ...prev, dob: v }))}
+                maxYear={new Date().getFullYear() - 13}
               />
             </div>
             <div className="space-y-1">
@@ -5309,19 +5482,10 @@ export function SignUpWizard() {
                 <Label htmlFor="formedDate" className="font-semibold flex items-center gap-2">
                   Artist Formed <span className="text-lg">🗓️</span>
                 </Label>
-                <div className="relative">
-                  <Input
-                    id="formedDate"
-                    type="month"
-                    value={artistProfile.formedDate}
-                    onChange={(e) => setArtistProfile(prev => ({ ...prev, formedDate: e.target.value }))}
-                    className="font-ui h-11 border-2 focus:border-primary pr-12"
-                    placeholder="mm/yyyy"
-                  />
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none text-gray-400">
-                    📅
-                  </div>
-                </div>
+                <MonthYearPicker
+                  value={artistProfile.formedDate}
+                  onChange={(v) => setArtistProfile(prev => ({ ...prev, formedDate: v }))}
+                />
                 <p className="text-xs text-foreground/60 italic">
                   Select the month and year when you started performing together
                 </p>
@@ -5385,78 +5549,37 @@ export function SignUpWizard() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="baseLocation" className="font-semibold">Artist Base Location</Label>
-              <div className="relative">
-                <Input
-                  id="baseLocation"
-                  placeholder="Start typing city, address, or postal code..."
-                  value={artistProfile.baseLocation}
-                  onChange={async (e) => {
-                    const value = e.target.value;
-                    setArtistProfile(prev => ({ ...prev, baseLocation: value }));
-                    
-                    // Fetch location suggestions
-                    if (value.length >= 3) {
-                      try {
-                        const response = await fetch(`/api/location-search?query=${encodeURIComponent(value)}`);
-                        const data = await response.json();
-                        if (data.suggestions && data.suggestions.length > 0) {
-                          // Store suggestions in state for dropdown
-                          setLocationSuggestions(data.suggestions);
-                        }
-                      } catch (error) {
-                        console.error('Location search error:', error);
-                      }
-                    } else {
-                      setLocationSuggestions([]);
-                    }
-                  }}
-                  onBlur={() => {
-                    // Delay to allow click on suggestion
-                    setTimeout(() => setLocationSuggestions([]), 200);
-                  }}
-                  className="font-ui h-11 border-2 focus:border-primary"
-                />
-                {locationSuggestions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border-2 border-border rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {locationSuggestions.map((suggestion) => {
-                      // Format as: City/Town(+State?), Country
-                      const cityPart = suggestion.city || '';
-                      const statePart = suggestion.state ? `, ${suggestion.state}` : '';
-                      const countryPart = suggestion.country || '';
-                      const displayLocation = cityPart && countryPart 
-                        ? `${cityPart}${statePart}, ${countryPart}`
-                        : suggestion.formatted;
-                      
-                      return (
-                        <button
-                          key={suggestion.id}
-                          type="button"
-                          onClick={() => {
-                            setArtistProfile(prev => ({ 
-                              ...prev, 
-                              baseLocation: displayLocation,
-                              baseLocationLat: suggestion.lat || null,
-                              baseLocationLon: suggestion.lon || null
-                            }));
-                            setLocationSuggestions([]);
-                          }}
-                          className="w-full px-4 py-3 text-left hover:bg-primary/5 transition-colors border-b border-border/30 last:border-0"
-                        >
-                          <div className="text-sm font-medium text-foreground">{displayLocation}</div>
-                          {suggestion.formatted && suggestion.formatted !== displayLocation && (
-                            <div className="text-xs text-foreground/60 mt-1">
-                              📍 {suggestion.formatted}
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              <LocationAutocompleteInput
+                value={artistProfile.baseLocation}
+                placeholder="Start typing town, city, or postcode…"
+                minQueryLength={2}
+                inputClassName="font-ui h-11 border-2 focus:border-primary"
+                onInputChange={(v) =>
+                  setArtistProfile(prev => ({ ...prev, baseLocation: v }))
+                }
+                onSelect={(suggestion: LocationSuggestion) => {
+                  // Build the display string from the structured fields the API now
+                  // returns correctly:
+                  //   city    = town / city     (Fakenham)
+                  //   state   = traditional county (Norfolk)
+                  //   country = constituent country + UK  (England, UK)
+                  const parts = [suggestion.city, suggestion.state, suggestion.country]
+                    .map(p => p?.trim())
+                    .filter(Boolean)
+                  const displayLocation = parts.length > 0
+                    ? parts.join(', ')
+                    : suggestion.formatted
+                  setArtistProfile(prev => ({
+                    ...prev,
+                    baseLocation: displayLocation,
+                    baseLocationLat: suggestion.lat ?? null,
+                    baseLocationLon: suggestion.lon ?? null,
+                  }))
+                }}
+              />
               <p className="text-xs text-foreground/60 italic flex items-start gap-1">
                 <span>ℹ️</span>
-                <span>Start typing to search locations. Your profile will display as: City/Town, State/Province, Country</span>
+                <span>Your profile will display as: Town/City, County, Country — e.g. Fakenham, Norfolk, England, UK</span>
               </p>
             </div>
           </CardContent>
@@ -5480,10 +5603,10 @@ export function SignUpWizard() {
                 </Label>
                 <Input
                   id="facebookUrl"
-                  placeholder="facebook.com/yourartist"
+                  placeholder="Type or paste URL here"
                   value={artistProfile.facebookUrl}
                   onChange={(e) => setArtistProfile(prev => ({ ...prev, facebookUrl: e.target.value }))}
-                  className="font-ui h-11"
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
                 />
               </div>
               <div className="space-y-2">
@@ -5493,10 +5616,10 @@ export function SignUpWizard() {
                 </Label>
                 <Input
                   id="instagramUrl"
-                  placeholder="instagram.com/yourartist"
+                  placeholder="Type or paste URL here"
                   value={artistProfile.instagramUrl}
                   onChange={(e) => setArtistProfile(prev => ({ ...prev, instagramUrl: e.target.value }))}
-                  className="font-ui h-11"
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
                 />
               </div>
               <div className="space-y-2">
@@ -5506,10 +5629,10 @@ export function SignUpWizard() {
                 </Label>
                 <Input
                   id="threadsUrl"
-                  placeholder="threads.net/@yourartist"
+                  placeholder="Type or paste URL here"
                   value={artistProfile.threadsUrl}
                   onChange={(e) => setArtistProfile(prev => ({ ...prev, threadsUrl: e.target.value }))}
-                  className="font-ui h-11"
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
                 />
               </div>
               <div className="space-y-2">
@@ -5519,10 +5642,10 @@ export function SignUpWizard() {
                 </Label>
                 <Input
                   id="xUrl"
-                  placeholder="x.com/yourartist"
+                  placeholder="Type or paste URL here"
                   value={artistProfile.xUrl}
                   onChange={(e) => setArtistProfile(prev => ({ ...prev, xUrl: e.target.value }))}
-                  className="font-ui h-11"
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
                 />
               </div>
               <div className="space-y-2">
@@ -5532,10 +5655,10 @@ export function SignUpWizard() {
                 </Label>
                 <Input
                   id="tiktokUrl"
-                  placeholder="tiktok.com/@yourartist"
+                  placeholder="Type or paste URL here"
                   value={artistProfile.tiktokUrl}
                   onChange={(e) => setArtistProfile(prev => ({ ...prev, tiktokUrl: e.target.value }))}
-                  className="font-ui h-11"
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
                 />
               </div>
               <div className="space-y-2">
@@ -5545,10 +5668,10 @@ export function SignUpWizard() {
                 </Label>
                 <Input
                   id="youtubeUrl"
-                  placeholder="youtube.com/@yourartist"
+                  placeholder="Type or paste URL here"
                   value={artistProfile.youtubeUrl}
                   onChange={(e) => setArtistProfile(prev => ({ ...prev, youtubeUrl: e.target.value }))}
-                  className="font-ui h-11"
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
                 />
               </div>
               <div className="space-y-2">
@@ -5558,10 +5681,36 @@ export function SignUpWizard() {
                 </Label>
                 <Input
                   id="snapchatUrl"
-                  placeholder="snapchat.com/add/yourartist"
+                  placeholder="Type or paste URL here"
                   value={artistProfile.snapchatUrl}
                   onChange={(e) => setArtistProfile(prev => ({ ...prev, snapchatUrl: e.target.value }))}
-                  className="font-ui h-11"
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mastodonUrl" className="flex items-center gap-2">
+                  <span className="text-purple-600">🐘</span>
+                  Mastodon
+                </Label>
+                <Input
+                  id="mastodonUrl"
+                  placeholder="Type or paste URL here"
+                  value={artistProfile.mastodonUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, mastodonUrl: e.target.value }))}
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="blueskyUrl" className="flex items-center gap-2">
+                  <span className="text-sky-500">🦋</span>
+                  Bluesky
+                </Label>
+                <Input
+                  id="blueskyUrl"
+                  placeholder="Type or paste URL here"
+                  value={artistProfile.blueskyUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, blueskyUrl: e.target.value }))}
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
                 />
               </div>
             </div>
@@ -5616,12 +5765,22 @@ export function SignUpWizard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="recordLabelContactName">Record Label Contact Name</Label>
+                      <Label htmlFor="recordLabelContactFirstName">Record Label Contact First / Given Name</Label>
                       <Input
-                        id="recordLabelContactName"
-                        placeholder="Start typing contact name…"
-                        value={artistProfile.recordLabelContactName}
-                        onChange={(e) => setArtistProfile(prev => ({ ...prev, recordLabelContactName: e.target.value }))}
+                        id="recordLabelContactFirstName"
+                        placeholder="Given name"
+                        value={artistProfile.recordLabelContactFirstName}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, recordLabelContactFirstName: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="recordLabelContactLastName">Record Label Contact Last / Family Name</Label>
+                      <Input
+                        id="recordLabelContactLastName"
+                        placeholder="Family name"
+                        value={artistProfile.recordLabelContactLastName}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, recordLabelContactLastName: e.target.value }))}
                         className="font-ui"
                       />
                     </div>
@@ -5637,14 +5796,32 @@ export function SignUpWizard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="recordLabelContactPhone">Record Label Contact Phone</Label>
-                      <Input
-                        id="recordLabelContactPhone"
-                        placeholder="Country Code + phone number…"
-                        value={artistProfile.recordLabelContactPhone}
-                        onChange={(e) => setArtistProfile(prev => ({ ...prev, recordLabelContactPhone: e.target.value }))}
-                        className="font-ui"
-                      />
+                      <Label htmlFor="recordLabelContactPhoneNumber">Record Label Contact Phone</Label>
+                      <div className="flex gap-2">
+                        <Select
+                          value={artistProfile.recordLabelContactPhoneCode}
+                          onValueChange={(v) => setArtistProfile(prev => ({ ...prev, recordLabelContactPhoneCode: v }))}
+                        >
+                          <SelectTrigger className="font-ui w-[240px] shrink-0">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-80">
+                            {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
+                              <SelectItem key={option.code} value={option.code}>
+                                {getDialCodeLabel(option)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          id="recordLabelContactPhoneNumber"
+                          type="tel"
+                          placeholder="Local number"
+                          value={artistProfile.recordLabelContactPhoneNumber}
+                          onChange={(e) => setArtistProfile(prev => ({ ...prev, recordLabelContactPhoneNumber: e.target.value }))}
+                          className="font-ui flex-1"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -5689,12 +5866,22 @@ export function SignUpWizard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="musicPublisherContactName">Music Publisher Contact Name</Label>
+                      <Label htmlFor="musicPublisherContactFirstName">Music Publisher Contact First / Given Name</Label>
                       <Input
-                        id="musicPublisherContactName"
-                        placeholder="Start typing contact name…"
-                        value={artistProfile.musicPublisherContactName}
-                        onChange={(e) => setArtistProfile(prev => ({ ...prev, musicPublisherContactName: e.target.value }))}
+                        id="musicPublisherContactFirstName"
+                        placeholder="Given name"
+                        value={artistProfile.musicPublisherContactFirstName}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, musicPublisherContactFirstName: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="musicPublisherContactLastName">Music Publisher Contact Last / Family Name</Label>
+                      <Input
+                        id="musicPublisherContactLastName"
+                        placeholder="Family name"
+                        value={artistProfile.musicPublisherContactLastName}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, musicPublisherContactLastName: e.target.value }))}
                         className="font-ui"
                       />
                     </div>
@@ -5710,14 +5897,32 @@ export function SignUpWizard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="musicPublisherContactPhone">Music Publisher Contact Phone</Label>
-                      <Input
-                        id="musicPublisherContactPhone"
-                        placeholder="Country Code + phone number…"
-                        value={artistProfile.musicPublisherContactPhone}
-                        onChange={(e) => setArtistProfile(prev => ({ ...prev, musicPublisherContactPhone: e.target.value }))}
-                        className="font-ui"
-                      />
+                      <Label htmlFor="musicPublisherContactPhoneNumber">Music Publisher Contact Phone</Label>
+                      <div className="flex gap-2">
+                        <Select
+                          value={artistProfile.musicPublisherContactPhoneCode}
+                          onValueChange={(v) => setArtistProfile(prev => ({ ...prev, musicPublisherContactPhoneCode: v }))}
+                        >
+                          <SelectTrigger className="font-ui w-[240px] shrink-0">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-80">
+                            {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
+                              <SelectItem key={option.code} value={option.code}>
+                                {getDialCodeLabel(option)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          id="musicPublisherContactPhoneNumber"
+                          type="tel"
+                          placeholder="Local number"
+                          value={artistProfile.musicPublisherContactPhoneNumber}
+                          onChange={(e) => setArtistProfile(prev => ({ ...prev, musicPublisherContactPhoneNumber: e.target.value }))}
+                          className="font-ui flex-1"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -5762,12 +5967,22 @@ export function SignUpWizard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="artistManagerContactName">Artist Manager Contact Name</Label>
+                      <Label htmlFor="artistManagerContactFirstName">Artist Manager Contact First / Given Name</Label>
                       <Input
-                        id="artistManagerContactName"
-                        placeholder="Start typing contact name…"
-                        value={artistProfile.artistManagerContactName}
-                        onChange={(e) => setArtistProfile(prev => ({ ...prev, artistManagerContactName: e.target.value }))}
+                        id="artistManagerContactFirstName"
+                        placeholder="Given name"
+                        value={artistProfile.artistManagerContactFirstName}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, artistManagerContactFirstName: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="artistManagerContactLastName">Artist Manager Contact Last / Family Name</Label>
+                      <Input
+                        id="artistManagerContactLastName"
+                        placeholder="Family name"
+                        value={artistProfile.artistManagerContactLastName}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, artistManagerContactLastName: e.target.value }))}
                         className="font-ui"
                       />
                     </div>
@@ -5783,14 +5998,32 @@ export function SignUpWizard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="artistManagerContactPhone">Artist Manager Contact Phone</Label>
-                      <Input
-                        id="artistManagerContactPhone"
-                        placeholder="Country Code + phone number…"
-                        value={artistProfile.artistManagerContactPhone}
-                        onChange={(e) => setArtistProfile(prev => ({ ...prev, artistManagerContactPhone: e.target.value }))}
-                        className="font-ui"
-                      />
+                      <Label htmlFor="artistManagerContactPhoneNumber">Artist Manager Contact Phone</Label>
+                      <div className="flex gap-2">
+                        <Select
+                          value={artistProfile.artistManagerContactPhoneCode}
+                          onValueChange={(v) => setArtistProfile(prev => ({ ...prev, artistManagerContactPhoneCode: v }))}
+                        >
+                          <SelectTrigger className="font-ui w-[240px] shrink-0">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-80">
+                            {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
+                              <SelectItem key={option.code} value={option.code}>
+                                {getDialCodeLabel(option)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          id="artistManagerContactPhoneNumber"
+                          type="tel"
+                          placeholder="Local number"
+                          value={artistProfile.artistManagerContactPhoneNumber}
+                          onChange={(e) => setArtistProfile(prev => ({ ...prev, artistManagerContactPhoneNumber: e.target.value }))}
+                          className="font-ui flex-1"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -5835,12 +6068,22 @@ export function SignUpWizard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="bookingAgentContactName">Booking Agent Contact Name</Label>
+                      <Label htmlFor="bookingAgentContactFirstName">Booking Agent Contact First / Given Name</Label>
                       <Input
-                        id="bookingAgentContactName"
-                        placeholder="Start typing contact name…"
-                        value={artistProfile.bookingAgentContactName}
-                        onChange={(e) => setArtistProfile(prev => ({ ...prev, bookingAgentContactName: e.target.value }))}
+                        id="bookingAgentContactFirstName"
+                        placeholder="Given name"
+                        value={artistProfile.bookingAgentContactFirstName}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, bookingAgentContactFirstName: e.target.value }))}
+                        className="font-ui"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="bookingAgentContactLastName">Booking Agent Contact Last / Family Name</Label>
+                      <Input
+                        id="bookingAgentContactLastName"
+                        placeholder="Family name"
+                        value={artistProfile.bookingAgentContactLastName}
+                        onChange={(e) => setArtistProfile(prev => ({ ...prev, bookingAgentContactLastName: e.target.value }))}
                         className="font-ui"
                       />
                     </div>
@@ -5856,14 +6099,32 @@ export function SignUpWizard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="bookingAgentContactPhone">Booking Agent Contact Phone</Label>
-                      <Input
-                        id="bookingAgentContactPhone"
-                        placeholder="Country Code + phone number…"
-                        value={artistProfile.bookingAgentContactPhone}
-                        onChange={(e) => setArtistProfile(prev => ({ ...prev, bookingAgentContactPhone: e.target.value }))}
-                        className="font-ui"
-                      />
+                      <Label htmlFor="bookingAgentContactPhoneNumber">Booking Agent Contact Phone</Label>
+                      <div className="flex gap-2">
+                        <Select
+                          value={artistProfile.bookingAgentContactPhoneCode}
+                          onValueChange={(v) => setArtistProfile(prev => ({ ...prev, bookingAgentContactPhoneCode: v }))}
+                        >
+                          <SelectTrigger className="font-ui w-[240px] shrink-0">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-80">
+                            {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
+                              <SelectItem key={option.code} value={option.code}>
+                                {getDialCodeLabel(option)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          id="bookingAgentContactPhoneNumber"
+                          type="tel"
+                          placeholder="Local number"
+                          value={artistProfile.bookingAgentContactPhoneNumber}
+                          onChange={(e) => setArtistProfile(prev => ({ ...prev, bookingAgentContactPhoneNumber: e.target.value }))}
+                          className="font-ui flex-1"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -5897,13 +6158,55 @@ export function SignUpWizard() {
                   Get / Find an ISNI
                 </a>
               </p>
-              <Input
-                id="performerIsni"
-                placeholder="Start typing Performer ISNI…"
-                value={artistProfile.performerIsni}
-                onChange={(e) => setArtistProfile(prev => ({ ...prev, performerIsni: e.target.value }))}
-                className="font-ui h-11"
-              />
+              <div className="relative">
+                <Input
+                  id="performerIsni"
+                  placeholder="e.g. 0000 0001 2103 2164"
+                  value={artistProfile.performerIsni}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, performerIsni: e.target.value }))}
+                  className={`font-ui h-11 pr-10 ${
+                    isniLookup.status === 'found' ? 'border-green-500 focus-visible:ring-green-500/30' :
+                    isniLookup.status === 'not_found' || isniLookup.status === 'invalid' ? 'border-amber-400 focus-visible:ring-amber-400/30' : ''
+                  }`}
+                />
+                {isniLookup.status === 'loading' && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-foreground/40" />
+                )}
+                {isniLookup.status === 'found' && (
+                  <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                )}
+                {(isniLookup.status === 'not_found' || isniLookup.status === 'invalid') && (
+                  <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400" />
+                )}
+                {isniLookup.status === 'error' && (
+                  <XCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/30" />
+                )}
+              </div>
+              {/* Lookup feedback */}
+              {isniLookup.status === 'found' && (
+                <p className="text-xs text-green-600 flex items-center gap-1 font-medium">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Confirmed: <span className="font-semibold">{isniLookup.name}</span>
+                </p>
+              )}
+              {isniLookup.status === 'not_found' && (
+                <p className="text-xs text-amber-600 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  No match found in the ISNI registry — double-check your number
+                </p>
+              )}
+              {isniLookup.status === 'invalid' && (
+                <p className="text-xs text-amber-600 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  ISNI must be 16 characters (digits; last may be X) — e.g. 0000 0001 2103 2164
+                </p>
+              )}
+              {isniLookup.status === 'error' && (
+                <p className="text-xs text-foreground/50 flex items-center gap-1">
+                  <XCircle className="w-3 h-3" />
+                  ISNI registry unreachable — please verify manually at isni.org
+                </p>
+              )}
             </div>
             )}
 
@@ -5911,30 +6214,55 @@ export function SignUpWizard() {
             {(artistCapabilities.requiresIPICAE || artistCapabilities.optionalIPICAE) && (
             <div className="space-y-2">
               <Label htmlFor="creatorIpiCae">
-                Creator IPI/CAE
-                {!artistCapabilities.requiresIPICAE && artistCapabilities.optionalIPICAE && (
-                  <span className="text-foreground/60 text-xs ml-1">(Optional)</span>
-                )}
+                Creator IPI/CAE {artistCapabilities.requiresIPICAE && <span className="text-red-500">*</span>}
+                {artistCapabilities.optionalIPICAE && <span className="text-foreground/60 text-xs ml-1">(Optional)</span>}
               </Label>
               <p className="text-xs text-foreground/60 mb-2">
-                ℹ️ <span className="font-semibold text-foreground/80">For Songwriters, Lyricists, and Composers.</span>{' '}
-                Automatically issued when joining a Performance Rights Organisation (PRO) like ASCAP, BMI, or PRS.
-                {artistCapabilities.requiresIPICAE ? (
-                  <span className="font-semibold text-foreground/80"> Required for this selected artist type.</span>
-                ) : (
-                  <span> Optional unless you write lyrics and/or musical composition.</span>
-                )}
-                <a href="https://members.cisac.org/CisacPortal/search.do" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline ml-1">
+                ℹ️ For Songwriters, Lyricists, and Composers. Automatically issued when joining a Performance Rights Organisation (PRO) like ASCAP, BMI, or PRS.
+                Required for accurate song registration and royalty payments.
+                <a href="https://ipisearch.cisac.org/" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline ml-1">
                   Get / Find an IPI/CAE
                 </a>
               </p>
-              <Input
-                id="creatorIpiCae"
-                placeholder="Start typing Creator IPI/CAE…"
-                value={artistProfile.creatorIpiCae}
-                onChange={(e) => setArtistProfile(prev => ({ ...prev, creatorIpiCae: e.target.value }))}
-                className="font-ui h-11"
-              />
+              <div className="relative">
+                <Input
+                  id="creatorIpiCae"
+                  placeholder="e.g. 00000000000 (11 digits)"
+                  value={artistProfile.creatorIpiCae}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, creatorIpiCae: e.target.value }))}
+                  className={`font-ui h-11 pr-10 ${
+                    ipiFormat === 'valid' ? 'border-green-500 focus-visible:ring-green-500/30' :
+                    ipiFormat === 'invalid' ? 'border-amber-400 focus-visible:ring-amber-400/30' : ''
+                  }`}
+                />
+                {ipiFormat === 'valid' && (
+                  <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                )}
+                {ipiFormat === 'invalid' && (
+                  <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400" />
+                )}
+              </div>
+              {/* Format feedback */}
+              {ipiFormat === 'valid' && (
+                <p className="text-xs text-green-600 flex items-center gap-1 font-medium">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Valid IPI/CAE format —{' '}
+                  <a
+                    href={`https://ipisearch.cisac.org/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-green-700"
+                  >
+                    verify on CISAC
+                  </a>
+                </p>
+              )}
+              {ipiFormat === 'invalid' && (
+                <p className="text-xs text-amber-600 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  IPI/CAE should be 9–11 digits (e.g. 00000000000)
+                </p>
+              )}
             </div>
             )}
           </CardContent>
@@ -6307,6 +6635,50 @@ export function SignUpWizard() {
     );
   }
 
+  if (onboardingParam && user && !fanCompletionCheckFinished) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-6 py-16 text-center">
+        <div className="space-y-4">
+          <p className="uppercase tracking-[0.35em] text-[0.7rem] text-foreground-alt/70">
+            Syncing Onboarding
+          </p>
+          <div className="flex flex-col items-center gap-3">
+            <div className="size-12 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-sm text-foreground/70">
+              Checking your fan profile status…
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const shouldHoldForCompletedFanProfileJump =
+    Boolean(onboardingParam) &&
+    onboardingParam !== "fan" &&
+    Boolean(user) &&
+    fanCompletionCheckFinished &&
+    fanProfileCompletedFromDb &&
+    steps[stepIndex]?.key !== "profile-add"
+
+  if (shouldHoldForCompletedFanProfileJump) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-6 py-16 text-center">
+        <div className="space-y-4">
+          <p className="uppercase tracking-[0.35em] text-[0.7rem] text-foreground-alt/70">
+            Loading Profile Options
+          </p>
+          <div className="flex flex-col items-center gap-3">
+            <div className="size-12 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-sm text-foreground/70">
+              Preparing your additional profile setup…
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 py-12 sm:px-10 sm:py-16">
       <header className="space-y-3 text-center sm:text-left">
@@ -6392,26 +6764,28 @@ export function SignUpWizard() {
                         tiktok_url: artistProfile.tiktokUrl,
                         youtube_url: artistProfile.youtubeUrl,
                         snapchat_url: artistProfile.snapchatUrl,
+                        mastodon_url: artistProfile.mastodonUrl,
+                        bluesky_url: artistProfile.blueskyUrl,
                         record_label_status: artistProfile.recordLabelStatus,
                         record_label_name: artistProfile.recordLabelName,
-                        record_label_contact_name: artistProfile.recordLabelContactName,
+                        record_label_contact_name: [artistProfile.recordLabelContactFirstName, artistProfile.recordLabelContactLastName].filter(Boolean).join(' ') || null,
                         record_label_email: artistProfile.recordLabelContactEmail,
-                        record_label_phone: artistProfile.recordLabelContactPhone,
+                        record_label_phone: artistProfile.recordLabelContactPhoneNumber ? `${artistProfile.recordLabelContactPhoneCode} ${artistProfile.recordLabelContactPhoneNumber}`.trim() : null,
                         music_publisher_status: artistProfile.musicPublisherStatus,
                         music_publisher_name: artistProfile.musicPublisherName,
-                        music_publisher_contact_name: artistProfile.musicPublisherContactName,
+                        music_publisher_contact_name: [artistProfile.musicPublisherContactFirstName, artistProfile.musicPublisherContactLastName].filter(Boolean).join(' ') || null,
                         music_publisher_email: artistProfile.musicPublisherContactEmail,
-                        music_publisher_phone: artistProfile.musicPublisherContactPhone,
+                        music_publisher_phone: artistProfile.musicPublisherContactPhoneNumber ? `${artistProfile.musicPublisherContactPhoneCode} ${artistProfile.musicPublisherContactPhoneNumber}`.trim() : null,
                         artist_manager_status: artistProfile.artistManagerStatus,
                         artist_manager_name: artistProfile.artistManagerName,
-                        artist_manager_contact_name: artistProfile.artistManagerContactName,
+                        artist_manager_contact_name: [artistProfile.artistManagerContactFirstName, artistProfile.artistManagerContactLastName].filter(Boolean).join(' ') || null,
                         artist_manager_email: artistProfile.artistManagerContactEmail,
-                        artist_manager_phone: artistProfile.artistManagerContactPhone,
+                        artist_manager_phone: artistProfile.artistManagerContactPhoneNumber ? `${artistProfile.artistManagerContactPhoneCode} ${artistProfile.artistManagerContactPhoneNumber}`.trim() : null,
                         booking_agent_status: artistProfile.bookingAgentStatus,
                         booking_agent_name: artistProfile.bookingAgentName,
-                        booking_agent_contact_name: artistProfile.bookingAgentContactName,
+                        booking_agent_contact_name: [artistProfile.bookingAgentContactFirstName, artistProfile.bookingAgentContactLastName].filter(Boolean).join(' ') || null,
                         booking_agent_email: artistProfile.bookingAgentContactEmail,
-                        booking_agent_phone: artistProfile.bookingAgentContactPhone,
+                        booking_agent_phone: artistProfile.bookingAgentContactPhoneNumber ? `${artistProfile.bookingAgentContactPhoneCode} ${artistProfile.bookingAgentContactPhoneNumber}`.trim() : null,
                         artist_type_id: artistSelection.typeId ? parseInt(artistSelection.typeId.replace('type', '')) : null,
                         artist_sub_types: artistSelection.subType ? [artistSelection.subType] : [],
                         vocal_sound_types: artistSelection.vocalSoundTypes || null,

@@ -54,6 +54,10 @@ export function ArtistVideosManager() {
   const [videoModalOpen, setVideoModalOpen] = useState(false)
   const [modalVideoUrl, setModalVideoUrl] = useState<string | null>(null)
 
+  const notifyProfileUpdated = () => {
+    window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source: 'videos' } }))
+  }
+
   const extractVideoId = useCallback((url: string): string | null => {
     const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([^&\n?#]+)/)
     return match ? match[1] : null
@@ -180,6 +184,7 @@ export function ArtistVideosManager() {
 
       // Add to local state
       setVideos(prev => [...prev, result.data])
+      notifyProfileUpdated()
       setNewYoutubeUrl('')
       setNewVideoTitle('')
       setPreviewThumbnail(null)
@@ -207,6 +212,7 @@ export function ArtistVideosManager() {
       }
 
       setVideos(prev => prev.filter(v => v.id !== id))
+      notifyProfileUpdated()
       setManageDialogOpen(false)
       setSelectedVideo(null)
     } catch (err) {
@@ -240,6 +246,7 @@ export function ArtistVideosManager() {
       setVideos(prev => prev.map(v => 
         v.id === selectedVideo.id ? { ...v, title: editTitle.trim() } : v
       ))
+      notifyProfileUpdated()
       setManageDialogOpen(false)
       setSelectedVideo(null)
     } catch (err) {

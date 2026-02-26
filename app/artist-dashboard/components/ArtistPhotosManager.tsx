@@ -88,6 +88,10 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
     }, 5000)
   }
 
+  const notifyProfileUpdated = () => {
+    window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source: 'photos' } }))
+  }
+
   const handleFileSelect = (type: 'logo' | 'header' | 'photo') => {
     fileInputRefs[type].current?.click()
   }
@@ -156,6 +160,7 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
         return nextPhotos
       })
       onPhotosUpdate?.(nextPhotos)
+      notifyProfileUpdated()
 
       showNotification('success', `${type === 'logo' ? 'Logo' : type === 'header' ? 'Header image' : 'Photo'} uploaded successfully!`)
     } catch (error) {
@@ -194,6 +199,7 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
           return nextPhotos
         })
         onPhotosUpdate?.(nextPhotos)
+        notifyProfileUpdated()
       }
 
       showNotification('success', 'Photo deleted successfully')
@@ -236,6 +242,7 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
         return nextPhotos
       })
       onPhotosUpdate?.(nextPhotos)
+      notifyProfileUpdated()
 
       showNotification('success', 'Caption updated successfully')
     } catch (error) {

@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { formatDateTimeDDMMMyyyy } from './date-format'
 
 interface ReleaseInviteEmailPayload {
   email: string
@@ -93,7 +94,7 @@ function buildReleaseInviteEmail(payload: ReleaseInviteEmailPayload) {
     : ''
 
   const expiryNote = payload.expiresAt
-    ? `<p style="margin:16px 0 0 0;color:#6b7280;font-size:13px">This invitation expires on <strong>${new Date(payload.expiresAt).toLocaleString()}</strong>.</p>`
+    ? `<p style="margin:16px 0 0 0;color:#6b7280;font-size:13px">This invitation expires on <strong>${formatDateTimeDDMMMyyyy(payload.expiresAt)}</strong>.</p>`
     : ''
 
   return {
@@ -195,7 +196,7 @@ As the ${config.role}, you'll ${config.description} to ensure all rights holders
 
 ${payload.customMessage ? `Personal message:\n"${payload.customMessage}"\n\n` : ''}Review your invitation: ${inviteUrl}
 
-${payload.expiresAt ? `This invitation expires on ${new Date(payload.expiresAt).toLocaleString()}.` : ''}
+${payload.expiresAt ? `This invitation expires on ${formatDateTimeDDMMMyyyy(payload.expiresAt)}.` : ''}
 
 If you weren't expecting this invitation, you can safely ignore this email.
 

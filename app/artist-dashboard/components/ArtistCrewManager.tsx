@@ -55,7 +55,6 @@ interface InvitationData {
     nickname?: string
     firstName?: string
     lastName?: string
-    phone?: string
     dateOfBirth?: string
     roles?: string[]
     instruments?: string[]
@@ -74,7 +73,6 @@ interface MemberData {
     nickname?: string
     firstName?: string
     lastName?: string
-    phone?: string
     dateOfBirth?: string
     roles?: string[]
     instruments?: string[]
@@ -247,9 +245,17 @@ export function ArtistCrewManager() {
   const [profileOwner, setProfileOwner] = useState<CrewMember | null>(null)
   const [savingOwner, setSavingOwner] = useState(false)
   const [updatingAdminMemberId, setUpdatingAdminMemberId] = useState<string | null>(null)
-  const [resendingInviteMemberId, setResendingInviteMemberId] = useState<string | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['vocals', 'strings']))
   const [showAddMember, setShowAddMember] = useState(false)
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
+  const [editingMemberFields, setEditingMemberFields] = useState<{
+    firstName: string
+    lastName: string
+    nickname: string
+    phone: string
+    roles: string[]
+  }>({ firstName: '', lastName: '', nickname: '', phone: '', roles: [] })
+  const [savingMemberId, setSavingMemberId] = useState<string | null>(null)
   const [newMember, setNewMember] = useState<Partial<CrewMember>>({
     firstName: '',
     lastName: '',
@@ -260,12 +266,6 @@ export function ArtistCrewManager() {
     isAdmin: false,
     status: 'invite'
   })
-  const [memberValidationErrors, setMemberValidationErrors] = useState<Partial<Record<'firstName' | 'lastName' | 'email' | 'phone', string>>>({})
-  const [memberValidationSummary, setMemberValidationSummary] = useState<string | null>(null)
-  const [memberActionFeedback, setMemberActionFeedback] = useState<{
-    type: 'success' | 'error' | 'info'
-    message: string
-  } | null>(null)
   const [notification, setNotification] = useState<{
     type: 'success' | 'error' | 'info'
     message: string
@@ -524,7 +524,7 @@ export function ArtistCrewManager() {
             firstName: inv.metadata?.firstName || '',
             lastName: inv.metadata?.lastName || '',
             email: inv.email,
-            phone: typeof inv.metadata?.phone === 'string' ? inv.metadata.phone : '',
+            phone: '',
             roles: inv.roles || [],
             isAdmin: inv.metadata?.isAdmin || false,
             status: inv.status === 'pending' ? 'invited' : inv.status === 'accepted' ? 'joined' : 'invited',
@@ -648,15 +648,28 @@ export function ArtistCrewManager() {
     }
   }
 
-  const toggleRole = (role: string) => {
+  const toggleRole = (role: string, category?: RoleCategory) => {
     if (!profileOwner) return
 
-    const currentRoles = [...profileOwner.roles]
+    const cat = category ?? ROLE_CATEGORIES.find(c => c.items.includes(role))
+    const allItem = cat?.items[0]?.startsWith('All ') ? cat.items[0] : null
+
+    let currentRoles = [...profileOwner.roles]
     const index = currentRoles.indexOf(role)
 
     if (index > -1) {
+      // Turning OFF
       currentRoles.splice(index, 1)
     } else {
+      // Turning ON
+      if (allItem && role === allItem) {
+        // "All X" turned on → remove all individual siblings so they can't co-exist
+        const siblings = cat!.items.slice(1)
+        currentRoles = currentRoles.filter(r => !siblings.includes(r))
+      } else if (allItem && currentRoles.includes(allItem)) {
+        // Individual item turned on while "All X" is active → deactivate "All X" first
+        currentRoles = currentRoles.filter(r => r !== allItem)
+      }
       currentRoles.push(role)
     }
 
@@ -667,54 +680,94 @@ export function ArtistCrewManager() {
     return profileOwner?.roles.includes(role) || false
   }
 
-  const expandAllRoleCategories = () => {
-    setExpandedCategories(new Set(ROLE_CATEGORIES.map((category) => category.id)))
+  const startEditingMember = (member: CrewMember) => {
+    if (editingMemberId === member.id) {
+      setEditingMemberId(null)
+      setEditingMemberFields({ firstName: '', lastName: '', nickname: '', phone: '', roles: [] })
+    } else {
+      setEditingMemberId(member.id)
+      setEditingMemberFields({
+        firstName: member.firstName ?? '',
+        lastName: member.lastName ?? '',
+        nickname: member.nickname ?? '',
+        phone: member.phone ?? '',
+        roles: [...member.roles]
+      })
+    }
   }
 
-  const validateNewMember = (member: Partial<CrewMember>) => {
-    const errors: Partial<Record<'firstName' | 'lastName' | 'email' | 'phone', string>> = {}
-    const firstName = member.firstName?.trim() || ''
-    const lastName = member.lastName?.trim() || ''
-    const email = member.email?.trim() || ''
-    const phone = member.phone?.trim() || ''
-    const normalizedPhoneDigits = phone.replace(/\D/g, '')
+  const closeEditingMember = () => {
+    setEditingMemberId(null)
+    setEditingMemberFields({ firstName: '', lastName: '', nickname: '', phone: '', roles: [] })
+  }
 
-    if (!firstName) {
-      errors.firstName = 'Given/First Name is required.'
+  const toggleMemberRole = (role: string, category?: RoleCategory) => {
+    const cat = category ?? ROLE_CATEGORIES.find(c => c.items.includes(role))
+    const allItem = cat?.items[0]?.startsWith('All ') ? cat.items[0] : null
+
+    setEditingMemberFields(prev => {
+      let roles = [...prev.roles]
+      const index = roles.indexOf(role)
+
+      if (index > -1) {
+        roles.splice(index, 1)
+      } else {
+        if (allItem && role === allItem) {
+          const siblings = cat!.items.slice(1)
+          roles = roles.filter(r => !siblings.includes(r))
+        } else if (allItem && roles.includes(allItem)) {
+          roles = roles.filter(r => r !== allItem)
+        }
+        roles.push(role)
+      }
+      return { ...prev, roles }
+    })
+  }
+
+  const saveMember = async (memberId: string) => {
+    setSavingMemberId(memberId)
+    try {
+      const response = await fetch('/api/artist-members', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          memberId,
+          roles: editingMemberFields.roles,
+          firstName: editingMemberFields.firstName.trim() || undefined,
+          lastName: editingMemberFields.lastName.trim() || undefined,
+          nickname: editingMemberFields.nickname.trim() || undefined,
+          phone: editingMemberFields.phone.trim() || undefined,
+        })
+      })
+      const result = await response.json()
+      if (!response.ok || result?.error) throw new Error(result?.error || 'Failed to update')
+
+      setCrewMembers(prev => prev.map(m =>
+        m.id === memberId ? {
+          ...m,
+          roles: editingMemberFields.roles,
+          firstName: editingMemberFields.firstName.trim() || m.firstName,
+          lastName: editingMemberFields.lastName.trim() || m.lastName,
+          nickname: editingMemberFields.nickname.trim() || m.nickname,
+          phone: editingMemberFields.phone.trim() || m.phone,
+        } : m
+      ))
+      closeEditingMember()
+      showNotification('success', 'Member updated successfully')
+    } catch {
+      showNotification('error', 'Failed to update member. Please try again.')
+    } finally {
+      setSavingMemberId(null)
     }
-
-    if (!lastName) {
-      errors.lastName = 'Surname/Family Name is required.'
-    }
-
-    if (!email) {
-      errors.email = 'Email is required.'
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      errors.email = 'Enter a valid email address.'
-    }
-
-    if (!phone) {
-      errors.phone = 'Phone number is required.'
-    } else if (normalizedPhoneDigits.length < 7) {
-      errors.phone = 'Enter a valid phone number.'
-    }
-
-    return errors
   }
 
   const addNewMember = () => {
     setShowAddMember(true)
-    setMemberValidationErrors({})
-    setMemberValidationSummary(null)
-    setMemberActionFeedback(null)
   }
 
   const handleAddMember = async () => {
-    const validationErrors = validateNewMember(newMember)
-    if (Object.keys(validationErrors).length > 0) {
-      setMemberValidationErrors(validationErrors)
-      setMemberValidationSummary('Please fix the highlighted fields before inviting this member.')
-      setMemberActionFeedback(null)
+    if (!newMember.firstName || !newMember.email) {
+      showNotification('error', 'Please fill in at least First Name and Email fields')
       return
     }
 
@@ -740,10 +793,7 @@ export function ArtistCrewManager() {
 
       if (!response.ok) {
         console.error('Failed to add member:', result)
-        setMemberActionFeedback({
-          type: 'error',
-          message: result?.error || 'Failed to save team member invitation.'
-        })
+        showNotification('error', `Failed to send invitation: ${result.error || 'Unknown error'}`)
         return
       }
 
@@ -778,21 +828,14 @@ export function ArtistCrewManager() {
         isAdmin: false,
         status: 'invite'
       })
-      setMemberValidationErrors({})
-      setMemberValidationSummary(null)
       setShowAddMember(false)
-      setMemberActionFeedback({
-        type: result?.warning ? 'info' : 'success',
-        message: result?.warning || `Invitation saved successfully for ${newMember.email}.`
-      })
-      console.log('Member invitation sent/saved:', result.data)
+
+      showNotification('success', `Invitation sent successfully to ${newMember.email}!`)
+      console.log('Member invitation sent:', result.data)
 
     } catch (error) {
       console.error('Error adding member:', error)
-      setMemberActionFeedback({
-        type: 'error',
-        message: 'Failed to save team member invitation. Please try again.'
-      })
+      showNotification('error', 'Failed to send invitation. Please try again.')
     }
   }
 
@@ -854,43 +897,6 @@ export function ArtistCrewManager() {
       showNotification('error', 'Failed to update admin rights. Please try again.')
     } finally {
       setUpdatingAdminMemberId(null)
-    }
-  }
-
-  const resendInvite = async (member: CrewMember) => {
-    if (!member.id || member.status === 'joined') return
-
-    setResendingInviteMemberId(member.id)
-    try {
-      const response = await fetch('/api/artist-members/resend', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ invitationId: member.id })
-      })
-
-      const result = await response.json()
-      if (!response.ok) {
-        setMemberActionFeedback({
-          type: 'error',
-          message: result?.error || 'Failed to resend invitation email.'
-        })
-        return
-      }
-
-      setMemberActionFeedback({
-        type: 'success',
-        message: `Invitation email resent${member.email ? ` to ${member.email}` : ''}.`
-      })
-    } catch (error) {
-      console.error('Error resending invitation:', error)
-      setMemberActionFeedback({
-        type: 'error',
-        message: 'Failed to resend invitation email. Please try again.'
-      })
-    } finally {
-      setResendingInviteMemberId(null)
     }
   }
 
@@ -1274,17 +1280,8 @@ export function ArtistCrewManager() {
 
               {/* Roles Section */}
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold text-sm text-purple-900">Roles & Skills</h4>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={expandAllRoleCategories}
-                    className="text-purple-700 border-purple-200 hover:bg-purple-50"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Roles
-                  </Button>
+                <div>
+                  <h4 className="font-bold text-xl text-purple-900">Roles & Skills</h4>
                 </div>
 
                 <div className="space-y-3">
@@ -1309,18 +1306,27 @@ export function ArtistCrewManager() {
                       </CollapsibleTrigger>
                       <CollapsibleContent className="space-y-2 mt-2">
                         <div className="p-3 rounded-lg bg-purple-50/50 border border-purple-200">
-                          {category.items.map((item) => (
-                            <div key={item} className="flex items-center gap-2 py-1">
-                              <Switch
-                                id={item}
-                                checked={isRoleSelected(item)}
-                                onCheckedChange={() => toggleRole(item)}
-                              />
-                              <label htmlFor={item} className="text-sm text-purple-800 cursor-pointer">
-                                {item}
-                              </label>
-                            </div>
-                          ))}
+                          {(() => {
+                            const allItem = category.items[0]?.startsWith('All ') ? category.items[0] : null
+                            const allActive = allItem ? isRoleSelected(allItem) : false
+                            return category.items.map((item) => {
+                              const isAllItem = item === allItem
+                              const isDisabled = !isAllItem && allActive
+                              return (
+                                <div key={item} className={`flex items-center gap-2 py-1 ${isDisabled ? 'opacity-40' : ''}`}>
+                                  <Switch
+                                    id={item}
+                                    checked={isRoleSelected(item)}
+                                    onCheckedChange={() => !isDisabled && toggleRole(item, category)}
+                                    disabled={isDisabled}
+                                  />
+                                  <label htmlFor={item} className={`text-sm text-purple-800 ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                                    {item}
+                                  </label>
+                                </div>
+                              )
+                            })
+                          })()}
                         </div>
                       </CollapsibleContent>
                     </Collapsible>
@@ -1395,45 +1401,27 @@ export function ArtistCrewManager() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium text-purple-700">
-                    Given/First Name?
+                    Given/FirstName?
                   </Label>
                   <Input
                     value={newMember.firstName || ''}
-                    onChange={(e) => {
-                      setNewMember(prev => ({ ...prev, firstName: e.target.value }))
-                      setMemberValidationErrors(prev => ({ ...prev, firstName: undefined }))
-                    }}
+                    onChange={(e) => setNewMember(prev => ({ ...prev, firstName: e.target.value }))}
                     placeholder="First name"
-                    className={cn(
-                      "border-purple-200 focus:border-purple-400",
-                      memberValidationErrors.firstName ? "border-red-300 focus:border-red-400" : ""
-                    )}
+                    className="border-purple-200 focus:border-purple-400"
                   />
-                  {memberValidationErrors.firstName && (
-                    <p className="text-xs text-red-600">{memberValidationErrors.firstName}</p>
-                  )}
                   <p className="text-xs text-purple-600">is private by default; they can choose to make this public.</p>
                 </div>
 
                 <div className="space-y-2">
                   <Label className="text-xs font-medium text-purple-700">
-                    Surname/Family Name?
+                    Surname/FamilyName?
                   </Label>
                   <Input
                     value={newMember.lastName || ''}
-                    onChange={(e) => {
-                      setNewMember(prev => ({ ...prev, lastName: e.target.value }))
-                      setMemberValidationErrors(prev => ({ ...prev, lastName: undefined }))
-                    }}
+                    onChange={(e) => setNewMember(prev => ({ ...prev, lastName: e.target.value }))}
                     placeholder="Last name"
-                    className={cn(
-                      "border-purple-200 focus:border-purple-400",
-                      memberValidationErrors.lastName ? "border-red-300 focus:border-red-400" : ""
-                    )}
+                    className="border-purple-200 focus:border-purple-400"
                   />
-                  {memberValidationErrors.lastName && (
-                    <p className="text-xs text-red-600">{memberValidationErrors.lastName}</p>
-                  )}
                   <p className="text-xs text-purple-600">is private by default; they can choose to make this public.</p>
                 </div>
 
@@ -1457,19 +1445,10 @@ export function ArtistCrewManager() {
                   <Input
                     type="email"
                     value={newMember.email || ''}
-                    onChange={(e) => {
-                      setNewMember(prev => ({ ...prev, email: e.target.value }))
-                      setMemberValidationErrors(prev => ({ ...prev, email: undefined }))
-                    }}
+                    onChange={(e) => setNewMember(prev => ({ ...prev, email: e.target.value }))}
                     placeholder="Email address"
-                    className={cn(
-                      "border-purple-200 focus:border-purple-400",
-                      memberValidationErrors.email ? "border-red-300 focus:border-red-400" : ""
-                    )}
+                    className="border-purple-200 focus:border-purple-400"
                   />
-                  {memberValidationErrors.email && (
-                    <p className="text-xs text-red-600">{memberValidationErrors.email}</p>
-                  )}
                   <p className="text-xs text-purple-600">is private. Used to securely match members to Profiles and to invite non-members.</p>
                 </div>
 
@@ -1480,19 +1459,10 @@ export function ArtistCrewManager() {
                   <Input
                     type="tel"
                     value={newMember.phone || ''}
-                    onChange={(e) => {
-                      setNewMember(prev => ({ ...prev, phone: e.target.value }))
-                      setMemberValidationErrors(prev => ({ ...prev, phone: undefined }))
-                    }}
+                    onChange={(e) => setNewMember(prev => ({ ...prev, phone: e.target.value }))}
                     placeholder="Phone number"
-                    className={cn(
-                      "border-purple-200 focus:border-purple-400",
-                      memberValidationErrors.phone ? "border-red-300 focus:border-red-400" : ""
-                    )}
+                    className="border-purple-200 focus:border-purple-400"
                   />
-                  {memberValidationErrors.phone && (
-                    <p className="text-xs text-red-600">{memberValidationErrors.phone}</p>
-                  )}
                   <p className="text-xs text-purple-600">is private. Used to securely match members to Profiles and to invite non-members.</p>
                 </div>
 
@@ -1585,12 +1555,6 @@ export function ArtistCrewManager() {
                 </div>
               </div>
 
-              {memberValidationSummary && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                  {memberValidationSummary}
-                </div>
-              )}
-
               <div className="flex justify-end">
                 <Button
                   onClick={handleAddMember}
@@ -1602,24 +1566,11 @@ export function ArtistCrewManager() {
             </div>
           )}
 
-          <div id="artist-crew-manage-team" className="scroll-mt-28 space-y-4">
-            {memberActionFeedback && (
-              <div
-                className={cn(
-                  "rounded-lg border px-3 py-2 text-xs",
-                  memberActionFeedback.type === 'success' && "border-green-200 bg-green-50 text-green-700",
-                  memberActionFeedback.type === 'error' && "border-red-200 bg-red-50 text-red-700",
-                  memberActionFeedback.type === 'info' && "border-blue-200 bg-blue-50 text-blue-700"
-                )}
-              >
-                {memberActionFeedback.message}
-              </div>
-            )}
-
+          <div id="artist-crew-manage-team" className="scroll-mt-28">
             {/* Manage Team Section */}
-            <div className="space-y-4">
-              <h4 className="font-semibold text-sm text-purple-900">Manage Team</h4>
-              {crewMembers.filter(member => !member.isProfileOwner).length > 0 ? (
+            {crewMembers.filter(member => !member.isProfileOwner).length > 0 && (
+              <div className="space-y-4">
+                <h4 className="font-semibold text-sm text-purple-900">Manage Team</h4>
                 <div className="space-y-3">
                   {crewMembers.filter(member => !member.isProfileOwner).map((member) => (
                     <div key={member.id} className="p-4 border border-purple-200 rounded-lg bg-white">
@@ -1651,21 +1602,14 @@ export function ArtistCrewManager() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {member.status === 'joined' ? (
-                            <Button variant="outline" size="sm" disabled className="text-purple-700 border-purple-200">
-                              Joined
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => resendInvite(member)}
-                              disabled={resendingInviteMemberId === member.id}
-                              className="text-purple-700 border-purple-200 hover:bg-purple-50"
-                            >
-                              {resendingInviteMemberId === member.id ? 'Resending…' : 'Resend Invite'}
-                            </Button>
-                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => startEditingMember(member)}
+                            className={editingMemberId === member.id ? "text-white bg-purple-600 border-purple-600 hover:bg-purple-700" : "text-purple-700 border-purple-200 hover:bg-purple-50"}
+                          >
+                            {editingMemberId === member.id ? 'Close' : 'Manage'}
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
@@ -1676,17 +1620,131 @@ export function ArtistCrewManager() {
                           </Button>
                         </div>
                       </div>
+
+                      {/* Inline member editor */}
+                      {editingMemberId === member.id && (
+                        <div className="mt-4 pt-4 border-t border-purple-100 space-y-4">
+                          {/* Name fields */}
+                          <div>
+                            <p className="text-sm font-medium text-purple-900 mb-3">Edit Details</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <Label className="text-xs font-medium text-purple-700">First Name</Label>
+                                <Input
+                                  value={editingMemberFields.firstName}
+                                  onChange={(e) => setEditingMemberFields(prev => ({ ...prev, firstName: e.target.value }))}
+                                  placeholder="First name"
+                                  className="border-purple-200 focus:border-purple-400 text-sm"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs font-medium text-purple-700">Last Name</Label>
+                                <Input
+                                  value={editingMemberFields.lastName}
+                                  onChange={(e) => setEditingMemberFields(prev => ({ ...prev, lastName: e.target.value }))}
+                                  placeholder="Last name"
+                                  className="border-purple-200 focus:border-purple-400 text-sm"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs font-medium text-purple-700">Nickname</Label>
+                                <Input
+                                  value={editingMemberFields.nickname}
+                                  onChange={(e) => setEditingMemberFields(prev => ({ ...prev, nickname: e.target.value }))}
+                                  placeholder="Nickname (public)"
+                                  className="border-purple-200 focus:border-purple-400 text-sm"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs font-medium text-purple-700">Phone</Label>
+                                <Input
+                                  value={editingMemberFields.phone}
+                                  onChange={(e) => setEditingMemberFields(prev => ({ ...prev, phone: e.target.value }))}
+                                  placeholder="Phone number"
+                                  className="border-purple-200 focus:border-purple-400 text-sm"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Roles */}
+                          <div>
+                            <p className="text-sm font-medium text-purple-900 mb-2">Roles & Skills</p>
+                            <div className="space-y-2">
+                              {ROLE_CATEGORIES.map((category) => {
+                                const allItem = category.items[0]?.startsWith('All ') ? category.items[0] : null
+                                const allActive = allItem ? editingMemberFields.roles.includes(allItem) : false
+                                return (
+                                  <Collapsible key={category.id}>
+                                    <CollapsibleTrigger className="w-full">
+                                      <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-white border border-purple-200 hover:bg-purple-50 transition-colors text-left">
+                                        <div className="flex items-center gap-2">
+                                          {category.icon}
+                                          <span className="text-sm font-medium text-purple-900">{category.name}</span>
+                                        </div>
+                                        <ChevronDown className="w-3.5 h-3.5 text-purple-400" />
+                                      </div>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent>
+                                      <div className="mt-1 p-3 rounded-lg bg-purple-50/50 border border-purple-100 space-y-1">
+                                        {category.items.map((item) => {
+                                          const isAllItem = item === allItem
+                                          const isDisabled = !isAllItem && allActive
+                                          return (
+                                            <div key={item} className={`flex items-center gap-2 py-0.5 ${isDisabled ? 'opacity-40' : ''}`}>
+                                              <Switch
+                                                id={`edit-${member.id}-${item}`}
+                                                checked={editingMemberFields.roles.includes(item)}
+                                                onCheckedChange={() => !isDisabled && toggleMemberRole(item, category)}
+                                                disabled={isDisabled}
+                                              />
+                                              <label htmlFor={`edit-${member.id}-${item}`} className={`text-sm text-purple-800 ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                                                {item}
+                                              </label>
+                                            </div>
+                                          )
+                                        })}
+                                      </div>
+                                    </CollapsibleContent>
+                                  </Collapsible>
+                                )
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 pt-1">
+                            <Button
+                              size="sm"
+                              onClick={() => saveMember(member.id)}
+                              disabled={savingMemberId === member.id}
+                              className="bg-purple-600 hover:bg-purple-700 text-white"
+                            >
+                              {savingMemberId === member.id ? 'Saving…' : 'Save Changes'}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={closeEditingMember}
+                              className="text-purple-700 border-purple-200"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500 border border-dashed border-purple-200 rounded-lg bg-white/50">
-                  <Users2 className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                  <p>No team members added yet.</p>
-                  <p className="text-sm">Use “Add Member” to invite band members and support staff.</p>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
+
+            {crewMembers.filter(member => !member.isProfileOwner).length === 0 && !showAddMember && (
+              <div className="text-center py-8 text-gray-500">
+                <Users2 className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                <p>No team members added yet.</p>
+                <p className="text-sm">Click &quot;Add Member&quot; to invite band members and support staff.</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

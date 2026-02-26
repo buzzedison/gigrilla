@@ -31,11 +31,11 @@
 \i database/migrations/016_normalize_preferred_genre_ids.sql
 \i database/migrations/017_drop_legacy_preferred_genres.sql
 \i database/migrations/018_refine_genre_normalization.sql
-\i database/migrations/019_change_artist_sub_types_to_text.sql
 \i database/migrations/020_create_artist_member_invitations.sql
 \i database/migrations/021_add_invitation_expiry.sql
 \i database/migrations/022_extend_artist_industry_contacts.sql
 \i database/migrations/023_add_artist_primary_roles.sql
+\i database/migrations/047_add_mastodon_bluesky_urls.sql
 
 -- Verify tables were created
 SELECT 'Migration Status:' as info;

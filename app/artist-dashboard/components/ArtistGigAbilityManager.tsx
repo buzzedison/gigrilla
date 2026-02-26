@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
@@ -29,12 +30,13 @@ interface ArtistProfile {
   radius?: number
   center?: [number, number]
 }
-wider_gig_area?: {
+  wider_gig_area?: {
   type: string
   coordinates?: number[][]
   radius?: number
   center?: [number, number]
 }
+  location_details?: Record<string, unknown> | null
 }
 
 interface LocationDetails {
@@ -50,7 +52,7 @@ interface MapPoint {
 
 interface MapZone {
   type: 'radius' | 'polygon' | 'country'
-  data: MapPoint[] | string
+  data: MapPoint[] | string | string[]
   radius?: number
 }
 
@@ -81,6 +83,46 @@ const GIG_TIME_OPTIONS = [
   { label: '60m', value: 60 }
 ]
 
+const CURRENCY_OPTIONS = [
+  { code: 'GBP', symbol: '£', label: 'GBP (£)' },
+  { code: 'USD', symbol: '$', label: 'USD ($)' },
+  { code: 'EUR', symbol: '€', label: 'EUR (€)' },
+  { code: 'CAD', symbol: 'C$', label: 'CAD (C$)' },
+  { code: 'AUD', symbol: 'A$', label: 'AUD (A$)' },
+  { code: 'GHS', symbol: 'GH₵', label: 'GHS (GH₵)' },
+  { code: 'NGN', symbol: '₦', label: 'NGN (₦)' },
+  { code: 'ZAR', symbol: 'R', label: 'ZAR (R)' },
+  { code: 'JPY', symbol: '¥', label: 'JPY (¥)' }
+]
+
+const COUNTRY_CURRENCY_FALLBACKS: Record<string, string> = {
+  'united kingdom': 'GBP',
+  'uk': 'GBP',
+  'great britain': 'GBP',
+  'england': 'GBP',
+  'wales': 'GBP',
+  'scotland': 'GBP',
+  'united states': 'USD',
+  'usa': 'USD',
+  'us': 'USD',
+  'canada': 'CAD',
+  'australia': 'AUD',
+  'ghana': 'GHS',
+  'nigeria': 'NGN',
+  'south africa': 'ZAR',
+  'japan': 'JPY'
+}
+
+const getCurrencySymbol = (currencyCode: string) => {
+  return CURRENCY_OPTIONS.find((currency) => currency.code === currencyCode)?.symbol || currencyCode
+}
+
+const getDefaultCurrencyByCountry = (country?: string | null) => {
+  if (!country) return 'GBP'
+  const normalized = country.trim().toLowerCase()
+  return COUNTRY_CURRENCY_FALLBACKS[normalized] || 'GBP'
+}
+
 export function ArtistGigAbilityManager() {
   const { user } = useAuth()
   const [artistProfile, setArtistProfile] = useState<ArtistProfile | null>(null)
@@ -91,6 +133,9 @@ export function ArtistGigAbilityManager() {
   const [localGigZone, setLocalGigZone] = useState<MapZone | null>(null)
   const [widerGigZone, setWiderGigZone] = useState<MapZone | null>(null)
   const [baseLocationCoords, setBaseLocationCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [localGigCurrency, setLocalGigCurrency] = useState('GBP')
+  const [widerGigCurrency, setWiderGigCurrency] = useState('GBP')
+  const [logisticsCurrency, setLogisticsCurrency] = useState('GBP')
 
   useEffect(() => {
     loadArtistProfile()
@@ -103,10 +148,37 @@ export function ArtistGigAbilityManager() {
       // Load artist profile
       const profileResponse = await fetch('/api/artist-profile')
       let profileData = null
+      let hasSavedCurrencyConfig = false
+      let hasHomeCountrySignal = false
       if (profileResponse.ok) {
         const profileResult = await profileResponse.json()
         profileData = profileResult.data
         setArtistProfile(profileData)
+
+        const rawLocationDetails = (
+          profileData?.location_details &&
+          typeof profileData.location_details === 'object' &&
+          !Array.isArray(profileData.location_details)
+        ) ? profileData.location_details as Record<string, unknown> : {}
+        const pricingConfig = (
+          rawLocationDetails.gig_pricing &&
+          typeof rawLocationDetails.gig_pricing === 'object' &&
+          !Array.isArray(rawLocationDetails.gig_pricing)
+        ) ? rawLocationDetails.gig_pricing as Record<string, unknown> : {}
+        const profileCountry = typeof rawLocationDetails.country === 'string'
+          ? rawLocationDetails.country
+          : null
+        hasHomeCountrySignal = Boolean(profileCountry || profileData?.hometown_country)
+
+        const fallbackCurrency = getDefaultCurrencyByCountry(profileCountry || profileData?.hometown_country)
+        const savedLocalCurrency = typeof pricingConfig.local_currency === 'string' ? pricingConfig.local_currency : null
+        const savedWiderCurrency = typeof pricingConfig.wider_currency === 'string' ? pricingConfig.wider_currency : null
+        const savedLogisticsCurrency = typeof pricingConfig.logistics_currency === 'string' ? pricingConfig.logistics_currency : null
+        hasSavedCurrencyConfig = Boolean(savedLocalCurrency || savedWiderCurrency || savedLogisticsCurrency)
+
+        setLocalGigCurrency(savedLocalCurrency || fallbackCurrency)
+        setWiderGigCurrency(savedWiderCurrency || fallbackCurrency)
+        setLogisticsCurrency(savedLogisticsCurrency || savedWiderCurrency || fallbackCurrency)
       }
       
       // Load fan profile data for location details (same as ArtistCrewManager)
@@ -120,6 +192,12 @@ export function ArtistGigAbilityManager() {
         // Set location details from fan profile
         if (fanProfileData?.location_details) {
           setLocationDetails(fanProfileData.location_details)
+          if (!profileData?.location_details || (!hasSavedCurrencyConfig && !hasHomeCountrySignal)) {
+            const fallbackCurrency = getDefaultCurrencyByCountry(fanProfileData.location_details.country)
+            setLocalGigCurrency(fallbackCurrency)
+            setWiderGigCurrency(fallbackCurrency)
+            setLogisticsCurrency(fallbackCurrency)
+          }
         }
       } else {
         console.log('Fan Profile Response:', fanProfileResponse.status)
@@ -183,6 +261,26 @@ export function ArtistGigAbilityManager() {
   const saveGigAbility = async () => {
     try {
       setSaving(true)
+
+      const existingLocationDetails = (
+        artistProfile?.location_details &&
+        typeof artistProfile.location_details === 'object' &&
+        !Array.isArray(artistProfile.location_details)
+      ) ? artistProfile.location_details as Record<string, unknown> : {}
+      const existingGigPricing = (
+        existingLocationDetails.gig_pricing &&
+        typeof existingLocationDetails.gig_pricing === 'object' &&
+        !Array.isArray(existingLocationDetails.gig_pricing)
+      ) ? existingLocationDetails.gig_pricing as Record<string, unknown> : {}
+      const mergedLocationDetails = {
+        ...existingLocationDetails,
+        gig_pricing: {
+          ...existingGigPricing,
+          local_currency: localGigCurrency,
+          wider_currency: widerGigCurrency,
+          logistics_currency: logisticsCurrency
+        }
+      }
       
       // All migrations have been run - enable saving all fields
       const response = await fetch('/api/artist-profile', {
@@ -199,8 +297,9 @@ export function ArtistGigAbilityManager() {
           wider_gig_timescale: artistProfile?.wider_gig_timescale || 30,
           wider_fixed_logistics_fee: artistProfile?.wider_fixed_logistics_fee || 0,
           wider_negotiated_logistics: artistProfile?.wider_negotiated_logistics || false,
-          local_gig_area: localGigZone ? JSON.stringify(localGigZone) : null,
-          wider_gig_area: widerGigZone ? JSON.stringify(widerGigZone) : null
+          local_gig_area: localGigZone || null,
+          wider_gig_area: widerGigZone || null,
+          location_details: mergedLocationDetails
         })
       })
 
@@ -224,10 +323,12 @@ export function ArtistGigAbilityManager() {
         wider_fixed_logistics_fee: prev?.wider_fixed_logistics_fee || 0,
         wider_negotiated_logistics: prev?.wider_negotiated_logistics || false,
         // Preserve map zones
-        local_gig_area: prev?.local_gig_area || null,
-        wider_gig_area: prev?.wider_gig_area || null
+        local_gig_area: localGigZone || null,
+        wider_gig_area: widerGigZone || null,
+        location_details: mergedLocationDetails
       }))
       showNotification('success', 'Gig ability settings saved successfully!')
+      window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source: 'gigability' } }))
     } catch (error) {
       console.error('Error saving gig ability:', error)
       showNotification('error', 'Failed to save gig ability settings. Please try again.')
@@ -323,19 +424,30 @@ export function ArtistGigAbilityManager() {
                   </div>
                 </div>
                 <Button
+                  asChild
                   variant="outline"
                   size="sm"
-                  onClick={() => window.location.href = '/artist-dashboard?section=profile'}
                   className="flex items-center gap-2"
                 >
-                  <Edit3 className="w-4 h-4" />
-                  Manage
+                  <Link href="/artist-dashboard?section=profile&subSection=details">
+                    <Edit3 className="w-4 h-4" />
+                    Manage
+                  </Link>
                 </Button>
               </div>
             </div>
             
             <div className="text-sm text-gray-600">
-              <p>To update your base location, go to <strong>Artist Details</strong> and edit your profile information.</p>
+              <p>
+                To update your base location, go to{' '}
+                <Link
+                  href="/artist-dashboard?section=profile&subSection=details"
+                  className="font-semibold text-purple-700 hover:text-purple-800 underline underline-offset-2"
+                >
+                  Basic Artist Details
+                </Link>{' '}
+                and edit your profile information.
+              </p>
             </div>
           </div>
         </CardContent>
@@ -463,9 +575,24 @@ export function ArtistGigAbilityManager() {
               <label className="text-sm font-medium text-gray-700">
                 Minimum Local Gig Fee
               </label>
+              <div className="max-w-xs space-y-2">
+                <label className="text-xs font-medium uppercase tracking-wide text-gray-500">Currency</label>
+                <Select value={localGigCurrency} onValueChange={setLocalGigCurrency}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CURRENCY_OPTIONS.map((currency) => (
+                      <SelectItem key={currency.code} value={currency.code}>
+                        {currency.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex items-center gap-4">
                 <div className="flex items-center">
-                  <span className="text-lg font-medium text-gray-900 mr-2">£</span>
+                  <span className="text-lg font-medium text-gray-900 mr-2">{getCurrencySymbol(localGigCurrency)}</span>
                   <input
                     type="number"
                     min="0"
@@ -498,7 +625,7 @@ export function ArtistGigAbilityManager() {
                 <span className="text-gray-600">set on stage.</span>
               </div>
               <div className="text-sm text-gray-600">
-                £{(artistProfile?.local_gig_fee || 0).toFixed(2)} per {GIG_TIME_OPTIONS.find(opt => opt.value === (artistProfile?.local_gig_timescale || 30))?.label} set on stage.
+                {getCurrencySymbol(localGigCurrency)}{(artistProfile?.local_gig_fee || 0).toFixed(2)} per {GIG_TIME_OPTIONS.find(opt => opt.value === (artistProfile?.local_gig_timescale || 30))?.label} set on stage.
               </div>
             </div>
 
@@ -538,9 +665,24 @@ export function ArtistGigAbilityManager() {
               <label className="text-sm font-medium text-gray-700">
                 Minimum Wider Gig Fee
               </label>
+              <div className="max-w-xs space-y-2">
+                <label className="text-xs font-medium uppercase tracking-wide text-gray-500">Currency</label>
+                <Select value={widerGigCurrency} onValueChange={setWiderGigCurrency}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CURRENCY_OPTIONS.map((currency) => (
+                      <SelectItem key={currency.code} value={currency.code}>
+                        {currency.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex items-center gap-4">
                 <div className="flex items-center">
-                  <span className="text-lg font-medium text-gray-900 mr-2">£</span>
+                  <span className="text-lg font-medium text-gray-900 mr-2">{getCurrencySymbol(widerGigCurrency)}</span>
                   <input
                     type="number"
                     min="0"
@@ -580,10 +722,25 @@ export function ArtistGigAbilityManager() {
                 Logistics Fee Options:
               </label>
               <div className="space-y-3">
+                <div className="max-w-xs space-y-2">
+                  <label className="text-xs font-medium uppercase tracking-wide text-gray-500">Logistics Currency</label>
+                  <Select value={logisticsCurrency} onValueChange={setLogisticsCurrency}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CURRENCY_OPTIONS.map((currency) => (
+                        <SelectItem key={currency.code} value={currency.code}>
+                          {currency.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="flex items-center gap-4">
                   <span className="text-gray-600">+</span>
                   <div className="flex items-center">
-                    <span className="text-lg font-medium text-gray-900 mr-2">£</span>
+                    <span className="text-lg font-medium text-gray-900 mr-2">{getCurrencySymbol(logisticsCurrency)}</span>
                     <input
                       type="number"
                       min="0"
@@ -597,6 +754,7 @@ export function ArtistGigAbilityManager() {
                   </div>
                   <span className="text-gray-600">Per-Gig Fixed Logistics Fee - this covers any travel, freight, accommodation, meals.</span>
                 </div>
+                <div className="pl-8 text-xs font-semibold uppercase tracking-wider text-gray-500">OR</div>
                 <div className="flex items-center gap-4">
                   <span className="text-gray-600">+</span>
                   <input

@@ -5,6 +5,7 @@ import { useAuth } from "../../lib/auth-context";
 import { ProtectedRoute } from "../../lib/protected-route";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "../../lib/supabase/client";
+import { formatDateDDMMMyyyy } from "../../lib/date-format";
 import { Button } from "../components/ui/button";
 // Removed unused Card components
 import { Input } from "../components/ui/input";
@@ -877,7 +878,7 @@ export default function ArtistProfile() {
                         <p className="text-gray-400 text-sm">alias {member.nickname || member.first_name}</p>
                         <p className="text-gray-400 text-sm">{member.roles.join(', ')}</p>
                         <p className="text-gray-400 text-sm">
-                          Date of Birth - {new Date(member.date_of_birth).toLocaleDateString()}
+                          Date of Birth - {formatDateDDMMMyyyy(member.date_of_birth)}
                         </p>
                         {member.display_age_on_profile ? (
                           <Badge variant="default" className="bg-blue-600 text-white text-xs">

@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../../lib/auth-context";
 import { getClient } from "../../../lib/supabase/client";
+import { LocationAutocompleteInput, type LocationSuggestion } from "../../components/ui/location-autocomplete";
 // Genres moved to dedicated page: /fan-dashboard/genres
 
 export function FanProfileForm() {
   const { user } = useAuth();
+  const lastLoadedUserIdRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -16,6 +18,7 @@ export function FanProfileForm() {
     username: "",
     bio: "",
     email: "",
+    homeLocation: "",
     city: "",
     county: "",
     country: "",
@@ -26,15 +29,21 @@ export function FanProfileForm() {
   useEffect(() => {
     console.log('FanProfileForm: useEffect triggered with user:', user);
     console.log('FanProfileForm: User ID:', user?.id);
-    console.log('FanProfileForm: Loading state:', loading);
 
-    // Load profile when user becomes available
-    if (user?.id) {
+    const currentUserId = user?.id ?? null;
+
+    if (currentUserId) {
+      if (lastLoadedUserIdRef.current === currentUserId) {
+        return;
+      }
+      lastLoadedUserIdRef.current = currentUserId;
       console.log('FanProfileForm: User available, loading profile...');
       loadUserProfile();
-    } else if (!loading) {
-      console.log('FanProfileForm: No user available and not loading, showing fallback');
-      // Set fallback data immediately when no user
+      return;
+    }
+
+    lastLoadedUserIdRef.current = null;
+    if (loading) {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -79,19 +88,23 @@ export function FanProfileForm() {
 
     try {
       // Set up immediate fallback data from auth - be more aggressive about showing data
+      const fallbackCity    = user.user_metadata?.city    || "";
+      const fallbackCounty  = user.user_metadata?.county  || "";
+      const fallbackCountry = user.user_metadata?.country || "";
       const fallbackData = {
-        realName: user.user_metadata?.first_name && user.user_metadata?.last_name 
+        realName: user.user_metadata?.first_name && user.user_metadata?.last_name
           ? `${user.user_metadata.first_name} ${user.user_metadata.last_name}`.trim()
           : user.user_metadata?.full_name || user.email?.split('@')[0] || "User",
-        username: user.user_metadata?.username || 
-                 user.user_metadata?.display_name || 
-                 user.email?.split('@')[0] || 
+        username: user.user_metadata?.username ||
+                 user.user_metadata?.display_name ||
+                 user.email?.split('@')[0] ||
                  "user",
         email: user.email || "",
         bio: user.user_metadata?.bio || "",
-        city: user.user_metadata?.city || "",
-        county: user.user_metadata?.county || "",
-        country: user.user_metadata?.country || "",
+        homeLocation: [fallbackCity, fallbackCounty, fallbackCountry].filter(Boolean).join(', '),
+        city: fallbackCity,
+        county: fallbackCounty,
+        country: fallbackCountry,
         isPrivate: user.user_metadata?.name_private !== false, // default to true
         isLocationPrivate: user.user_metadata?.location_private !== false // default to true
       };
@@ -185,18 +198,22 @@ export function FanProfileForm() {
         });
 
         if (profileError) {
-          console.error('FanProfileForm: Error loading profile data:', profileError);
-          console.log('FanProfileForm: Error details:', {
-            errorType: typeof profileError,
-            hasCode: !!(profileError as unknown as { code?: string })?.code,
-            hasMessage: !!(profileError as unknown as { message?: string })?.message,
-            errorKeys: profileError ? Object.keys(profileError) : 'no error object'
-          });
+          const errorObject = (profileError && typeof profileError === 'object')
+            ? (profileError as { code?: string; message?: string })
+            : null;
+          const errorCode = typeof errorObject?.code === 'string' ? errorObject.code : '';
+          const errorText = typeof errorObject?.message === 'string' ? errorObject.message : '';
+          const hasMeaningfulError = Boolean(errorCode || errorText);
 
-          // Don't set error message for common issues, just use fallback data
-          const errorWithCode = profileError as unknown as { code?: string };
-          if (errorWithCode?.code !== 'PGRST116' && errorWithCode?.code !== '42501' && errorWithCode?.code !== 'TIMEOUT') {
+          const isExpected = !errorCode || errorCode === 'PGRST116' || errorCode === '42501' || errorCode === 'TIMEOUT';
+          if (!isExpected) {
+            console.error('FanProfileForm: Unexpected error loading profile data:', {
+              code: errorCode,
+              message: errorText
+            });
             setErrorMessage('Unable to load your saved profile details right now. Using default values.');
+          } else {
+            console.log('FanProfileForm: No profile found or access issue, using fallback data:', errorCode || 'empty error');
           }
           return; // Use fallback data
         }
@@ -231,12 +248,20 @@ export function FanProfileForm() {
           }
 
               setFormData(prev => {
+                const loadedCity    = locationData.city    || prev.city;
+                const loadedCounty  = locationData.county  || prev.county;
+                const loadedCountry = locationData.country || prev.country;
+                const loadedHomeLocation = [loadedCity, loadedCounty, loadedCountry]
+                  .filter(Boolean)
+                  .join(', ');
+
                 const enhancedData: Partial<typeof prev> = {
                   username: (typedProfileData.username ?? typedProfileData.display_name) || prev.username,
                   bio: (typedProfileData.bio ?? undefined) ?? prev.bio,
-                  ...(locationData.city ? { city: locationData.city } : {}),
-                  ...(locationData.county ? { county: locationData.county } : {}),
-                  ...(locationData.country ? { country: locationData.country } : {}),
+                  city: loadedCity,
+                  county: loadedCounty,
+                  country: loadedCountry,
+                  homeLocation: loadedHomeLocation,
                   isPrivate: (typedProfileData.privacy_settings?.name_private ?? prev.isPrivate ?? true) as boolean,
                   isLocationPrivate: (typedProfileData.privacy_settings?.location_private ?? prev.isLocationPrivate ?? true) as boolean,
                 };
@@ -264,8 +289,15 @@ export function FanProfileForm() {
     }
   };
 
-  const handleInputChange = (field: string, value: string | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleInputChange = (field: string, value: string | boolean | null | undefined) => {
+    setFormData(prev => {
+      if (field === 'isPrivate' || field === 'isLocationPrivate') {
+        return { ...prev, [field]: Boolean(value) };
+      }
+
+      const safeText = typeof value === 'string' ? value : '';
+      return { ...prev, [field]: safeText };
+    });
   };
 
   const saveProfile = async (publish = false) => {
@@ -276,130 +308,57 @@ export function FanProfileForm() {
     setErrorMessage("");
 
     try {
-      console.log('FanProfileForm: Saving profile, publish:', publish);
-      
-      // Only update fan_profiles table (skip users table that might not exist)
-      const profileData = {
-        user_id: user.id,
-        bio: formData.bio,
-        username: formData.username,
-        display_name: formData.username,
-        location_details: {
-          address: `${formData.city}, ${formData.county}, ${formData.country}`.replace(/^,\s*|,\s*$/g, ''),
-          city: formData.city,
-          county: formData.county,
-          country: formData.country,
-        },
-        privacy_settings: {
-          name_private: formData.isPrivate,
-          location_private: formData.isLocationPrivate,
-        },
-        is_published: publish,
-        updated_at: new Date().toISOString()
-      };
+      const supabase = getClient();
+      const { error: saveError } = await supabase
+        .from('fan_profiles')
+        .upsert({
+          user_id: user.id,
+          account_type: 'guest',
+          bio: formData.bio,
+          username: formData.username,
+          display_name: formData.username,
+          location_details: {
+            city: formData.city,
+            county: formData.county,
+            country: formData.country,
+            address: [formData.city, formData.county, formData.country].filter(Boolean).join(', '),
+          },
+          privacy_settings: {
+            name_private: formData.isPrivate,
+            location_private: formData.isLocationPrivate,
+          },
+          is_public: publish,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
 
-      console.log('FanProfileForm: Profile data to save:', profileData);
-
-      // Check authentication state first with a short timeout; fallback to user context
-      console.log('FanProfileForm: Fetching user to verify auth...');
-      let sessionUserId: string | null = null;
-      try {
-        const supabaseClient = getClient();
-        const userPromise = supabaseClient.auth.getUser();
-        const userResult = await Promise.race([
-          userPromise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('User fetch timeout')), 2000))
-        ]) as { data?: { user?: { id?: string } } };
-        if (userResult?.data?.user?.id) {
-          sessionUserId = userResult.data.user.id as string;
-          console.log('FanProfileForm: Authentication verified, user ID:', sessionUserId);
-        } else {
-          console.warn('FanProfileForm: No user returned, proceeding with auth context user');
-          sessionUserId = user.id;
-        }
-      } catch (e) {
-        console.warn('FanProfileForm: User fetch failed/timeout, proceeding with auth context user:', e);
-        sessionUserId = user.id;
+      if (saveError) {
+        const parsedError = saveError as {
+          code?: string;
+          message?: string;
+          details?: string;
+          hint?: string;
+          name?: string;
+          status?: number;
+          statusText?: string;
+        };
+        const normalized = {
+          code: parsedError?.code || 'UNKNOWN',
+          message: parsedError?.message || 'No error message returned',
+          details: parsedError?.details || null,
+          hint: parsedError?.hint || null,
+          name: parsedError?.name || null,
+          status: parsedError?.status || null,
+          statusText: parsedError?.statusText || null,
+        };
+        console.error('FanProfileForm: Save failed:', normalized);
+        setErrorMessage(`Could not save your profile. ${normalized.message}`);
+      } else {
+        setMessage(publish ? "Profile published successfully!" : "Profile saved successfully!");
+        setTimeout(() => setMessage(""), 3000);
       }
-
-      // Fire and forget - assume success since we know the database is working
-      console.log('FanProfileForm: Starting optimistic database update...');
-      
-      // Show immediate success feedback
-      console.log('FanProfileForm: Showing immediate success feedback');
-      setMessage(publish ? "Profile published successfully!" : "Profile saved successfully!");
-      
-      // Fire the database update in the background (don't await)
-      const backgroundUpdate = async () => {
-        try {
-          console.log('FanProfileForm: Background update starting...');
-          const supabase = getClient();
-          const { error: updateError } = await supabase
-            .from('fan_profiles')
-            .update({
-              bio: formData.bio,
-              username: formData.username,
-              display_name: formData.username,
-              location_details: {
-                city: formData.city,
-                county: formData.county,
-                country: formData.country,
-                address: `${formData.city}, ${formData.county}, ${formData.country}`
-              },
-              privacy_settings: {
-                name_private: formData.isPrivate,
-                location_private: formData.isLocationPrivate
-              },
-              is_public: publish,
-              updated_at: new Date().toISOString()
-            })
-            .eq('user_id', user.id);
-          
-          if (updateError) {
-            console.warn('FanProfileForm: Background update failed, trying upsert fallback:', updateError);
-            const { error: upsertError } = await supabase
-              .from('fan_profiles')
-              .upsert({
-                user_id: user.id,
-                bio: formData.bio,
-                username: formData.username,
-                display_name: formData.username,
-                location_details: {
-                  city: formData.city,
-                  county: formData.county,
-                  country: formData.country,
-                  address: `${formData.city}, ${formData.county}, ${formData.country}`
-                },
-                privacy_settings: {
-                  name_private: formData.isPrivate,
-                  location_private: formData.isLocationPrivate
-                },
-                is_public: publish,
-                updated_at: new Date().toISOString()
-              }, { onConflict: 'user_id' });
-
-            if (upsertError) {
-              console.error('FanProfileForm: upsert fallback failed:', upsertError);
-              throw upsertError;
-            }
-          }
-          
-          console.log('FanProfileForm: Background update completed successfully');
-        } catch (bgError) {
-          console.error('FanProfileForm: Background update failed completely:', bgError);
-          // Don't show error to user since we already showed success
-        }
-      };
-      
-      // Start background update but don't wait for it
-      backgroundUpdate();
-      
-      // Clear message after delay (genres already filled during onboarding)
-      setTimeout(() => setMessage(""), 3000);
-
     } catch (error) {
-      console.error('FanProfileForm: Error saving profile:', error);
-      setMessage("Error saving profile. Please try again.");
+      console.error('FanProfileForm: Unexpected error saving profile:', error);
+      setErrorMessage('Unexpected error saving your profile. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -496,29 +455,24 @@ export function FanProfileForm() {
       {/* Location Section */}
       <div className="space-y-2">
         <label className="block text-white mb-2">Home Location</label>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <input
-            type="text"
-            placeholder="City/Village/Town"
-            value={formData.city}
-            onChange={(e) => handleInputChange("city", e.target.value)}
-            className="bg-[#1a1a2e] border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:border-purple-500 focus:outline-none"
-          />
-          <input
-            type="text"
-            placeholder="County/State"
-            value={formData.county}
-            onChange={(e) => handleInputChange("county", e.target.value)}
-            className="bg-[#1a1a2e] border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:border-purple-500 focus:outline-none"
-          />
-          <input
-            type="text"
-            placeholder="Country"
-            value={formData.country}
-            onChange={(e) => handleInputChange("country", e.target.value)}
-            className="bg-[#1a1a2e] border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:border-purple-500 focus:outline-none"
-          />
-        </div>
+        <LocationAutocompleteInput
+          value={formData.homeLocation ?? ''}
+          placeholder="Start typing your city, postcode or address…"
+          onInputChange={(val) => handleInputChange("homeLocation", val ?? '')}
+          onSelect={(suggestion: LocationSuggestion) => {
+            const city    = suggestion.city    ?? "";
+            const county  = suggestion.state   ?? "";
+            const country = suggestion.country ?? "";
+            setFormData(prev => ({
+              ...prev,
+              city,
+              county,
+              country,
+              homeLocation: [city, county, country].filter(Boolean).join(', '),
+            }));
+          }}
+          inputClassName="bg-[#1a1a2e] border-gray-600 text-white placeholder:text-gray-400 focus-visible:border-purple-500 focus-visible:ring-0 rounded-lg px-4 py-3 h-auto"
+        />
         <div className="flex items-center gap-2 text-sm text-gray-400">
           <input
             type="checkbox"

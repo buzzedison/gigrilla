@@ -1,15 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Full set of address-component fields Geoapify may return.
+// UK-specific notes:
+//   city         – major city (London, Birmingham…); often blank for towns/villages
+//   town         – market/postal town (Fakenham, Swaffham…)
+//   village      – village name when applicable
+//   municipality – administrative municipality (sometimes used instead of city/town)
+//   county       – LOCAL government district / unitary authority (North Norfolk District Council)
+//   state_district – CEREMONIAL / traditional county (Norfolk, Suffolk, Yorkshire…)
+//   state        – constituent country (England, Scotland, Wales, Northern Ireland)
+//   country      – sovereign state name (United Kingdom)
+//   country_code – ISO 3166-1 alpha-2 (gb)
 type GeoapifyFeatureProperties = {
   formatted?: string
+  name?: string
+  housenumber?: string
+  street?: string
+  postcode?: string
   city?: string
+  town?: string
+  village?: string
+  hamlet?: string
+  municipality?: string
   county?: string
+  state_district?: string
   state?: string
   region?: string
   country?: string
   country_code?: string
   lat?: number
   lon?: number
+  result_type?: string
 }
 
 type GeoapifyFeature = {
@@ -23,6 +44,71 @@ interface GeoapifyResponse {
 }
 
 const GEOAPIFY_API_KEY = process.env.GEOAPIFY_API_KEY
+
+/**
+ * Resolve the best "city / town" label from a Geoapify properties object.
+ *
+ * Priority (most → least specific):
+ *   city > town > village > hamlet > municipality > (empty string)
+ *
+ * We deliberately skip `county` because Geoapify populates that field with
+ * local-government district names (e.g. "North Norfolk District Council"),
+ * NOT the traditional county name.
+ */
+function resolveCity(p: GeoapifyFeatureProperties): string {
+  return (
+    p.city?.trim() ||
+    p.town?.trim() ||
+    p.village?.trim() ||
+    p.hamlet?.trim() ||
+    p.municipality?.trim() ||
+    ''
+  )
+}
+
+/**
+ * Resolve the best "county / state" label.
+ *
+ * For UK addresses:
+ *   state_district = ceremonial / traditional county  (Norfolk, Suffolk, Kent…)
+ *   county         = local-government district         (North Norfolk, Broadland…) ← we avoid this
+ *   state          = constituent country               (England, Scotland, Wales…)
+ *
+ * We prefer state_district over county because it maps to the traditional county
+ * that users actually recognise.  We fall back to state only when neither exists.
+ */
+function resolveCounty(p: GeoapifyFeatureProperties): string {
+  return (
+    p.state_district?.trim() ||
+    p.county?.trim() ||       // last-resort only – this is often the district council name
+    p.state?.trim() ||
+    p.region?.trim() ||
+    ''
+  )
+}
+
+/**
+ * Resolve the country display string.
+ *
+ * For UK addresses we want to show both the constituent country AND the
+ * sovereign state, e.g. "England, UK".  Geoapify gives us:
+ *   state        = "England"
+ *   country      = "United Kingdom"
+ *   country_code = "gb"
+ *
+ * For all other countries we just return the country name.
+ */
+function resolveCountry(p: GeoapifyFeatureProperties): string {
+  const cc = p.country_code?.toLowerCase()
+  const nation = p.country?.trim() || ''
+
+  if (cc === 'gb' && p.state?.trim()) {
+    // e.g.  "England, UK"  /  "Scotland, UK"  /  "Wales, UK"
+    return `${p.state.trim()}, UK`
+  }
+
+  return nation
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -46,7 +132,9 @@ export async function GET(request: NextRequest) {
     const apiUrl = new URL('https://api.geoapify.com/v1/geocode/autocomplete')
     apiUrl.searchParams.set('text', query)
     apiUrl.searchParams.set('limit', '8')
-    apiUrl.searchParams.set('format', 'json')
+    // GeoJSON format gives us richer properties (including town, village, state_district)
+    apiUrl.searchParams.set('format', 'geojson')
+    apiUrl.searchParams.set('lang', 'en')
     apiUrl.searchParams.set('apiKey', GEOAPIFY_API_KEY)
 
     const response = await fetch(apiUrl.toString(), {
@@ -69,27 +157,53 @@ export async function GET(request: NextRequest) {
 
     const data = (await response.json()) as GeoapifyResponse
 
+    // GeoJSON format returns features[].properties; flat JSON returns results[]
     const entries = (data.features ?? data.results ?? []).filter(Boolean)
 
     const suggestions = entries
       .map(feature => {
-        const props = feature.properties ?? feature
-        const formatted = props.formatted?.trim()
-        const city = props.city ?? props.county ?? ''
-        const state = props.state ?? props.region ?? ''
-        const country = props.country ?? ''
+        const props: GeoapifyFeatureProperties = feature.properties ?? feature
+
+        const city    = resolveCity(props)
+        const county  = resolveCounty(props)
+        const country = resolveCountry(props)
         const lat = typeof props.lat === 'number' ? props.lat : undefined
         const lon = typeof props.lon === 'number' ? props.lon : undefined
 
-        if (!formatted && !city && !state && !country) {
+        // Build a clean human-readable display string:
+        //   "Fakenham, Norfolk, England, UK"
+        // We include county only when it differs from city (avoids "London, London, England, UK")
+        const displayParts = [city]
+        if (county && county.toLowerCase() !== city.toLowerCase()) {
+          displayParts.push(county)
+        }
+        if (country) {
+          displayParts.push(country)
+        }
+        const displayString = displayParts.filter(Boolean).join(', ')
+
+        const formatted =
+          props.formatted?.trim() ||
+          displayString ||
+          [city, county, country].filter(Boolean).join(', ')
+
+        if (!formatted && !city && !county && !country) {
           return null
         }
 
         return {
-          id: `${formatted ?? ''}-${lat ?? ''}-${lon ?? ''}`.replace(/\s+/g, '-').toLowerCase() || crypto.randomUUID(),
-          formatted: formatted || [city, state, country].filter(Boolean).join(', '),
+          id:
+            `${formatted}-${lat ?? ''}-${lon ?? ''}`
+              .replace(/\s+/g, '-')
+              .toLowerCase() || crypto.randomUUID(),
+          // `formatted`  = the full address string shown in the dropdown (Geoapify's own string)
+          // `city`       = town / city for display
+          // `state`      = traditional county  (Norfolk, Yorkshire…) – reusing the `state` field
+          //                on the LocationSuggestion type for the county slot
+          // `country`    = "England, UK" / "Scotland, UK" etc.
+          formatted,
           city,
-          state,
+          state: county,   // named `state` to match the existing LocationSuggestion interface
           country,
           lat,
           lon
@@ -115,4 +229,3 @@ export async function GET(request: NextRequest) {
     clearTimeout(timeout)
   }
 }
-

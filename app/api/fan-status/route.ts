@@ -46,7 +46,7 @@ export async function GET() {
     // Get fan status from fan_profiles table (same table that upgrade updates)
     const { data: profileData, error: statusError } = await supabase
       .from('fan_profiles')
-      .select('account_type, username, bio, contact_details, location_details')
+      .select('account_type, username, bio, contact_details, location_details, music_preferences, avatar_url, onboarding_completed')
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -61,12 +61,28 @@ export async function GET() {
 
     console.log('Fan Status API: Successfully fetched profile data:', profileData)
 
-    // Create status data based on fan_profiles
     const accountType = profileData?.account_type || 'guest'
+    const contactDetails = (profileData?.contact_details ?? {}) as Record<string, unknown>
+    const locationDetails = (profileData?.location_details ?? {}) as Record<string, unknown>
+    const musicPreferences = (profileData?.music_preferences ?? {}) as Record<string, unknown>
+
+    const hasUsername = typeof profileData?.username === 'string' && profileData.username.trim().length > 0
+    const hasPhone = typeof contactDetails.phone === 'string' && contactDetails.phone.trim().length > 0
+    const hasAddress = typeof locationDetails.address === 'string' && locationDetails.address.trim().length > 0
+    const hasMainGenres = Array.isArray(musicPreferences.main_genres) && musicPreferences.main_genres.length > 0
+    const hasAvatar = typeof profileData?.avatar_url === 'string' && profileData.avatar_url.trim().length > 0
+    const onboardingCompleted = profileData?.onboarding_completed === true
+
+    const requiredChecks = [hasUsername, hasPhone, hasAddress, hasMainGenres, hasAvatar, onboardingCompleted]
+    const completedChecks = requiredChecks.filter(Boolean).length
+    const completionPercent = Math.round((completedChecks / requiredChecks.length) * 100)
+    const isComplete = accountType === 'full' && requiredChecks.every(Boolean)
+
+    // Create status data based on fan_profiles
     const statusData = {
       account_type: accountType,
-      is_complete: accountType === 'full',
-      completion_percent: accountType === 'full' ? 100 : 50
+      is_complete: isComplete,
+      completion_percent: completionPercent
     }
 
     return NextResponse.json({

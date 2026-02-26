@@ -12,6 +12,8 @@ interface ArtistGenrePath {
   subId?: string
 }
 
+const MAX_GENRE_SETS = 3
+
 function dedupeGenrePaths(paths: ArtistGenrePath[]) {
   const seen = new Set<string>()
   return paths.filter((path) => {
@@ -87,6 +89,7 @@ export function ArtistGenresManager() {
   const [storedGenreEntries, setStoredGenreEntries] = useState<string[]>([])
   const [profileLoading, setProfileLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [limitMessage, setLimitMessage] = useState('')
   const { families, loading: taxonomyLoading, error: taxonomyError } = useGenreTaxonomy()
 
   useEffect(() => {
@@ -146,9 +149,14 @@ export function ArtistGenresManager() {
 
   const addGenre = (path: ArtistGenrePath) => {
     setSelectedGenres((prev) => {
+      if (prev.length >= MAX_GENRE_SETS) {
+        setLimitMessage(`You can add up to ${MAX_GENRE_SETS} genre sets.`)
+        return prev
+      }
       const exists = prev.some((item) => item.familyId === path.familyId && item.typeId === path.typeId && item.subId === path.subId)
       if (exists) return prev
       const next = [...prev, path]
+      setLimitMessage('')
       handleSave(next)
       return next
     })
@@ -157,6 +165,7 @@ export function ArtistGenresManager() {
   const removeGenre = (index: number) => {
     setSelectedGenres((prev) => {
       const next = prev.filter((_, i) => i !== index)
+      setLimitMessage('')
       handleSave(next)
       return next
     })
@@ -166,8 +175,11 @@ export function ArtistGenresManager() {
     <div className="space-y-6">
       <div id="artist-genres-selector" className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 scroll-mt-28">
         <h2 className="text-xl font-semibold text-gray-900 mb-2">Artist Genres</h2>
+        <p className="text-sm text-gray-700">
+          Pick at least 1 Genre Family + 1 Main Genre (select up to {MAX_GENRE_SETS} genre sets).
+        </p>
         <p className="text-sm text-gray-600 mb-4">
-          Select the main genres and sub-genres that define your artistry. These choices power discovery, search, and matching across Gigrilla.
+          You can optionally add Sub-Genres under each selection to refine discovery, search, and matching across Gigrilla.
         </p>
 
         {taxonomyError && (
@@ -180,7 +192,19 @@ export function ArtistGenresManager() {
           <div className="text-sm text-gray-500">No genre families available yet.</div>
         ) : (
           <div className="space-y-4">
-            <GenreSelectionForm families={families} onSelect={addGenre} />
+            <GenreSelectionForm
+              families={families}
+              onSelect={addGenre}
+              selectedCount={selectedGenres.length}
+            />
+            <div className="text-xs text-gray-600">
+              Genre sets selected: {selectedGenres.length} / {MAX_GENRE_SETS}
+            </div>
+            {limitMessage && (
+              <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                {limitMessage}
+              </div>
+            )}
 
             <div className="border-t border-gray-200 pt-4">
               <h3 className="text-sm font-medium text-gray-900 mb-3">Selected Genres</h3>
@@ -225,9 +249,10 @@ export function ArtistGenresManager() {
 interface GenreSelectionFormProps {
   families: GenreFamily[]
   onSelect: (path: ArtistGenrePath) => void
+  selectedCount: number
 }
 
-function GenreSelectionForm({ families, onSelect }: GenreSelectionFormProps) {
+function GenreSelectionForm({ families, onSelect, selectedCount }: GenreSelectionFormProps) {
   const [familyId, setFamilyId] = useState<string>('')
   const [typeId, setTypeId] = useState<string>('')
   const [subId, setSubId] = useState<string>('')
@@ -243,6 +268,7 @@ function GenreSelectionForm({ families, onSelect }: GenreSelectionFormProps) {
 
   const handleAdd = () => {
     if (!selectedFamily || !selectedType) return
+    if (selectedCount >= MAX_GENRE_SETS) return
     onSelect({ familyId: selectedFamily.id, typeId: selectedType.id, subId: subId || undefined })
     reset()
   }
@@ -309,7 +335,7 @@ function GenreSelectionForm({ families, onSelect }: GenreSelectionFormProps) {
       </div>
 
       <div className="flex justify-end">
-        <Button onClick={handleAdd} disabled={!selectedFamily || !selectedType}>
+        <Button onClick={handleAdd} disabled={!selectedFamily || !selectedType || selectedCount >= MAX_GENRE_SETS}>
           <Plus className="w-4 h-4 mr-2" />
           Add Genre
         </Button>
