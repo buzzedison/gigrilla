@@ -908,18 +908,13 @@ export function SignUpWizard() {
     }
   }, [artistCapabilities, artistSelection.typeId]);
 
-  // Redirect to dashboard if user has already completed FAN onboarding and is trying to do it again
-  // Allow users to add additional profile types (artist, venue, service, pro) even if they have fan profile
+  // Resolve fan onboarding completion for authenticated users so we can
+  // skip membership/fan profile steps when they add another profile type.
   useEffect(() => {
-    if (!onboardingParam) {
-      setFanCompletionCheckFinished(true)
-      return
-    }
-
     if (authLoading) return
 
     if (!user) {
-      // New/unverified session: do not block flow on fan-completion check
+      setFanProfileCompletedFromDb(false)
       setFanCompletionCheckFinished(true)
       return
     }
@@ -929,7 +924,7 @@ export function SignUpWizard() {
     const checkOnboardingStatus = async () => {
       setFanCompletionCheckFinished(false)
 
-      if (!user || !onboardingParam) return;
+      if (!user) return;
 
       try {
         // Check database for actual fan onboarding status
@@ -945,22 +940,19 @@ export function SignUpWizard() {
         console.log('SignUpWizard: Onboarding check', {
           dbOnboardingCompleted,
           hasProfile: !!result.data,
-          onboardingParam
+          onboardingParam: onboardingParam ?? null
         });
-        
-        // If user has completed FAN onboarding
-        if (dbOnboardingCompleted === true) {
+
+        if (dbOnboardingCompleted === true && !cancelled) {
+          setAccountChoice("fan")
+          setIsRegistered(true)
+
           if (onboardingParam === 'fan') {
             console.log('SignUpWizard: User already completed fan onboarding, redirecting to dashboard...');
             router.push('/fan-dashboard');
-          } else {
+          } else if (onboardingParam) {
             console.log('SignUpWizard: User completed fan onboarding, setting up for additional profile...');
-            // Set up for additional profile type selection
-            if (!cancelled) {
-              setAccountChoice("fan")
-              setSelectedMemberType(onboardingParam)
-              setIsRegistered(true)
-            }
+            setSelectedMemberType(onboardingParam)
           }
         }
       } catch (error) {
@@ -1268,8 +1260,12 @@ export function SignUpWizard() {
   }, [selectedMemberType, artistSelection.typeId]);
 
   const shouldSkipFanMembershipStep = useMemo(
-    () => Boolean(onboardingParam) && onboardingParam !== "fan" && fanProfileCompletedFromDb,
-    [onboardingParam, fanProfileCompletedFromDb],
+    () =>
+      Boolean(user) &&
+      fanProfileCompletedFromDb &&
+      selectedMemberType !== null &&
+      selectedMemberType !== "fan",
+    [user, fanProfileCompletedFromDb, selectedMemberType],
   )
 
   const steps = useMemo(() => {
@@ -1406,6 +1402,14 @@ export function SignUpWizard() {
 
   useEffect(() => {
     if (steps.length === 0) return;
+
+    // Always correct out-of-bounds step index, even in resume mode (e.g. when steps array shrinks)
+    if (stepIndex >= steps.length) {
+      const profileAddIdx = steps.findIndex(s => s.key === 'profile-add');
+      setStepIndex(profileAddIdx !== -1 ? profileAddIdx : steps.length - 1);
+      return;
+    }
+
     // Don't reset step if we're resuming onboarding - let the resume logic handle it
     if (user && onboardingParam && selectedMemberType && isRegistered) {
       // We're in resume mode, don't reset the step
@@ -1413,7 +1417,7 @@ export function SignUpWizard() {
     }
     // Normal flow: make sure step index is within bounds
     setStepIndex((prev) => Math.min(prev, steps.length - 1));
-  }, [steps.length, user, onboardingParam, selectedMemberType, isRegistered]);
+  }, [steps, stepIndex, user, onboardingParam, selectedMemberType, isRegistered]);
 
   useEffect(() => {
     if (!selectedMemberType) return;
@@ -1443,6 +1447,12 @@ export function SignUpWizard() {
       setAccountChoice("fan");
     }
   }, [selectedMemberType, accountChoice]);
+
+  useEffect(() => {
+    if (fanProfileCompletedFromDb && selectedMemberType && selectedMemberType !== "fan" && accountChoice !== "fan") {
+      setAccountChoice("fan")
+    }
+  }, [fanProfileCompletedFromDb, selectedMemberType, accountChoice])
 
   // --- ISNI debounced lookup ---
   useEffect(() => {
@@ -1744,12 +1754,6 @@ export function SignUpWizard() {
             : "Unable to save your profile details right now.";
         setRegistrationError(errorMessage);
         return false;
-      }
-
-      // If onboarding was marked as completed, refresh the auth context to get updated user metadata
-      if (overrides?.onboardingCompleted === true) {
-        console.log('Onboarding completed, refreshing auth context...');
-        await checkSession();
       }
 
       setRegistrationError("");
@@ -5496,8 +5500,13 @@ export function SignUpWizard() {
                   id="performingMembers"
                   type="number"
                   min="1"
+                  max="999"
                   value={artistProfile.performingMembers}
-                  onChange={(e) => setArtistProfile(prev => ({ ...prev, performingMembers: parseInt(e.target.value) || 1 }))}
+                  onFocus={(e) => e.currentTarget.select()}
+                  onChange={(e) => {
+                    const parsed = Number.parseInt(e.target.value, 10)
+                    setArtistProfile(prev => ({ ...prev, performingMembers: Number.isFinite(parsed) && parsed > 0 ? parsed : 1 }))
+                  }}
                   className="font-ui h-11 border-2 focus:border-primary"
                 />
               </div>
@@ -5596,6 +5605,19 @@ export function SignUpWizard() {
           </CardHeader>
           <CardContent className="space-y-5 pt-6">
             <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="websiteUrl" className="flex items-center gap-2">
+                  <span className="text-blue-600">🌐</span>
+                  Website
+                </Label>
+                <Input
+                  id="websiteUrl"
+                  placeholder="Type or paste URL here"
+                  value={artistProfile.website}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, website: e.target.value }))}
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="facebookUrl" className="flex items-center gap-2">
                   <span className="text-blue-600">f</span>
@@ -6152,12 +6174,18 @@ export function SignUpWizard() {
               <Label htmlFor="performerIsni">
                 Artist Performer ISNI <span className="text-red-500">*</span>
               </Label>
-              <p className="text-xs text-foreground/60 mb-2">
+              <p className="text-xs text-foreground/60 mb-1">
                 ℹ️ Your unique digital ID prevents name confusion, ensures correct crediting, and tracks all your work across platforms.
-                <a href="https://isni.org/page/search-database/" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline ml-1">
-                  Get / Find an ISNI
-                </a>
               </p>
+              <div className="flex items-center gap-2 mb-2">
+                <a href="https://isni.org/page/requests/" target="_blank" rel="noopener noreferrer" className="text-xs text-purple-600 hover:underline font-medium">
+                  Get an ISNI
+                </a>
+                <span className="text-foreground/40">|</span>
+                <a href="https://isni.org/page/search-database/" target="_blank" rel="noopener noreferrer" className="text-xs text-purple-600 hover:underline font-medium">
+                  Find an ISNI
+                </a>
+              </div>
               <div className="relative">
                 <Input
                   id="performerIsni"
@@ -6217,13 +6245,19 @@ export function SignUpWizard() {
                 Creator IPI/CAE {artistCapabilities.requiresIPICAE && <span className="text-red-500">*</span>}
                 {artistCapabilities.optionalIPICAE && <span className="text-foreground/60 text-xs ml-1">(Optional)</span>}
               </Label>
-              <p className="text-xs text-foreground/60 mb-2">
-                ℹ️ For Songwriters, Lyricists, and Composers. Automatically issued when joining a Performance Rights Organisation (PRO) like ASCAP, BMI, or PRS.
-                Required for accurate song registration and royalty payments.
-                <a href="https://ipisearch.cisac.org/" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline ml-1">
-                  Get / Find an IPI/CAE
-                </a>
+              <p className="text-xs text-foreground/60 mb-1">
+                ℹ️ <strong>For Songwriters, Lyricists, and Composers.</strong> Automatically issued when joining a Performance Rights Organisation (PRO) like ASCAP, BMI, or PRS.
+                Required for accurate song registration and royalty payments when you are credited as a writer.
               </p>
+              <div className="flex items-center gap-2 mb-2">
+                <a href="https://www.ascap.com/" target="_blank" rel="noopener noreferrer" className="text-xs text-purple-600 hover:underline font-medium">
+                  Get an IPI/CAE
+                </a>
+                <span className="text-foreground/40">|</span>
+                <a href="https://ipisearch.cisac.org/" target="_blank" rel="noopener noreferrer" className="text-xs text-purple-600 hover:underline font-medium">
+                  Find an IPI/CAE
+                </a>
+              </div>
               <div className="relative">
                 <Input
                   id="creatorIpiCae"

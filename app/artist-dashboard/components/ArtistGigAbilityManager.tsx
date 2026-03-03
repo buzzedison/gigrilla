@@ -36,6 +36,7 @@ interface ArtistProfile {
   radius?: number
   center?: [number, number]
 }
+  hometown_country?: string | null
   location_details?: Record<string, unknown> | null
 }
 
@@ -123,6 +124,12 @@ const getDefaultCurrencyByCountry = (country?: string | null) => {
   return COUNTRY_CURRENCY_FALLBACKS[normalized] || 'GBP'
 }
 
+const clampNonNegativeNumber = (value: unknown, fallback = 0) => {
+  const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value ?? fallback))
+  if (!Number.isFinite(parsed)) return fallback
+  return parsed < 0 ? 0 : parsed
+}
+
 export function ArtistGigAbilityManager() {
   const { user } = useAuth()
   const [artistProfile, setArtistProfile] = useState<ArtistProfile | null>(null)
@@ -136,6 +143,10 @@ export function ArtistGigAbilityManager() {
   const [localGigCurrency, setLocalGigCurrency] = useState('GBP')
   const [widerGigCurrency, setWiderGigCurrency] = useState('GBP')
   const [logisticsCurrency, setLogisticsCurrency] = useState('GBP')
+  const [baseGigCurrency, setBaseGigCurrency] = useState('GBP')
+  const [baseGigFee, setBaseGigFee] = useState(0)
+  const [baseGigTimescale, setBaseGigTimescale] = useState(30)
+  const [logisticsMode, setLogisticsMode] = useState<'fixed' | 'negotiated'>('fixed')
 
   useEffect(() => {
     loadArtistProfile()
@@ -174,11 +185,33 @@ export function ArtistGigAbilityManager() {
         const savedLocalCurrency = typeof pricingConfig.local_currency === 'string' ? pricingConfig.local_currency : null
         const savedWiderCurrency = typeof pricingConfig.wider_currency === 'string' ? pricingConfig.wider_currency : null
         const savedLogisticsCurrency = typeof pricingConfig.logistics_currency === 'string' ? pricingConfig.logistics_currency : null
+        const savedBaseCurrency = typeof pricingConfig.base_currency === 'string' ? pricingConfig.base_currency : null
+        const savedBaseFee = typeof pricingConfig.base_fee === 'number'
+          ? pricingConfig.base_fee
+          : Number.parseFloat(String(pricingConfig.base_fee ?? '0'))
+        const savedBaseTimescale = typeof pricingConfig.base_timescale === 'number'
+          ? pricingConfig.base_timescale
+          : Number.parseInt(String(pricingConfig.base_timescale ?? '30'), 10)
+        const savedLogisticsMode = typeof pricingConfig.logistics_mode === 'string'
+          ? pricingConfig.logistics_mode
+          : null
         hasSavedCurrencyConfig = Boolean(savedLocalCurrency || savedWiderCurrency || savedLogisticsCurrency)
 
         setLocalGigCurrency(savedLocalCurrency || fallbackCurrency)
         setWiderGigCurrency(savedWiderCurrency || fallbackCurrency)
         setLogisticsCurrency(savedLogisticsCurrency || savedWiderCurrency || fallbackCurrency)
+        setBaseGigCurrency(savedBaseCurrency || savedLocalCurrency || fallbackCurrency)
+        setBaseGigFee(
+          Number.isFinite(savedBaseFee) && savedBaseFee >= 0
+            ? savedBaseFee
+            : clampNonNegativeNumber(profileData?.local_gig_fee ?? profileData?.wider_gig_fee, 0)
+        )
+        setBaseGigTimescale(Number.isFinite(savedBaseTimescale) && savedBaseTimescale > 0 ? savedBaseTimescale : 30)
+        setLogisticsMode(
+          savedLogisticsMode === 'negotiated' || profileData?.wider_negotiated_logistics
+            ? 'negotiated'
+            : 'fixed'
+        )
       }
       
       // Load fan profile data for location details (same as ArtistCrewManager)
@@ -197,6 +230,7 @@ export function ArtistGigAbilityManager() {
             setLocalGigCurrency(fallbackCurrency)
             setWiderGigCurrency(fallbackCurrency)
             setLogisticsCurrency(fallbackCurrency)
+            setBaseGigCurrency(fallbackCurrency)
           }
         }
       } else {
@@ -239,8 +273,7 @@ export function ArtistGigAbilityManager() {
           lng: lon
         })
       } else {
-        // Default to London if no coordinates
-        setBaseLocationCoords({ lat: 51.5074, lng: -0.1278 })
+        setBaseLocationCoords(null)
       }
       
     } catch (error) {
@@ -272,13 +305,21 @@ export function ArtistGigAbilityManager() {
         typeof existingLocationDetails.gig_pricing === 'object' &&
         !Array.isArray(existingLocationDetails.gig_pricing)
       ) ? existingLocationDetails.gig_pricing as Record<string, unknown> : {}
+      const normalizedBaseFee = clampNonNegativeNumber(baseGigFee, 0)
+      const fixedLogisticsFee = logisticsMode === 'fixed'
+        ? clampNonNegativeNumber(artistProfile?.wider_fixed_logistics_fee, 0)
+        : 0
       const mergedLocationDetails = {
         ...existingLocationDetails,
         gig_pricing: {
           ...existingGigPricing,
+          base_currency: baseGigCurrency,
+          base_fee: normalizedBaseFee,
+          base_timescale: baseGigTimescale,
           local_currency: localGigCurrency,
           wider_currency: widerGigCurrency,
-          logistics_currency: logisticsCurrency
+          logistics_currency: logisticsCurrency,
+          logistics_mode: logisticsMode
         }
       }
       
@@ -291,12 +332,12 @@ export function ArtistGigAbilityManager() {
         body: JSON.stringify({
           minimum_set_length: artistProfile?.minimum_set_length || 30,
           maximum_set_length: artistProfile?.maximum_set_length || 120,
-          local_gig_fee: artistProfile?.local_gig_fee || 0,
-          local_gig_timescale: artistProfile?.local_gig_timescale || 30,
-          wider_gig_fee: artistProfile?.wider_gig_fee || 0,
-          wider_gig_timescale: artistProfile?.wider_gig_timescale || 30,
-          wider_fixed_logistics_fee: artistProfile?.wider_fixed_logistics_fee || 0,
-          wider_negotiated_logistics: artistProfile?.wider_negotiated_logistics || false,
+          local_gig_fee: normalizedBaseFee,
+          local_gig_timescale: baseGigTimescale,
+          wider_gig_fee: normalizedBaseFee,
+          wider_gig_timescale: baseGigTimescale,
+          wider_fixed_logistics_fee: fixedLogisticsFee,
+          wider_negotiated_logistics: logisticsMode === 'negotiated',
           local_gig_area: localGigZone || null,
           wider_gig_area: widerGigZone || null,
           location_details: mergedLocationDetails
@@ -316,12 +357,12 @@ export function ArtistGigAbilityManager() {
         minimum_set_length: prev?.minimum_set_length || 30,
         maximum_set_length: prev?.maximum_set_length || 120,
         // Preserve gig fees and settings
-        local_gig_fee: prev?.local_gig_fee || 0,
-        local_gig_timescale: prev?.local_gig_timescale || 30,
-        wider_gig_fee: prev?.wider_gig_fee || 0,
-        wider_gig_timescale: prev?.wider_gig_timescale || 30,
-        wider_fixed_logistics_fee: prev?.wider_fixed_logistics_fee || 0,
-        wider_negotiated_logistics: prev?.wider_negotiated_logistics || false,
+        local_gig_fee: normalizedBaseFee,
+        local_gig_timescale: baseGigTimescale,
+        wider_gig_fee: normalizedBaseFee,
+        wider_gig_timescale: baseGigTimescale,
+        wider_fixed_logistics_fee: fixedLogisticsFee,
+        wider_negotiated_logistics: logisticsMode === 'negotiated',
         // Preserve map zones
         local_gig_area: localGigZone || null,
         wider_gig_area: widerGigZone || null,
@@ -553,6 +594,74 @@ export function ArtistGigAbilityManager() {
       </Card>
 
       {/* Artist Local Gig Area */}
+      <Card id="artist-gigability-fees" className="scroll-mt-28">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-purple-900">
+            <Clock className="w-5 h-5" />
+            Gig Fees
+          </CardTitle>
+          <p className="text-sm text-gray-600">
+            Set your baseline performance fee once. Local and wider gig sections use this same base fee.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="max-w-xs space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wide text-gray-500">Currency</label>
+              <Select value={baseGigCurrency} onValueChange={(value) => {
+                setBaseGigCurrency(value)
+                setLocalGigCurrency(value)
+                setWiderGigCurrency(value)
+              }}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CURRENCY_OPTIONS.map((currency) => (
+                    <SelectItem key={currency.code} value={currency.code}>
+                      {currency.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-lg font-medium text-gray-900">{getCurrencySymbol(baseGigCurrency)}</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={baseGigFee}
+                onChange={(e) => setBaseGigFee(clampNonNegativeNumber(e.target.value, 0))}
+                className="w-40 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              <span className="text-gray-600">per</span>
+              <Select
+                value={baseGigTimescale.toString()}
+                onValueChange={(value) => setBaseGigTimescale(Number.parseInt(value, 10) || 30)}
+              >
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GIG_TIME_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value.toString()}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-gray-600">set on stage.</span>
+            </div>
+
+            <p className="text-sm text-gray-600">
+              Base Fee Preview: {getCurrencySymbol(baseGigCurrency)}{baseGigFee.toFixed(2)} per {GIG_TIME_OPTIONS.find(opt => opt.value === baseGigTimescale)?.label} set.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card id="artist-gigability-local" className="scroll-mt-28">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-purple-900">
@@ -570,63 +679,8 @@ export function ArtistGigAbilityManager() {
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            {/* Minimum Local Gig Fee */}
-            <div className="space-y-4">
-              <label className="text-sm font-medium text-gray-700">
-                Minimum Local Gig Fee
-              </label>
-              <div className="max-w-xs space-y-2">
-                <label className="text-xs font-medium uppercase tracking-wide text-gray-500">Currency</label>
-                <Select value={localGigCurrency} onValueChange={setLocalGigCurrency}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CURRENCY_OPTIONS.map((currency) => (
-                      <SelectItem key={currency.code} value={currency.code}>
-                        {currency.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center">
-                  <span className="text-lg font-medium text-gray-900 mr-2">{getCurrencySymbol(localGigCurrency)}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={artistProfile?.local_gig_fee || 0}
-                    onChange={(e) => 
-                      setArtistProfile(prev => prev ? { ...prev, local_gig_fee: parseFloat(e.target.value) || 0 } : null)
-                    }
-                    className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-                <span className="text-gray-600">per</span>
-                <Select
-                  value={(artistProfile?.local_gig_timescale || 30).toString()}
-                  onValueChange={(value) => 
-                    setArtistProfile(prev => prev ? { ...prev, local_gig_timescale: parseInt(value) } : null)
-                  }
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GIG_TIME_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value.toString()}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <span className="text-gray-600">set on stage.</span>
-              </div>
-              <div className="text-sm text-gray-600">
-                {getCurrencySymbol(localGigCurrency)}{(artistProfile?.local_gig_fee || 0).toFixed(2)} per {GIG_TIME_OPTIONS.find(opt => opt.value === (artistProfile?.local_gig_timescale || 30))?.label} set on stage.
-              </div>
+            <div className="rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm text-purple-800">
+              Local gigs use your base fee: <strong>{getCurrencySymbol(baseGigCurrency)}{baseGigFee.toFixed(2)} per {GIG_TIME_OPTIONS.find(opt => opt.value === baseGigTimescale)?.label} set.</strong>
             </div>
 
             {/* Local Map */}
@@ -660,60 +714,8 @@ export function ArtistGigAbilityManager() {
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            {/* Minimum Wider Gig Fee */}
-            <div className="space-y-4">
-              <label className="text-sm font-medium text-gray-700">
-                Minimum Wider Gig Fee
-              </label>
-              <div className="max-w-xs space-y-2">
-                <label className="text-xs font-medium uppercase tracking-wide text-gray-500">Currency</label>
-                <Select value={widerGigCurrency} onValueChange={setWiderGigCurrency}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CURRENCY_OPTIONS.map((currency) => (
-                      <SelectItem key={currency.code} value={currency.code}>
-                        {currency.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center">
-                  <span className="text-lg font-medium text-gray-900 mr-2">{getCurrencySymbol(widerGigCurrency)}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={artistProfile?.wider_gig_fee || 0}
-                    onChange={(e) => 
-                      setArtistProfile(prev => prev ? { ...prev, wider_gig_fee: parseFloat(e.target.value) || 0 } : null)
-                    }
-                    className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-                <span className="text-gray-600">per</span>
-                <Select
-                  value={(artistProfile?.wider_gig_timescale || 30).toString()}
-                  onValueChange={(value) => 
-                    setArtistProfile(prev => prev ? { ...prev, wider_gig_timescale: parseInt(value) } : null)
-                  }
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GIG_TIME_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value.toString()}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <span className="text-gray-600">set on stage.</span>
-              </div>
+            <div className="rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm text-purple-800">
+              Wider gigs use your base fee: <strong>{getCurrencySymbol(baseGigCurrency)}{baseGigFee.toFixed(2)} per {GIG_TIME_OPTIONS.find(opt => opt.value === baseGigTimescale)?.label} set</strong>, with optional logistics below.
             </div>
 
             {/* Logistics Fees */}
@@ -737,35 +739,50 @@ export function ArtistGigAbilityManager() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-gray-600">+</span>
-                  <div className="flex items-center">
-                    <span className="text-lg font-medium text-gray-900 mr-2">{getCurrencySymbol(logisticsCurrency)}</span>
+                <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-3">
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
                     <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={artistProfile?.wider_fixed_logistics_fee || 0}
-                      onChange={(e) => 
-                        setArtistProfile(prev => prev ? { ...prev, wider_fixed_logistics_fee: parseFloat(e.target.value) || 0 } : null)
-                      }
-                      className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      type="radio"
+                      name="wider-logistics-mode"
+                      checked={logisticsMode === 'fixed'}
+                      onChange={() => setLogisticsMode('fixed')}
+                      className="h-4 w-4 text-purple-600 focus:ring-purple-500"
                     />
+                    Fixed logistics fee
+                  </label>
+                  <div className="flex items-center gap-4 pl-6">
+                    <span className="text-gray-600">+</span>
+                    <div className="flex items-center">
+                      <span className="text-lg font-medium text-gray-900 mr-2">{getCurrencySymbol(logisticsCurrency)}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={artistProfile?.wider_fixed_logistics_fee || 0}
+                        onChange={(e) =>
+                          setArtistProfile(prev => prev ? { ...prev, wider_fixed_logistics_fee: clampNonNegativeNumber(e.target.value, 0) } : null)
+                        }
+                        disabled={logisticsMode !== 'fixed'}
+                        className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-100 disabled:text-gray-400"
+                      />
+                    </div>
+                    <span className="text-gray-600">Per-Gig Fixed Logistics Fee - covers travel, freight, accommodation, meals.</span>
                   </div>
-                  <span className="text-gray-600">Per-Gig Fixed Logistics Fee - this covers any travel, freight, accommodation, meals.</span>
                 </div>
-                <div className="pl-8 text-xs font-semibold uppercase tracking-wider text-gray-500">OR</div>
-                <div className="flex items-center gap-4">
-                  <span className="text-gray-600">+</span>
-                  <input
-                    type="checkbox"
-                    checked={artistProfile?.wider_negotiated_logistics || false}
-                    onChange={(e) => 
-                      setArtistProfile(prev => prev ? { ...prev, wider_negotiated_logistics: e.target.checked } : null)
-                    }
-                    className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-                  />
-                  <span className="text-gray-600">Negotiated Gig-by-Gig Logistics Fee - this covers any travel, freight, accommodation, meals.</span>
+                <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-3">
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="radio"
+                      name="wider-logistics-mode"
+                      checked={logisticsMode === 'negotiated'}
+                      onChange={() => setLogisticsMode('negotiated')}
+                      className="h-4 w-4 text-purple-600 focus:ring-purple-500"
+                    />
+                    Negotiated logistics fee
+                  </label>
+                  <p className="pl-6 text-sm text-gray-600">
+                    Fees are agreed Gig-by-Gig for travel, freight, accommodation, and meals.
+                  </p>
                 </div>
               </div>
             </div>

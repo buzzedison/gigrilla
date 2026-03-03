@@ -230,16 +230,7 @@ export function LocationAutocompleteInput({
                 onClick={() => handleSelect(suggestion)}
               >
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-gray-400 dark:text-gray-500" />
-                <span className="flex flex-col">
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{suggestion.formatted}</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {[suggestion.city, suggestion.state, suggestion.country]
-                      .filter(Boolean)
-                      .map((part) => part?.toString().trim())
-                      .filter(Boolean)
-                      .join(', ')}
-                  </span>
-                </span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">{suggestion.formatted}</span>
               </button>
             </li>
           ))}

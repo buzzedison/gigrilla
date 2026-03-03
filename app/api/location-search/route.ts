@@ -45,6 +45,58 @@ interface GeoapifyResponse {
 
 const GEOAPIFY_API_KEY = process.env.GEOAPIFY_API_KEY
 
+function isLikelyUkQuery(query: string) {
+  const normalized = query.trim()
+  if (!normalized) return false
+
+  const lower = normalized.toLowerCase()
+  if (/\b(uk|united kingdom|england|scotland|wales|northern ireland)\b/.test(lower)) {
+    return true
+  }
+
+  // UK postcode patterns (e.g. NR21 7QH, SW1A 1AA, W1A 0AX)
+  return /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(normalized)
+}
+
+async function fetchGeoapifyEntries(query: string, forceUkFilter: boolean, signal: AbortSignal) {
+  const apiUrl = new URL('https://api.geoapify.com/v1/geocode/autocomplete')
+  apiUrl.searchParams.set('text', query)
+  apiUrl.searchParams.set('limit', '8')
+  // GeoJSON format gives us richer properties (including town, village, state_district)
+  apiUrl.searchParams.set('format', 'geojson')
+  apiUrl.searchParams.set('lang', 'en')
+  apiUrl.searchParams.set('apiKey', GEOAPIFY_API_KEY as string)
+
+  if (forceUkFilter) {
+    apiUrl.searchParams.set('filter', 'countrycode:gb')
+    apiUrl.searchParams.set('bias', 'countrycode:gb')
+  }
+
+  const response = await fetch(apiUrl.toString(), {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'gigrilla-app/location-search'
+    },
+    cache: 'no-store',
+    signal
+  })
+
+  if (!response.ok) {
+    const body = await response.text()
+    console.error('Geoapify autocomplete error', response.status, body)
+    return {
+      error: NextResponse.json(
+        { error: 'Unable to fetch location suggestions.' },
+        { status: 502 }
+      )
+    }
+  }
+
+  const data = (await response.json()) as GeoapifyResponse
+  const entries = (data.features ?? data.results ?? []).filter(Boolean)
+  return { entries }
+}
+
 /**
  * Resolve the best "city / town" label from a Geoapify properties object.
  *
@@ -127,38 +179,24 @@ export async function GET(request: NextRequest) {
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 8000)
+  const likelyUkQuery = isLikelyUkQuery(query)
 
   try {
-    const apiUrl = new URL('https://api.geoapify.com/v1/geocode/autocomplete')
-    apiUrl.searchParams.set('text', query)
-    apiUrl.searchParams.set('limit', '8')
-    // GeoJSON format gives us richer properties (including town, village, state_district)
-    apiUrl.searchParams.set('format', 'geojson')
-    apiUrl.searchParams.set('lang', 'en')
-    apiUrl.searchParams.set('apiKey', GEOAPIFY_API_KEY)
-
-    const response = await fetch(apiUrl.toString(), {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'gigrilla-app/location-search'
-      },
-      cache: 'no-store',
-      signal: controller.signal
-    })
-
-    if (!response.ok) {
-      const body = await response.text()
-      console.error('Geoapify autocomplete error', response.status, body)
-      return NextResponse.json(
-        { error: 'Unable to fetch location suggestions.' },
-        { status: 502 }
-      )
+    const primaryResult = await fetchGeoapifyEntries(query, likelyUkQuery, controller.signal)
+    if (primaryResult.error) {
+      return primaryResult.error
     }
 
-    const data = (await response.json()) as GeoapifyResponse
+    let entries = primaryResult.entries
 
-    // GeoJSON format returns features[].properties; flat JSON returns results[]
-    const entries = (data.features ?? data.results ?? []).filter(Boolean)
+    // If a UK-targeted query yields no entries, fall back to global search.
+    if (likelyUkQuery && entries.length === 0) {
+      const fallbackResult = await fetchGeoapifyEntries(query, false, controller.signal)
+      if (fallbackResult.error) {
+        return fallbackResult.error
+      }
+      entries = fallbackResult.entries
+    }
 
     const suggestions = entries
       .map(feature => {

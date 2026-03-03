@@ -27,6 +27,7 @@ import { Badge } from "../components/ui/badge"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet"
 import { Music, Info, Menu } from "lucide-react"
 import { getArtistTypeConfig, ArtistTypeCapabilities } from "../../data/artist-types"
+import { normalizeArtistSubTypeSelections } from "../../lib/artist-subtype-utils"
 
 interface ArtistProfileResponse {
   data: {
@@ -135,14 +136,10 @@ export default function ArtistDashboard() {
         setOnboardingCompleted(result.data.onboarding_completed ?? false)
 
         if (result.data.artist_type_id) {
-          const subTypes = Array.isArray(result.data.artist_sub_types)
-            ? result.data.artist_sub_types.reduce<Record<string, string[]>>((acc, value) => {
-              const [groupId, optionValue] = value.split(':')
-              if (!groupId || !optionValue) return acc
-              acc[groupId] = acc[groupId] ? [...acc[groupId], optionValue] : [optionValue]
-              return acc
-            }, {})
-            : (result.data.artist_sub_types as Record<string, string[]>) ?? {}
+          const subTypes = normalizeArtistSubTypeSelections(
+            result.data.artist_sub_types,
+            result.data.artist_type_id
+          )
 
           const selection: ArtistTypeSelection = {
             artistTypeId: result.data.artist_type_id,

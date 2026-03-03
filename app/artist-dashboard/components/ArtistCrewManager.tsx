@@ -266,6 +266,9 @@ export function ArtistCrewManager() {
     isAdmin: false,
     status: 'invite'
   })
+  const [newMemberRolePickerOpen, setNewMemberRolePickerOpen] = useState(false)
+  const [newMemberErrors, setNewMemberErrors] = useState<Partial<Record<'firstName' | 'lastName' | 'email' | 'phone', string>>>({})
+  const [newMemberErrorSummary, setNewMemberErrorSummary] = useState<string | null>(null)
   const [notification, setNotification] = useState<{
     type: 'success' | 'error' | 'info'
     message: string
@@ -763,13 +766,33 @@ export function ArtistCrewManager() {
 
   const addNewMember = () => {
     setShowAddMember(true)
+    setNewMemberErrorSummary(null)
+    setNewMemberErrors({})
+    setNewMemberRolePickerOpen(false)
   }
 
   const handleAddMember = async () => {
-    if (!newMember.firstName || !newMember.email) {
-      showNotification('error', 'Please fill in at least First Name and Email fields')
+    const firstName = (newMember.firstName || '').trim()
+    const lastName = (newMember.lastName || '').trim()
+    const email = (newMember.email || '').trim()
+    const phone = (newMember.phone || '').trim()
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+    const nextErrors: Partial<Record<'firstName' | 'lastName' | 'email' | 'phone', string>> = {}
+    if (!firstName) nextErrors.firstName = 'First name is required.'
+    if (!lastName) nextErrors.lastName = 'Last name is required.'
+    if (!email) nextErrors.email = 'Email is required.'
+    if (email && !emailPattern.test(email)) nextErrors.email = 'Enter a valid email address.'
+    if (!phone) nextErrors.phone = 'Phone is required.'
+
+    setNewMemberErrors(nextErrors)
+
+    if (Object.keys(nextErrors).length > 0) {
+      setNewMemberErrorSummary('Please complete all required fields: First Name, Last Name, Email, and Phone.')
       return
     }
+
+    setNewMemberErrorSummary(null)
 
     try {
       // Call the API to create and send invitation
@@ -779,11 +802,11 @@ export function ArtistCrewManager() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          firstName: newMember.firstName,
-          lastName: newMember.lastName || '',
+          firstName,
+          lastName,
           nickname: newMember.nickname || '',
-          email: newMember.email,
-          phone: newMember.phone || '',
+          email,
+          phone,
           roles: newMember.roles || [],
           isAdmin: newMember.isAdmin || false
         })
@@ -802,10 +825,10 @@ export function ArtistCrewManager() {
         id: result.data.id,
         name: result.data.name || `${newMember.firstName} ${newMember.lastName || ''}`.trim(),
         nickname: newMember.nickname || '',
-        firstName: newMember.firstName,
-        lastName: newMember.lastName || '',
-        email: newMember.email,
-        phone: newMember.phone || '',
+        firstName,
+        lastName,
+        email,
+        phone,
         roles: newMember.roles || [],
         isAdmin: newMember.isAdmin || false,
         status: 'invited',
@@ -828,9 +851,16 @@ export function ArtistCrewManager() {
         isAdmin: false,
         status: 'invite'
       })
+      setNewMemberErrors({})
+      setNewMemberErrorSummary(null)
+      setNewMemberRolePickerOpen(false)
       setShowAddMember(false)
 
-      showNotification('success', `Invitation sent successfully to ${newMember.email}!`)
+      if (result.warning) {
+        showNotification('info', result.warning)
+      } else {
+        showNotification('success', `Invitation sent successfully to ${email}!`)
+      }
       console.log('Member invitation sent:', result.data)
 
     } catch (error) {
@@ -918,6 +948,29 @@ export function ArtistCrewManager() {
     setTimeout(() => {
       setNotification(prev => prev ? { ...prev, visible: false } : null)
     }, 5000)
+  }
+
+  const toggleNewMemberRole = (role: string, category: RoleCategory) => {
+    const allItem = category.items[0]?.startsWith('All ') ? category.items[0] : null
+
+    setNewMember(prev => {
+      let roles = [...(prev.roles || [])]
+      const index = roles.indexOf(role)
+
+      if (index > -1) {
+        roles.splice(index, 1)
+      } else {
+        if (allItem && role === allItem) {
+          const siblings = category.items.slice(1)
+          roles = roles.filter(r => !siblings.includes(r))
+        } else if (allItem && roles.includes(allItem)) {
+          roles = roles.filter(r => r !== allItem)
+        }
+        roles.push(role)
+      }
+
+      return { ...prev, roles }
+    })
   }
 
   return (
@@ -1116,12 +1169,20 @@ export function ArtistCrewManager() {
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
                       <a
+                        href={PROFESSIONAL_ID_URLS.isni.register}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
+                      >
+                        Get an ISNI <ExternalLink className="w-3 h-3" />
+                      </a>
+                      <a
                         href={PROFESSIONAL_ID_URLS.isni.search}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
                       >
-                        Get/Find <ExternalLink className="w-3 h-3" />
+                        Find an ISNI <ExternalLink className="w-3 h-3" />
                       </a>
                     </div>
                   </div>
@@ -1232,17 +1293,25 @@ export function ArtistCrewManager() {
                             )}
                           </Label>
                           <p className="text-xs text-blue-700 mt-1">
-                            Interested Parties Number for Songwriters, Lyricists, Composers, and Music Publishers. Issued by PROs like ASCAP, BMI, PRS.
+                            <strong>For Songwriters, Lyricists, and Composers:</strong> Creator IPI/CAE is optional unless you write lyrics/composition.
                           </p>
                         </div>
                         <div className="flex gap-2 flex-shrink-0">
+                          <a
+                            href={PROFESSIONAL_ID_URLS.ipi.info}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
+                          >
+                            Get an IPI/CAE <ExternalLink className="w-3 h-3" />
+                          </a>
                           <a
                             href={PROFESSIONAL_ID_URLS.ipi.search}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
                           >
-                            Get/Find <ExternalLink className="w-3 h-3" />
+                            Find an IPI/CAE <ExternalLink className="w-3 h-3" />
                           </a>
                         </div>
                       </div>
@@ -1391,37 +1460,62 @@ export function ArtistCrewManager() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setShowAddMember(false)}
+                  onClick={() => {
+                    setShowAddMember(false)
+                    setNewMemberErrors({})
+                    setNewMemberErrorSummary(null)
+                    setNewMemberRolePickerOpen(false)
+                  }}
                   className="text-purple-700 border-purple-200"
                 >
                   Cancel
                 </Button>
               </div>
 
+              {newMemberErrorSummary && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {newMemberErrorSummary}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium text-purple-700">
-                    Given/FirstName?
+                    Given/First Name?
                   </Label>
                   <Input
                     value={newMember.firstName || ''}
-                    onChange={(e) => setNewMember(prev => ({ ...prev, firstName: e.target.value }))}
+                    onChange={(e) => {
+                      setNewMember(prev => ({ ...prev, firstName: e.target.value }))
+                      setNewMemberErrors(prev => ({ ...prev, firstName: undefined }))
+                    }}
                     placeholder="First name"
-                    className="border-purple-200 focus:border-purple-400"
+                    className={cn(
+                      "border-purple-200 focus:border-purple-400",
+                      newMemberErrors.firstName && "border-red-400 focus:border-red-500"
+                    )}
                   />
+                  {newMemberErrors.firstName && <p className="text-xs text-red-600">{newMemberErrors.firstName}</p>}
                   <p className="text-xs text-purple-600">is private by default; they can choose to make this public.</p>
                 </div>
 
                 <div className="space-y-2">
                   <Label className="text-xs font-medium text-purple-700">
-                    Surname/FamilyName?
+                    Surname/Family Name?
                   </Label>
                   <Input
                     value={newMember.lastName || ''}
-                    onChange={(e) => setNewMember(prev => ({ ...prev, lastName: e.target.value }))}
+                    onChange={(e) => {
+                      setNewMember(prev => ({ ...prev, lastName: e.target.value }))
+                      setNewMemberErrors(prev => ({ ...prev, lastName: undefined }))
+                    }}
                     placeholder="Last name"
-                    className="border-purple-200 focus:border-purple-400"
+                    className={cn(
+                      "border-purple-200 focus:border-purple-400",
+                      newMemberErrors.lastName && "border-red-400 focus:border-red-500"
+                    )}
                   />
+                  {newMemberErrors.lastName && <p className="text-xs text-red-600">{newMemberErrors.lastName}</p>}
                   <p className="text-xs text-purple-600">is private by default; they can choose to make this public.</p>
                 </div>
 
@@ -1445,10 +1539,17 @@ export function ArtistCrewManager() {
                   <Input
                     type="email"
                     value={newMember.email || ''}
-                    onChange={(e) => setNewMember(prev => ({ ...prev, email: e.target.value }))}
+                    onChange={(e) => {
+                      setNewMember(prev => ({ ...prev, email: e.target.value }))
+                      setNewMemberErrors(prev => ({ ...prev, email: undefined }))
+                    }}
                     placeholder="Email address"
-                    className="border-purple-200 focus:border-purple-400"
+                    className={cn(
+                      "border-purple-200 focus:border-purple-400",
+                      newMemberErrors.email && "border-red-400 focus:border-red-500"
+                    )}
                   />
+                  {newMemberErrors.email && <p className="text-xs text-red-600">{newMemberErrors.email}</p>}
                   <p className="text-xs text-purple-600">is private. Used to securely match members to Profiles and to invite non-members.</p>
                 </div>
 
@@ -1459,10 +1560,17 @@ export function ArtistCrewManager() {
                   <Input
                     type="tel"
                     value={newMember.phone || ''}
-                    onChange={(e) => setNewMember(prev => ({ ...prev, phone: e.target.value }))}
+                    onChange={(e) => {
+                      setNewMember(prev => ({ ...prev, phone: e.target.value }))
+                      setNewMemberErrors(prev => ({ ...prev, phone: undefined }))
+                    }}
                     placeholder="Phone number"
-                    className="border-purple-200 focus:border-purple-400"
+                    className={cn(
+                      "border-purple-200 focus:border-purple-400",
+                      newMemberErrors.phone && "border-red-400 focus:border-red-500"
+                    )}
                   />
+                  {newMemberErrors.phone && <p className="text-xs text-red-600">{newMemberErrors.phone}</p>}
                   <p className="text-xs text-purple-600">is private. Used to securely match members to Profiles and to invite non-members.</p>
                 </div>
 
@@ -1495,11 +1603,15 @@ export function ArtistCrewManager() {
                         <span className="text-xs text-gray-400">No roles selected</span>
                       )}
                     </div>
-                    <Collapsible>
-                      <CollapsibleTrigger className="w-full">
+                    <Collapsible open={newMemberRolePickerOpen} onOpenChange={setNewMemberRolePickerOpen}>
+                      <CollapsibleTrigger className="w-full" type="button">
                         <div className="flex items-center justify-between p-2 rounded bg-purple-50 hover:bg-purple-100 transition-colors">
                           <span className="text-xs font-medium text-purple-700">+ Add Roles</span>
-                          <ChevronDown className="w-3 h-3 text-purple-600" />
+                          {newMemberRolePickerOpen ? (
+                            <ChevronUp className="w-3 h-3 text-purple-600" />
+                          ) : (
+                            <ChevronDown className="w-3 h-3 text-purple-600" />
+                          )}
                         </div>
                       </CollapsibleTrigger>
                       <CollapsibleContent className="mt-2 max-h-48 overflow-y-auto">
@@ -1511,20 +1623,18 @@ export function ArtistCrewManager() {
                                 {category.items.map((item) => (
                                   <button
                                     key={item}
-                                    onClick={() => {
-                                      const roles = newMember.roles || []
-                                      if (!roles.includes(item)) {
-                                        setNewMember(prev => ({
-                                          ...prev,
-                                          roles: [...(prev.roles || []), item]
-                                        }))
-                                      }
-                                    }}
-                                    disabled={(newMember.roles || []).includes(item)}
+                                    onClick={() => toggleNewMemberRole(item, category)}
+                                    type="button"
+                                    disabled={(() => {
+                                      const allItem = category.items[0]?.startsWith('All ') ? category.items[0] : null
+                                      const allActive = allItem ? (newMember.roles || []).includes(allItem) : false
+                                      const isAllItem = item === allItem
+                                      return !isAllItem && allActive
+                                    })()}
                                     className={cn(
                                       "text-xs px-2 py-0.5 rounded transition-colors",
                                       (newMember.roles || []).includes(item)
-                                        ? "bg-purple-200 text-purple-500 cursor-not-allowed"
+                                        ? "bg-purple-200 text-purple-700 border border-purple-300"
                                         : "bg-white border border-purple-200 text-purple-700 hover:bg-purple-100"
                                     )}
                                   >
@@ -1568,9 +1678,9 @@ export function ArtistCrewManager() {
 
           <div id="artist-crew-manage-team" className="scroll-mt-28">
             {/* Manage Team Section */}
-            {crewMembers.filter(member => !member.isProfileOwner).length > 0 && (
-              <div className="space-y-4">
-                <h4 className="font-semibold text-sm text-purple-900">Manage Team</h4>
+            <div className="space-y-4">
+              <h4 className="font-semibold text-sm text-purple-900">Manage Team</h4>
+              {crewMembers.filter(member => !member.isProfileOwner).length > 0 ? (
                 <div className="space-y-3">
                   {crewMembers.filter(member => !member.isProfileOwner).map((member) => (
                     <div key={member.id} className="p-4 border border-purple-200 rounded-lg bg-white">
@@ -1735,16 +1845,16 @@ export function ArtistCrewManager() {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {crewMembers.filter(member => !member.isProfileOwner).length === 0 && !showAddMember && (
-              <div className="text-center py-8 text-gray-500">
-                <Users2 className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                <p>No team members added yet.</p>
-                <p className="text-sm">Click &quot;Add Member&quot; to invite band members and support staff.</p>
-              </div>
-            )}
+              ) : (
+                !showAddMember && (
+                  <div className="text-center py-8 text-gray-500">
+                    <Users2 className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                    <p>No team members added yet.</p>
+                    <p className="text-sm">Click &quot;Add Member&quot; to invite band members and support staff.</p>
+                  </div>
+                )
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

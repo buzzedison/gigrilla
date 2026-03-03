@@ -6,7 +6,7 @@ import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { LocationAutocompleteInput, type LocationSuggestion } from "../../components/ui/location-autocomplete"
 import { Save, Rocket, Loader2, Users, MapPin, Globe } from "lucide-react"
-import { ARTIST_TYPES } from "../../../data/artist-types"
+import { getArtistSubTypeLabels } from "../../../lib/artist-subtype-utils"
 
 interface ArtistProfileFormProps {
   onProfileSaved?: () => void
@@ -145,24 +145,10 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
         const typeId = profile.artist_type_id ?? null
         setArtistTypeId(typeId)
 
-        // Resolve artist sub-type option labels from stored IDs
+        // Resolve artist sub-type labels from either legacy label arrays or canonical IDs
         if (typeId && profile.artist_sub_types) {
-          const typeConfig = ARTIST_TYPES.find(t => t.id === typeId)
-          if (typeConfig) {
-            // Normalise: API may return array of "groupId:optionId" strings or a Record
-            const rawSubs = profile.artist_sub_types
-            const optionIds: string[] = Array.isArray(rawSubs)
-              ? rawSubs.flatMap(s => {
-                  const parts = String(s).split(':')
-                  return parts.length === 2 ? [parts[1]] : [String(s)]
-                })
-              : Object.values(rawSubs as Record<string, string[]>).flat()
-
-            const labels = optionIds
-              .map(id => typeConfig.groups.flatMap(g => g.options).find(o => o.id === id)?.label)
-              .filter((l): l is string => Boolean(l))
-            setArtistSubTypeLabels(labels)
-          }
+          const labels = getArtistSubTypeLabels(profile.artist_sub_types, typeId)
+          setArtistSubTypeLabels(labels)
         } else {
           setArtistSubTypeLabels([])
         }
@@ -365,6 +351,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
   const baseLocationDisplay = buildBaseLocation()
   const baseLocationBits = splitLocation(baseLocationDisplay)
   const cityState = [baseLocationBits.city, baseLocationBits.state].filter(Boolean).join(', ')
+  const socialInputClassName = "text-slate-700 placeholder:text-slate-400"
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100">
@@ -441,6 +428,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                     step="1"
                     value={formData.performing_members}
                     onChange={(e) => handleInputChange('performing_members', e.target.value)}
+                    onFocus={(e) => e.currentTarget.select()}
                     className="pl-9"
                   />
                 </div>
@@ -496,7 +484,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                 value={formData.website}
                 onChange={(e) => handleInputChange('website', e.target.value)}
                 placeholder="https://yourartistsite.com"
-                className="max-w-xl"
+                className={`max-w-xl ${socialInputClassName}`}
               />
             </div>
 
@@ -510,6 +498,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                     value={formData.social_facebook}
                     onChange={(e) => handleInputChange('social_facebook', e.target.value)}
                     placeholder="facebook.com/artist"
+                    className={socialInputClassName}
                   />
                 </div>
                 <div className="space-y-2">
@@ -518,6 +507,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                     value={formData.social_instagram}
                     onChange={(e) => handleInputChange('social_instagram', e.target.value)}
                     placeholder="instagram.com/artist"
+                    className={socialInputClassName}
                   />
                 </div>
                 <div className="space-y-2">
@@ -526,6 +516,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                     value={formData.social_threads}
                     onChange={(e) => handleInputChange('social_threads', e.target.value)}
                     placeholder="threads.net/@artist"
+                    className={socialInputClassName}
                   />
                 </div>
                 <div className="space-y-2">
@@ -534,6 +525,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                     value={formData.social_x}
                     onChange={(e) => handleInputChange('social_x', e.target.value)}
                     placeholder="x.com/artist"
+                    className={socialInputClassName}
                   />
                 </div>
                 <div className="space-y-2">
@@ -542,6 +534,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                     value={formData.social_tiktok}
                     onChange={(e) => handleInputChange('social_tiktok', e.target.value)}
                     placeholder="tiktok.com/@artist"
+                    className={socialInputClassName}
                   />
                 </div>
                 <div className="space-y-2">
@@ -550,6 +543,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                     value={formData.social_youtube}
                     onChange={(e) => handleInputChange('social_youtube', e.target.value)}
                     placeholder="youtube.com/@artist"
+                    className={socialInputClassName}
                   />
                 </div>
                 <div className="space-y-2">
@@ -558,6 +552,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                     value={formData.social_snapchat}
                     onChange={(e) => handleInputChange('social_snapchat', e.target.value)}
                     placeholder="snapchat.com/add/artist"
+                    className={socialInputClassName}
                   />
                 </div>
                 <div className="space-y-2">
@@ -566,6 +561,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                     value={formData.social_mastodon}
                     onChange={(e) => handleInputChange('social_mastodon', e.target.value)}
                     placeholder="mastodon.social/@artist"
+                    className={socialInputClassName}
                   />
                 </div>
                 <div className="space-y-2">
@@ -574,6 +570,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                     value={formData.social_bluesky}
                     onChange={(e) => handleInputChange('social_bluesky', e.target.value)}
                     placeholder="bsky.app/profile/artist"
+                    className={socialInputClassName}
                   />
                 </div>
               </div>

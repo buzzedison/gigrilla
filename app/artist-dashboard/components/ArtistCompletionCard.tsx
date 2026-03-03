@@ -57,6 +57,7 @@ interface ArtistProfileData {
   maximum_set_length?: number | null
   local_gig_fee?: number | null
   wider_gig_fee?: number | null
+  location_details?: Record<string, unknown> | null
 }
 
 interface PhotoData {
@@ -136,17 +137,35 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
     const hasPhotos = photos.some(p => p.type === 'photo')
     const hasVideos = videos.length > 0
     const hasCrewMembers = crewMembers.length > 0
+    const gigPricingDetails = (() => {
+      if (!profile?.location_details || typeof profile.location_details !== 'object' || Array.isArray(profile.location_details)) {
+        return {}
+      }
+      const raw = (profile.location_details as Record<string, unknown>).gig_pricing
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+      return raw as Record<string, unknown>
+    })()
+    const ownerGigRoyaltyShare = (() => {
+      const value = gigPricingDetails.owner_gig_royalty_share
+      if (typeof value === 'number' && Number.isFinite(value)) return value
+      if (typeof value === 'string') {
+        const parsed = Number.parseFloat(value)
+        if (Number.isFinite(parsed)) return parsed
+      }
+      return 0
+    })()
     const totalRoyaltyShare = crewMembers.reduce((sum, member) => {
       const share = typeof member.metadata?.gigRoyaltyShare === 'number'
         ? member.metadata.gigRoyaltyShare
         : 0
       return sum + share
-    }, 0)
+    }, 0) + ownerGigRoyaltyShare
     const hasAnyRoyaltyShare = crewMembers.some(member => {
       const share = member.metadata?.gigRoyaltyShare
       return typeof share === 'number' && share > 0
-    })
-    const hasCompleteRoyaltySplits = hasCrewMembers && hasAnyRoyaltyShare && Math.abs(totalRoyaltyShare - 100) < 0.01
+    }) || ownerGigRoyaltyShare > 0
+    const hasRoyaltyParticipants = hasCrewMembers || ownerGigRoyaltyShare > 0
+    const hasCompleteRoyaltySplits = hasRoyaltyParticipants && hasAnyRoyaltyShare && Math.abs(totalRoyaltyShare - 100) < 0.01
 
     // Check if payments are configured
     const hasPayments = !!paymentDetails && (
@@ -194,13 +213,20 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
       payments: hasPayments,
       crew: hasCrewMembers,
       royalty_splits: hasCompleteRoyaltySplits,
-      gig_ability: !!(profile?.minimum_set_length && profile?.maximum_set_length),
+      gig_ability: Boolean(
+        profile?.base_location ||
+        (profile?.minimum_set_length && profile?.maximum_set_length)
+      ),
       bio: Boolean(profile?.bio && profile.bio.trim().length > 0),
       record_label: isContractItemComplete(profile?.record_label_status, profile?.record_label_name),
       music_publisher: isContractItemComplete(profile?.music_publisher_status, profile?.music_publisher_name),
       artist_manager: isContractItemComplete(profile?.artist_manager_status, profile?.artist_manager_name),
       booking_agent: isContractItemComplete(profile?.booking_agent_status, profile?.booking_agent_name),
-      gig_fee: !!(profile?.local_gig_fee || profile?.wider_gig_fee),
+      gig_fee: Boolean(
+        profile?.local_gig_fee ||
+        profile?.wider_gig_fee ||
+        (typeof gigPricingDetails.base_fee === 'number' && gigPricingDetails.base_fee > 0)
+      ),
       logo_artwork: hasLogo,
       photos: hasPhotos,
       videos: hasVideos

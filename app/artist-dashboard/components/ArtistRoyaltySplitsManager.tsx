@@ -17,6 +17,7 @@ interface TeamMember {
   roles: string[]
   status: 'joined' | 'invited' | 'invite'
   gigRoyaltyShare?: number
+  isProfileOwner?: boolean
 }
 
 interface InvitationResponse {
@@ -60,9 +61,46 @@ export function ArtistRoyaltySplitsManager() {
   const loadTeamMembers = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/artist-members')
-      if (response.ok) {
-        const result = await response.json()
+      const [membersResponse, profileResponse] = await Promise.all([
+        fetch('/api/artist-members', { cache: 'no-store' }),
+        fetch('/api/artist-profile', { cache: 'no-store' })
+      ])
+
+      let ownerMember: TeamMember | null = null
+      if (profileResponse.ok) {
+        const profileResult = await profileResponse.json()
+        const profile = profileResult?.data
+        const stageName = typeof profile?.stage_name === 'string' && profile.stage_name.trim().length > 0
+          ? profile.stage_name.trim()
+          : 'Profile Owner'
+        const profileId = typeof profile?.user_id === 'string' ? profile.user_id : user?.id
+        const locationDetails = profile?.location_details && typeof profile.location_details === 'object' && !Array.isArray(profile.location_details)
+          ? profile.location_details as Record<string, unknown>
+          : {}
+        const pricing = locationDetails.gig_pricing && typeof locationDetails.gig_pricing === 'object' && !Array.isArray(locationDetails.gig_pricing)
+          ? locationDetails.gig_pricing as Record<string, unknown>
+          : {}
+        const ownerShareRaw = pricing.owner_gig_royalty_share
+        const ownerShare = typeof ownerShareRaw === 'number'
+          ? ownerShareRaw
+          : Number.parseFloat(String(ownerShareRaw ?? '0'))
+
+        ownerMember = {
+          id: `owner:${profileId || user?.id || 'self'}`,
+          name: stageName,
+          nickname: '',
+          firstName: '',
+          lastName: '',
+          email: user?.email || '',
+          roles: ['Artist Profile Owner'],
+          status: 'joined',
+          gigRoyaltyShare: Number.isFinite(ownerShare) ? ownerShare : 0,
+          isProfileOwner: true
+        }
+      }
+
+      if (membersResponse.ok) {
+        const result = await membersResponse.json()
         
         // Convert invitations and active members to team members
         const allMembers: TeamMember[] = []
@@ -101,7 +139,9 @@ export function ArtistRoyaltySplitsManager() {
           })
         }
         
-        setTeamMembers(allMembers)
+        setTeamMembers(ownerMember ? [ownerMember, ...allMembers] : allMembers)
+      } else {
+        setTeamMembers(ownerMember ? [ownerMember] : [])
       }
     } catch (error) {
       console.error('Error loading team members:', error)
@@ -134,7 +174,48 @@ export function ArtistRoyaltySplitsManager() {
 
   const saveRoyaltySplits = async () => {
     try {
+      const total = calculateTotalGigRoyalties()
+      if (Math.abs(total - 100) > 0.01) {
+        alert(`Gig royalty splits must add up to 100%. Current total is ${total.toFixed(2)}%.`)
+        return
+      }
+
       const savePromises = teamMembers.map(async (member) => {
+        if (member.id.startsWith('owner:') || member.isProfileOwner) {
+          const profileResponse = await fetch('/api/artist-profile', { cache: 'no-store' })
+          const profilePayload = await profileResponse.json().catch(() => ({}))
+          const profile = profilePayload?.data
+          const locationDetails = profile?.location_details && typeof profile.location_details === 'object' && !Array.isArray(profile.location_details)
+            ? profile.location_details as Record<string, unknown>
+            : {}
+          const pricing = locationDetails.gig_pricing && typeof locationDetails.gig_pricing === 'object' && !Array.isArray(locationDetails.gig_pricing)
+            ? locationDetails.gig_pricing as Record<string, unknown>
+            : {}
+
+          const ownerUpdate = await fetch('/api/artist-profile', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              location_details: {
+                ...locationDetails,
+                gig_pricing: {
+                  ...pricing,
+                  owner_gig_royalty_share: member.gigRoyaltyShare || 0
+                }
+              }
+            })
+          })
+
+          if (!ownerUpdate.ok) {
+            const ownerError = await ownerUpdate.json().catch(() => ({}))
+            throw new Error(ownerError.error || 'Failed to save profile owner royalty share')
+          }
+
+          return { success: true }
+        }
+
         const response = await fetch('/api/artist-members', {
           method: 'PUT',
           headers: {
@@ -155,6 +236,7 @@ export function ArtistRoyaltySplitsManager() {
       })
 
       await Promise.all(savePromises)
+      window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source: 'royalty' } }))
       alert('Gig royalty splits saved successfully!')
     } catch (error) {
       console.error('Error saving gig royalty splits:', error)

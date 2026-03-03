@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 
 interface FanProfileRequestBody {
   accountType?: string
+  bio?: string
   username?: string
   firstName?: string
   lastName?: string
@@ -19,6 +20,9 @@ interface FanProfileRequestBody {
   preferredGenreIds?: string[]
   preferredGenres?: string[]
   autoTopUp?: boolean
+  isPublic?: boolean
+  locationDetails?: Record<string, unknown>
+  privacySettings?: Record<string, unknown>
   avatarUrl?: string
   photoGallery?: string[]
   videoLinks?: Array<{ title: string; url: string }>
@@ -110,6 +114,7 @@ export async function POST(request: NextRequest) {
 
     const {
       accountType,
+      bio,
       username,
       firstName,
       lastName,
@@ -125,6 +130,9 @@ export async function POST(request: NextRequest) {
       preferredGenreIds = [],
       preferredGenres = [],
       autoTopUp = false,
+      isPublic,
+      locationDetails,
+      privacySettings,
       avatarUrl,
       photoGallery,
       videoLinks,
@@ -160,6 +168,10 @@ export async function POST(request: NextRequest) {
       payload.display_name = trimmedUsername
     }
 
+    if (typeof bio === 'string') {
+      payload.bio = bio
+    }
+
     if (avatarUrl) {
       payload.avatar_url = avatarUrl
     }
@@ -173,11 +185,25 @@ export async function POST(request: NextRequest) {
       payload.contact_details = contactDetails
     }
 
-    if (address || addressVisibility) {
-      const locationDetails = (existingProfile?.location_details as Record<string, unknown> | null) ?? {}
-      if (address) locationDetails.address = address
-      if (addressVisibility) locationDetails.visibility = addressVisibility
-      payload.location_details = locationDetails
+    if (address || addressVisibility || (locationDetails && typeof locationDetails === 'object')) {
+      const existingLocationDetails = (existingProfile?.location_details as Record<string, unknown> | null) ?? {}
+      if (locationDetails && typeof locationDetails === 'object') {
+        Object.assign(existingLocationDetails, locationDetails)
+      }
+      if (address) existingLocationDetails.address = address
+      if (addressVisibility) existingLocationDetails.visibility = addressVisibility
+      payload.location_details = existingLocationDetails
+    }
+
+    if (privacySettings && typeof privacySettings === 'object') {
+      payload.privacy_settings = {
+        ...(existingProfile?.privacy_settings as Record<string, unknown> | null ?? {}),
+        ...privacySettings
+      }
+    }
+
+    if (typeof isPublic === 'boolean') {
+      payload.is_public = isPublic
     }
 
     const musicPreferences = (existingProfile?.music_preferences as Record<string, unknown> | null) ?? {}

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../../lib/auth-context";
-import { getClient } from "../../../lib/supabase/client";
 import { LocationAutocompleteInput, type LocationSuggestion } from "../../components/ui/location-autocomplete";
 // Genres moved to dedicated page: /fan-dashboard/genres
 
@@ -27,9 +26,6 @@ export function FanProfileForm() {
   });
 
   useEffect(() => {
-    console.log('FanProfileForm: useEffect triggered with user:', user);
-    console.log('FanProfileForm: User ID:', user?.id);
-
     const currentUserId = user?.id ?? null;
 
     if (currentUserId) {
@@ -37,23 +33,19 @@ export function FanProfileForm() {
         return;
       }
       lastLoadedUserIdRef.current = currentUserId;
-      console.log('FanProfileForm: User available, loading profile...');
       loadUserProfile();
       return;
     }
 
     lastLoadedUserIdRef.current = null;
-    if (loading) {
-      setLoading(false);
-    }
+    setLoading(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, loading]);
+  }, [user?.id]);
 
   // Add effect to reload data when component becomes visible (user navigates back)
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden && user?.id) {
-        console.log('FanProfileForm: Page became visible, reloading profile...');
         loadUserProfile();
       }
     };
@@ -64,25 +56,12 @@ export function FanProfileForm() {
   }, [user?.id]);
 
   const loadUserProfile = async () => {
-    console.log('=== FanProfileForm: loadUserProfile START ===');
     setErrorMessage("");
-    console.log('FanProfileForm: User exists:', !!user);
-    console.log('FanProfileForm: User ID:', user?.id);
-    console.log('FanProfileForm: User email:', user?.email);
-    console.log('FanProfileForm: User metadata:', JSON.stringify(user?.user_metadata, null, 2));
-    
+
     if (!user || !user.id) {
-      console.log('FanProfileForm: No user or user ID, returning early');
-      console.log('FanProfileForm: User object:', user);
       setLoading(false);
       return;
     }
-
-    console.log('FanProfileForm: User is authenticated, proceeding with database query:', {
-      userId: user.id,
-      userEmail: user.email,
-      userMetadata: user.user_metadata
-    });
 
     setLoading(true);
 
@@ -109,52 +88,16 @@ export function FanProfileForm() {
         isLocationPrivate: user.user_metadata?.location_private !== false // default to true
       };
 
-      console.log('FanProfileForm: Setting fallback data initially:', fallbackData);
       setFormData(fallbackData);
       // Immediately unblock UI after fallback so refresh doesn't show loader
       setLoading(false);
 
       // Try to load enhanced data with retry logic
       try {
-        console.log('FanProfileForm: Attempting to load enhanced data...');
-
-        // Try regular database query with timeout and better error handling
-        console.log('FanProfileForm: Querying database for user_id:', user.id);
-        console.log('FanProfileForm: User auth state:', { userId: user.id, userEmail: user.email });
-
-        console.log('FanProfileForm: Using Supabase client to query database...');
-        console.log('FanProfileForm: Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-        console.log('FanProfileForm: Supabase client details:', {
-          client: 'configured'
-        });
-        console.log('FanProfileForm: Starting database query for user:', user.id);
-        console.log('FanProfileForm: User session details:', {
-          id: user.id,
-          email: user.email,
-          metadata: user.user_metadata,
-          session: !!user // Check if user object exists
-        });
-        const startTime = Date.now();
-
-        // First, let's verify the user is properly authenticated
-        const supabase = getClient();
-        const userCheck = await supabase.auth.getUser();
-        console.log('FanProfileForm: User check result:', {
-          hasUser: !!userCheck.data.user,
-          userId: userCheck.data.user?.id,
-          matches: userCheck.data.user?.id === user.id
-        });
-
-        console.log('FanProfileForm: Using API endpoint for data fetching...');
-
         // Use API endpoint instead of direct database query
-        console.log('FanProfileForm: Fetching data from API endpoint...');
         const apiPromise = fetch('/api/fan-profile')
           .then(response => response.json())
           .then(result => {
-            const endTime = Date.now();
-            console.log('FanProfileForm: API call completed in', endTime - startTime, 'ms:', result);
-
             // Transform API response to match expected format
             if (result.data) {
               return {
@@ -169,9 +112,6 @@ export function FanProfileForm() {
             }
           })
           .catch(error => {
-            const endTime = Date.now();
-            console.log('FanProfileForm: API call failed in', endTime - startTime, 'ms:', error);
-
             return {
               data: null,
               error: {
@@ -189,13 +129,6 @@ export function FanProfileForm() {
           apiPromise,
           timeoutPromise
         ]) as { data: unknown; error: unknown };
-
-        console.log('FanProfileForm: Database query result:', {
-          profileData,
-          profileError,
-          errorType: typeof profileError,
-          errorKeys: profileError ? Object.keys(profileError) : 'no error object'
-        });
 
         if (profileError) {
           const errorObject = (profileError && typeof profileError === 'object')
@@ -219,8 +152,6 @@ export function FanProfileForm() {
         }
 
         if (profileData) {
-          console.log('FanProfileForm: Enhanced data loaded:', profileData);
-          
           const typedProfileData = profileData as unknown as { 
             username?: string; 
             display_name?: string; 
@@ -265,7 +196,6 @@ export function FanProfileForm() {
                   isPrivate: (typedProfileData.privacy_settings?.name_private ?? prev.isPrivate ?? true) as boolean,
                   isLocationPrivate: (typedProfileData.privacy_settings?.location_private ?? prev.isLocationPrivate ?? true) as boolean,
                 };
-                console.log('FanProfileForm: Updating with enhanced data (null-safe):', enhancedData);
                 return {
                   ...prev,
                   ...enhancedData,
@@ -274,7 +204,7 @@ export function FanProfileForm() {
                 };
               });
         } else {
-          console.log('FanProfileForm: No meaningful profile data (record exists but fields are null), using fallback data only');
+          // Keep fallback data only.
         }
       } catch (enhancedError) {
         console.error('FanProfileForm: Enhanced data loading failed:', enhancedError);
@@ -308,54 +238,49 @@ export function FanProfileForm() {
     setErrorMessage("");
 
     try {
-      const supabase = getClient();
-      const { error: saveError } = await supabase
-        .from('fan_profiles')
-        .upsert({
-          user_id: user.id,
-          account_type: 'guest',
+      const response = await fetch('/api/fan-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountType: 'guest',
           bio: formData.bio,
+          isPublic: publish,
           username: formData.username,
-          display_name: formData.username,
-          location_details: {
+          firstName: user.user_metadata?.first_name || '',
+          lastName: user.user_metadata?.last_name || '',
+          email: formData.email || user.email || '',
+          address: [formData.city, formData.county, formData.country].filter(Boolean).join(', '),
+          addressVisibility: formData.isLocationPrivate ? 'private' : 'public',
+          locationDetails: {
             city: formData.city,
             county: formData.county,
             country: formData.country,
-            address: [formData.city, formData.county, formData.country].filter(Boolean).join(', '),
+            address: [formData.city, formData.county, formData.country].filter(Boolean).join(', ')
           },
-          privacy_settings: {
+          privacySettings: {
             name_private: formData.isPrivate,
-            location_private: formData.isLocationPrivate,
+            location_private: formData.isLocationPrivate
           },
-          is_public: publish,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' });
+          phone: user.user_metadata?.phone || '',
+          phoneVisibility: 'private',
+          onboardingCompleted: publish ? true : undefined
+        })
+      })
 
-      if (saveError) {
-        const parsedError = saveError as {
-          code?: string;
-          message?: string;
-          details?: string;
-          hint?: string;
-          name?: string;
-          status?: number;
-          statusText?: string;
-        };
+      const result = await response.json()
+
+      if (!response.ok || result?.error) {
         const normalized = {
-          code: parsedError?.code || 'UNKNOWN',
-          message: parsedError?.message || 'No error message returned',
-          details: parsedError?.details || null,
-          hint: parsedError?.hint || null,
-          name: parsedError?.name || null,
-          status: parsedError?.status || null,
-          statusText: parsedError?.statusText || null,
-        };
-        console.error('FanProfileForm: Save failed:', normalized);
-        setErrorMessage(`Could not save your profile. ${normalized.message}`);
-      } else {
-        setMessage(publish ? "Profile published successfully!" : "Profile saved successfully!");
-        setTimeout(() => setMessage(""), 3000);
+          code: result?.code || 'UNKNOWN',
+          message: result?.details || result?.error || 'No error message returned'
+        }
+        console.error('FanProfileForm: Save failed:', normalized)
+        setErrorMessage(`Could not save your profile. ${normalized.message}`)
+        return
       }
+
+      setMessage(publish ? "Profile published successfully!" : "Profile saved successfully!");
+      setTimeout(() => setMessage(""), 3000);
     } catch (error) {
       console.error('FanProfileForm: Unexpected error saving profile:', error);
       setErrorMessage('Unexpected error saving your profile. Please try again.');

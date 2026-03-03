@@ -6,6 +6,7 @@ import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select"
 import { Save, Loader2, Info } from "lucide-react"
+import { COUNTRY_DIAL_CODE_OPTIONS } from "../../../lib/country-dial-codes"
 
 const RECORD_LABEL_STATUS_OPTIONS = [
   { value: "signed", label: "Signed to Label" },
@@ -126,9 +127,10 @@ const buildContactName = (firstName: string, lastName: string) => {
 }
 
 const parsePhone = (value?: string | null) => {
+  const defaultCode = COUNTRY_DIAL_CODE_OPTIONS[0]?.code ?? '+1'
   const trimmed = value?.trim() ?? ''
   if (!trimmed) {
-    return { code: '+', number: '' }
+    return { code: defaultCode, number: '' }
   }
 
   const match = trimmed.match(/^(\+\d{1,4})[\s-]*(.*)$/)
@@ -139,14 +141,21 @@ const parsePhone = (value?: string | null) => {
     }
   }
 
-  return { code: '+', number: trimmed }
+  return { code: defaultCode, number: trimmed }
 }
 
 const buildPhone = (code: string, number: string) => {
-  const normalizedCode = code.trim() || '+'
+  const normalizedCode = code.trim() || (COUNTRY_DIAL_CODE_OPTIONS[0]?.code ?? '+1')
   const normalizedNumber = number.trim()
   if (!normalizedNumber) return ''
   return `${normalizedCode} ${normalizedNumber}`.trim()
+}
+
+const getDialCodeLabel = (option: { code: string; countries: string[] }) => {
+  const [primaryCountry, ...rest] = option.countries
+  if (!primaryCountry) return option.code
+  if (rest.length === 0) return `${option.code} - ${primaryCountry}`
+  return `${option.code} - ${primaryCountry} (+${rest.length})`
 }
 
 export function ArtistContractStatusManager() {
@@ -160,28 +169,28 @@ export function ArtistContractStatusManager() {
     record_label_contact_first_name: "",
     record_label_contact_last_name: "",
     record_label_email: "",
-    record_label_phone_code: "+",
+    record_label_phone_code: COUNTRY_DIAL_CODE_OPTIONS[0]?.code ?? "+1",
     record_label_phone_number: "",
     music_publisher_status: "",
     music_publisher_name: "",
     music_publisher_contact_first_name: "",
     music_publisher_contact_last_name: "",
     music_publisher_email: "",
-    music_publisher_phone_code: "+",
+    music_publisher_phone_code: COUNTRY_DIAL_CODE_OPTIONS[0]?.code ?? "+1",
     music_publisher_phone_number: "",
     artist_manager_status: "",
     artist_manager_name: "",
     artist_manager_contact_first_name: "",
     artist_manager_contact_last_name: "",
     artist_manager_email: "",
-    artist_manager_phone_code: "+",
+    artist_manager_phone_code: COUNTRY_DIAL_CODE_OPTIONS[0]?.code ?? "+1",
     artist_manager_phone_number: "",
     booking_agent_status: "",
     booking_agent_name: "",
     booking_agent_contact_first_name: "",
     booking_agent_contact_last_name: "",
     booking_agent_email: "",
-    booking_agent_phone_code: "+",
+    booking_agent_phone_code: COUNTRY_DIAL_CODE_OPTIONS[0]?.code ?? "+1",
     booking_agent_phone_number: "",
   })
 
@@ -443,12 +452,21 @@ export function ArtistContractStatusManager() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Record Label Contact Phone</label>
                     <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-2">
-                      <Input
-                        type="tel"
+                      <Select
                         value={formData.record_label_phone_code}
-                        onChange={(e) => handleInputChange('record_label_phone_code', e.target.value)}
-                        placeholder="+44"
-                      />
+                        onValueChange={(value) => handleInputChange('record_label_phone_code', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Code" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-64">
+                          {COUNTRY_DIAL_CODE_OPTIONS.map(option => (
+                            <SelectItem key={`record-label-phone-${option.code}`} value={option.code}>
+                              {getDialCodeLabel(option)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <Input
                         type="tel"
                         value={formData.record_label_phone_number}
@@ -532,12 +550,21 @@ export function ArtistContractStatusManager() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Music Publisher Contact Phone</label>
                     <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-2">
-                      <Input
-                        type="tel"
+                      <Select
                         value={formData.music_publisher_phone_code}
-                        onChange={(e) => handleInputChange('music_publisher_phone_code', e.target.value)}
-                        placeholder="+44"
-                      />
+                        onValueChange={(value) => handleInputChange('music_publisher_phone_code', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Code" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-64">
+                          {COUNTRY_DIAL_CODE_OPTIONS.map(option => (
+                            <SelectItem key={`publisher-phone-${option.code}`} value={option.code}>
+                              {getDialCodeLabel(option)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <Input
                         type="tel"
                         value={formData.music_publisher_phone_number}
@@ -621,12 +648,21 @@ export function ArtistContractStatusManager() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Artist Manager Contact Phone</label>
                     <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-2">
-                      <Input
-                        type="tel"
+                      <Select
                         value={formData.artist_manager_phone_code}
-                        onChange={(e) => handleInputChange('artist_manager_phone_code', e.target.value)}
-                        placeholder="+44"
-                      />
+                        onValueChange={(value) => handleInputChange('artist_manager_phone_code', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Code" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-64">
+                          {COUNTRY_DIAL_CODE_OPTIONS.map(option => (
+                            <SelectItem key={`manager-phone-${option.code}`} value={option.code}>
+                              {getDialCodeLabel(option)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <Input
                         type="tel"
                         value={formData.artist_manager_phone_number}
@@ -710,12 +746,21 @@ export function ArtistContractStatusManager() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Booking Agent Contact Phone</label>
                     <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-2">
-                      <Input
-                        type="tel"
+                      <Select
                         value={formData.booking_agent_phone_code}
-                        onChange={(e) => handleInputChange('booking_agent_phone_code', e.target.value)}
-                        placeholder="+44"
-                      />
+                        onValueChange={(value) => handleInputChange('booking_agent_phone_code', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Code" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-64">
+                          {COUNTRY_DIAL_CODE_OPTIONS.map(option => (
+                            <SelectItem key={`booking-phone-${option.code}`} value={option.code}>
+                              {getDialCodeLabel(option)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <Input
                         type="tel"
                         value={formData.booking_agent_phone_number}

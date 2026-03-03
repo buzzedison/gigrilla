@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import {
   User,
@@ -81,9 +81,8 @@ function isSectionEnabled(section: ArtistDashboardSection, capabilities: ArtistT
   if (section === 'type') return true
 
   if (!capabilities) {
-    // Only 'type' section is enabled until artist type is saved
-    // All other sections are disabled
-    return false
+    // Keep core navigation accessible before capabilities load.
+    return section === 'profile' || section === 'messages'
   }
 
   switch (section) {
@@ -202,16 +201,34 @@ export function ArtistSidebar({
   hideTypeSection,
   className
 }: ArtistSidebarProps) {
+  const SIDEBAR_STATE_KEY = 'artist-dashboard-sidebar-expanded-v2'
   const router = useRouter();
   const pathname = usePathname();
   const { signOut } = useAuth();
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+  const defaultExpandedSections = useMemo<Record<string, boolean>>(() => ({
     profile: false,
     musicManager: false,
     gigManager: false,
     artworkMedia: false,
     administration: false
-  });
+  }), [])
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
+    if (typeof window === 'undefined') {
+      return defaultExpandedSections
+    }
+    try {
+      const raw = window.localStorage.getItem(SIDEBAR_STATE_KEY)
+      if (!raw) return defaultExpandedSections
+      const parsed = JSON.parse(raw)
+      if (!parsed || typeof parsed !== 'object') return defaultExpandedSections
+      return {
+        ...defaultExpandedSections,
+        ...(parsed as Record<string, boolean>)
+      }
+    } catch {
+      return defaultExpandedSections
+    }
+  })
 
   const handleSignOut = async () => {
     const nav = () => router.replace('/login');
@@ -230,6 +247,45 @@ export function ArtistSidebar({
       [section]: !prev[section]
     }));
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(SIDEBAR_STATE_KEY, JSON.stringify(expandedSections))
+    } catch {
+      // Ignore storage errors
+    }
+  }, [expandedSections])
+
+  useEffect(() => {
+    const groupBySection: Partial<Record<ArtistDashboardSection, keyof typeof defaultExpandedSections>> = {
+      profile: 'profile',
+      payments: 'profile',
+      crew: 'profile',
+      auditions: 'profile',
+      contract: 'profile',
+      royalty: 'profile',
+      bio: 'profile',
+      genres: 'profile',
+      type: 'profile',
+      'music-upload': 'musicManager',
+      'music-manage': 'musicManager',
+      gigability: 'gigManager',
+      'gig-calendar': 'gigManager',
+      'gig-create': 'gigManager',
+      'gig-upcoming': 'gigManager',
+      'gig-past': 'gigManager',
+      'gig-invites': 'gigManager',
+      'gig-requests': 'gigManager',
+      logo: 'artworkMedia',
+      photos: 'artworkMedia',
+      videos: 'artworkMedia',
+    }
+
+    const targetGroup = groupBySection[activeSection]
+    if (!targetGroup) return
+    setExpandedSections((prev) => prev[targetGroup] ? prev : { ...prev, [targetGroup]: true })
+  }, [activeSection, defaultExpandedSections])
 
   const handleSectionChange = (section: string) => {
     if (!isSectionEnabled(section as ArtistDashboardSection, capabilities)) return;

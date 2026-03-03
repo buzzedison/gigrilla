@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { MapPin, Maximize2, Move, Globe, X } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { DrawingControls } from './DrawingControls'
+import { getCountryOptions } from '../../../lib/country-list'
 
 // Dynamically import map components to avoid SSR issues
 const MapContainer = dynamic(
@@ -43,28 +44,7 @@ interface GigAbilityMapProps {
   mapId?: string // Unique ID for the map container
 }
 
-const COUNTRIES = [
-  { code: 'GB', name: 'United Kingdom' },
-  { code: 'US', name: 'United States' },
-  { code: 'CA', name: 'Canada' },
-  { code: 'AU', name: 'Australia' },
-  { code: 'DE', name: 'Germany' },
-  { code: 'FR', name: 'France' },
-  { code: 'ES', name: 'Spain' },
-  { code: 'IT', name: 'Italy' },
-  { code: 'NL', name: 'Netherlands' },
-  { code: 'BE', name: 'Belgium' },
-  { code: 'CH', name: 'Switzerland' },
-  { code: 'AT', name: 'Austria' },
-  { code: 'IE', name: 'Ireland' },
-  { code: 'NO', name: 'Norway' },
-  { code: 'SE', name: 'Sweden' },
-  { code: 'DK', name: 'Denmark' },
-  { code: 'FI', name: 'Finland' },
-  { code: 'PL', name: 'Poland' },
-  { code: 'CZ', name: 'Czech Republic' },
-  { code: 'HU', name: 'Hungary' }
-]
+const COUNTRIES = getCountryOptions()
 
 export function GigAbilityMap({ title, description, value, onChange, baseLocation, mapId = 'gig-map' }: GigAbilityMapProps) {
   const [mode, setMode] = useState<'radius' | 'polygon' | 'country'>('radius')

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { toStoredArtistSubTypes } from '../../../lib/artist-subtype-utils'
 
 const GEOAPIFY_API_KEY = process.env.GEOAPIFY_API_KEY
 
@@ -20,6 +21,15 @@ const isMissingSocialColumnError = (error: DbErrorLike | null | undefined) => {
 
   const details = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase()
   return details.includes('mastodon_url') || details.includes('bluesky_url')
+}
+
+const parseArtistTypeId = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = parseInt(value, 10)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
 }
 
 interface GenreTaxonomyLookup {
@@ -291,6 +301,32 @@ export async function GET() {
       : []
 
     const profileId = typeof responseProfileData.id === 'string' ? responseProfileData.id : null
+    const responseArtistTypeId = parseArtistTypeId(responseProfileData.artist_type_id)
+    const normalizedSubTypes = toStoredArtistSubTypes(responseProfileData.artist_sub_types, responseArtistTypeId)
+    const currentStoredSubTypes = Array.isArray(responseProfileData.artist_sub_types)
+      ? (responseProfileData.artist_sub_types as unknown[]).filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      : []
+
+    if (normalizedSubTypes.length > 0) {
+      responseProfileData = {
+        ...responseProfileData,
+        artist_sub_types: normalizedSubTypes
+      }
+
+      const subTypesChanged =
+        normalizedSubTypes.length !== currentStoredSubTypes.length ||
+        normalizedSubTypes.some((value, index) => value !== currentStoredSubTypes[index])
+
+      if (profileId && subTypesChanged) {
+        await supabase
+          .from('user_profiles')
+          .update({
+            artist_sub_types: normalizedSubTypes,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', profileId)
+      }
+    }
 
     try {
       const requiresNormalization = artistGenreIds.some((value) => !value.includes(':'))
@@ -755,12 +791,15 @@ export async function POST(request: NextRequest) {
         : artist_primary_roles
     }
 
+    const resolvedArtistTypeId = parseArtistTypeId(artist_type_id)
+
     if (artist_type_id !== undefined) {
-      profileData.artist_type_id = artist_type_id || null
+      profileData.artist_type_id = resolvedArtistTypeId
     }
 
     if (artist_sub_types !== undefined) {
-      profileData.artist_sub_types = artist_sub_types || null
+      const normalizedArtistSubTypes = toStoredArtistSubTypes(artist_sub_types, resolvedArtistTypeId)
+      profileData.artist_sub_types = normalizedArtistSubTypes.length > 0 ? normalizedArtistSubTypes : null
     }
 
     if (preferred_genre_ids !== undefined) {
@@ -773,13 +812,6 @@ export async function POST(request: NextRequest) {
 
     if (is_published !== undefined) {
       profileData.is_published = !!is_published
-    }
-
-    if (artist_sub_types !== undefined && artist_sub_types && typeof artist_sub_types === 'object' && !Array.isArray(artist_sub_types)) {
-      profileData.artist_sub_types = Object.entries(artist_sub_types).flatMap(([groupId, values]) => {
-        if (!Array.isArray(values)) return []
-        return values.map((val) => `${groupId}:${val}`)
-      })
     }
 
     if (onboarding_completed === true) {
