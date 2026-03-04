@@ -201,6 +201,10 @@ export function ArtistCrewManager() {
     message: string
     visible: boolean
   } | null>(null)
+  const notifyProfileUpdated = useCallback((source: string) => {
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source } }))
+  }, [])
 
   // ISNI validation state
   const [isniValidation, setIsniValidation] = useState<{
@@ -570,6 +574,7 @@ export function ArtistCrewManager() {
       }
 
       showNotification('success', 'Your own roles and profile info were saved successfully')
+      notifyProfileUpdated('crew-owner')
     } catch (error) {
       console.error('Error saving profile owner info:', error)
       showNotification('error', 'Unable to save your roles and profile info right now.')
@@ -684,6 +689,7 @@ export function ArtistCrewManager() {
       ))
       closeEditingMember()
       showNotification('success', 'Member updated successfully')
+      notifyProfileUpdated('crew-member-update')
     } catch {
       showNotification('error', 'Failed to update member. Please try again.')
     } finally {
@@ -788,6 +794,7 @@ export function ArtistCrewManager() {
       } else {
         showNotification('success', `Invitation sent successfully to ${email}!`)
       }
+      notifyProfileUpdated('crew-member-add')
       console.log('Member invitation sent:', result.data)
 
     } catch (error) {
@@ -816,6 +823,7 @@ export function ArtistCrewManager() {
 
       setCrewMembers(prev => prev.filter(member => member.id !== id))
       showNotification('success', 'Team member removed successfully')
+      notifyProfileUpdated('crew-member-remove')
       console.log('Member removed successfully:', result)
     } catch (error) {
       console.error('Error removing member:', error)
@@ -848,6 +856,7 @@ export function ArtistCrewManager() {
       }
 
       showNotification('success', `Admin rights updated to ${isAdmin ? 'Yes' : 'No'}`)
+      notifyProfileUpdated('crew-member-admin')
     } catch (error) {
       console.error('Error updating member admin rights:', error)
       setCrewMembers(previousMembers)

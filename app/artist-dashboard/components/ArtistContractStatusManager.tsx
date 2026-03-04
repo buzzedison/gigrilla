@@ -163,6 +163,11 @@ export function ArtistContractStatusManager() {
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null)
+
+  const notifyProfileUpdated = () => {
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source: 'contract-status' } }))
+  }
   const [formData, setFormData] = useState({
     record_label_status: "",
     record_label_name: "",
@@ -342,6 +347,7 @@ export function ArtistContractStatusManager() {
 
       console.log('Contract status saved successfully')
       setFeedback({ type: 'success', message: 'Contract status saved successfully.' })
+      notifyProfileUpdated()
 
     } catch (error) {
       console.error('Error saving contract status:', error)

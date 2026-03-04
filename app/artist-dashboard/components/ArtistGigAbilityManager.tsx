@@ -772,6 +772,11 @@ export function ArtistGigAbilityManager() {
                     <span className="text-gray-600">Per-Gig Fixed Logistics Fee - covers travel, freight, accommodation, meals.</span>
                   </div>
                 </div>
+                <div className="flex items-center gap-3 px-1">
+                  <div className="h-px flex-1 bg-gray-200" />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">or</span>
+                  <div className="h-px flex-1 bg-gray-200" />
+                </div>
                 <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-3">
                   <label className="flex items-center gap-2 text-sm text-gray-700">
                     <input

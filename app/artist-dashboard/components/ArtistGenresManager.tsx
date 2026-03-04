@@ -125,6 +125,11 @@ export function ArtistGenresManager() {
     setSelectedGenres(parsed)
   }, [storedGenreEntries, families])
 
+  const notifyProfileUpdated = () => {
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source: 'genres' } }))
+  }
+
   const handleSave = async (paths: ArtistGenrePath[]) => {
     setSaving(true)
     try {
@@ -137,9 +142,11 @@ export function ArtistGenresManager() {
         body: JSON.stringify({ preferred_genre_ids: payload })
       })
       const result = await response.json()
-      if (result.error) {
+      if (!response.ok || result.error) {
         console.error('Failed to save artist genres', result.error)
+        return
       }
+      notifyProfileUpdated()
     } catch (error) {
       console.error('Error saving artist genres:', error)
     } finally {

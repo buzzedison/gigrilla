@@ -39,14 +39,32 @@ interface Notification {
   visible: boolean
 }
 
+const DEFAULT_PAYMENT_DETAILS: PaymentDetails = {
+  use_fan_banking: false,
+  payment_out_method: 'direct_debit',
+  payment_out_bank_name: '',
+  payment_out_account_holder: '',
+  payment_out_sort_code: '',
+  payment_out_account_number: '',
+  payment_out_card_name: '',
+  payment_out_card_number: '',
+  payment_out_card_expiry: '',
+  payment_out_card_cvv: '',
+  payment_in_same_as_out: true,
+  payment_in_method: 'direct_debit',
+  payment_in_bank_name: '',
+  payment_in_account_holder: '',
+  payment_in_sort_code: '',
+  payment_in_account_number: '',
+  payment_in_card_name: '',
+  payment_in_card_number: '',
+  payment_in_card_expiry: '',
+  payment_in_card_cvv: ''
+}
+
 export function ArtistPaymentsManager() {
   const { user } = useAuth()
-  const [paymentDetails, setPaymentDetails] = useState<PaymentDetails>({
-    use_fan_banking: false,
-    payment_out_method: 'direct_debit',
-    payment_in_same_as_out: true,
-    payment_in_method: 'direct_debit'
-  })
+  const [paymentDetails, setPaymentDetails] = useState<PaymentDetails>(DEFAULT_PAYMENT_DETAILS)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [notification, setNotification] = useState<Notification | null>(null)
@@ -62,28 +80,32 @@ export function ArtistPaymentsManager() {
       const result = await response.json()
 
       if (result.data) {
+        const data = result.data as Record<string, unknown>
         setPaymentDetails({
-          use_fan_banking: result.data.use_fan_banking ?? false,
-          payment_out_method: result.data.payment_out_method ?? 'direct_debit',
-          payment_out_bank_name: result.data.payment_out_bank_name ?? '',
-          payment_out_account_holder: result.data.payment_out_account_holder ?? '',
-          payment_out_sort_code: result.data.payment_out_sort_code ?? '',
-          payment_out_account_number: result.data.payment_out_account_number ?? '',
-          payment_out_card_name: result.data.payment_out_card_name ?? '',
-          payment_out_card_number: result.data.payment_out_card_number ?? '',
-          payment_out_card_expiry: result.data.payment_out_card_expiry ?? '',
-          payment_out_card_cvv: result.data.payment_out_card_cvv ?? '',
-          payment_in_same_as_out: result.data.payment_in_same_as_out ?? true,
-          payment_in_method: result.data.payment_in_method ?? 'direct_debit',
-          payment_in_bank_name: result.data.payment_in_bank_name ?? '',
-          payment_in_account_holder: result.data.payment_in_account_holder ?? '',
-          payment_in_sort_code: result.data.payment_in_sort_code ?? '',
-          payment_in_account_number: result.data.payment_in_account_number ?? '',
-          payment_in_card_name: result.data.payment_in_card_name ?? '',
-          payment_in_card_number: result.data.payment_in_card_number ?? '',
-          payment_in_card_expiry: result.data.payment_in_card_expiry ?? '',
-          payment_in_card_cvv: result.data.payment_in_card_cvv ?? ''
+          ...DEFAULT_PAYMENT_DETAILS,
+          use_fan_banking: (data.use_fan_banking as boolean | null) ?? DEFAULT_PAYMENT_DETAILS.use_fan_banking,
+          payment_out_method: (data.payment_out_method as PaymentDetails['payment_out_method'] | null) ?? DEFAULT_PAYMENT_DETAILS.payment_out_method,
+          payment_out_bank_name: (data.payment_out_bank_name as string | null) ?? '',
+          payment_out_account_holder: (data.payment_out_account_holder as string | null) ?? '',
+          payment_out_sort_code: (data.payment_out_sort_code as string | null) ?? '',
+          payment_out_account_number: (data.payment_out_account_number as string | null) ?? '',
+          payment_out_card_name: (data.payment_out_card_name as string | null) ?? '',
+          payment_out_card_number: (data.payment_out_card_number as string | null) ?? '',
+          payment_out_card_expiry: (data.payment_out_card_expiry as string | null) ?? '',
+          payment_out_card_cvv: (data.payment_out_card_cvv as string | null) ?? '',
+          payment_in_same_as_out: (data.payment_in_same_as_out as boolean | null) ?? DEFAULT_PAYMENT_DETAILS.payment_in_same_as_out,
+          payment_in_method: (data.payment_in_method as PaymentDetails['payment_in_method'] | null) ?? DEFAULT_PAYMENT_DETAILS.payment_in_method,
+          payment_in_bank_name: (data.payment_in_bank_name as string | null) ?? '',
+          payment_in_account_holder: (data.payment_in_account_holder as string | null) ?? '',
+          payment_in_sort_code: (data.payment_in_sort_code as string | null) ?? '',
+          payment_in_account_number: (data.payment_in_account_number as string | null) ?? '',
+          payment_in_card_name: (data.payment_in_card_name as string | null) ?? '',
+          payment_in_card_number: (data.payment_in_card_number as string | null) ?? '',
+          payment_in_card_expiry: (data.payment_in_card_expiry as string | null) ?? '',
+          payment_in_card_cvv: (data.payment_in_card_cvv as string | null) ?? ''
         })
+      } else {
+        setPaymentDetails(DEFAULT_PAYMENT_DETAILS)
       }
     } catch (error) {
       console.error('Error loading payment details:', error)
@@ -102,14 +124,19 @@ export function ArtistPaymentsManager() {
         body: JSON.stringify(paymentDetails)
       })
 
+      const result = await response.json().catch(() => null)
       if (!response.ok) {
-        throw new Error('Failed to save payment details')
+        const details = result?.details || result?.error || 'Failed to save payment details'
+        throw new Error(details)
       }
 
       showNotification('success', 'Payment details saved successfully')
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source: 'payments' } }))
+      }
     } catch (error) {
       console.error('Error saving payment details:', error)
-      showNotification('error', 'Failed to save payment details')
+      showNotification('error', error instanceof Error ? error.message : 'Failed to save payment details')
     } finally {
       setSaving(false)
     }
@@ -202,7 +229,7 @@ export function ArtistPaymentsManager() {
                 <h3 className="text-lg font-semibold">Banking Details for Payments Out</h3>
 
                 <RadioGroup
-                  value={paymentDetails.payment_out_method}
+                  value={paymentDetails.payment_out_method || 'direct_debit'}
                   onValueChange={(value: 'direct_debit' | 'card') => updatePaymentDetails('payment_out_method', value)}
                 >
                   <div className="flex items-center space-x-2">
@@ -333,7 +360,7 @@ export function ArtistPaymentsManager() {
                 {!paymentDetails.payment_in_same_as_out && (
                   <>
                     <RadioGroup
-                      value={paymentDetails.payment_in_method}
+                      value={paymentDetails.payment_in_method || 'direct_debit'}
                       onValueChange={(value: 'direct_debit' | 'card') => updatePaymentDetails('payment_in_method', value)}
                       className="pt-2"
                     >

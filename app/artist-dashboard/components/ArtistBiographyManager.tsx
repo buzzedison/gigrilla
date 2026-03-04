@@ -54,6 +54,11 @@ export function ArtistBiographyManager() {
   const isOverLimit = bioDraft.length > BIO_MAX_LENGTH
   const remaining = BIO_MAX_LENGTH - bioDraft.length
 
+  const notifyProfileUpdated = () => {
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source: 'biography' } }))
+  }
+
   const handleSaveBio = async () => {
     if (isOverLimit) {
       setFeedback({ type: 'error', message: `Artist bio must be ${BIO_MAX_LENGTH} characters or fewer.` })
@@ -82,6 +87,7 @@ export function ArtistBiographyManager() {
       setBioDraft(nextBio)
       setIsEditing(false)
       setFeedback({ type: 'success', message: nextBio ? 'Artist bio saved.' : 'Artist bio cleared.' })
+      notifyProfileUpdated()
     } catch (error) {
       console.error('Error saving artist bio:', error)
       setFeedback({ type: 'error', message: 'Unable to save artist bio right now.' })
@@ -115,6 +121,7 @@ export function ArtistBiographyManager() {
       setBioDraft("")
       setIsEditing(true)
       setFeedback({ type: 'success', message: 'Artist bio deleted.' })
+      notifyProfileUpdated()
     } catch (error) {
       console.error('Error deleting artist bio:', error)
       setFeedback({ type: 'error', message: 'Unable to delete artist bio right now.' })

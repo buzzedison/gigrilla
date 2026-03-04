@@ -303,6 +303,11 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
     ...(isPublished ? { is_published: true } : {})
   })
 
+  const notifyProfileUpdated = () => {
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source: 'basic-profile' } }))
+  }
+
   const persistProfile = async (isPublished: boolean) => {
     setLoading(true)
 
@@ -329,6 +334,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
         base_location: buildBaseLocation()
       }))
       setFeedback({ type: 'success', message: isPublished ? 'Artist profile published.' : 'Basic artist details saved.' })
+      notifyProfileUpdated()
       onProfileSaved?.()
     } catch (error) {
       console.error('Error saving artist profile:', error)
