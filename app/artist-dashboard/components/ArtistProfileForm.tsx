@@ -7,6 +7,7 @@ import { Input } from "../../components/ui/input"
 import { LocationAutocompleteInput, type LocationSuggestion } from "../../components/ui/location-autocomplete"
 import { Save, Rocket, Loader2, Users, MapPin, Globe } from "lucide-react"
 import { getArtistSubTypeLabels } from "../../../lib/artist-subtype-utils"
+import { getArtistTypeConfig } from "../../../data/artist-types"
 
 interface ArtistProfileFormProps {
   onProfileSaved?: () => void
@@ -77,9 +78,33 @@ const splitLocation = (value: string) => {
     .map(part => part.trim())
     .filter(Boolean)
 
-  const city = parts[0] || ""
-  const country = parts.length > 0 ? parts[parts.length - 1] : ""
-  const state = parts.length > 2 ? parts[1] : ""
+  if (parts.length === 0) {
+    return { city: "", state: "", country: "" }
+  }
+
+  const working = [...parts]
+  let country = ""
+  if (working.length >= 2) {
+    const last = working[working.length - 1].toLowerCase()
+    const previous = working[working.length - 2].toLowerCase()
+    if (last === 'uk' && ['england', 'scotland', 'wales', 'northern ireland'].includes(previous)) {
+      country = `${working[working.length - 2]}, ${working[working.length - 1]}`
+      working.splice(-2, 2)
+    }
+  }
+
+  if (!country) {
+    country = working.pop() || ""
+  }
+
+  let state = working.length > 1 ? working[working.length - 1] : ""
+  let city = working[0] || ""
+
+  // If the first token looks like street-level address detail, prefer the next locality token.
+  if (city && /\d/.test(city) && working.length > 1) {
+    city = working[1]
+    state = working.length > 2 ? working[working.length - 1] : state
+  }
 
   return { city, state, country }
 }
@@ -96,6 +121,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
     lat: null,
     lon: null
   })
+  const [showTypeDescription, setShowTypeDescription] = useState(true)
   const [formData, setFormData] = useState<FormData>({
     stage_name: "",
     established_month: "",
@@ -348,10 +374,30 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
     8: "Composer for Hire"
   }
 
+  const typeNarratives: Partial<Record<number, string[]>> = {
+    1: [
+      "I/we record original music (and licensed covers).",
+      "I/we perform my/our original music at live Gigs.",
+      "Venues and Fans can hire me/us for live Gigs through Gigrilla.",
+      "Fans can buy tickets to my/our gigs on Gigrilla.",
+      "You can buy my/our merchandise on Gigrilla."
+    ]
+  }
+
   const baseLocationDisplay = buildBaseLocation()
-  const baseLocationBits = splitLocation(baseLocationDisplay)
+  const fallbackLocationBits = splitLocation(baseLocationDisplay)
+  const baseLocationBits = {
+    city: formData.hometown_city.trim() || fallbackLocationBits.city,
+    state: formData.hometown_state.trim() || fallbackLocationBits.state,
+    country: formData.hometown_country.trim() || fallbackLocationBits.country
+  }
   const cityState = [baseLocationBits.city, baseLocationBits.state].filter(Boolean).join(', ')
   const socialInputClassName = "text-slate-700 placeholder:text-slate-400"
+  const selectedTypeNarrative = artistTypeId
+    ? (typeNarratives[artistTypeId] || [getArtistTypeConfig(artistTypeId)?.description || ""])
+        .map(line => line.trim())
+        .filter(Boolean)
+    : []
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100">
@@ -373,9 +419,24 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                 ))}
               </div>
             )}
-            <div className="text-xs text-purple-700 mt-1">
-              This determines what features and sections are available to you.
-            </div>
+            {selectedTypeNarrative.length > 0 && (
+              <div className="mt-2 rounded-md border border-purple-200 bg-white/70 px-3 py-2">
+                {showTypeDescription && (
+                  <ul className="list-disc space-y-1 px-4 pb-1 text-xs text-purple-800">
+                    {selectedTypeNarrative.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowTypeDescription(prev => !prev)}
+                  className="text-xs font-medium text-purple-700 underline underline-offset-2 hover:text-purple-900"
+                >
+                  {showTypeDescription ? 'Collapse description' : 'Expand description'}
+                </button>
+              </div>
+            )}
           </div>
         )}
 

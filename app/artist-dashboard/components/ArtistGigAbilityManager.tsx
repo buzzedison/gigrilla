@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
@@ -9,6 +9,7 @@ import { useAuth } from '../../../lib/auth-context'
 import { MapPin, Clock, Edit3, CheckCircle, X } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { GigAbilityMap } from './GigAbilityMap'
+import { getCurrencyOptions, getCurrencySymbol } from '../../../lib/currency-options'
 
 interface ArtistProfile {
   id: string
@@ -84,18 +85,6 @@ const GIG_TIME_OPTIONS = [
   { label: '60m', value: 60 }
 ]
 
-const CURRENCY_OPTIONS = [
-  { code: 'GBP', symbol: '£', label: 'GBP (£)' },
-  { code: 'USD', symbol: '$', label: 'USD ($)' },
-  { code: 'EUR', symbol: '€', label: 'EUR (€)' },
-  { code: 'CAD', symbol: 'C$', label: 'CAD (C$)' },
-  { code: 'AUD', symbol: 'A$', label: 'AUD (A$)' },
-  { code: 'GHS', symbol: 'GH₵', label: 'GHS (GH₵)' },
-  { code: 'NGN', symbol: '₦', label: 'NGN (₦)' },
-  { code: 'ZAR', symbol: 'R', label: 'ZAR (R)' },
-  { code: 'JPY', symbol: '¥', label: 'JPY (¥)' }
-]
-
 const COUNTRY_CURRENCY_FALLBACKS: Record<string, string> = {
   'united kingdom': 'GBP',
   'uk': 'GBP',
@@ -112,10 +101,6 @@ const COUNTRY_CURRENCY_FALLBACKS: Record<string, string> = {
   'nigeria': 'NGN',
   'south africa': 'ZAR',
   'japan': 'JPY'
-}
-
-const getCurrencySymbol = (currencyCode: string) => {
-  return CURRENCY_OPTIONS.find((currency) => currency.code === currencyCode)?.symbol || currencyCode
 }
 
 const getDefaultCurrencyByCountry = (country?: string | null) => {
@@ -151,6 +136,24 @@ export function ArtistGigAbilityManager() {
   useEffect(() => {
     loadArtistProfile()
   }, [user])
+
+  const currencyOptions = useMemo(() => {
+    const all = getCurrencyOptions()
+    const byCode = new Map(all.map((option) => [option.code, option]))
+
+    for (const code of [baseGigCurrency, localGigCurrency, widerGigCurrency, logisticsCurrency]) {
+      const normalizedCode = (code || '').toUpperCase().trim()
+      if (!normalizedCode || byCode.has(normalizedCode)) continue
+      const symbol = getCurrencySymbol(normalizedCode)
+      byCode.set(normalizedCode, {
+        code: normalizedCode,
+        symbol,
+        label: `${normalizedCode} (${symbol})`
+      })
+    }
+
+    return Array.from(byCode.values()).sort((a, b) => a.code.localeCompare(b.code))
+  }, [baseGigCurrency, localGigCurrency, widerGigCurrency, logisticsCurrency])
 
   const loadArtistProfile = async () => {
     try {
@@ -617,7 +620,7 @@ export function ArtistGigAbilityManager() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CURRENCY_OPTIONS.map((currency) => (
+                  {currencyOptions.map((currency) => (
                     <SelectItem key={currency.code} value={currency.code}>
                       {currency.label}
                     </SelectItem>
@@ -731,7 +734,7 @@ export function ArtistGigAbilityManager() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {CURRENCY_OPTIONS.map((currency) => (
+                      {currencyOptions.map((currency) => (
                         <SelectItem key={currency.code} value={currency.code}>
                           {currency.label}
                         </SelectItem>

@@ -13,6 +13,12 @@ import { useAuth } from '../../../lib/auth-context'
 import { Megaphone, Plus, Edit3, Trash2, CheckCircle, X, Calendar, Clock } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { formatDateDDMMMyyyy } from '@/lib/date-format'
+import {
+  VOCALIST_TYPES,
+  VOCAL_SOUND_DESCRIPTOR_LABELS_WITH_ANY,
+  VOCAL_GENRE_DESCRIPTOR_LABELS_WITH_ANY
+} from '@/data/vocal-descriptors'
+import { AUDITION_INSTRUMENT_GROUPS } from '@/data/instrument-taxonomy'
 
 interface AuditionAdvert {
   id: string
@@ -67,123 +73,8 @@ const ADVERT_TYPES = [
   { value: 'vocalist-rehearsal', label: 'Vocalist - Wanted For Rehearsal', requiresVocalistType: true }
 ]
 
-const INSTRUMENT_GROUPS = [
-  {
-    name: 'String Instruments',
-    items: [
-      'Banjo', 'Bass Guitar', 'Cello', 'Double Bass', 'Guitar', 'Harp',
-      'Lute', 'Mandolin', 'Nyckelharpa', 'Phonofiddle', 'Sitar',
-      'Ukulele', 'Viola', 'Violin', 'Zither'
-    ]
-  },
-  {
-    name: 'Wind Instruments',
-    items: [
-      'Alboka', 'Clarinet', 'Didgeridoo', 'Flute', 'Harmonica', 'Jaw Harp',
-      'Kazoo', 'Kubing', 'Lur', 'Nose Flute', 'Oboe', 'Recorder',
-      'Saxophone', 'Shawm', 'Triton Shell', 'Trumpet', 'Vuvuzela', 'Whistle', 'Xun'
-    ]
-  },
-  {
-    name: 'Percussion Instruments',
-    items: [
-      'Cowbell', 'Drum Set', 'Hand Drums', 'Mallet Percussion',
-      'Metal Percussion', 'Shakers', 'Misc. Percussion'
-    ]
-  },
-  {
-    name: 'Keyboard Instruments',
-    items: [
-      'Accordion', 'Celesta', 'Clavichord', 'Harpsichord',
-      'Melodica', 'Organ', 'Piano'
-    ]
-  },
-  {
-    name: 'Electronic Instruments',
-    items: ['Electronic Keyboard', 'Sampler', 'Synthesizer']
-  },
-  {
-    name: 'Other',
-    items: ['Other']
-  }
-]
-
-const VOCALIST_TYPES = ['Lead', 'Backing', 'Harmony']
-const VOCAL_SOUND_DESCRIPTORS = [
-  'Any',
-  'Ballad Voice',
-  'Breathy Voice',
-  'Bright Voice',
-  'Classical Baritone Voice',
-  'Classical Bass Voice',
-  'Classical Contralto Voice',
-  'Classical Countertenor Voice',
-  'Classical Mezzo-Soprano Voice',
-  'Classical Soprano Voice',
-  'Classical Tenor Voice',
-  'Coloratura Voice',
-  'Deep Bassy Voice',
-  'Dramatic Voice',
-  'Edgy Voice',
-  'Emotional Voice',
-  'Ethereal Voice',
-  'Gritty Voice',
-  'Haunting Voice',
-  'High Pitched Voice',
-  'Husky Voice',
-  'Lyric Voice',
-  'Mellow Voice',
-  'Nasal Voice',
-  'Powerful Voice',
-  'Raspy Voice',
-  'Resonant Voice',
-  'Robust Voice',
-  'Silky Voice',
-  'Smoky Voice',
-  'Soft Voice',
-  'Soulful Voice',
-  'Velvety Voice',
-  'Vibrato Voice',
-  'Warm Voice',
-  'Whimsical Voice'
-]
-const VOCAL_GENRE_DESCRIPTORS = [
-  'Any',
-  'A Cappella Voice',
-  'Alternative Voice',
-  'Arabic Voice',
-  'Blues Voice',
-  'Bhangra Voice',
-  'Bossa Nova Voice',
-  'Choral Voice',
-  'Classical Crossover Voice',
-  'Country Voice',
-  'Electronic Voice',
-  'Enka Voice',
-  'Fado Voice',
-  'Flamenco Voice',
-  'Folk Voice',
-  'Gospel Voice',
-  'Gregorian Chant Voice',
-  'Hip-Hop Voice',
-  'Hindustani Classical Voice',
-  'Indie Voice',
-  'Jazz Voice',
-  'K-Pop Voice',
-  'Kabuki Voice',
-  'Latin Voice',
-  'Metal Voice',
-  'Musical Theatre Voice',
-  'Opera Voice',
-  'Pop Voice',
-  'Punk Voice',
-  'Qawwali Voice',
-  'R&B Voice',
-  'Reggae Voice',
-  'Rock Voice',
-  'Samba Voice',
-  'Soul Voice'
-]
+const VOCAL_SOUND_DESCRIPTORS = [...VOCAL_SOUND_DESCRIPTOR_LABELS_WITH_ANY]
+const VOCAL_GENRE_DESCRIPTORS = [...VOCAL_GENRE_DESCRIPTOR_LABELS_WITH_ANY]
 const PRODUCER_STUDIO_TYPES = ['Editing/Tuning', 'Mixing/Mastering', 'Studio Overseer']
 const PRODUCER_CREATIVE_TYPES = ['All-in-One', 'Beatmaker', 'Coach/Mentor']
 const LYRICIST_TYPES = ['Entire Lyrics', 'Part Lyrics', 'Co-write Lyrics']
@@ -526,8 +417,8 @@ export function ArtistAuditionsManager() {
                     <SelectValue placeholder="Select instrument..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {INSTRUMENT_GROUPS.map(group => (
-                      <SelectGroup key={group.name}>
+                    {AUDITION_INSTRUMENT_GROUPS.map(group => (
+                      <SelectGroup key={group.id}>
                         <SelectLabel>{group.name}</SelectLabel>
                         {group.items.map(inst => (
                           <SelectItem key={inst} value={inst}>

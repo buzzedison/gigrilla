@@ -46,6 +46,34 @@ interface GigAbilityMapProps {
 
 const COUNTRIES = getCountryOptions()
 
+const getCountryNameFromValue = (value: string) => {
+  const byCode = COUNTRIES.find((country) => country.code === value)?.name
+  if (byCode) return byCode
+
+  const byName = COUNTRIES.find((country) => country.name === value)?.name
+  if (byName) return byName
+
+  if (/^[A-Z]{2}$/.test(value)) {
+    try {
+      const intlWithDisplayNames = Intl as typeof Intl & {
+        DisplayNames?: new (
+          locales?: string | string[],
+          options?: { type: 'region' }
+        ) => { of: (code: string) => string | undefined }
+      }
+      if (typeof intlWithDisplayNames.DisplayNames === 'function') {
+        const names = new intlWithDisplayNames.DisplayNames(['en'], { type: 'region' })
+        const resolved = names.of(value)
+        if (resolved && resolved !== value) return resolved
+      }
+    } catch {
+      // Ignore and fall back to raw value
+    }
+  }
+
+  return value
+}
+
 export function GigAbilityMap({ title, description, value, onChange, baseLocation, mapId = 'gig-map' }: GigAbilityMapProps) {
   const [mode, setMode] = useState<'radius' | 'polygon' | 'country'>('radius')
   const [radius] = useState(50) // km
@@ -227,7 +255,7 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
           {selectedCountries.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {selectedCountries.map((countryCode) => {
-                const countryName = COUNTRIES.find((country) => country.code === countryCode)?.name || countryCode
+                const countryName = getCountryNameFromValue(countryCode)
                 return (
                   <span
                     key={countryCode}
@@ -294,7 +322,7 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
               <p className="text-sm text-gray-600">Selected Countries:</p>
               <p className="text-xl font-bold text-blue-600">
                 {(Array.isArray(value.data) ? value.data : [value.data])
-                  .map((code) => COUNTRIES.find((country) => country.code === code)?.name || code)
+                  .map((code) => getCountryNameFromValue(String(code)))
                   .join(', ')}
               </p>
             </div>
@@ -309,7 +337,7 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
             Current selection: {value.type === 'radius' ? `${value.radius}km radius` : 
                              value.type === 'country'
                                ? (Array.isArray(value.data) ? value.data : [value.data])
-                                   .map((code) => COUNTRIES.find((country) => country.code === code)?.name || code)
+                                   .map((code) => getCountryNameFromValue(String(code)))
                                    .join(', ')
                                :
                              `${Array.isArray(value.data) ? value.data.length : 0} points`}

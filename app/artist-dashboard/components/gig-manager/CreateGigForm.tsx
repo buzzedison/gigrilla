@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
     Plus, Check, Loader2, AlertCircle, Upload, X, Info,
     Calendar, Clock, MapPin, Globe, Ticket, Image as ImageIcon,
@@ -13,6 +13,7 @@ import { Label } from '../../../components/ui/label'
 import { Textarea } from '../../../components/ui/textarea'
 import { LocationAutocompleteInput } from '../../../components/ui/location-autocomplete'
 import { readImageMetadata } from '@/lib/image-metadata'
+import { getCurrencyOptions, getCurrencySymbol } from '@/lib/currency-options'
 
 /* ── Types ────────────────────────────────────────────── */
 
@@ -101,13 +102,6 @@ const AGE_OPTIONS = [
     'Over 21s', 'Under 21s',
     'Over 25s', 'Under 25s',
     'Over 30s', 'Under 30s',
-]
-
-const CURRENCIES = [
-    { value: 'GBP', label: '£ GBP', symbol: '£' },
-    { value: 'USD', label: '$ USD', symbol: '$' },
-    { value: 'EUR', label: '€ EUR', symbol: '€' },
-    { value: 'GHS', label: '₵ GHS', symbol: '₵' },
 ]
 
 const ARTWORK_REQUIREMENTS = {
@@ -235,10 +229,34 @@ export function CreateGigForm({
         currency: 'GBP',
     })
 
+    const currencyOptions = useMemo(() => {
+        const all = getCurrencyOptions()
+        const byCode = new Map(all.map((option) => [option.code, option]))
+        const ticketCurrencyCode = (form.ticketCurrency || '').toUpperCase().trim()
+        if (ticketCurrencyCode && !byCode.has(ticketCurrencyCode)) {
+            const symbol = getCurrencySymbol(ticketCurrencyCode)
+            byCode.set(ticketCurrencyCode, {
+                code: ticketCurrencyCode,
+                symbol,
+                label: `${ticketCurrencyCode} (${symbol})`
+            })
+        }
+        const newTicketCode = (newTicket.currency || '').toUpperCase().trim()
+        if (newTicketCode && !byCode.has(newTicketCode)) {
+            const symbol = getCurrencySymbol(newTicketCode)
+            byCode.set(newTicketCode, {
+                code: newTicketCode,
+                symbol,
+                label: `${newTicketCode} (${symbol})`
+            })
+        }
+        return Array.from(byCode.values()).sort((a, b) => a.code.localeCompare(b.code))
+    }, [form.ticketCurrency, newTicket.currency])
+
     const isInPerson = form.gigType === 'in_person'
     const isStreaming = form.gigType === 'streaming'
     const hasPaidTickets = form.paidTicketOptions.length > 0
-    const currencySymbol = CURRENCIES.find(c => c.value === form.ticketCurrency)?.symbol || '£'
+    const currencySymbol = getCurrencySymbol(form.ticketCurrency) || '£'
     const isEditMode = mode === 'edit'
     const isOvernightGig = Boolean(
         form.gigStartDate &&
@@ -1191,7 +1209,7 @@ export function CreateGigForm({
                                         {form.paidTicketOptions.includes('paid_at_venue') && (
                                             <div className="flex items-center gap-1">
                                                 <select value={form.ticketCurrency} onChange={e => update('ticketCurrency', e.target.value)} className="h-8 rounded border border-input px-2 text-sm">
-                                                    {CURRENCIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                                    {currencyOptions.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
                                                 </select>
                                                 <Input
                                                     type="number" step="0.01" min="0" placeholder="Price"
@@ -1210,7 +1228,7 @@ export function CreateGigForm({
                                     {form.paidTicketOptions.includes('paid_online_advance') && (
                                         <div className="flex items-center gap-1">
                                             <select value={form.ticketCurrency} onChange={e => update('ticketCurrency', e.target.value)} className="h-8 rounded border border-input px-2 text-sm">
-                                                {CURRENCIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                                {currencyOptions.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
                                             </select>
                                             <Input
                                                 type="number" step="0.01" min="0" placeholder="Price"
@@ -1277,7 +1295,7 @@ export function CreateGigForm({
                                                 <p>Duration: {ticket.durationType.replace('_', ' ')}</p>
                                                 <p>Admission: {ticket.admissionType.replace('_', ' & ')}</p>
                                                 <p>Benefits: {ticket.benefits || '—'}</p>
-                                                <p>Price: {CURRENCIES.find(c => c.value === ticket.currency)?.symbol}{ticket.price}</p>
+                                                <p>Price: {getCurrencySymbol(ticket.currency)}{ticket.price}</p>
                                             </div>
                                         ))}
 
@@ -1338,7 +1356,7 @@ export function CreateGigForm({
                                                         onChange={e => setNewTicket(prev => ({ ...prev, currency: e.target.value }))}
                                                         className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
                                                     >
-                                                        {CURRENCIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                                        {currencyOptions.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
                                                     </select>
                                                 </div>
                                                 <div className="flex-1">

@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/service-client'
 import { dispatchDueFanCommsForArtistGigs } from '@/lib/gig-fan-comms'
+import { getCurrencyOptions } from '@/lib/currency-options'
 
 type GigView = 'calendar' | 'invites' | 'requests' | 'all'
 type GigAction = 'accept_invite' | 'decline_invite' | 'cancel_request' | 'mark_completed' | 'publish_now'
@@ -64,7 +65,7 @@ interface VenueRow {
 }
 
 const VALID_EVENT_TYPES = new Set(['concert', 'festival', 'private', 'open_mic', 'livestream'])
-const VALID_CURRENCIES = new Set(['GBP', 'USD', 'EUR', 'GHS'])
+const VALID_CURRENCIES = new Set(getCurrencyOptions().map((currency) => currency.code))
 const VALID_BOOKING_STATUSES = new Set<BookingStatus>(['pending', 'confirmed', 'cancelled', 'completed'])
 const VALID_TICKET_AVAILABILITY = new Set(['skip', 'full_venue_capacity', 'less_than_full_venue_capacity', 'full_capacity', 'custom'])
 const VALID_AGE_RESTRICTIONS = new Set([
@@ -211,7 +212,7 @@ function safeObject(value: unknown): Record<string, unknown> {
 function normalizeCurrency(value: unknown): string {
   const normalized = typeof value === 'string' ? value.trim().toUpperCase() : 'GBP'
   if (!VALID_CURRENCIES.has(normalized)) {
-    throw new Error('Currency must be one of GBP, USD, EUR, or GHS')
+    throw new Error('Currency must be a valid ISO 4217 currency code')
   }
   return normalized
 }

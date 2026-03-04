@@ -6,8 +6,8 @@ import { NextRequest, NextResponse } from 'next/server'
 //   town         – market/postal town (Fakenham, Swaffham…)
 //   village      – village name when applicable
 //   municipality – administrative municipality (sometimes used instead of city/town)
-//   county       – LOCAL government district / unitary authority (North Norfolk District Council)
-//   state_district – CEREMONIAL / traditional county (Norfolk, Suffolk, Yorkshire…)
+//   county/state_district – provider-dependent administrative levels.
+//                            In UK records these can be swapped depending on source quality.
 //   state        – constituent country (England, Scotland, Wales, Northern Ireland)
 //   country      – sovereign state name (United Kingdom)
 //   country_code – ISO 3166-1 alpha-2 (gb)
@@ -45,6 +45,31 @@ interface GeoapifyResponse {
 
 const GEOAPIFY_API_KEY = process.env.GEOAPIFY_API_KEY
 
+const UK_NATION_NAMES = new Set([
+  'england',
+  'scotland',
+  'wales',
+  'northern ireland'
+])
+
+const COUNTRY_TAIL_NAMES = new Set([
+  'uk',
+  'united kingdom',
+  'great britain',
+  'usa',
+  'u.s.a.',
+  'united states',
+  'united states of america'
+])
+
+const UK_POSTCODE_FULL_REGEX = /\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/i
+const UK_POSTCODE_OUTWARD_REGEX = /\b[A-Z]{1,2}\d[A-Z\d]?\b/i
+const POSTCODE_ONLY_REGEX = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i
+
+const STREETISH_REGEX = /\b(street|st|road|rd|avenue|ave|close|lane|ln|drive|dr|court|crescent|cres|way|place|pl|flat|unit|apartment|apt)\b/i
+const ADMIN_DISTRICT_REGEX = /\b(district|borough|council|unitary|metropolitan|parish)\b/i
+const POSTCODE_LOOKS_LIKE_REGEX = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i
+
 function isLikelyUkQuery(query: string) {
   const normalized = query.trim()
   if (!normalized) return false
@@ -54,12 +79,29 @@ function isLikelyUkQuery(query: string) {
     return true
   }
 
-  // UK postcode patterns (e.g. NR21 7QH, SW1A 1AA, W1A 0AX)
-  return /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(normalized)
+  // Match UK postcode fragments anywhere in the string so full-address queries like
+  // "30 Stevenson Close NR21 7QH" are correctly biased to GB.
+  if (UK_POSTCODE_FULL_REGEX.test(normalized)) {
+    return true
+  }
+
+  // Also support outward-code typing (e.g. "NR21") during incremental input.
+  return UK_POSTCODE_OUTWARD_REGEX.test(normalized)
 }
 
-async function fetchGeoapifyEntries(query: string, forceUkFilter: boolean, signal: AbortSignal) {
-  const apiUrl = new URL('https://api.geoapify.com/v1/geocode/autocomplete')
+type GeoapifyMode = 'autocomplete' | 'search'
+
+async function fetchGeoapifyEntries(
+  query: string,
+  forceUkFilter: boolean,
+  mode: GeoapifyMode,
+  signal: AbortSignal
+) {
+  const apiUrl = new URL(
+    mode === 'search'
+      ? 'https://api.geoapify.com/v1/geocode/search'
+      : 'https://api.geoapify.com/v1/geocode/autocomplete'
+  )
   apiUrl.searchParams.set('text', query)
   apiUrl.searchParams.set('limit', '8')
   // GeoJSON format gives us richer properties (including town, village, state_district)
@@ -69,7 +111,9 @@ async function fetchGeoapifyEntries(query: string, forceUkFilter: boolean, signa
 
   if (forceUkFilter) {
     apiUrl.searchParams.set('filter', 'countrycode:gb')
-    apiUrl.searchParams.set('bias', 'countrycode:gb')
+    if (mode === 'autocomplete') {
+      apiUrl.searchParams.set('bias', 'countrycode:gb')
+    }
   }
 
   const response = await fetch(apiUrl.toString(), {
@@ -83,7 +127,7 @@ async function fetchGeoapifyEntries(query: string, forceUkFilter: boolean, signa
 
   if (!response.ok) {
     const body = await response.text()
-    console.error('Geoapify autocomplete error', response.status, body)
+    console.error(`Geoapify ${mode} error`, response.status, body)
     return {
       error: NextResponse.json(
         { error: 'Unable to fetch location suggestions.' },
@@ -97,6 +141,67 @@ async function fetchGeoapifyEntries(query: string, forceUkFilter: boolean, signa
   return { entries }
 }
 
+function normalizeLocationToken(value?: string | null) {
+  return value?.trim().replace(/\s+/g, ' ') || ''
+}
+
+function isLikelyAdministrativeDistrict(value: string) {
+  return ADMIN_DISTRICT_REGEX.test(value.toLowerCase())
+}
+
+function isLikelyStreetToken(value: string) {
+  const normalized = value.toLowerCase()
+  return /\d/.test(normalized) || STREETISH_REGEX.test(normalized)
+}
+
+function isCountryTailToken(value: string) {
+  const normalized = value.toLowerCase()
+  return COUNTRY_TAIL_NAMES.has(normalized) || UK_NATION_NAMES.has(normalized)
+}
+
+function parseCityFromFormatted(formatted: string, countryCode?: string) {
+  const parts = formatted
+    .split(',')
+    .map((part) => normalizeLocationToken(part))
+    .filter(Boolean)
+
+  if (parts.length === 0) return ''
+
+  if (countryCode?.toLowerCase() === 'gb') {
+    while (parts.length > 0 && isCountryTailToken(parts[parts.length - 1])) {
+      parts.pop()
+    }
+  }
+
+  while (parts.length > 1 && isLikelyStreetToken(parts[0])) {
+    parts.shift()
+  }
+
+  const candidate = parts[0] || ''
+  if (!candidate || POSTCODE_LOOKS_LIKE_REGEX.test(candidate)) return ''
+  return candidate
+}
+
+function pickPrimaryCityToken(p: GeoapifyFeatureProperties) {
+  const candidates = [
+    normalizeLocationToken(p.city),
+    normalizeLocationToken(p.town),
+    normalizeLocationToken(p.village),
+    normalizeLocationToken(p.hamlet),
+    normalizeLocationToken(p.municipality),
+    normalizeLocationToken(p.name)
+  ].filter(Boolean)
+
+  const token = candidates.find((candidate) => !POSTCODE_LOOKS_LIKE_REGEX.test(candidate))
+  if (token) return token
+
+  if (p.formatted) {
+    return parseCityFromFormatted(p.formatted, p.country_code)
+  }
+
+  return ''
+}
+
 /**
  * Resolve the best "city / town" label from a Geoapify properties object.
  *
@@ -108,35 +213,36 @@ async function fetchGeoapifyEntries(query: string, forceUkFilter: boolean, signa
  * NOT the traditional county name.
  */
 function resolveCity(p: GeoapifyFeatureProperties): string {
-  return (
-    p.city?.trim() ||
-    p.town?.trim() ||
-    p.village?.trim() ||
-    p.hamlet?.trim() ||
-    p.municipality?.trim() ||
-    ''
-  )
+  return pickPrimaryCityToken(p)
 }
 
 /**
  * Resolve the best "county / state" label.
  *
- * For UK addresses:
- *   state_district = ceremonial / traditional county  (Norfolk, Suffolk, Kent…)
- *   county         = local-government district         (North Norfolk, Broadland…) ← we avoid this
- *   state          = constituent country               (England, Scotland, Wales…)
- *
- * We prefer state_district over county because it maps to the traditional county
- * that users actually recognise.  We fall back to state only when neither exists.
+ * For UK addresses, Geoapify `county` and `state_district` are not consistently
+ * mapped across all data sources. We therefore prefer whichever field appears to
+ * be county-like (and not a district/council label), then fall back safely.
  */
 function resolveCounty(p: GeoapifyFeatureProperties): string {
-  return (
-    p.state_district?.trim() ||
-    p.county?.trim() ||       // last-resort only – this is often the district council name
-    p.state?.trim() ||
-    p.region?.trim() ||
-    ''
-  )
+  const county = normalizeLocationToken(p.county)
+  const stateDistrict = normalizeLocationToken(p.state_district)
+  const state = normalizeLocationToken(p.state)
+  const region = normalizeLocationToken(p.region)
+  const countryCode = p.country_code?.toLowerCase()
+
+  if (countryCode === 'gb') {
+    const countyLooksDistrict = county ? isLikelyAdministrativeDistrict(county) : false
+    const stateDistrictLooksDistrict = stateDistrict ? isLikelyAdministrativeDistrict(stateDistrict) : false
+
+    if (county && !countyLooksDistrict) return county
+    if (stateDistrict && !stateDistrictLooksDistrict) return stateDistrict
+    if (county) return county
+    if (stateDistrict) return stateDistrict
+    if (state) return state
+    return region
+  }
+
+  return stateDistrict || county || state || region || ''
 }
 
 /**
@@ -182,7 +288,7 @@ export async function GET(request: NextRequest) {
   const likelyUkQuery = isLikelyUkQuery(query)
 
   try {
-    const primaryResult = await fetchGeoapifyEntries(query, likelyUkQuery, controller.signal)
+    const primaryResult = await fetchGeoapifyEntries(query, likelyUkQuery, 'autocomplete', controller.signal)
     if (primaryResult.error) {
       return primaryResult.error
     }
@@ -191,11 +297,26 @@ export async function GET(request: NextRequest) {
 
     // If a UK-targeted query yields no entries, fall back to global search.
     if (likelyUkQuery && entries.length === 0) {
-      const fallbackResult = await fetchGeoapifyEntries(query, false, controller.signal)
+      const fallbackResult = await fetchGeoapifyEntries(query, false, 'autocomplete', controller.signal)
       if (fallbackResult.error) {
         return fallbackResult.error
       }
       entries = fallbackResult.entries
+    }
+
+    // If autocomplete still has no options (or poor postcode matching), try geocode search.
+    if (entries.length === 0 || (likelyUkQuery && POSTCODE_ONLY_REGEX.test(query) && entries.length < 3)) {
+      const searchResult = await fetchGeoapifyEntries(query, likelyUkQuery, 'search', controller.signal)
+      if (!searchResult.error && searchResult.entries.length > 0) {
+        entries = [...entries, ...searchResult.entries]
+      }
+
+      if (likelyUkQuery && (!searchResult.error && searchResult.entries.length === 0)) {
+        const searchFallback = await fetchGeoapifyEntries(query, false, 'search', controller.signal)
+        if (!searchFallback.error && searchFallback.entries.length > 0) {
+          entries = [...entries, ...searchFallback.entries]
+        }
+      }
     }
 
     const suggestions = entries
@@ -248,6 +369,10 @@ export async function GET(request: NextRequest) {
         }
       })
       .filter(Boolean)
+      .filter((suggestion, index, all) => {
+        if (!suggestion) return false
+        return all.findIndex((candidate) => candidate?.id === suggestion.id) === index
+      })
 
     return NextResponse.json({ suggestions })
   } catch (error) {

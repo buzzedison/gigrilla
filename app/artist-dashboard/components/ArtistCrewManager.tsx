@@ -23,6 +23,7 @@ import {
   type ISNILookupResult,
   getValidationStatusClasses
 } from '../../../lib/professional-id-utils'
+import { CREW_INSTRUMENT_ROLE_GROUPS } from '@/data/instrument-taxonomy'
 
 interface CrewMember {
   id: string
@@ -90,6 +91,21 @@ interface RoleCategory {
   expanded?: boolean
 }
 
+const INSTRUMENT_ROLE_ICONS: Record<string, React.ReactNode> = {
+  strings: <Guitar className="w-4 h-4" />,
+  wind: <Music className="w-4 h-4" />,
+  percussion: <Drum className="w-4 h-4" />,
+  keyboard: <Piano className="w-4 h-4" />,
+  electronic: <Keyboard className="w-4 h-4" />
+}
+
+const INSTRUMENT_ROLE_CATEGORIES: RoleCategory[] = CREW_INSTRUMENT_ROLE_GROUPS.map((group) => ({
+  id: group.id,
+  name: group.name,
+  icon: INSTRUMENT_ROLE_ICONS[group.id] || <Music className="w-4 h-4" />,
+  items: group.items
+}))
+
 const ROLE_CATEGORIES: RoleCategory[] = [
   {
     id: 'songwriting',
@@ -111,96 +127,7 @@ const ROLE_CATEGORIES: RoleCategory[] = [
       'Backing Vocals'
     ]
   },
-  {
-    id: 'strings',
-    name: 'String Instruments',
-    icon: <Guitar className="w-4 h-4" />,
-    items: [
-      'All String Instruments',
-      'Banjo',
-      'Bass Guitar',
-      'Cello',
-      'Double Bass',
-      'Guitar',
-      'Harp',
-      'Lute',
-      'Mandolin',
-      'Nyckelharpa',
-      'Phonofiddle',
-      'Sitar',
-      'Ukulele',
-      'Viola',
-      'Violin',
-      'Zither'
-    ]
-  },
-  {
-    id: 'wind',
-    name: 'Wind Instruments',
-    icon: <Music className="w-4 h-4" />,
-    items: [
-      'All Wind Instruments',
-      'Alboka',
-      'Clarinet',
-      'Didgeridoo',
-      'Flute',
-      'Harmonica',
-      'Jaw Harp',
-      'Kazoo',
-      'Kubing',
-      'Lur',
-      'Nose Flute',
-      'Oboe',
-      'Recorder',
-      'Saxophone',
-      'Shawm',
-      'Triton Shell',
-      'Vuvuzela',
-      'Whistle',
-      'Xun'
-    ]
-  },
-  {
-    id: 'percussion',
-    name: 'Percussion Instruments',
-    icon: <Drum className="w-4 h-4" />,
-    items: [
-      'All Percussion Instruments',
-      'Drum Set',
-      'Hand Drums',
-      'Mallet Percussion',
-      'Metal Percussion',
-      'Cowbell',
-      'Shakers',
-      'Misc. Percussion'
-    ]
-  },
-  {
-    id: 'keyboard',
-    name: 'Keyboard Instruments',
-    icon: <Piano className="w-4 h-4" />,
-    items: [
-      'All Keyboard Instruments',
-      'Accordion',
-      'Celesta',
-      'Clavichord',
-      'Harpsichord',
-      'Melodica',
-      'Organ',
-      'Piano'
-    ]
-  },
-  {
-    id: 'electronic',
-    name: 'Electronic Instruments',
-    icon: <Keyboard className="w-4 h-4" />,
-    items: [
-      'All Electronic Instruments',
-      'Electronic Keyboard',
-      'Sampler',
-      'Synthesizer'
-    ]
-  },
+  ...INSTRUMENT_ROLE_CATEGORIES,
   {
     id: 'management-independent',
     name: 'Management - Independent',

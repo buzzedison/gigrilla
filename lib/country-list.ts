@@ -1,22 +1,30 @@
+import { COUNTRY_DIAL_CODE_OPTIONS } from './country-dial-codes'
+
 export interface CountryOption {
   code: string
   name: string
 }
 
-const FALLBACK_COUNTRIES: CountryOption[] = [
-  { code: 'AU', name: 'Australia' },
-  { code: 'CA', name: 'Canada' },
-  { code: 'DE', name: 'Germany' },
-  { code: 'FR', name: 'France' },
-  { code: 'GB', name: 'United Kingdom' },
-  { code: 'GH', name: 'Ghana' },
-  { code: 'IE', name: 'Ireland' },
-  { code: 'JP', name: 'Japan' },
-  { code: 'NG', name: 'Nigeria' },
-  { code: 'NZ', name: 'New Zealand' },
-  { code: 'US', name: 'United States' },
-  { code: 'ZA', name: 'South Africa' },
-]
+const slugifyCountryName = (name: string) =>
+  name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+const FALLBACK_COUNTRIES: CountryOption[] = Array.from(
+  new Set(
+    COUNTRY_DIAL_CODE_OPTIONS
+      .flatMap((entry) => entry.countries)
+      .map((country) => country.trim())
+      .filter(Boolean)
+  )
+)
+  .map((name) => ({
+    code: `country:${slugifyCountryName(name)}`,
+    name
+  }))
+  .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
 
 let cachedCountries: CountryOption[] | null = null
 
@@ -26,7 +34,11 @@ function getRegionCodes(): string[] {
   }
 
   if (typeof intlWithSupportedValues.supportedValuesOf === 'function') {
-    return intlWithSupportedValues.supportedValuesOf('region')
+    try {
+      return intlWithSupportedValues.supportedValuesOf('region')
+    } catch {
+      return []
+    }
   }
 
   return []
@@ -35,21 +47,38 @@ function getRegionCodes(): string[] {
 export function getCountryOptions(): CountryOption[] {
   if (cachedCountries) return cachedCountries
 
-  const displayNames = new Intl.DisplayNames(['en'], { type: 'region' })
-  const regionCodes = getRegionCodes()
+  try {
+    const intlWithDisplayNames = Intl as typeof Intl & {
+      DisplayNames?: new (
+        locales?: string | string[],
+        options?: { type: 'region' }
+      ) => { of: (code: string) => string | undefined }
+    }
 
-  const countries = regionCodes
-    .filter((code) => typeof code === 'string' && code.length === 2 && /^[A-Z]{2}$/.test(code))
-    .map((code) => {
-      const name = displayNames.of(code)
-      return {
-        code,
-        name: typeof name === 'string' ? name.trim() : ''
-      }
-    })
-    .filter((item) => item.name && item.name !== item.code)
-    .sort((a, b) => a.name.localeCompare(b.name))
+    if (typeof intlWithDisplayNames.DisplayNames !== 'function') {
+      cachedCountries = FALLBACK_COUNTRIES
+      return cachedCountries
+    }
 
-  cachedCountries = countries.length > 0 ? countries : FALLBACK_COUNTRIES
-  return cachedCountries
+    const displayNames = new intlWithDisplayNames.DisplayNames(['en'], { type: 'region' })
+    const regionCodes = getRegionCodes()
+
+    const countries = regionCodes
+      .filter((code) => typeof code === 'string' && code.length === 2 && /^[A-Z]{2}$/.test(code))
+      .map((code) => {
+        const name = displayNames.of(code)
+        return {
+          code,
+          name: typeof name === 'string' ? name.trim() : ''
+        }
+      })
+      .filter((item) => item.name && item.name !== item.code)
+      .sort((a, b) => a.name.localeCompare(b.name))
+
+    cachedCountries = countries.length > 0 ? countries : FALLBACK_COUNTRIES
+    return cachedCountries
+  } catch {
+    cachedCountries = FALLBACK_COUNTRIES
+    return cachedCountries
+  }
 }
