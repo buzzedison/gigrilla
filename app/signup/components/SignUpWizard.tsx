@@ -42,6 +42,14 @@ import { useAuth } from "../../../lib/auth-context";
 import { getClient } from "../../../lib/supabase/client";
 import { getArtistTypeCapabilities } from "../../../lib/artist-type-config";
 import { COUNTRY_DIAL_CODE_OPTIONS } from "../../../lib/country-dial-codes";
+import { ISNIHelperModal } from "./ISNIHelperModal";
+import { IPIHelperModal } from "./IPIHelperModal";
+import { MUSIC_PUBLISHER_NAMES } from "../../../data/music-publishers";
+import {
+  InstrumentPicker3Tier,
+  serializeInstruments3Tier,
+  type SelectedInstrument,
+} from "../../components/ui/instrument-picker-3tier";
 
 type MemberType = "fan" | "artist" | "venue" | "service" | "pro";
 type AccountChoice = "guest" | "fan";
@@ -749,6 +757,7 @@ export function SignUpWizard() {
     name?: string
   }>({ status: 'idle' });
   const [ipiFormat, setIpiFormat] = useState<'idle' | 'valid' | 'invalid'>('idle');
+  const [publisherShowDropdown, setPublisherShowDropdown] = useState(false);
 
   const [openSoundGroup, setOpenSoundGroup] = useState<string | null>(null);
   const [openGenreGroup, setOpenGenreGroup] = useState<string | null>(null);
@@ -804,6 +813,7 @@ export function SignUpWizard() {
     availability: "",
     instrumentCategory: "",
     instrument: "",
+    instruments3tier: [] as SelectedInstrument[],
     songwriterOption: "",
     songwriterGenres: "",
     lyricistOption: "",
@@ -2288,7 +2298,7 @@ export function SignUpWizard() {
     setPhotoUploadError("");
     setVideoFormError("");
     setPasswordErrors([]);
-    setArtistSelection({ typeId: "", subType: "", vocalSoundTypes: "", vocalGenreStyles: "", availability: "", instrumentCategory: "", instrument: "", songwriterOption: "", songwriterGenres: "", lyricistOption: "", lyricistGenres: "", composerOption: "", composerGenres: "" });
+    setArtistSelection({ typeId: "", subType: "", vocalSoundTypes: "", vocalGenreStyles: "", availability: "", instrumentCategory: "", instrument: "", instruments3tier: [], songwriterOption: "", songwriterGenres: "", lyricistOption: "", lyricistGenres: "", composerOption: "", composerGenres: "" });
     setVenueSelection({ typeId: "", subType: "" });
     setServiceDetails({
       summary: "",
@@ -4016,11 +4026,11 @@ export function SignUpWizard() {
               key={option.id}
               role="button"
               tabIndex={0}
-              onClick={() => setArtistSelection({ typeId: option.id, subType: "", vocalSoundTypes: "", vocalGenreStyles: "", availability: "", instrumentCategory: "", instrument: "", songwriterOption: "", songwriterGenres: "", lyricistOption: "", lyricistGenres: "", composerOption: "", composerGenres: "" })}
+              onClick={() => setArtistSelection({ typeId: option.id, subType: "", vocalSoundTypes: "", vocalGenreStyles: "", availability: "", instrumentCategory: "", instrument: "", instruments3tier: [], songwriterOption: "", songwriterGenres: "", lyricistOption: "", lyricistGenres: "", composerOption: "", composerGenres: "" })}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  setArtistSelection({ typeId: option.id, subType: "", vocalSoundTypes: "", vocalGenreStyles: "", availability: "", instrumentCategory: "", instrument: "", songwriterOption: "", songwriterGenres: "", lyricistOption: "", lyricistGenres: "", composerOption: "", composerGenres: "" });
+                  setArtistSelection({ typeId: option.id, subType: "", vocalSoundTypes: "", vocalGenreStyles: "", availability: "", instrumentCategory: "", instrument: "", instruments3tier: [], songwriterOption: "", songwriterGenres: "", lyricistOption: "", lyricistGenres: "", composerOption: "", composerGenres: "" });
                 }
               }}
               className={cn(
@@ -4430,195 +4440,31 @@ export function SignUpWizard() {
                         </div>
                       ) : option.id === 'type5' ? (
                         <div className="space-y-4">
-                          {/* Dropdown to select/view instrument category */}
+                          {/* 3-tier instrument picker */}
                           <div className="space-y-3">
                             <Label className="text-sm font-semibold text-foreground">
-                              Instrument Category
+                              Your Instruments
                               <span className="text-red-500 ml-1">*</span>
                             </Label>
-                            <p className="text-xs text-gray-600">Select a category to view and pick instruments (you can switch between categories)</p>
-                <Select
-                              value={artistSelection.instrumentCategory?.split('|')[0] || ''}
-                              onValueChange={(value) => {
-                                // Just change the view, don't reset anything
-                                const currentCategories = artistSelection.instrumentCategory ? artistSelection.instrumentCategory.split('|').map(s => s.trim()) : []
-                                if (!currentCategories.includes(value)) {
-                                  // Add this category if not already included
-                                  setArtistSelection((prev) => ({ 
-                                    ...prev, 
-                                    instrumentCategory: [...currentCategories, value].join('|')
-                                  }))
-                                }
-                                // Set this as the "active" category to view
-                                setOpenInstrumentCategory(value)
-                              }}
-                            >
-                              <SelectTrigger className="h-11 border-2 font-ui hover:border-primary/50 transition-colors">
-                                <SelectValue placeholder="Select instrument category..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {option.instrumentCategories && Object.keys(option.instrumentCategories).map((category) => {
-                                  const hasSelections = artistSelection.instrument?.split('|').some(inst => 
-                                    option.instrumentCategories?.[category]?.includes(inst)
-                                  )
-                                  return (
-                                    <SelectItem key={category} value={category} className="font-ui">
-                                      <span className="flex items-center gap-2">
-                                        {category}
-                                        {hasSelections && (
-                                          <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-                                        )}
-                                      </span>
-                                    </SelectItem>
-                                  )
-                                })}
-                              </SelectContent>
-                            </Select>
+                            <p className="text-xs text-foreground/60">
+                              Select your group, then pick each instrument. Expand to choose specific
+                              types (e.g. 5-string, 6-string, 8-string) — you can select multiple.
+                            </p>
+                            <InstrumentPicker3Tier
+                              value={artistSelection.instruments3tier}
+                              onChange={(items) =>
+                                setArtistSelection(prev => ({
+                                  ...prev,
+                                  instruments3tier: items,
+                                  // keep legacy field in sync for any existing DB reads
+                                  instrument: serializeInstruments3Tier(items),
+                                  instrumentCategory: [...new Set(items.map(i => i.groupName))].join('|'),
+                                }))
+                              }
+                              allowedGroups={['strings', 'wind', 'percussion', 'keyboard', 'electronic']}
+                            />
                           </div>
-                          
-                          {/* Multi-select specific instruments from the currently viewed category */}
-                          {(openInstrumentCategory || artistSelection.instrumentCategory) && (
-                            <div className="space-y-3">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-sm font-semibold text-foreground">
-                                  Select Instruments from: <span className="text-purple-600">{openInstrumentCategory || artistSelection.instrumentCategory?.split('|')[0]}</span>
-                                </Label>
-                                <span className="text-xs text-gray-500">Select all that apply</span>
-                              </div>
-                              
-                              {/* Show instruments from the active category */}
-                              {(() => {
-                                const activeCategory = openInstrumentCategory || artistSelection.instrumentCategory?.split('|')[0] || ''
-                                const instruments = option.instrumentCategories?.[activeCategory] || []
-                                const instrumentsArray = artistSelection.instrument ? artistSelection.instrument.split('|').map(s => s.trim()) : []
-                                
-                                return (
-                                  <div className="p-3 border border-gray-200 rounded-lg bg-gray-50/50">
-                                    <div className="grid grid-cols-2 gap-2">
-                                      {instruments.map((instrument: string) => {
-                                        const isSelected = instrumentsArray.includes(instrument)
-                                        
-                                        return (
-                                          <div
-                                            key={instrument}
-                                            className={`p-2.5 rounded-lg border-2 cursor-pointer transition-all ${
-                                              isSelected
-                                                ? 'border-purple-500 bg-purple-50 shadow-sm'
-                                                : 'border-gray-200 bg-white hover:border-purple-300 hover:bg-purple-50/50'
-                                            }`}
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              const newInstruments = isSelected
-                                                ? instrumentsArray.filter((s: string) => s !== instrument)
-                                                : [...instrumentsArray, instrument]
-                                              
-                                              // Also ensure this category is tracked
-                                              const currentCategories = artistSelection.instrumentCategory ? artistSelection.instrumentCategory.split('|').map(s => s.trim()) : []
-                                              const updatedCategories = currentCategories.includes(activeCategory) 
-                                                ? currentCategories 
-                                                : [...currentCategories, activeCategory]
-                                              
-                                              setArtistSelection((prev) => ({
-                                                ...prev,
-                                                instrument: newInstruments.length > 0 ? newInstruments.join('|') : '',
-                                                instrumentCategory: updatedCategories.join('|')
-                                              }))
-                                            }}
-                                          >
-                                            <div className="flex items-center gap-2">
-                                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                                                isSelected ? 'border-purple-600 bg-purple-600' : 'border-gray-300'
-                                              }`}>
-                                                {isSelected && (
-                                                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                                  </svg>
-                                                )}
-                                              </div>
-                                              <span className={`text-sm ${isSelected ? 'text-purple-900 font-medium' : 'text-gray-700'}`}>
-                                                {instrument}
-                                              </span>
-                                            </div>
-                                          </div>
-                                        )
-                                      })}
-                                    </div>
-                                  </div>
-                                )
-                              })()}
-                              
-                              {/* Quick category switcher tabs */}
-                              {option.instrumentCategories && Object.keys(option.instrumentCategories).length > 1 && (
-                                <div className="flex flex-wrap gap-1 pt-2">
-                                  <span className="text-xs text-gray-500 mr-1">Quick switch:</span>
-                                  {Object.keys(option.instrumentCategories).map((category) => {
-                                    const isActive = (openInstrumentCategory || artistSelection.instrumentCategory?.split('|')[0]) === category
-                                    const hasSelections = artistSelection.instrument?.split('|').some(inst => 
-                                      option.instrumentCategories?.[category]?.includes(inst)
-                                    )
-                                    return (
-                                      <button
-                                        key={category}
-                                        type="button"
-                                        className={`px-2 py-1 text-xs rounded-full transition-colors ${
-                                          isActive 
-                                            ? 'bg-purple-600 text-white' 
-                                            : hasSelections
-                                              ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
-                                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                        }`}
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          setOpenInstrumentCategory(category)
-                                        }}
-                                      >
-                                        {category.replace(' Instruments', '')}
-                                        {hasSelections && !isActive && ' •'}
-                                      </button>
-                                    )
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          
-                          {/* Show selected instruments summary */}
-                          {artistSelection.instrument && (
-                            <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300">
-                              <div className="text-xs font-semibold text-purple-900 uppercase tracking-wide mb-2">
-                                Your Instruments ({artistSelection.instrument.split('|').length} selected)
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {artistSelection.instrument.split('|').map((s: string) => s.trim()).map((instrument: string) => (
-                                  <span 
-                                    key={instrument} 
-                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-purple-600 text-white text-xs font-semibold"
-                                  >
-                                    ✓ {instrument}
-                                    <button
-                                      type="button"
-                                      className="ml-1 hover:bg-purple-700 rounded-full p-0.5"
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        const instrumentsArray = artistSelection.instrument?.split('|').map(s => s.trim()) || []
-                                        const newInstruments = instrumentsArray.filter((s: string) => s !== instrument)
-                                        setArtistSelection((prev) => ({
-                                          ...prev,
-                                          instrument: newInstruments.length > 0 ? newInstruments.join('|') : ''
-                                        }))
-                                      }}
-                                      aria-label={`Remove ${instrument}`}
-                                    >
-                                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                      </svg>
-                                    </button>
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          
+
                           {/* Availability checkboxes */}
                           <div className="mt-6 space-y-3">
                             <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -5879,13 +5725,45 @@ export function SignUpWizard() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="musicPublisherName">Music Publisher Name</Label>
-                      <Input
-                        id="musicPublisherName"
-                        placeholder="Start typing publisher company name…"
-                        value={artistProfile.musicPublisherName}
-                        onChange={(e) => setArtistProfile(prev => ({ ...prev, musicPublisherName: e.target.value }))}
-                        className="font-ui"
-                      />
+                      <div className="relative">
+                        <Input
+                          id="musicPublisherName"
+                          placeholder="Start typing publisher company name…"
+                          value={artistProfile.musicPublisherName}
+                          autoComplete="off"
+                          onChange={(e) => {
+                            setArtistProfile(prev => ({ ...prev, musicPublisherName: e.target.value }));
+                            setPublisherShowDropdown(true);
+                          }}
+                          onFocus={() => setPublisherShowDropdown(true)}
+                          onBlur={() => setTimeout(() => setPublisherShowDropdown(false), 150)}
+                          className="font-ui"
+                        />
+                        {publisherShowDropdown && (() => {
+                          const q = artistProfile.musicPublisherName.toLowerCase().trim();
+                          const matches = q.length >= 2
+                            ? MUSIC_PUBLISHER_NAMES.filter(n => n.toLowerCase().includes(q)).slice(0, 8)
+                            : [];
+                          return matches.length > 0 ? (
+                            <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-lg border border-border bg-background shadow-lg max-h-48 overflow-y-auto">
+                              {matches.map(name => (
+                                <button
+                                  key={name}
+                                  type="button"
+                                  className="w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    setArtistProfile(prev => ({ ...prev, musicPublisherName: name }));
+                                    setPublisherShowDropdown(false);
+                                  }}
+                                >
+                                  {name}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="musicPublisherContactFirstName">Music Publisher Contact First / Given Name</Label>
@@ -6178,13 +6056,23 @@ export function SignUpWizard() {
                 ℹ️ Your unique digital ID prevents name confusion, ensures correct crediting, and tracks all your work across platforms.
               </p>
               <div className="flex items-center gap-2 mb-2">
-                <a href="https://isni.org/page/requests/" target="_blank" rel="noopener noreferrer" className="text-xs text-purple-600 hover:underline font-medium">
-                  Get an ISNI
-                </a>
+                <ISNIHelperModal
+                  initialTab="get"
+                  trigger={
+                    <button type="button" className="text-xs text-purple-600 hover:underline font-medium">
+                      Get an ISNI
+                    </button>
+                  }
+                />
                 <span className="text-foreground/40">|</span>
-                <a href="https://isni.org/page/search-database/" target="_blank" rel="noopener noreferrer" className="text-xs text-purple-600 hover:underline font-medium">
-                  Find an ISNI
-                </a>
+                <ISNIHelperModal
+                  initialTab="find"
+                  trigger={
+                    <button type="button" className="text-xs text-purple-600 hover:underline font-medium">
+                      Find an ISNI
+                    </button>
+                  }
+                />
               </div>
               <div className="relative">
                 <Input
@@ -6250,13 +6138,23 @@ export function SignUpWizard() {
                 Required for accurate song registration and royalty payments when you are credited as a writer.
               </p>
               <div className="flex items-center gap-2 mb-2">
-                <a href="https://www.ascap.com/" target="_blank" rel="noopener noreferrer" className="text-xs text-purple-600 hover:underline font-medium">
-                  Get an IPI/CAE
-                </a>
+                <IPIHelperModal
+                  initialTab="get"
+                  trigger={
+                    <button type="button" className="text-xs text-purple-600 hover:underline font-medium">
+                      Get an IPI/CAE
+                    </button>
+                  }
+                />
                 <span className="text-foreground/40">|</span>
-                <a href="https://ipisearch.cisac.org/" target="_blank" rel="noopener noreferrer" className="text-xs text-purple-600 hover:underline font-medium">
-                  Find an IPI/CAE
-                </a>
+                <IPIHelperModal
+                  initialTab="find"
+                  trigger={
+                    <button type="button" className="text-xs text-purple-600 hover:underline font-medium">
+                      Find an IPI/CAE
+                    </button>
+                  }
+                />
               </div>
               <div className="relative">
                 <Input
@@ -6826,7 +6724,7 @@ export function SignUpWizard() {
                         vocal_genre_styles: artistSelection.vocalGenreStyles || null,
                         availability: artistSelection.availability || null,
                         instrument_category: artistSelection.instrumentCategory || null,
-                        instrument: artistSelection.instrument || null,
+                        instrument: serializeInstruments3Tier(artistSelection.instruments3tier) || artistSelection.instrument || null,
                         songwriter_option: artistSelection.songwriterOption || null,
                         songwriter_genres: artistSelection.songwriterGenres || null,
                         lyricist_option: artistSelection.lyricistOption || null,

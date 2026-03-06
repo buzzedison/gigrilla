@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { useAuth } from "../../../lib/auth-context"
-import { HelpCircle, CheckCircle2, Circle, PartyPopper } from "lucide-react"
+import { HelpCircle, CheckCircle2, Circle, PartyPopper, ChevronDown, X } from "lucide-react"
 import { Badge } from "../../components/ui/badge"
 import { Button } from "../../components/ui/button"
 import { useSearchParams, useRouter, usePathname } from "next/navigation"
@@ -110,6 +110,7 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
   const [recentlyCompleted, setRecentlyCompleted] = useState<string | null>(null)
   const [onboardingCompleted, setOnboardingCompleted] = useState(false)
   const [isMarkingComplete, setIsMarkingComplete] = useState(false)
+  const [isDismissed, setIsDismissed] = useState(false)
 
   const completionDefinitions = useMemo<CompletionItemDefinition[]>(() => ([
     { id: 'stage_name', label: 'Artist Name', required: true, section: 'profile' },
@@ -323,6 +324,15 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
     }
   }, [loadCompletionStatus])
 
+  // ── Restore dismissed state from localStorage ──────────────────────────────
+  useEffect(() => {
+    if (!user) return
+    try {
+      const stored = localStorage.getItem(`completion-panel-dismissed-${user.id}`)
+      if (stored === 'true') setIsDismissed(true)
+    } catch {}
+  }, [user])
+
   const lastCompletedLabel = useMemo(() => {
     if (!recentlyCompleted) return null
     const item = evaluatedItems.find(i => i.id === recentlyCompleted)
@@ -345,6 +355,13 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
       if (response.ok) {
         setOnboardingCompleted(true)
         router.refresh()
+        // Auto-collapse panel after a 3-second celebration window
+        setTimeout(() => {
+          setIsDismissed(true)
+          try {
+            if (user) localStorage.setItem(`completion-panel-dismissed-${user.id}`, 'true')
+          } catch {}
+        }, 3000)
       } else {
         console.error('Failed to mark onboarding as complete')
       }
@@ -354,6 +371,21 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
       setIsMarkingComplete(false)
     }
   }
+
+  // ── Auto-complete onboarding when all items reach 100% ────────────────────
+  // Fires after handleCompleteOnboarding is defined to avoid TS forward-ref warning
+  useEffect(() => {
+    if (
+      percentage === 100 &&
+      !onboardingCompleted &&
+      !loading &&
+      !isMarkingComplete &&
+      allRequiredComplete
+    ) {
+      void handleCompleteOnboarding()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [percentage, onboardingCompleted, loading, isMarkingComplete, allRequiredComplete])
 
   const sectionToDashboardQuery: Record<CompletionSection, string | null> = {
     profile: null,
@@ -384,6 +416,48 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
       params.delete('folder')
     }
     router.push(`${pathname}?${params.toString()}`)
+  }
+
+  const handleDismissPanel = () => {
+    setIsDismissed(true)
+    try {
+      if (user) localStorage.setItem(`completion-panel-dismissed-${user.id}`, 'true')
+    } catch {}
+  }
+
+  const handleExpandPanel = () => {
+    setIsDismissed(false)
+    try {
+      if (user) localStorage.removeItem(`completion-panel-dismissed-${user.id}`)
+    } catch {}
+  }
+
+  // ── Compact banner: shown when onboarding is complete + panel is dismissed ──
+  if (isDismissed && onboardingCompleted) {
+    return (
+      <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl shadow-sm">
+        <div className="flex items-center justify-between px-4 py-3 gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-full bg-green-500 flex items-center justify-center shrink-0">
+              <PartyPopper className="w-4 h-4 text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-green-800 leading-tight">Profile {percentage}% Complete</p>
+              <p className="text-xs text-green-600 leading-tight">Onboarding done 🎉</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleExpandPanel}
+            className="shrink-0 inline-flex items-center gap-1 text-xs text-green-700 hover:text-green-900 font-medium transition-colors"
+            aria-label="View profile progress"
+          >
+            View
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -458,9 +532,19 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
                   ></div>
                 </div>
                 {onboardingCompleted ? (
-                  <div className="flex items-center justify-center gap-2 text-sm text-green-600 font-medium">
-                    <PartyPopper className="w-4 h-4" />
-                    <span>Onboarding Complete!</span>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-center gap-2 text-sm text-green-600 font-medium">
+                      <PartyPopper className="w-4 h-4" />
+                      <span>Onboarding Complete!</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDismissPanel}
+                      className="w-full flex items-center justify-center gap-1.5 text-xs text-foreground/50 hover:text-foreground/80 transition-colors py-1"
+                    >
+                      <X className="w-3 h-3" />
+                      Hide this panel
+                    </button>
                   </div>
                 ) : allRequiredComplete ? (
                   <div className="space-y-2">

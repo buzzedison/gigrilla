@@ -9,6 +9,7 @@ import { cn } from './utils'
 export interface LocationSuggestion {
   id: string
   formatted: string
+  placeId?: string
   city?: string
   state?: string
   country?: string
@@ -49,6 +50,7 @@ export function LocationAutocompleteInput({
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [geocoding, setGeocoding] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -165,11 +167,36 @@ export function LocationAutocompleteInput({
     if (!open) setOpen(true)
   }
 
-  const handleSelect = (suggestion: LocationSuggestion) => {
+  const handleSelect = async (suggestion: LocationSuggestion) => {
+    // Update input immediately for responsive UX
     setInputValue(suggestion.formatted)
     onInputChange?.(suggestion.formatted)
     setSuggestions([])
     setOpen(false)
+
+    // Fetch precise lat/lon + address components from Place Details if we have a placeId
+    if (suggestion.placeId) {
+      setGeocoding(true)
+      try {
+        const res = await fetch(
+          `/api/location-geocode?placeId=${encodeURIComponent(suggestion.placeId)}`,
+          { headers: { Accept: 'application/json' }, cache: 'no-store' }
+        )
+        if (res.ok) {
+          const details = await res.json() as {
+            city?: string; state?: string; country?: string; lat?: number; lon?: number
+          }
+          onSelect({ ...suggestion, ...details })
+          return
+        }
+      } catch (geocodeError) {
+        console.error('Location geocode error', geocodeError)
+      } finally {
+        setGeocoding(false)
+      }
+    }
+
+    // Fallback: call onSelect with autocomplete data only (no precise lat/lon)
     onSelect(suggestion)
   }
 
@@ -197,6 +224,11 @@ export function LocationAutocompleteInput({
         autoComplete="off"
         className={inputClassName}
       />
+      {geocoding && (
+        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+          <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+        </div>
+      )}
 
       {showDropdown && (
         <div className="absolute inset-x-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-slate-900">

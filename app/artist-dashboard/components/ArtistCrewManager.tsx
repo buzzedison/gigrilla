@@ -23,7 +23,49 @@ import {
   type ISNILookupResult,
   getValidationStatusClasses
 } from '../../../lib/professional-id-utils'
-import { CREW_INSTRUMENT_ROLE_GROUPS } from '@/data/instrument-taxonomy'
+import { INSTRUMENT_TAXONOMY_3TIER } from '@/data/instrument-taxonomy'
+import {
+  InstrumentPicker3Tier,
+  serializeInstruments3Tier,
+  type SelectedInstrument,
+} from '../../components/ui/instrument-picker-3tier'
+
+// ── Instrument ↔ role-string helpers ──────────────────────────────────────────
+// Instruments are stored inside the roles[] array with an "instrument:" prefix
+// e.g. "instrument:strings:guitar:electric" so no separate DB column is needed.
+
+function instrumentsToRoleStrings(items: SelectedInstrument[]): string[] {
+  return items.map(i =>
+    `instrument:${i.groupId}:${i.instrumentId}${i.variantId ? ':' + i.variantId : ''}`
+  )
+}
+
+function instrumentRolesFromStrings(roles: string[]): SelectedInstrument[] {
+  return roles
+    .filter(r => r.startsWith('instrument:'))
+    .map((r): SelectedInstrument | null => {
+      const parts = r.split(':')
+      const [, groupId, instrumentId, variantId] = parts
+      if (!groupId || !instrumentId) return null
+      const group = INSTRUMENT_TAXONOMY_3TIER.find(g => g.id === groupId)
+      const instrument = group?.instruments.find(i => i.id === instrumentId)
+      if (!group || !instrument) return null
+      const variant = variantId ? instrument.variants?.find(v => v.id === variantId) : undefined
+      return {
+        groupId,
+        groupName: group.name,
+        instrumentId,
+        instrumentLabel: instrument.label,
+        variantId: variantId || undefined,
+        variantLabel: variant?.label,
+      }
+    })
+    .filter((x): x is SelectedInstrument => x !== null)
+}
+
+function nonInstrumentRoles(roles: string[]): string[] {
+  return roles.filter(r => !r.startsWith('instrument:'))
+}
 
 interface CrewMember {
   id: string
@@ -91,20 +133,6 @@ interface RoleCategory {
   expanded?: boolean
 }
 
-const INSTRUMENT_ROLE_ICONS: Record<string, React.ReactNode> = {
-  strings: <Guitar className="w-4 h-4" />,
-  wind: <Music className="w-4 h-4" />,
-  percussion: <Drum className="w-4 h-4" />,
-  keyboard: <Piano className="w-4 h-4" />,
-  electronic: <Keyboard className="w-4 h-4" />
-}
-
-const INSTRUMENT_ROLE_CATEGORIES: RoleCategory[] = CREW_INSTRUMENT_ROLE_GROUPS.map((group) => ({
-  id: group.id,
-  name: group.name,
-  icon: INSTRUMENT_ROLE_ICONS[group.id] || <Music className="w-4 h-4" />,
-  items: group.items
-}))
 
 const ROLE_CATEGORIES: RoleCategory[] = [
   {
@@ -127,7 +155,6 @@ const ROLE_CATEGORIES: RoleCategory[] = [
       'Backing Vocals'
     ]
   },
-  ...INSTRUMENT_ROLE_CATEGORIES,
   {
     id: 'management-independent',
     name: 'Management - Independent',
@@ -181,7 +208,10 @@ export function ArtistCrewManager() {
     nickname: string
     phone: string
     roles: string[]
-  }>({ firstName: '', lastName: '', nickname: '', phone: '', roles: [] })
+    instruments3tier: SelectedInstrument[]
+  }>({ firstName: '', lastName: '', nickname: '', phone: '', roles: [], instruments3tier: [] })
+  const [ownerInstruments3tier, setOwnerInstruments3tier] = useState<SelectedInstrument[]>([])
+  const [newMemberInstruments, setNewMemberInstruments] = useState<SelectedInstrument[]>([])
   const [savingMemberId, setSavingMemberId] = useState<string | null>(null)
   const [newMember, setNewMember] = useState<Partial<CrewMember>>({
     firstName: '',
@@ -442,7 +472,9 @@ export function ArtistCrewManager() {
             roles: Array.isArray(profileData?.artist_primary_roles)
               ? profileData.artist_primary_roles.filter((role: unknown): role is string => typeof role === 'string' && role.trim().length > 0)
               : [],
-            instruments: [],
+            instruments: Array.isArray(profileData?.artist_primary_roles)
+              ? profileData.artist_primary_roles.filter((r: unknown): r is string => typeof r === 'string' && r.startsWith('instrument:'))
+              : [],
             management: [],
             isPublic: false,
             isProfileOwner: true,
@@ -491,6 +523,7 @@ export function ArtistCrewManager() {
           }))
 
           setProfileOwner(owner)
+          setOwnerInstruments3tier(instrumentRolesFromStrings(owner.roles))
           setCrewMembers([owner, ...invitationMembers, ...activeMembers])
         }
       } else {
@@ -556,7 +589,10 @@ export function ArtistCrewManager() {
         },
         body: JSON.stringify({
           stage_name: profileOwner.nickname?.trim() || null,
-          artist_primary_roles: profileOwner.roles,
+          artist_primary_roles: [
+            ...nonInstrumentRoles(profileOwner.roles),
+            ...instrumentsToRoleStrings(ownerInstruments3tier),
+          ],
           performer_isni: profileOwner.performerIsni?.trim() || null,
           creator_ipi_cae: profileOwner.creatorIpiCae?.trim() || null,
           hometown_city: hometownParts[0] || null,
@@ -618,7 +654,7 @@ export function ArtistCrewManager() {
   const startEditingMember = (member: CrewMember) => {
     if (editingMemberId === member.id) {
       setEditingMemberId(null)
-      setEditingMemberFields({ firstName: '', lastName: '', nickname: '', phone: '', roles: [] })
+      setEditingMemberFields({ firstName: '', lastName: '', nickname: '', phone: '', roles: [], instruments3tier: [] })
     } else {
       setEditingMemberId(member.id)
       setEditingMemberFields({
@@ -626,14 +662,15 @@ export function ArtistCrewManager() {
         lastName: member.lastName ?? '',
         nickname: member.nickname ?? '',
         phone: member.phone ?? '',
-        roles: [...member.roles]
+        roles: nonInstrumentRoles(member.roles),
+        instruments3tier: instrumentRolesFromStrings(member.roles),
       })
     }
   }
 
   const closeEditingMember = () => {
     setEditingMemberId(null)
-    setEditingMemberFields({ firstName: '', lastName: '', nickname: '', phone: '', roles: [] })
+    setEditingMemberFields({ firstName: '', lastName: '', nickname: '', phone: '', roles: [], instruments3tier: [] })
   }
 
   const toggleMemberRole = (role: string, category?: RoleCategory) => {
@@ -667,7 +704,10 @@ export function ArtistCrewManager() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           memberId,
-          roles: editingMemberFields.roles,
+          roles: [
+            ...nonInstrumentRoles(editingMemberFields.roles),
+            ...instrumentsToRoleStrings(editingMemberFields.instruments3tier),
+          ],
           firstName: editingMemberFields.firstName.trim() || undefined,
           lastName: editingMemberFields.lastName.trim() || undefined,
           nickname: editingMemberFields.nickname.trim() || undefined,
@@ -677,10 +717,14 @@ export function ArtistCrewManager() {
       const result = await response.json()
       if (!response.ok || result?.error) throw new Error(result?.error || 'Failed to update')
 
+      const mergedRoles = [
+        ...nonInstrumentRoles(editingMemberFields.roles),
+        ...instrumentsToRoleStrings(editingMemberFields.instruments3tier),
+      ]
       setCrewMembers(prev => prev.map(m =>
         m.id === memberId ? {
           ...m,
-          roles: editingMemberFields.roles,
+          roles: mergedRoles,
           firstName: editingMemberFields.firstName.trim() || m.firstName,
           lastName: editingMemberFields.lastName.trim() || m.lastName,
           nickname: editingMemberFields.nickname.trim() || m.nickname,
@@ -740,7 +784,10 @@ export function ArtistCrewManager() {
           nickname: newMember.nickname || '',
           email,
           phone,
-          roles: newMember.roles || [],
+          roles: [
+            ...(newMember.roles || []),
+            ...instrumentsToRoleStrings(newMemberInstruments),
+          ],
           isAdmin: newMember.isAdmin || false
         })
       })
@@ -762,7 +809,10 @@ export function ArtistCrewManager() {
         lastName,
         email,
         phone,
-        roles: newMember.roles || [],
+        roles: [
+          ...(newMember.roles || []),
+          ...instrumentsToRoleStrings(newMemberInstruments),
+        ],
         isAdmin: newMember.isAdmin || false,
         status: 'invited',
         dateOfBirth: '',
@@ -787,6 +837,7 @@ export function ArtistCrewManager() {
       setNewMemberErrors({})
       setNewMemberErrorSummary(null)
       setNewMemberRolePickerOpen(false)
+      setNewMemberInstruments([])
       setShowAddMember(false)
 
       if (result.warning) {
@@ -976,10 +1027,10 @@ export function ArtistCrewManager() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium text-purple-700">Artist Real Name</Label>
+                    <Label className="text-sm font-semibold text-gray-700">Artist Real Name</Label>
                     <div className="p-3 rounded-lg bg-white border border-purple-200">
                       <p className="font-medium text-purple-900">{profileOwner.name}</p>
-                      <p className="text-xs text-purple-600 mt-1">From Guest Fan Details</p>
+                      <p className="text-xs text-gray-500 mt-1">From Guest Fan Details</p>
                     </div>
                     <div className="flex items-center gap-4 text-xs">
                       <div className="flex items-center gap-2">
@@ -1002,7 +1053,7 @@ export function ArtistCrewManager() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="artistNickname" className="text-xs font-medium text-purple-700">
+                    <Label htmlFor="artistNickname" className="text-sm font-semibold text-gray-700">
                       Artist Nickname / Stagename
                     </Label>
                     <Input
@@ -1012,7 +1063,7 @@ export function ArtistCrewManager() {
                       placeholder="Enter Nickname / Stagename (if you have one)"
                       className="border-purple-200 focus:border-purple-400"
                     />
-                    <p className="text-xs text-purple-600 italic">
+                    <p className="text-xs text-gray-500 italic">
                       is always public & searchable.
                     </p>
                   </div>
@@ -1020,7 +1071,7 @@ export function ArtistCrewManager() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="artistDateOfBirth" className="text-xs font-medium text-purple-700">
+                    <Label htmlFor="artistDateOfBirth" className="text-sm font-semibold text-gray-700">
                       Artist Date-of-Birth
                     </Label>
                     <Input
@@ -1031,7 +1082,7 @@ export function ArtistCrewManager() {
                       placeholder="dd/mm/yyyy"
                       className="border-purple-200 focus:border-purple-400"
                     />
-                    <p className="text-xs text-purple-600">
+                    <p className="text-xs text-gray-500">
                       {profileOwner.dateOfBirth ? '(PrePopulated - you can edit if needed)' : '(Enter your date of birth)'}
                     </p>
                     <div className="flex items-center gap-4 text-xs">
@@ -1047,7 +1098,7 @@ export function ArtistCrewManager() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="artistHometown" className="text-xs font-medium text-purple-700">
+                    <Label htmlFor="artistHometown" className="text-sm font-semibold text-gray-700">
                       Artist Hometown
                     </Label>
                     <Input
@@ -1057,7 +1108,7 @@ export function ArtistCrewManager() {
                       placeholder="Town/City, Country/State, Country"
                       className="border-purple-200 focus:border-purple-400"
                     />
-                    <p className="text-xs text-purple-600">
+                    <p className="text-xs text-gray-500">
                       {profileOwner.hometown ? '(PrePopulated - you can edit if needed)' : '(Enter your hometown)'}
                     </p>
                     <div className="flex items-center gap-4 text-xs">
@@ -1300,7 +1351,7 @@ export function ArtistCrewManager() {
                         <div className="flex items-center justify-between p-3 rounded-lg bg-white border border-purple-200 hover:bg-purple-50 transition-colors">
                           <div className="flex items-center gap-2">
                             {category.icon}
-                            <span className="font-medium text-sm text-purple-900">{category.name}</span>
+                            <span className="font-semibold text-base text-gray-900">{category.name}</span>
                           </div>
                           {expandedCategories.has(category.id) ? (
                             <ChevronUp className="w-4 h-4 text-purple-600" />
@@ -1310,7 +1361,7 @@ export function ArtistCrewManager() {
                         </div>
                       </CollapsibleTrigger>
                       <CollapsibleContent className="space-y-2 mt-2">
-                        <div className="p-3 rounded-lg bg-purple-50/50 border border-purple-200">
+                        <div className="p-3 rounded-lg bg-purple-50 border border-purple-200">
                           {(() => {
                             const allItem = category.items[0]?.startsWith('All ') ? category.items[0] : null
                             const allActive = allItem ? isRoleSelected(allItem) : false
@@ -1325,7 +1376,7 @@ export function ArtistCrewManager() {
                                     onCheckedChange={() => !isDisabled && toggleRole(item, category)}
                                     disabled={isDisabled}
                                   />
-                                  <label htmlFor={item} className={`text-sm text-purple-800 ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                                  <label htmlFor={item} className={`text-sm font-medium text-gray-900 ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
                                     {item}
                                   </label>
                                 </div>
@@ -1337,15 +1388,27 @@ export function ArtistCrewManager() {
                     </Collapsible>
                   ))}
                 </div>
+
+                {/* Instruments (3-tier multi-select) */}
+                <div className="space-y-3 pt-2 border-t border-purple-200">
+                  <h5 className="font-semibold text-base text-gray-900 flex items-center gap-2 pt-1">
+                    <Guitar className="w-4 h-4 text-purple-600" />
+                    Instruments
+                  </h5>
+                  <InstrumentPicker3Tier
+                    value={ownerInstruments3tier}
+                    onChange={setOwnerInstruments3tier}
+                  />
+                </div>
               </div>
 
               {/* Selected Roles Display */}
               {profileOwner.roles.length > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-2 rounded-lg bg-purple-50 border border-purple-200 p-3">
                   <h4 className="font-semibold text-sm text-purple-900">Your Selected Roles</h4>
                   <div className="flex flex-wrap gap-2">
                     {profileOwner.roles.map((role) => (
-                      <Badge key={role} variant="secondary" className="bg-purple-100 text-purple-800 border-purple-300">
+                      <Badge key={role} variant="secondary" className="bg-purple-600 text-white border-purple-600 font-medium">
                         {role}
                       </Badge>
                     ))}
@@ -1416,7 +1479,7 @@ export function ArtistCrewManager() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium text-purple-700">
+                  <Label className="text-sm font-semibold text-gray-700">
                     Given/First Name?
                   </Label>
                   <Input
@@ -1432,11 +1495,11 @@ export function ArtistCrewManager() {
                     )}
                   />
                   {newMemberErrors.firstName && <p className="text-xs text-red-600">{newMemberErrors.firstName}</p>}
-                  <p className="text-xs text-purple-600">is private by default; they can choose to make this public.</p>
+                  <p className="text-xs text-gray-500">is private by default; they can choose to make this public.</p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium text-purple-700">
+                  <Label className="text-sm font-semibold text-gray-700">
                     Surname/Family Name?
                   </Label>
                   <Input
@@ -1452,11 +1515,11 @@ export function ArtistCrewManager() {
                     )}
                   />
                   {newMemberErrors.lastName && <p className="text-xs text-red-600">{newMemberErrors.lastName}</p>}
-                  <p className="text-xs text-purple-600">is private by default; they can choose to make this public.</p>
+                  <p className="text-xs text-gray-500">is private by default; they can choose to make this public.</p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium text-purple-700">
+                  <Label className="text-sm font-semibold text-gray-700">
                     Nickname?
                   </Label>
                   <Input
@@ -1465,11 +1528,11 @@ export function ArtistCrewManager() {
                     placeholder="Nickname"
                     className="border-purple-200 focus:border-purple-400"
                   />
-                  <p className="text-xs text-purple-600 italic">is always public & searchable.</p>
+                  <p className="text-xs text-gray-500 italic">is always public & searchable.</p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium text-purple-700">
+                  <Label className="text-sm font-semibold text-gray-700">
                     Their Email?
                   </Label>
                   <Input
@@ -1486,11 +1549,11 @@ export function ArtistCrewManager() {
                     )}
                   />
                   {newMemberErrors.email && <p className="text-xs text-red-600">{newMemberErrors.email}</p>}
-                  <p className="text-xs text-purple-600">is private. Used to securely match members to Profiles and to invite non-members.</p>
+                  <p className="text-xs text-gray-500">is private. Used to securely match members to Profiles and to invite non-members.</p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium text-purple-700">
+                  <Label className="text-sm font-semibold text-gray-700">
                     Their Phone?
                   </Label>
                   <Input
@@ -1507,11 +1570,11 @@ export function ArtistCrewManager() {
                     )}
                   />
                   {newMemberErrors.phone && <p className="text-xs text-red-600">{newMemberErrors.phone}</p>}
-                  <p className="text-xs text-purple-600">is private. Used to securely match members to Profiles and to invite non-members.</p>
+                  <p className="text-xs text-gray-500">is private. Used to securely match members to Profiles and to invite non-members.</p>
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
-                  <Label className="text-xs font-medium text-purple-700">
+                  <Label className="text-sm font-semibold text-gray-700">
                     Their Role(s)?
                   </Label>
                   <div className="bg-white border border-purple-200 rounded-lg p-3">
@@ -1536,25 +1599,25 @@ export function ArtistCrewManager() {
                           </Badge>
                         ))
                       ) : (
-                        <span className="text-xs text-gray-400">No roles selected</span>
+                        <span className="text-sm text-gray-500 italic">No roles selected yet</span>
                       )}
                     </div>
                     <Collapsible open={newMemberRolePickerOpen} onOpenChange={setNewMemberRolePickerOpen}>
                       <CollapsibleTrigger className="w-full" type="button">
-                        <div className="flex items-center justify-between p-2 rounded bg-purple-50 hover:bg-purple-100 transition-colors">
-                          <span className="text-xs font-medium text-purple-700">+ Add Roles</span>
+                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-purple-50 border border-purple-200 hover:bg-purple-100 transition-colors">
+                          <span className="text-sm font-semibold text-purple-800">+ Add Roles</span>
                           {newMemberRolePickerOpen ? (
-                            <ChevronUp className="w-3 h-3 text-purple-600" />
+                            <ChevronUp className="w-4 h-4 text-purple-700" />
                           ) : (
-                            <ChevronDown className="w-3 h-3 text-purple-600" />
+                            <ChevronDown className="w-4 h-4 text-purple-700" />
                           )}
                         </div>
                       </CollapsibleTrigger>
                       <CollapsibleContent className="mt-2 max-h-48 overflow-y-auto">
-                        <div className="space-y-2 p-2 bg-purple-50/50 rounded-lg">
+                        <div className="space-y-2 p-2 bg-purple-50 rounded-lg">
                           {ROLE_CATEGORIES.map((category) => (
                             <div key={category.id}>
-                              <p className="text-xs font-semibold text-purple-800 mb-1">{category.name}</p>
+                              <p className="text-sm font-semibold text-gray-800 mb-1.5">{category.name}</p>
                               <div className="flex flex-wrap gap-1">
                                 {category.items.map((item) => (
                                   <button
@@ -1568,10 +1631,10 @@ export function ArtistCrewManager() {
                                       return !isAllItem && allActive
                                     })()}
                                     className={cn(
-                                      "text-xs px-2 py-0.5 rounded transition-colors",
+                                      "text-sm px-2.5 py-1 rounded font-medium transition-colors",
                                       (newMember.roles || []).includes(item)
-                                        ? "bg-purple-200 text-purple-700 border border-purple-300"
-                                        : "bg-white border border-purple-200 text-purple-700 hover:bg-purple-100"
+                                        ? "bg-purple-600 text-white border border-purple-600"
+                                        : "bg-white border border-gray-300 text-gray-800 hover:border-purple-400 hover:bg-purple-50 hover:text-purple-900"
                                     )}
                                   >
                                     {item}
@@ -1586,8 +1649,20 @@ export function ArtistCrewManager() {
                   </div>
                 </div>
 
+                {/* Instruments (3-tier multi-select) */}
+                <div className="space-y-2 md:col-span-2">
+                  <Label className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+                    <Guitar className="w-4 h-4 text-purple-600" />
+                    Their Instrument(s)?
+                  </Label>
+                  <InstrumentPicker3Tier
+                    value={newMemberInstruments}
+                    onChange={setNewMemberInstruments}
+                  />
+                </div>
+
                 <div className="space-y-2">
-                  <Label className="text-xs font-medium text-purple-700">
+                  <Label className="text-sm font-semibold text-gray-700">
                     Artist Profile Admin Rights?
                   </Label>
                   <select
@@ -1622,25 +1697,25 @@ export function ArtistCrewManager() {
                     <div key={member.id} className="p-4 border border-purple-200 rounded-lg bg-white">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <h5 className="font-medium text-purple-900">
+                          <h5 className="font-semibold text-gray-900">
                             {getDisplayName(member)}
                           </h5>
-                          <p className="text-sm text-purple-700 mt-1">
-                            {member.roles.length > 0 ? member.roles.join('; ') : 'No roles assigned'}
+                          <p className="text-sm text-gray-600 mt-1">
+                            {member.roles.length > 0 ? member.roles.filter(r => !r.startsWith('instrument:')).join('; ') || 'No roles assigned' : 'No roles assigned'}
                           </p>
                           <div className="flex items-center gap-2 mt-2">
                             <Badge
                               variant={member.status === 'joined' ? 'default' : 'secondary'}
-                              className={member.status === 'joined' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}
+                              className={member.status === 'joined' ? 'bg-green-600 text-white' : 'bg-amber-100 text-amber-800 border border-amber-300'}
                             >
                               {member.status === 'joined' ? 'Joined' : member.status === 'invited' ? 'Invited' : 'Invite'}
                             </Badge>
-                            <span className="text-xs text-purple-600">Admin</span>
+                            <span className="text-sm font-medium text-gray-700">Admin</span>
                             <select
                               value={member.isAdmin ? 'Yes' : 'No'}
                               onChange={(e) => updateMemberAdmin(member.id, e.target.value === 'Yes')}
                               disabled={updatingAdminMemberId === member.id}
-                              className="text-xs border border-purple-200 rounded px-2 py-1 focus:border-purple-400 focus:outline-none"
+                              className="text-sm border border-gray-300 rounded px-2 py-1 text-gray-800 focus:border-purple-400 focus:outline-none"
                             >
                               <option value="No">No</option>
                               <option value="Yes">Yes</option>
@@ -1675,7 +1750,7 @@ export function ArtistCrewManager() {
                             <p className="text-sm font-medium text-purple-900 mb-3">Edit Details</p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div className="space-y-1">
-                                <Label className="text-xs font-medium text-purple-700">First Name</Label>
+                                <Label className="text-sm font-semibold text-gray-700">First Name</Label>
                                 <Input
                                   value={editingMemberFields.firstName}
                                   onChange={(e) => setEditingMemberFields(prev => ({ ...prev, firstName: e.target.value }))}
@@ -1684,7 +1759,7 @@ export function ArtistCrewManager() {
                                 />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs font-medium text-purple-700">Last Name</Label>
+                                <Label className="text-sm font-semibold text-gray-700">Last Name</Label>
                                 <Input
                                   value={editingMemberFields.lastName}
                                   onChange={(e) => setEditingMemberFields(prev => ({ ...prev, lastName: e.target.value }))}
@@ -1693,7 +1768,7 @@ export function ArtistCrewManager() {
                                 />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs font-medium text-purple-700">Nickname</Label>
+                                <Label className="text-sm font-semibold text-gray-700">Nickname</Label>
                                 <Input
                                   value={editingMemberFields.nickname}
                                   onChange={(e) => setEditingMemberFields(prev => ({ ...prev, nickname: e.target.value }))}
@@ -1702,7 +1777,7 @@ export function ArtistCrewManager() {
                                 />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs font-medium text-purple-700">Phone</Label>
+                                <Label className="text-sm font-semibold text-gray-700">Phone</Label>
                                 <Input
                                   value={editingMemberFields.phone}
                                   onChange={(e) => setEditingMemberFields(prev => ({ ...prev, phone: e.target.value }))}
@@ -1715,7 +1790,7 @@ export function ArtistCrewManager() {
 
                           {/* Roles */}
                           <div>
-                            <p className="text-sm font-medium text-purple-900 mb-2">Roles & Skills</p>
+                            <p className="text-base font-semibold text-gray-900 mb-2">Roles & Skills</p>
                             <div className="space-y-2">
                               {ROLE_CATEGORIES.map((category) => {
                                 const allItem = category.items[0]?.startsWith('All ') ? category.items[0] : null
@@ -1726,13 +1801,13 @@ export function ArtistCrewManager() {
                                       <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-white border border-purple-200 hover:bg-purple-50 transition-colors text-left">
                                         <div className="flex items-center gap-2">
                                           {category.icon}
-                                          <span className="text-sm font-medium text-purple-900">{category.name}</span>
+                                          <span className="text-sm font-semibold text-gray-900">{category.name}</span>
                                         </div>
-                                        <ChevronDown className="w-3.5 h-3.5 text-purple-400" />
+                                        <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
                                       </div>
                                     </CollapsibleTrigger>
                                     <CollapsibleContent>
-                                      <div className="mt-1 p-3 rounded-lg bg-purple-50/50 border border-purple-100 space-y-1">
+                                      <div className="mt-1 p-3 rounded-lg bg-purple-50 border border-purple-100 space-y-1">
                                         {category.items.map((item) => {
                                           const isAllItem = item === allItem
                                           const isDisabled = !isAllItem && allActive
@@ -1744,7 +1819,7 @@ export function ArtistCrewManager() {
                                                 onCheckedChange={() => !isDisabled && toggleMemberRole(item, category)}
                                                 disabled={isDisabled}
                                               />
-                                              <label htmlFor={`edit-${member.id}-${item}`} className={`text-sm text-purple-800 ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                                              <label htmlFor={`edit-${member.id}-${item}`} className={`text-sm font-medium text-gray-900 ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
                                                 {item}
                                               </label>
                                             </div>
@@ -1755,6 +1830,18 @@ export function ArtistCrewManager() {
                                   </Collapsible>
                                 )
                               })}
+                            </div>
+
+                            {/* Instruments (3-tier multi-select) */}
+                            <div className="space-y-3 mt-3 pt-3 border-t border-purple-200">
+                              <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                                <Guitar className="w-4 h-4 text-purple-600" />
+                                Instruments
+                              </p>
+                              <InstrumentPicker3Tier
+                                value={editingMemberFields.instruments3tier}
+                                onChange={(val) => setEditingMemberFields(prev => ({ ...prev, instruments3tier: val }))}
+                              />
                             </div>
                           </div>
 
