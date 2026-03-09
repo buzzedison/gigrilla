@@ -5,8 +5,11 @@ import { useAuth } from "../../../lib/auth-context"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select"
+import { AutocompleteInput } from "../../components/ui/autocomplete-input"
 import { Save, Loader2, Info } from "lucide-react"
 import { COUNTRY_DIAL_CODE_OPTIONS } from "../../../lib/country-dial-codes"
+import { getRecordLabelNames } from "../../../lib/record-labels"
+import { getMusicPublisherNames } from "../../../lib/music-publishers"
 
 const RECORD_LABEL_STATUS_OPTIONS = [
   { value: "signed", label: "Signed to Label" },
@@ -418,9 +421,10 @@ export function ArtistContractStatusManager() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Record Label Name</label>
-                  <Input
+                  <AutocompleteInput
                     value={formData.record_label_name}
-                    onChange={(e) => handleInputChange('record_label_name', e.target.value)}
+                    onChange={(value) => handleInputChange('record_label_name', value)}
+                    suggestions={getRecordLabelNames()}
                     placeholder="Start typing label company name…"
                   />
                 </div>
@@ -516,9 +520,10 @@ export function ArtistContractStatusManager() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Music Publisher Name</label>
-                  <Input
+                  <AutocompleteInput
                     value={formData.music_publisher_name}
-                    onChange={(e) => handleInputChange('music_publisher_name', e.target.value)}
+                    onChange={(value) => handleInputChange('music_publisher_name', value)}
+                    suggestions={getMusicPublisherNames()}
                     placeholder="Start typing publisher company name…"
                   />
                 </div>
