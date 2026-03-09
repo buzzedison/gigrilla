@@ -7,9 +7,8 @@ import {
   VOCAL_GENRE_DESCRIPTORS as SHARED_VOCAL_GENRE_DESCRIPTORS
 } from './vocal-descriptors'
 import {
-  TYPE5_INSTRUMENT_GROUP_OPTIONS,
-  TYPE5_MAIN_INSTRUMENT_FAMILY_OPTIONS
-} from './instrument-taxonomy'
+  getType5InstrumentOptions
+} from './instrument-taxonomy-aligned'
 
 export type GigBookingMode = 'public' | 'collaboration' | 'both'
 
@@ -196,15 +195,14 @@ export const ARTIST_TYPES: ArtistTypeConfig[] = [
       {
         id: 'vocal-role',
         title: 'Vocal services offered',
-        helpText: 'Select all vocal services you provide. "All Vocals" covers all options.',
+        helpText: 'Select only your vocal roles here. Stylistic and genre descriptors are handled separately below.',
         required: true,
         minSelect: 1,
         options: [
-          { id: 'all-vocals', label: 'All Vocals', description: 'I provide all vocal services listed below' },
-          { id: 'lead-vocalist', label: 'Lead Vocals', description: 'Primary/featured vocal performances' },
-          { id: 'backing-vocalist', label: 'Backing Vocals', description: 'Harmony and support vocals' },
-          { id: 'session-vocalist', label: 'Session Vocalist', description: 'Studio recording vocals' },
-          { id: 'voiceover-artist', label: 'Voiceover Artist', description: 'Spoken word, narration, voice acting' }
+          { id: 'all-vocals', label: 'All Vocals', description: 'Select all three vocal role options below' },
+          { id: 'lead-vocalist', label: 'Lead', description: 'Primary/featured vocal performances' },
+          { id: 'backing-vocalist', label: 'Backing', description: 'Support vocal performances' },
+          { id: 'harmony-vocalist', label: 'Harmony', description: 'Harmony vocal arrangements and parts' }
         ]
       },
       {
@@ -229,17 +227,12 @@ export const ARTIST_TYPES: ArtistTypeConfig[] = [
     description: 'Offer instrumental performances for live shows or studio recordings. Showcase instrument groups and families for discovery.',
     groups: [
       {
-        id: 'instrument-group',
-        title: 'Instrument group',
+        id: 'instruments',
+        title: 'Instruments you play',
+        helpText: 'Select "All" for entire groups, or choose specific instruments. Selecting "Other" will trigger a follow-up to capture your instrument.',
         required: true,
         minSelect: 1,
-        options: TYPE5_INSTRUMENT_GROUP_OPTIONS
-      },
-      {
-        id: 'instrument-specialism',
-        title: 'Main instrument family',
-        helpText: 'Select the families or specific instruments you specialise in.',
-        options: TYPE5_MAIN_INSTRUMENT_FAMILY_OPTIONS
+        options: getType5InstrumentOptions()
       }
     ],
     capabilities: createCapabilities(5)

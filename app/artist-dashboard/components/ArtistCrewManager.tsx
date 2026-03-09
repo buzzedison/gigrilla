@@ -152,7 +152,8 @@ const ROLE_CATEGORIES: RoleCategory[] = [
     items: [
       'All Vocals',
       'Lead Vocals',
-      'Backing Vocals'
+      'Backing Vocals',
+      'Harmony Vocals'
     ]
   },
   {
@@ -1398,6 +1399,7 @@ export function ArtistCrewManager() {
                   <InstrumentPicker3Tier
                     value={ownerInstruments3tier}
                     onChange={setOwnerInstruments3tier}
+                    allowedGroups={['strings', 'wind', 'percussion', 'keyboard', 'electronic']}
                   />
                 </div>
               </div>
@@ -1658,6 +1660,7 @@ export function ArtistCrewManager() {
                   <InstrumentPicker3Tier
                     value={newMemberInstruments}
                     onChange={setNewMemberInstruments}
+                    allowedGroups={['strings', 'wind', 'percussion', 'keyboard', 'electronic']}
                   />
                 </div>
 
@@ -1841,6 +1844,7 @@ export function ArtistCrewManager() {
                               <InstrumentPicker3Tier
                                 value={editingMemberFields.instruments3tier}
                                 onChange={(val) => setEditingMemberFields(prev => ({ ...prev, instruments3tier: val }))}
+                                allowedGroups={['strings', 'wind', 'percussion', 'keyboard', 'electronic']}
                               />
                             </div>
                           </div>

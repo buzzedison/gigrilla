@@ -1,9 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, AlertCircle } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { ARTIST_TYPES, ArtistTypeConfig } from '../../../data/artist-types'
+import { isOtherInstrumentSelection } from '../../../data/instrument-taxonomy-aligned'
 
 const TYPE_ICONS: Record<number, string> = {
   1: '🎤',
@@ -70,6 +71,20 @@ export function ArtistTypeSelectorV2({ value, onChange }: ArtistTypeSelectorProp
         [groupId]: nextValues
       }
     }))
+
+    // Check if any "Other instrument" option was selected (Type 5 only)
+    if (typeId === 5) {
+      const hasOtherSelection = nextValues.some(value => isOtherInstrumentSelection(value))
+      if (hasOtherSelection) {
+        // Log for ops team follow-up
+        console.info('[TAXONOMY] User selected "Other" instrument option - manual follow-up required', {
+          typeId,
+          groupId,
+          selections: nextValues,
+          timestamp: new Date().toISOString()
+        })
+      }
+    }
   }
 
   const saveSelection = (type: ArtistTypeConfig) => {
@@ -267,7 +282,7 @@ export function ArtistTypeSelectorV2({ value, onChange }: ArtistTypeSelectorProp
                                     // Special logic for Type 4 "All Vocals" option
                                     const isAllVocalsGroup = config.id === 4 && group.id === 'vocal-role'
                                     const isAllVocalsOption = option.id === 'all-vocals'
-                                    const individualVocalOptions = ['lead-vocalist', 'backing-vocalist', 'session-vocalist', 'voiceover-artist']
+                                    const individualVocalOptions = ['lead-vocalist', 'backing-vocalist', 'harmony-vocalist']
                                     const hasAllVocalsSelected = isAllVocalsGroup && selectedOptions.includes('all-vocals')
                                     const hasAllIndividualVocalsSelected = isAllVocalsGroup && 
                                       individualVocalOptions.every(opt => selectedOptions.includes(opt))
@@ -391,19 +406,42 @@ export function ArtistTypeSelectorV2({ value, onChange }: ArtistTypeSelectorProp
                         {Object.entries(selections).map(([groupId, ids]) => {
                           const group = config.groups.find((g) => g.id === groupId)
                           if (!group || !ids.length) return null
+
+                          // Check for "Other" instrument selections (Type 5)
+                          const hasOtherInstrument = config.id === 5 && ids.some(id => isOtherInstrumentSelection(id))
+
                           return (
                             <div key={groupId} className="space-y-1">
                               <div className="text-xs font-medium text-gray-600">{group.title}:</div>
                               <div className="flex flex-wrap gap-2">
-                                {ids.map((valueId) => (
-                                  <span
-                                    key={`${groupId}-${valueId}`}
-                                    className="inline-flex items-center px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-semibold shadow-sm"
-                                  >
-                                    ✓ {group.options.find((option) => option.id === valueId)?.label ?? valueId}
-                                  </span>
-                                ))}
+                                {ids.map((valueId) => {
+                                  const isOther = isOtherInstrumentSelection(valueId)
+                                  return (
+                                    <span
+                                      key={`${groupId}-${valueId}`}
+                                      className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
+                                        isOther
+                                          ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
+                                          : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                      }`}
+                                    >
+                                      {isOther && <AlertCircle className="w-3 h-3 mr-1" />}
+                                      ✓ {group.options.find((option) => option.id === valueId)?.label ?? valueId}
+                                    </span>
+                                  )
+                                })}
                               </div>
+                              {hasOtherInstrument && (
+                                <div className="mt-2 p-3 bg-orange-50 border-l-4 border-orange-500 rounded">
+                                  <div className="flex items-start gap-2">
+                                    <AlertCircle className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                                    <div className="text-xs text-orange-800">
+                                      <strong>Manual Follow-Up Required:</strong> You've selected "Other" instrument(s).
+                                      Our team will contact you to capture the specific instrument details and update our taxonomy.
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )
                         })}

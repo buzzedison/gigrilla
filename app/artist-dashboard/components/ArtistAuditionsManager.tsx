@@ -9,24 +9,26 @@ import { Textarea } from '../../components/ui/textarea'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '../../components/ui/select'
 import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group'
 import { Checkbox } from '../../components/ui/checkbox'
+import { Badge } from '../../components/ui/badge'
 import { useAuth } from '../../../lib/auth-context'
 import { Megaphone, Plus, Edit3, Trash2, CheckCircle, X, Calendar, Clock } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { formatDateDDMMMyyyy } from '@/lib/date-format'
 import {
   VOCALIST_TYPES,
-  VOCAL_SOUND_DESCRIPTOR_LABELS_WITH_ANY,
-  VOCAL_GENRE_DESCRIPTOR_LABELS_WITH_ANY
+  VOCAL_SOUND_DESCRIPTORS as RAW_VOCAL_SOUND_DESCRIPTORS,
+  VOCAL_GENRE_DESCRIPTORS as RAW_VOCAL_GENRE_DESCRIPTORS
 } from '@/data/vocal-descriptors'
-import { AUDITION_INSTRUMENT_GROUPS } from '@/data/instrument-taxonomy'
+import { getType5InstrumentOptions } from '@/data/instrument-taxonomy-aligned'
+import { MultiSelectChips, type MultiSelectOption } from '../../components/ui/multi-select-chips'
 
 interface AuditionAdvert {
   id: string
   advert_type: string
-  instrument?: string
-  vocalist_type?: string
-  vocalist_sound_descriptor?: string
-  vocalist_genre_descriptor?: string
+  instruments?: string[]
+  vocalist_types?: string[]
+  vocalist_sound_descriptors?: string[]
+  vocalist_genre_descriptors?: string[]
   producer_type?: string
   lyricist_type?: string
   composer_type?: string
@@ -73,8 +75,35 @@ const ADVERT_TYPES = [
   { value: 'vocalist-rehearsal', label: 'Vocalist - Wanted For Rehearsal', requiresVocalistType: true }
 ]
 
-const VOCAL_SOUND_DESCRIPTORS = [...VOCAL_SOUND_DESCRIPTOR_LABELS_WITH_ANY]
-const VOCAL_GENRE_DESCRIPTORS = [...VOCAL_GENRE_DESCRIPTOR_LABELS_WITH_ANY]
+// Convert instrument options for multi-select
+const INSTRUMENT_OPTIONS: MultiSelectOption[] = getType5InstrumentOptions().map(opt => ({
+  id: opt.id,
+  label: opt.label,
+  group: opt.group
+}))
+
+// Vocal role options (matching Artist Type 4)
+const VOCAL_ROLE_OPTIONS: MultiSelectOption[] = [
+  { id: 'all-vocals', label: 'All Vocals', description: 'Select all three vocal roles below' },
+  { id: 'lead', label: 'Lead', description: 'Primary/featured vocal performances' },
+  { id: 'backing', label: 'Backing', description: 'Support vocal performances' },
+  { id: 'harmony', label: 'Harmony', description: 'Harmony vocal arrangements and parts' }
+]
+
+// Sound-based vocal descriptors
+const VOCAL_SOUND_DESCRIPTOR_OPTIONS: MultiSelectOption[] = RAW_VOCAL_SOUND_DESCRIPTORS.map(item => ({
+  id: item.id,
+  label: item.label,
+  group: item.group
+}))
+
+// Genre-based vocal descriptors
+const VOCAL_GENRE_DESCRIPTOR_OPTIONS: MultiSelectOption[] = RAW_VOCAL_GENRE_DESCRIPTORS.map(item => ({
+  id: item.id,
+  label: item.label,
+  group: item.group
+}))
+
 const PRODUCER_STUDIO_TYPES = ['Editing/Tuning', 'Mixing/Mastering', 'Studio Overseer']
 const PRODUCER_CREATIVE_TYPES = ['All-in-One', 'Beatmaker', 'Coach/Mentor']
 const LYRICIST_TYPES = ['Entire Lyrics', 'Part Lyrics', 'Co-write Lyrics']
@@ -99,10 +128,10 @@ export function ArtistAuditionsManager() {
 
   // Form state
   const [advertType, setAdvertType] = useState('')
-  const [instrument, setInstrument] = useState('')
-  const [vocalistType, setVocalistType] = useState('')
-  const [vocalistSoundDescriptor, setVocalistSoundDescriptor] = useState('Any')
-  const [vocalistGenreDescriptor, setVocalistGenreDescriptor] = useState('Any')
+  const [instruments, setInstruments] = useState<string[]>([])
+  const [vocalistTypes, setVocalistTypes] = useState<string[]>([])
+  const [vocalistSoundDescriptors, setVocalistSoundDescriptors] = useState<string[]>([])
+  const [vocalistGenreDescriptors, setVocalistGenreDescriptors] = useState<string[]>([])
   const [producerType, setProducerType] = useState('')
   const [lyricistType, setLyricistType] = useState('')
   const [composerType, setComposerType] = useState('')
@@ -141,10 +170,10 @@ export function ArtistAuditionsManager() {
 
   const resetForm = () => {
     setAdvertType('')
-    setInstrument('')
-    setVocalistType('')
-    setVocalistSoundDescriptor('Any')
-    setVocalistGenreDescriptor('Any')
+    setInstruments([])
+    setVocalistTypes([])
+    setVocalistSoundDescriptors([])
+    setVocalistGenreDescriptors([])
     setProducerType('')
     setLyricistType('')
     setComposerType('')
@@ -165,10 +194,10 @@ export function ArtistAuditionsManager() {
   const handleEdit = (advert: AuditionAdvert) => {
     setEditingId(advert.id)
     setAdvertType(advert.advert_type)
-    setInstrument(advert.instrument || '')
-    setVocalistType(advert.vocalist_type || '')
-    setVocalistSoundDescriptor(advert.vocalist_sound_descriptor || 'Any')
-    setVocalistGenreDescriptor(advert.vocalist_genre_descriptor || 'Any')
+    setInstruments(advert.instruments || [])
+    setVocalistTypes(advert.vocalist_types || [])
+    setVocalistSoundDescriptors(advert.vocalist_sound_descriptors || [])
+    setVocalistGenreDescriptors(advert.vocalist_genre_descriptors || [])
     setProducerType(advert.producer_type || '')
     setLyricistType(advert.lyricist_type || '')
     setComposerType(advert.composer_type || '')
@@ -206,8 +235,8 @@ export function ArtistAuditionsManager() {
       return
     }
 
-    if (genreSelection === 'specific' && selectedGenres.length > 3) {
-      showNotification('error', 'Maximum 3 genres allowed')
+    if (genreSelection === 'specific' && selectedGenres.length > 5) {
+      showNotification('error', 'Maximum 5 genres allowed')
       return
     }
 
@@ -227,13 +256,13 @@ export function ArtistAuditionsManager() {
       return
     }
 
-    if (selectedAdvertType?.requiresVocalistType && !vocalistType) {
-      showNotification('error', 'Please select a Vocalist Type')
+    if (selectedAdvertType?.requiresVocalistType && vocalistTypes.length === 0) {
+      showNotification('error', 'Please select at least one Vocalist Type')
       return
     }
 
-    if (selectedAdvertType?.requiresInstrument && !instrument) {
-      showNotification('error', 'Please select an Instrument')
+    if (selectedAdvertType?.requiresInstrument && instruments.length === 0) {
+      showNotification('error', 'Please select at least one Instrument')
       return
     }
 
@@ -262,10 +291,10 @@ export function ArtistAuditionsManager() {
       const payload = {
         id: editingId,
         advert_type: advertType,
-        instrument,
-        vocalist_type: vocalistType,
-        vocalist_sound_descriptor: selectedAdvertType?.requiresVocalistType ? vocalistSoundDescriptor : null,
-        vocalist_genre_descriptor: selectedAdvertType?.requiresVocalistType ? vocalistGenreDescriptor : null,
+        instruments,
+        vocalist_types: vocalistTypes,
+        vocalist_sound_descriptors: selectedAdvertType?.requiresVocalistType ? vocalistSoundDescriptors : [],
+        vocalist_genre_descriptors: selectedAdvertType?.requiresVocalistType ? vocalistGenreDescriptors : [],
         producer_type: producerType,
         lyricist_type: lyricistType,
         composer_type: composerType,
@@ -333,7 +362,7 @@ export function ArtistAuditionsManager() {
   const toggleGenre = (genre: string) => {
     if (selectedGenres.includes(genre)) {
       setSelectedGenres(selectedGenres.filter(g => g !== genre))
-    } else if (selectedGenres.length < 3) {
+    } else if (selectedGenres.length < 5) {
       setSelectedGenres([...selectedGenres, genre])
     }
   }
@@ -387,13 +416,15 @@ export function ArtistAuditionsManager() {
               <Select value={advertType} onValueChange={(value) => {
                 setAdvertType(value)
                 const typeConfig = ADVERT_TYPES.find(type => type.value === value)
-                if (typeConfig?.requiresVocalistType) {
-                  setVocalistSoundDescriptor(prev => prev || 'Any')
-                  setVocalistGenreDescriptor(prev => prev || 'Any')
-                } else {
-                  setVocalistType('')
-                  setVocalistSoundDescriptor('Any')
-                  setVocalistGenreDescriptor('Any')
+                if (!typeConfig?.requiresVocalistType) {
+                  // Clear vocalist fields if not needed
+                  setVocalistTypes([])
+                  setVocalistSoundDescriptors([])
+                  setVocalistGenreDescriptors([])
+                }
+                if (!typeConfig?.requiresInstrument) {
+                  // Clear instrument fields if not needed
+                  setInstruments([])
                 }
               }}>
                 <SelectTrigger id="advert-type">
@@ -410,77 +441,56 @@ export function ArtistAuditionsManager() {
             </div>
 
             {selectedAdvertType?.requiresInstrument && (
-              <div className="space-y-2">
-                <Label htmlFor="instrument">Instrument *</Label>
-                <Select value={instrument} onValueChange={setInstrument}>
-                  <SelectTrigger id="instrument">
-                    <SelectValue placeholder="Select instrument..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {AUDITION_INSTRUMENT_GROUPS.map(group => (
-                      <SelectGroup key={group.id}>
-                        <SelectLabel>{group.name}</SelectLabel>
-                        {group.items.map(inst => (
-                          <SelectItem key={inst} value={inst}>
-                            {inst}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <MultiSelectChips
+                label="Instruments *"
+                options={INSTRUMENT_OPTIONS}
+                value={instruments}
+                onChange={setInstruments}
+                placeholder="Select instruments you need..."
+                grouped={true}
+                allowSelectAll={true}
+              />
             )}
 
             {selectedAdvertType?.requiresVocalistType && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="vocalist-type">Vocalist Type *</Label>
-                  <Select value={vocalistType} onValueChange={setVocalistType}>
-                    <SelectTrigger id="vocalist-type">
-                      <SelectValue placeholder="Select vocalist type..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {VOCALIST_TYPES.map(type => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              <div className="space-y-4 border border-purple-100 rounded-lg p-4 bg-purple-50/30">
+                <div className="text-sm font-semibold text-purple-900 mb-2">
+                  Vocalist Requirements
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="vocal-sound-desc">Sound-Based Vocal Description</Label>
-                  <Select value={vocalistSoundDescriptor} onValueChange={setVocalistSoundDescriptor}>
-                    <SelectTrigger id="vocal-sound-desc">
-                      <SelectValue placeholder="Select sound descriptor..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {VOCAL_SOUND_DESCRIPTORS.map(type => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <MultiSelectChips
+                  label="Vocalist Roles *"
+                  options={VOCAL_ROLE_OPTIONS}
+                  value={vocalistTypes}
+                  onChange={(newValues) => {
+                    // Handle "All Vocals" logic
+                    if (newValues.includes('all-vocals')) {
+                      setVocalistTypes(['all-vocals', 'lead', 'backing', 'harmony'])
+                    } else {
+                      setVocalistTypes(newValues)
+                    }
+                  }}
+                  placeholder="Select vocal roles needed..."
+                  maxSelections={4}
+                />
 
-                <div className="space-y-2">
-                  <Label htmlFor="vocal-genre-desc">Genre-Based Vocal Description</Label>
-                  <Select value={vocalistGenreDescriptor} onValueChange={setVocalistGenreDescriptor}>
-                    <SelectTrigger id="vocal-genre-desc">
-                      <SelectValue placeholder="Select genre descriptor..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {VOCAL_GENRE_DESCRIPTORS.map(type => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <MultiSelectChips
+                  label="Sound-Based Voice Descriptors (Optional)"
+                  options={VOCAL_SOUND_DESCRIPTOR_OPTIONS}
+                  value={vocalistSoundDescriptors}
+                  onChange={setVocalistSoundDescriptors}
+                  placeholder="Select sound characteristics..."
+                  grouped={true}
+                />
+
+                <MultiSelectChips
+                  label="Genre-Based Voice Descriptors (Optional)"
+                  options={VOCAL_GENRE_DESCRIPTOR_OPTIONS}
+                  value={vocalistGenreDescriptors}
+                  onChange={setVocalistGenreDescriptors}
+                  placeholder="Select genre styles..."
+                  grouped={true}
+                />
               </div>
             )}
 
@@ -568,7 +578,7 @@ export function ArtistAuditionsManager() {
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="specific" id="specific-genre" />
                   <Label htmlFor="specific-genre" className="font-normal cursor-pointer">
-                    Specific Genre (Maximum 3)
+                    Specific Genres (Up to five genre families)
                   </Label>
                 </div>
               </RadioGroup>
@@ -581,7 +591,7 @@ export function ArtistAuditionsManager() {
                         id={`genre-${genre}`}
                         checked={selectedGenres.includes(genre)}
                         onCheckedChange={() => toggleGenre(genre)}
-                        disabled={!selectedGenres.includes(genre) && selectedGenres.length >= 3}
+                        disabled={!selectedGenres.includes(genre) && selectedGenres.length >= 5}
                       />
                       <Label htmlFor={`genre-${genre}`} className="text-sm cursor-pointer">
                         {genre}
@@ -748,11 +758,47 @@ export function ArtistAuditionsManager() {
                 >
                   <div className="font-semibold text-lg text-purple-600 uppercase">
                     {advert.advert_type.replace(/-/g, ' ')}
-                    {advert.instrument && ` - ${advert.instrument}`}
-                    {advert.vocalist_type && ` - ${advert.vocalist_type}`}
-                    {advert.vocalist_sound_descriptor && advert.vocalist_sound_descriptor !== 'Any' && ` - ${advert.vocalist_sound_descriptor}`}
-                    {advert.vocalist_genre_descriptor && advert.vocalist_genre_descriptor !== 'Any' && ` - ${advert.vocalist_genre_descriptor}`}
                   </div>
+                  {advert.instruments && advert.instruments.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      <span className="text-xs font-medium text-gray-600">Instruments:</span>
+                      {advert.instruments.map(inst => (
+                        <Badge key={inst} variant="secondary" className="text-xs">
+                          {inst}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  {advert.vocalist_types && advert.vocalist_types.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      <span className="text-xs font-medium text-gray-600">Vocal Roles:</span>
+                      {advert.vocalist_types.map(type => (
+                        <Badge key={type} variant="secondary" className="text-xs">
+                          {type}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  {advert.vocalist_sound_descriptors && advert.vocalist_sound_descriptors.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      <span className="text-xs font-medium text-gray-600">Sound:</span>
+                      {advert.vocalist_sound_descriptors.map(desc => (
+                        <Badge key={desc} variant="outline" className="text-xs">
+                          {VOCAL_SOUND_DESCRIPTOR_OPTIONS.find(o => o.id === desc)?.label || desc}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  {advert.vocalist_genre_descriptors && advert.vocalist_genre_descriptors.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      <span className="text-xs font-medium text-gray-600">Genre Style:</span>
+                      {advert.vocalist_genre_descriptors.map(desc => (
+                        <Badge key={desc} variant="outline" className="text-xs">
+                          {VOCAL_GENRE_DESCRIPTOR_OPTIONS.find(o => o.id === desc)?.label || desc}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                   {(advert.lyricist_type || advert.composer_type) && (
                     <div className="text-sm text-gray-600">
                       {advert.lyricist_type || advert.composer_type} - {advert.collaboration_direction}

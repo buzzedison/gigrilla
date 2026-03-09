@@ -335,6 +335,9 @@ export default function ArtistDashboard() {
       case 'gig-invites':
       case 'gig-requests':
         return capabilities.showGigAbility
+      case 'music-upload':
+      case 'music-manage':
+        return capabilities.canUploadMusic
       default:
         return true
     }
@@ -365,9 +368,13 @@ export default function ArtistDashboard() {
       return content
     }
 
-    const message = ['gigability', 'gig-calendar', 'gig-create', 'gig-upcoming', 'gig-past', 'gig-invites', 'gig-requests'].includes(section)
-      ? 'Gig Manager is hidden for your current artist type. Change your artist type to enable gig operations.'
-      : 'This section is not available for your current artist type.'
+    let message = 'This section is not available for your current artist type.'
+
+    if (['gigability', 'gig-calendar', 'gig-create', 'gig-upcoming', 'gig-past', 'gig-invites', 'gig-requests'].includes(section)) {
+      message = 'Gig Manager is hidden for your current artist type. Change your artist type to enable gig operations.'
+    } else if (['music-upload', 'music-manage'].includes(section)) {
+      message = 'Music Manager is hidden for your current artist type. Change your artist type to enable music upload and management.'
+    }
 
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-sm text-gray-700 flex items-start gap-3">
@@ -576,7 +583,7 @@ export default function ArtistDashboard() {
           </div>
         )
       case 'music-upload':
-        return (
+        return renderGuardedSection('music-upload', (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             <div className="xl:col-span-3">
               <ArtistMusicManager defaultView="upload" />
@@ -585,9 +592,9 @@ export default function ArtistDashboard() {
               <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
           </div>
-        )
+        ))
       case 'music-manage':
-        return (
+        return renderGuardedSection('music-manage', (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             <div className="xl:col-span-3">
               <ArtistMusicManager defaultView="manage" />
@@ -596,7 +603,7 @@ export default function ArtistDashboard() {
               <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
           </div>
-        )
+        ))
       case 'messages':
         return (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">

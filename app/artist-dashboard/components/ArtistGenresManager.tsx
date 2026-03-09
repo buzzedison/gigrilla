@@ -12,7 +12,7 @@ interface ArtistGenrePath {
   subId?: string
 }
 
-const MAX_GENRE_SETS = 3
+const MAX_GENRE_SETS = 5
 
 function dedupeGenrePaths(paths: ArtistGenrePath[]) {
   const seen = new Set<string>()

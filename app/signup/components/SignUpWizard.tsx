@@ -4,10 +4,20 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Download, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Loader2, Download, CheckCircle2, XCircle, AlertCircle, X } from "lucide-react";
 
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../../components/ui/alert-dialog";
 import {
   Card,
   CardContent,
@@ -729,6 +739,8 @@ export function SignUpWizard() {
   const [accountChoice, setAccountChoice] = useState<AccountChoice | null>(onboardingParam ? "fan" : null);
   const [stepIndex, setStepIndex] = useState(0);
   const [selectedExtendedProfiles, setSelectedExtendedProfiles] = useState<AdditionalProfileKey[]>([]);
+  const [fanCompletionBannerDismissed, setFanCompletionBannerDismissed] = useState(false);
+  const [fanCompletionBannerConfirmOpen, setFanCompletionBannerConfirmOpen] = useState(false);
   const [isProcessingStep, setIsProcessingStep] = useState(false);
   const [registrationError, setRegistrationError] = useState("");
   const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
@@ -750,6 +762,17 @@ export function SignUpWizard() {
   const [fanCompletionCheckFinished, setFanCompletionCheckFinished] = useState(!onboardingParam);
   const [subscriptionConfirmed, setSubscriptionConfirmed] = useState(false);
   const [artistRedirectLoading, setArtistRedirectLoading] = useState(onboardingParam === 'artist');
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    try {
+      const stored = localStorage.getItem(`fan-completion-banner-dismissed-${user.id}`);
+      setFanCompletionBannerDismissed(stored === "true");
+    } catch {
+      setFanCompletionBannerDismissed(false);
+    }
+  }, [user?.id]);
 
   // --- ISNI / IPI-CAE lookup state ---
   const [isniLookup, setIsniLookup] = useState<{
@@ -3904,24 +3927,35 @@ export function SignUpWizard() {
 
   const renderProfileAdder = () => (
     <div className="space-y-6">
-      {/* Fan Profile Completed Message */}
-      <div className="rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20 p-4">
-        <div className="flex items-start gap-3">
-          <div className="flex-shrink-0">
-            <svg className="h-5 w-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <div className="flex-1">
-            <h3 className="text-sm font-semibold text-green-900 dark:text-green-100">
-              ✅ Fan Profile Completed!
-            </h3>
-            <p className="mt-1 text-sm text-green-700 dark:text-green-300">
-              Your fan profile is all set up. You can now explore Gigrilla or add additional profile types below.
-            </p>
+      {!fanCompletionBannerDismissed && (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950/20">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-green-900 dark:text-green-100">
+                Fan Profile Completed
+              </h3>
+              <p className="mt-1 text-sm text-green-700 dark:text-green-300">
+                Your fan profile is all set up. You can now explore Gigrilla or add additional profile types below.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-auto shrink-0 px-2 py-1 text-green-700 hover:bg-green-100 hover:text-green-900 dark:hover:bg-green-900/30"
+              onClick={() => setFanCompletionBannerConfirmOpen(true)}
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close permanently</span>
+            </Button>
           </div>
         </div>
-      </div>
+      )}
 
       <p className="text-sm text-foreground/70">
         You can add additional profile types now or later from your Control Panel. Switching
@@ -3997,6 +4031,31 @@ export function SignUpWizard() {
           );
         })}
       </div>
+
+      <AlertDialog open={fanCompletionBannerConfirmOpen} onOpenChange={setFanCompletionBannerConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hide this completion message permanently?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the completed fan onboarding message on this device so the page uses less space, especially on mobile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it visible</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setFanCompletionBannerDismissed(true);
+                if (!user?.id) return;
+                try {
+                  localStorage.setItem(`fan-completion-banner-dismissed-${user.id}`, "true");
+                } catch {}
+              }}
+            >
+              Hide permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 

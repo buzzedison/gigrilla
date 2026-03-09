@@ -145,13 +145,20 @@ function DrawingControlsInner({ mode, onZoneCreated }: DrawingControlsProps) {
             const center = (layer as any).getLatLng()
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const radius = (layer as any).getRadius() / 1000 // Convert meters to km
-            
+
+            // Auto-zoom map to fit the entire circle
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const bounds = (layer as any).getBounds()
+            if (bounds && map) {
+              map.fitBounds(bounds, { padding: [50, 50] })
+            }
+
             const zone = {
               type: 'radius' as const,
               data: [{ lat: center.lat, lng: center.lng }],
               radius: Math.round(radius)
             }
-            
+
             console.log('Radius zone created:', zone)
             onZoneCreated(zone)
           } else if (e.layerType === 'polygon') {
@@ -162,12 +169,19 @@ function DrawingControlsInner({ mode, onZoneCreated }: DrawingControlsProps) {
               lat: latlng.lat,
               lng: latlng.lng
             }))
-            
+
+            // Auto-zoom map to fit the entire polygon
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const bounds = (layer as any).getBounds()
+            if (bounds && map) {
+              map.fitBounds(bounds, { padding: [50, 50] })
+            }
+
             const zone = {
               type: 'polygon' as const,
               data: points
             }
-            
+
             console.log('Polygon zone created:', zone)
             onZoneCreated(zone)
           }

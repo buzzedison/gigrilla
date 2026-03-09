@@ -2,9 +2,19 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { useAuth } from "../../../lib/auth-context"
-import { HelpCircle, CheckCircle2, Circle, PartyPopper, ChevronDown, X } from "lucide-react"
+import { HelpCircle, CheckCircle2, Circle, PartyPopper, X } from "lucide-react"
 import { Badge } from "../../components/ui/badge"
 import { Button } from "../../components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../../components/ui/alert-dialog"
 import { useSearchParams, useRouter, usePathname } from "next/navigation"
 
 export type CompletionSection =
@@ -111,6 +121,7 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
   const [onboardingCompleted, setOnboardingCompleted] = useState(false)
   const [isMarkingComplete, setIsMarkingComplete] = useState(false)
   const [isDismissed, setIsDismissed] = useState(false)
+  const [dismissConfirmOpen, setDismissConfirmOpen] = useState(false)
 
   const completionDefinitions = useMemo<CompletionItemDefinition[]>(() => ([
     { id: 'stage_name', label: 'Artist Name', required: true, section: 'profile' },
@@ -355,13 +366,6 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
       if (response.ok) {
         setOnboardingCompleted(true)
         router.refresh()
-        // Auto-collapse panel after a 3-second celebration window
-        setTimeout(() => {
-          setIsDismissed(true)
-          try {
-            if (user) localStorage.setItem(`completion-panel-dismissed-${user.id}`, 'true')
-          } catch {}
-        }, 3000)
       } else {
         console.error('Failed to mark onboarding as complete')
       }
@@ -418,157 +422,149 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
     router.push(`${pathname}?${params.toString()}`)
   }
 
-  const handleDismissPanel = () => {
+  const persistDismissedState = () => {
     setIsDismissed(true)
     try {
       if (user) localStorage.setItem(`completion-panel-dismissed-${user.id}`, 'true')
     } catch {}
   }
 
-  const handleExpandPanel = () => {
-    setIsDismissed(false)
-    try {
-      if (user) localStorage.removeItem(`completion-panel-dismissed-${user.id}`)
-    } catch {}
+  const handleDismissPanel = () => {
+    if (!onboardingCompleted) return
+    setDismissConfirmOpen(true)
   }
 
-  // ── Compact banner: shown when onboarding is complete + panel is dismissed ──
   if (isDismissed && onboardingCompleted) {
-    return (
-      <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl shadow-sm">
-        <div className="flex items-center justify-between px-4 py-3 gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-full bg-green-500 flex items-center justify-center shrink-0">
-              <PartyPopper className="w-4 h-4 text-white" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-green-800 leading-tight">Profile {percentage}% Complete</p>
-              <p className="text-xs text-green-600 leading-tight">Onboarding done 🎉</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={handleExpandPanel}
-            className="shrink-0 inline-flex items-center gap-1 text-xs text-green-700 hover:text-green-900 font-medium transition-colors"
-            aria-label="View profile progress"
-          >
-            View
-            <ChevronDown className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-    )
+    return null
   }
 
   return (
-    <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-xl shadow-sm">
-      <h2 className="sr-only">Artist profile completion</h2>
-      <div className="flex flex-col">
-        <div className="p-6 flex-shrink-0">
-          <div className="text-center">
-            <div className="w-20 h-20 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center mx-auto mb-4 relative">
-              <HelpCircle className="w-10 h-10 text-white" />
-              <span className="absolute -bottom-1 right-0 text-xs font-semibold bg-white text-purple-600 px-2 py-0.5 rounded-full">
-                {percentage}%
-              </span>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Your Profile is {percentage}% complete
-            </h3>
-            <p className="text-sm text-gray-600">
-              {completedCount} of {totalCount} items completed
-            </p>
-            {lastCompletedLabel && (
-              <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs">
-                Nice! You just completed {lastCompletedLabel}
+    <>
+      <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-xl shadow-sm">
+        <h2 className="sr-only">Artist profile completion</h2>
+        <div className="flex flex-col">
+          <div className="p-6 flex-shrink-0">
+            <div className="text-center">
+              <div className="w-20 h-20 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center mx-auto mb-4 relative">
+                <HelpCircle className="w-10 h-10 text-white" />
+                <span className="absolute -bottom-1 right-0 text-xs font-semibold bg-white text-purple-600 px-2 py-0.5 rounded-full">
+                  {percentage}%
+                </span>
               </div>
-            )}
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Your Profile is {percentage}% complete
+              </h3>
+              <p className="text-sm text-gray-600">
+                {completedCount} of {totalCount} items completed
+              </p>
+              {lastCompletedLabel && (
+                <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs">
+                  Nice! You just completed {lastCompletedLabel}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
 
-        <div className="px-6 pb-1">
-          <p className="mb-2 text-xs text-gray-500">Tap an item to jump to that section.</p>
-          <div className="space-y-1.5">
-            {evaluatedItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => navigateToItemSection(item)}
-                className="w-full flex items-center justify-between py-0.5 text-left rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
-                aria-label={`Go to ${item.label}`}
-              >
-                <div className="flex items-center space-x-2.5">
-                  {item.completed ? (
-                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
-                  ) : (
-                    <Circle className="w-4 h-4 text-gray-300 flex-shrink-0" />
-                  )}
-                  <div className="flex items-center space-x-2">
-                    <span className={`text-sm font-medium ${item.completed ? 'text-gray-900' : 'text-gray-600'}`}>
-                      {item.label}
-                    </span>
-                    {item.required && (
-                      <Badge variant="outline" className="text-xs px-1.5 py-0 border-transparent bg-orange-50 text-orange-600">
-                        Required
-                      </Badge>
+          <div className="px-6 pb-1">
+            <p className="mb-2 text-xs text-gray-500">Tap an item to jump to that section.</p>
+            <div className="space-y-1.5">
+              {evaluatedItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => navigateToItemSection(item)}
+                  className="w-full flex items-center justify-between py-0.5 text-left rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
+                  aria-label={`Go to ${item.label}`}
+                >
+                  <div className="flex items-center space-x-2.5">
+                    {item.completed ? (
+                      <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    ) : (
+                      <Circle className="w-4 h-4 text-gray-300 flex-shrink-0" />
                     )}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex-shrink-0 px-6 pt-4 pb-4 border-t border-purple-200 mt-2">
-          <div className="text-center">
-            {loading ? (
-              <p className="text-sm text-gray-500">Checking your profile status…</p>
-            ) : (
-              <>
-                <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                  <div
-                    className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${percentage}%` }}
-                  ></div>
-                </div>
-                {onboardingCompleted ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-center gap-2 text-sm text-green-600 font-medium">
-                      <PartyPopper className="w-4 h-4" />
-                      <span>Onboarding Complete!</span>
+                    <div className="flex items-center space-x-2">
+                      <span className={`text-sm font-medium ${item.completed ? 'text-gray-900' : 'text-gray-600'}`}>
+                        {item.label}
+                      </span>
+                      {item.required && (
+                        <Badge variant="outline" className="text-xs px-1.5 py-0 border-transparent bg-orange-50 text-orange-600">
+                          Required
+                        </Badge>
+                      )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleDismissPanel}
-                      className="w-full flex items-center justify-center gap-1.5 text-xs text-foreground/50 hover:text-foreground/80 transition-colors py-1"
-                    >
-                      <X className="w-3 h-3" />
-                      Hide this panel
-                    </button>
                   </div>
-                ) : allRequiredComplete ? (
-                  <div className="space-y-2">
-                    <p className="text-sm text-green-600 font-medium">
-                      All required fields complete!
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex-shrink-0 px-6 pt-4 pb-4 border-t border-purple-200 mt-2">
+            <div className="text-center">
+              {loading ? (
+                <p className="text-sm text-gray-500">Checking your profile status…</p>
+              ) : (
+                <>
+                  <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                    <div
+                      className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${percentage}%` }}
+                    ></div>
+                  </div>
+                  {onboardingCompleted ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-center gap-2 text-sm text-green-600 font-medium">
+                        <PartyPopper className="w-4 h-4" />
+                        <span>Onboarding Complete!</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleDismissPanel}
+                        className="w-full flex items-center justify-center gap-1.5 text-xs text-foreground/50 hover:text-foreground/80 transition-colors py-1"
+                      >
+                        <X className="w-3 h-3" />
+                        Close permanently
+                      </button>
+                    </div>
+                  ) : allRequiredComplete ? (
+                    <div className="space-y-2">
+                      <p className="text-sm text-green-600 font-medium">
+                        All required fields complete!
+                      </p>
+                      <Button
+                        onClick={handleCompleteOnboarding}
+                        disabled={isMarkingComplete}
+                        className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+                      >
+                        {isMarkingComplete ? 'Completing...' : 'Complete Onboarding'}
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      Complete all required fields to finish onboarding
                     </p>
-                    <Button
-                      onClick={handleCompleteOnboarding}
-                      disabled={isMarkingComplete}
-                      className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
-                    >
-                      {isMarkingComplete ? 'Completing...' : 'Complete Onboarding'}
-                    </Button>
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-600 leading-relaxed">
-                    Complete all required fields to finish onboarding
-                  </p>
-                )}
-              </>
-            )}
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+      <AlertDialog open={dismissConfirmOpen} onOpenChange={setDismissConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hide onboarding panel permanently?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the completed onboarding card from your artist dashboard on this device to free up space, especially on mobile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it visible</AlertDialogCancel>
+            <AlertDialogAction onClick={persistDismissedState}>
+              Hide permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

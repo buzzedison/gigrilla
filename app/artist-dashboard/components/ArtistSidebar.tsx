@@ -94,6 +94,9 @@ function isSectionEnabled(section: ArtistDashboardSection, capabilities: ArtistT
     case 'gig-invites':
     case 'gig-requests':
       return capabilities.showGigAbility
+    case 'music-upload':
+    case 'music-manage':
+      return capabilities.canUploadMusic
     default:
       return true
   }
@@ -136,6 +139,7 @@ const sectionSubSections: Partial<Record<ArtistDashboardSection, SidebarSubSecti
   gigability: [
     { id: 'base', label: 'Base Location' },
     { id: 'sets', label: 'Set Lengths' },
+    { id: 'fees', label: 'Gig Fees' },
     { id: 'local', label: 'Local Area' },
     { id: 'wider', label: 'Wider Area' }
   ],
