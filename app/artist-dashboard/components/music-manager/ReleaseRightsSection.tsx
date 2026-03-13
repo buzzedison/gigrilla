@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import { Plus, Shield, Users, Home, MapPin, Globe } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
 import { Input } from '../../../components/ui/input'
@@ -9,6 +10,7 @@ import {
   createRecordLabelEntry,
   createPublisherEntry,
   territoryOptions,
+  countryOptions,
   TerritorySelection
 } from './types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select'
@@ -26,6 +28,34 @@ export function ReleaseRightsSection({
   onInviteLabel,
   onInvitePublisher
 }: ReleaseRightsSectionProps) {
+  const [labelSpecificSelectKeys, setLabelSpecificSelectKeys] = useState<Record<string, number>>({})
+  const [labelExcludedSelectKeys, setLabelExcludedSelectKeys] = useState<Record<string, number>>({})
+  const [publisherSpecificSelectKeys, setPublisherSpecificSelectKeys] = useState<Record<string, number>>({})
+  const [publisherExcludedSelectKeys, setPublisherExcludedSelectKeys] = useState<Record<string, number>>({})
+
+  const combinedTerritoryOptions = useMemo(
+    () => [
+      ...territoryOptions,
+      ...countryOptions
+        .filter((country) => !territoryOptions.some((territory) => territory.value === country.value))
+        .map((country) => ({
+          value: country.value,
+          label: country.label
+        }))
+    ],
+    []
+  )
+
+  const bumpSelectKey = (
+    setter: (updater: (prev: Record<string, number>) => Record<string, number>) => void,
+    id: string
+  ) => {
+    setter((prev) => ({
+      ...prev,
+      [id]: (prev[id] || 0) + 1
+    }))
+  }
+
   const updateRecordLabel = (id: string, field: string, value: unknown) => {
     const updated = releaseData.recordLabels.map((label) =>
       label.id === id ? { ...label, [field]: value } : label
@@ -61,6 +91,26 @@ export function ReleaseRightsSection({
           territories: {
             ...label.territories,
             specificList: nextList
+          }
+        }
+      }
+      return label
+    })
+    onUpdate('recordLabels', updated)
+  }
+
+  const toggleLabelExcludedTerritory = (id: string, territory: string) => {
+    const updated = releaseData.recordLabels.map((label) => {
+      if (label.id === id) {
+        const current = label.territories.excludedList
+        const nextList = current.includes(territory)
+          ? current.filter((t) => t !== territory)
+          : [...current, territory]
+        return {
+          ...label,
+          territories: {
+            ...label.territories,
+            excludedList: nextList
           }
         }
       }
@@ -121,6 +171,26 @@ export function ReleaseRightsSection({
     onUpdate('publishers', updated)
   }
 
+  const togglePublisherExcludedTerritory = (id: string, territory: string) => {
+    const updated = releaseData.publishers.map((publisher) => {
+      if (publisher.id === id) {
+        const current = publisher.territories.excludedList
+        const nextList = current.includes(territory)
+          ? current.filter((t) => t !== territory)
+          : [...current, territory]
+        return {
+          ...publisher,
+          territories: {
+            ...publisher.territories,
+            excludedList: nextList
+          }
+        }
+      }
+      return publisher
+    })
+    onUpdate('publishers', updated)
+  }
+
   const addPublisher = () => {
     onUpdate('publishers', [...releaseData.publishers, createPublisherEntry()])
   }
@@ -131,10 +201,18 @@ export function ReleaseRightsSection({
   }
 
   const renderTerritoryControls = (
+    entityId: string,
     territory: TerritorySelection,
     onChange: (updates: Partial<TerritorySelection>) => void,
-    onToggleSpecific: (val: string) => void
+    onToggleSpecific: (val: string) => void,
+    onToggleExcluded: (val: string) => void,
+    specificSelectKeys: Record<string, number>,
+    excludedSelectKeys: Record<string, number>,
+    bumpSpecificKey: () => void,
+    bumpExcludedKey: () => void
   ) => {
+    const homeLocked = territory.worldwide || territory.worldwideWithExclusions
+
     return (
       <div className="space-y-3">
         <div className="flex flex-wrap gap-4">
@@ -142,7 +220,12 @@ export function ReleaseRightsSection({
             <input
               type="checkbox"
               checked={territory.home}
-              onChange={(e) => onChange({ home: e.target.checked })}
+              onChange={(e) => {
+                if (!homeLocked) {
+                  onChange({ home: e.target.checked })
+                }
+              }}
+              disabled={homeLocked}
               className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
             />
             <span className="flex items-center gap-1 font-medium text-gray-800">
@@ -154,7 +237,16 @@ export function ReleaseRightsSection({
             <input
               type="checkbox"
               checked={territory.specific}
-              onChange={(e) => onChange({ specific: e.target.checked })}
+              onChange={(e) => {
+                const checked = e.target.checked
+                onChange({
+                  specific: checked,
+                  worldwide: checked ? false : territory.worldwide,
+                  worldwideWithExclusions: checked ? false : territory.worldwideWithExclusions,
+                  excludedList: checked ? [] : territory.excludedList,
+                  specificList: checked ? territory.specificList : []
+                })
+              }}
               className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
             />
             <span className="flex items-center gap-1 font-medium text-gray-800">
@@ -166,23 +258,61 @@ export function ReleaseRightsSection({
             <input
               type="checkbox"
               checked={territory.worldwide}
-              onChange={(e) => onChange({ worldwide: e.target.checked, home: e.target.checked || territory.home })}
+              onChange={(e) => {
+                const checked = e.target.checked
+                onChange({
+                  worldwide: checked,
+                  home: checked ? true : territory.home,
+                  specific: checked ? false : territory.specific,
+                  worldwideWithExclusions: checked ? false : territory.worldwideWithExclusions,
+                  specificList: checked ? [] : territory.specificList,
+                  excludedList: checked ? [] : territory.excludedList
+                })
+              }}
               className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
             />
             <span className="flex items-center gap-1 font-medium text-gray-800">
               <Globe className="w-4 h-4 text-purple-500" /> Worldwide?
             </span>
           </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={territory.worldwideWithExclusions}
+              onChange={(e) => {
+                const checked = e.target.checked
+                onChange({
+                  worldwideWithExclusions: checked,
+                  home: checked ? true : territory.home,
+                  specific: checked ? false : territory.specific,
+                  worldwide: checked ? false : territory.worldwide,
+                  specificList: checked ? [] : territory.specificList,
+                  excludedList: checked ? territory.excludedList : []
+                })
+              }}
+              className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+            />
+            <span className="flex items-center gap-1 font-medium text-gray-800">
+              <Globe className="w-4 h-4 text-purple-500" /> Worldwide with Exclusions?
+            </span>
+          </label>
         </div>
 
         {territory.specific && (
           <div className="space-y-2">
-            <Select onValueChange={(value) => onToggleSpecific(value)}>
+            <Select
+              key={specificSelectKeys[entityId] || 0}
+              onValueChange={(value) => {
+                onToggleSpecific(value)
+                bumpSpecificKey()
+              }}
+            >
               <SelectTrigger className="w-full md:w-72">
-                <SelectValue placeholder="Add Specific Territories" />
+                <SelectValue placeholder="Add Specific Territories or Countries" />
               </SelectTrigger>
               <SelectContent>
-                {territoryOptions.map((option) => (
+                {combinedTerritoryOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
@@ -191,7 +321,7 @@ export function ReleaseRightsSection({
             </Select>
             <div className="flex flex-wrap gap-2">
               {territory.specificList.map((territoryValue) => {
-                const label = territoryOptions.find((opt) => opt.value === territoryValue)?.label || territoryValue
+                const label = combinedTerritoryOptions.find((opt) => opt.value === territoryValue)?.label || territoryValue
                 return (
                   <span
                     key={territoryValue}
@@ -206,6 +336,48 @@ export function ReleaseRightsSection({
               })}
               {territory.specificList.length === 0 && (
                 <span className="text-xs text-gray-500">No specific territories added.</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {territory.worldwideWithExclusions && (
+          <div className="space-y-2">
+            <Select
+              key={excludedSelectKeys[entityId] || 0}
+              onValueChange={(value) => {
+                onToggleExcluded(value)
+                bumpExcludedKey()
+              }}
+            >
+              <SelectTrigger className="w-full md:w-72">
+                <SelectValue placeholder="Exclude Specific Territories or Countries" />
+              </SelectTrigger>
+              <SelectContent>
+                {combinedTerritoryOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex flex-wrap gap-2">
+              {territory.excludedList.map((territoryValue) => {
+                const label = combinedTerritoryOptions.find((opt) => opt.value === territoryValue)?.label || territoryValue
+                return (
+                  <span
+                    key={territoryValue}
+                    className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 text-xs text-amber-700"
+                  >
+                    {label}
+                    <button type="button" onClick={() => onToggleExcluded(territoryValue)} className="text-amber-700">
+                      x
+                    </button>
+                  </span>
+                )
+              })}
+              {territory.excludedList.length === 0 && (
+                <span className="text-xs text-gray-500">No excluded territories added.</span>
               )}
             </div>
           </div>
@@ -303,9 +475,15 @@ export function ReleaseRightsSection({
                     <div className="space-y-2">
                       <p className="text-xs font-semibold text-gray-600 uppercase">Label Territorial Rights (required)</p>
                       {renderTerritoryControls(
+                        label.id,
                         label.territories,
                         (updates) => updateLabelTerritories(label.id, updates),
-                        (territoryValue) => toggleLabelSpecificTerritory(label.id, territoryValue)
+                        (territoryValue) => toggleLabelSpecificTerritory(label.id, territoryValue),
+                        (territoryValue) => toggleLabelExcludedTerritory(label.id, territoryValue),
+                        labelSpecificSelectKeys,
+                        labelExcludedSelectKeys,
+                        () => bumpSelectKey(setLabelSpecificSelectKeys, label.id),
+                        () => bumpSelectKey(setLabelExcludedSelectKeys, label.id)
                       )}
                     </div>
 
@@ -423,9 +601,15 @@ export function ReleaseRightsSection({
                     <div className="space-y-2">
                       <p className="text-xs font-semibold text-gray-600 uppercase">Publisher Territorial Rights (required)</p>
                       {renderTerritoryControls(
+                        publisher.id,
                         publisher.territories,
                         (updates) => updatePublisherTerritories(publisher.id, updates),
-                        (territoryValue) => togglePublisherSpecificTerritory(publisher.id, territoryValue)
+                        (territoryValue) => togglePublisherSpecificTerritory(publisher.id, territoryValue),
+                        (territoryValue) => togglePublisherExcludedTerritory(publisher.id, territoryValue),
+                        publisherSpecificSelectKeys,
+                        publisherExcludedSelectKeys,
+                        () => bumpSelectKey(setPublisherSpecificSelectKeys, publisher.id),
+                        () => bumpSelectKey(setPublisherExcludedSelectKeys, publisher.id)
                       )}
                     </div>
 

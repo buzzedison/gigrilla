@@ -272,7 +272,7 @@ export default function ArtistSetup() {
               <CardContent className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Stage Name / Artist Name *
+                    Artist Name *
                   </label>
                   <Input
                     value={formData.stage_name}

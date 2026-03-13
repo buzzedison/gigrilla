@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp, AlertCircle } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { ARTIST_TYPES, ArtistTypeConfig } from '../../../data/artist-types'
@@ -56,6 +56,19 @@ export function ArtistTypeSelectorV2({ value, onChange }: ArtistTypeSelectorProp
     }
     return initial
   })
+
+  useEffect(() => {
+    if (!value) return
+
+    setExpandedTypeId(value.artistTypeId)
+    setSelectionState((prev) => ({
+      ...prev,
+      [value.artistTypeId]: {
+        ...(prev[value.artistTypeId] ?? {}),
+        ...value.selections
+      }
+    }))
+  }, [value])
 
   const selectedTypeId = value?.artistTypeId ?? expandedTypeId ?? null
   const selectedType = useMemo<ArtistTypeConfig | undefined>(() => {
@@ -456,7 +469,9 @@ export function ArtistTypeSelectorV2({ value, onChange }: ArtistTypeSelectorProp
                         disabled={!isValid}
                         onClick={() => saveSelection(config)}
                       >
-                        {isValid ? 'Save Artist Type' : 'Complete selections to continue'}
+                        {isValid
+                          ? (isSavedSelection ? 'Update Artist Type' : 'Save Artist Type')
+                          : 'Complete selections to continue'}
                       </Button>
                     </div>
                   </div>
@@ -473,8 +488,8 @@ export function ArtistTypeSelectorV2({ value, onChange }: ArtistTypeSelectorProp
           <div>
             <div className="font-semibold">Artist Type {selectedType.id} saved</div>
             <div className="mt-1 space-y-1">
-              {Object.entries(selectionState)
-                .filter(([, values]) => values?.length)
+              {Object.entries(selectionState[selectedType.id] ?? {})
+                .filter(([, values]) => Array.isArray(values) && values.length > 0)
                 .map(([groupId, values]) => {
                   const group = selectedType.groups.find((g) => g.id === groupId)
                   if (!group) return null

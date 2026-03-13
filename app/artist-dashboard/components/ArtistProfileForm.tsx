@@ -97,16 +97,30 @@ const splitLocation = (value: string) => {
     country = working.pop() || ""
   }
 
-  let state = working.length > 1 ? working[working.length - 1] : ""
-  let city = working[0] || ""
+  const cleanedWorking = working.filter(part => !POSTCODE_LIKE_REGEX.test(part))
 
-  // If the first token looks like street-level address detail, prefer the next locality token.
-  if (city && /\d/.test(city) && working.length > 1) {
-    city = working[1]
-    state = working.length > 2 ? working[working.length - 1] : state
+  let state = cleanedWorking.length > 1 ? cleanedWorking[cleanedWorking.length - 1] : ""
+  let city = ""
+
+  if (cleanedWorking.length === 1) {
+    city = cleanedWorking[0] || ""
+  } else if (cleanedWorking.length >= 2) {
+    // Prefer the last locality before the county/state so full addresses
+    // like "Street, Village, Town, County, England, UK" display the town.
+    city = cleanedWorking[cleanedWorking.length - 2] || ""
   }
 
   return { city, state, country }
+}
+
+const POSTCODE_LIKE_REGEX = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i
+
+const sanitizeDisplayPart = (value?: string | null) => {
+  if (typeof value !== 'string') return ''
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (POSTCODE_LIKE_REGEX.test(trimmed)) return ''
+  return trimmed
 }
 
 export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
@@ -393,9 +407,9 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
   const baseLocationDisplay = buildBaseLocation()
   const fallbackLocationBits = splitLocation(baseLocationDisplay)
   const baseLocationBits = {
-    city: formData.hometown_city.trim() || fallbackLocationBits.city,
-    state: formData.hometown_state.trim() || fallbackLocationBits.state,
-    country: formData.hometown_country.trim() || fallbackLocationBits.country
+    city: sanitizeDisplayPart(formData.hometown_city) || sanitizeDisplayPart(fallbackLocationBits.city),
+    state: sanitizeDisplayPart(formData.hometown_state) || sanitizeDisplayPart(fallbackLocationBits.state),
+    country: sanitizeDisplayPart(formData.hometown_country) || sanitizeDisplayPart(fallbackLocationBits.country)
   }
   const cityState = [baseLocationBits.city, baseLocationBits.state].filter(Boolean).join(', ')
   const socialInputClassName = "text-slate-700 placeholder:text-slate-400"
@@ -465,7 +479,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Artist Stage Name</label>
+              <label className="block text-sm font-medium text-gray-700">Artist Name</label>
               <Input
                 value={formData.stage_name}
                 onChange={(e) => handleInputChange('stage_name', e.target.value)}

@@ -330,9 +330,8 @@ export async function GET() {
 
     try {
       const requiresNormalization = artistGenreIds.some((value) => !value.includes(':'))
-      const needsFanFallback = artistGenreIds.length === 0
 
-      if (requiresNormalization || needsFanFallback) {
+      if (requiresNormalization) {
         const taxonomyLookup = await loadGenreTaxonomyLookup(supabase)
 
         if (requiresNormalization) {
@@ -347,28 +346,6 @@ export async function GET() {
                   updated_at: new Date().toISOString()
                 })
                 .eq('id', profileId)
-            }
-          }
-        } else if (needsFanFallback) {
-          const { data: fanProfile, error: fanProfileError } = await supabase
-            .from('fan_profiles')
-            .select('preferred_genre_ids')
-            .eq('user_id', user.id)
-            .maybeSingle()
-
-          if (!fanProfileError && Array.isArray(fanProfile?.preferred_genre_ids) && fanProfile.preferred_genre_ids.length > 0) {
-            const normalizedFanGenres = normalizePreferredGenreIds(fanProfile.preferred_genre_ids, taxonomyLookup)
-            if (normalizedFanGenres.length > 0) {
-              responseProfileData = { ...responseProfileData, preferred_genre_ids: normalizedFanGenres }
-              if (profileId) {
-                await supabase
-                  .from('user_profiles')
-                  .update({
-                    preferred_genre_ids: normalizedFanGenres,
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('id', profileId)
-              }
             }
           }
         }

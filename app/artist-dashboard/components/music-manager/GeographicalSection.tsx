@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Globe, Home, MapPin, X } from 'lucide-react'
 import { SectionWrapper, InfoBox } from './shared'
 import { ReleaseData, territoryOptions, countryOptions } from './types'
@@ -13,6 +13,20 @@ interface GeographicalSectionProps {
 
 export function GeographicalSection({ releaseData, onUpdate }: GeographicalSectionProps) {
   const [territorySelectKey, setTerritorySelectKey] = useState(0)
+  const [excludedTerritorySelectKey, setExcludedTerritorySelectKey] = useState(0)
+  const specificTerritoryOptions = useMemo(
+    () => [
+      ...territoryOptions,
+      ...countryOptions
+        .filter((country) => !territoryOptions.some((territory) => territory.value === country.value))
+        .map((country) => ({
+          value: country.value,
+          label: country.label
+        }))
+    ],
+    []
+  )
+
   const toggleTerritory = (territory: string) => {
     const current = releaseData.specificTerritories
     if (current.includes(territory)) {
@@ -22,12 +36,50 @@ export function GeographicalSection({ releaseData, onUpdate }: GeographicalSecti
     }
   }
 
+  const toggleExcludedTerritory = (territory: string) => {
+    const current = releaseData.excludedTerritories
+    if (current.includes(territory)) {
+      onUpdate('excludedTerritories', current.filter(t => t !== territory))
+    } else {
+      onUpdate('excludedTerritories', [...current, territory])
+    }
+  }
+
   const handleWorldwideToggle = (checked: boolean) => {
     onUpdate('availableWorldwide', checked)
     if (checked) {
+      onUpdate('availableSpecific', false)
+      onUpdate('availableWorldwideWithExclusions', false)
+      onUpdate('specificTerritories', [])
+      onUpdate('excludedTerritories', [])
       onUpdate('availableHome', true)
     }
   }
+
+  const handleWorldwideWithExclusionsToggle = (checked: boolean) => {
+    onUpdate('availableWorldwideWithExclusions', checked)
+    if (checked) {
+      onUpdate('availableWorldwide', false)
+      onUpdate('availableSpecific', false)
+      onUpdate('specificTerritories', [])
+      onUpdate('availableHome', true)
+    } else {
+      onUpdate('excludedTerritories', [])
+    }
+  }
+
+  const handleSpecificToggle = (checked: boolean) => {
+    onUpdate('availableSpecific', checked)
+    if (checked) {
+      onUpdate('availableWorldwide', false)
+      onUpdate('availableWorldwideWithExclusions', false)
+      onUpdate('excludedTerritories', [])
+    } else {
+      onUpdate('specificTerritories', [])
+    }
+  }
+
+  const homeLocked = releaseData.availableWorldwide || releaseData.availableWorldwideWithExclusions
 
   return (
     <SectionWrapper
@@ -36,13 +88,14 @@ export function GeographicalSection({ releaseData, onUpdate }: GeographicalSecti
     >
       <div className="space-y-6">
         <div className="space-y-3">
-          <label className="block text-sm font-medium text-gray-800">Country of Origin</label>
+          <label className="block text-sm font-medium text-gray-800">Recording Country of Origin</label>
+          <p className="text-xs text-gray-600">Where was this release recorded?</p>
           <Select
             value={releaseData.countryOfOrigin}
             onValueChange={(value) => onUpdate('countryOfOrigin', value)}
           >
             <SelectTrigger className="w-full md:w-72">
-              <SelectValue placeholder="Set Country of Origin" />
+              <SelectValue placeholder="Set Recording Country of Origin" />
             </SelectTrigger>
             <SelectContent>
               {countryOptions.map((country) => (
@@ -59,14 +112,23 @@ export function GeographicalSection({ releaseData, onUpdate }: GeographicalSecti
             <input
               type="checkbox"
               checked={releaseData.availableHome}
-              onChange={(e) => onUpdate('availableHome', e.target.checked)}
+              onChange={(e) => {
+                if (!homeLocked) {
+                  onUpdate('availableHome', e.target.checked)
+                }
+              }}
+              disabled={homeLocked}
               className="mt-0.5 w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
             />
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
                 <Home className="w-4 h-4 text-purple-500" /> Available in Home Territory?
               </div>
-              <p className="text-xs text-gray-600 mt-1">Uses your Country of Origin as the home market.</p>
+              <p className="text-xs text-gray-600 mt-1">
+                {homeLocked
+                  ? 'Included automatically while Worldwide availability is selected.'
+                  : 'Uses your recording country of origin as the home market.'}
+              </p>
             </div>
           </label>
 
@@ -74,20 +136,14 @@ export function GeographicalSection({ releaseData, onUpdate }: GeographicalSecti
             <input
               type="checkbox"
               checked={releaseData.availableSpecific}
-              onChange={(e) => {
-                const checked = e.target.checked
-                onUpdate('availableSpecific', checked)
-                if (!checked) {
-                  onUpdate('specificTerritories', [])
-                }
-              }}
+              onChange={(e) => handleSpecificToggle(e.target.checked)}
               className="mt-0.5 w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
             />
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
                 <MapPin className="w-4 h-4 text-purple-500" /> Available in Specific Territories?
               </div>
-              <p className="text-xs text-gray-600 mt-1">Add territories below as you need them.</p>
+              <p className="text-xs text-gray-600 mt-1">Add regions or individual countries below as you need them.</p>
             </div>
           </label>
 
@@ -105,6 +161,23 @@ export function GeographicalSection({ releaseData, onUpdate }: GeographicalSecti
               <p className="text-xs text-gray-600 mt-1">Choosing Worldwide automatically keeps Home Territory enabled.</p>
             </div>
           </label>
+
+          <label className="flex items-start gap-3 border rounded-2xl p-4 cursor-pointer md:col-span-3">
+            <input
+              type="checkbox"
+              checked={releaseData.availableWorldwideWithExclusions}
+              onChange={(e) => handleWorldwideWithExclusionsToggle(e.target.checked)}
+              className="mt-0.5 w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+            />
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <Globe className="w-4 h-4 text-purple-500" /> Worldwide with Exclusions?
+              </div>
+              <p className="text-xs text-gray-600 mt-1">
+                Make the release available globally, then exclude any territories or countries below.
+              </p>
+            </div>
+          </label>
         </div>
 
         {releaseData.availableSpecific && (
@@ -120,10 +193,10 @@ export function GeographicalSection({ releaseData, onUpdate }: GeographicalSecti
               }}
             >
               <SelectTrigger className="w-full md:w-80">
-                <SelectValue placeholder="Add Specific Territories" />
+                <SelectValue placeholder="Add Specific Territories or Countries" />
               </SelectTrigger>
               <SelectContent>
-                {territoryOptions.map((territory) => (
+                {specificTerritoryOptions.map((territory) => (
                   <SelectItem key={territory.value} value={territory.value}>
                     {territory.label}
                   </SelectItem>
@@ -132,7 +205,7 @@ export function GeographicalSection({ releaseData, onUpdate }: GeographicalSecti
             </Select>
             <div className="flex flex-wrap gap-2">
               {releaseData.specificTerritories.map((territory) => {
-                const territoryLabel = territoryOptions.find(t => t.value === territory)?.label || territory
+                const territoryLabel = specificTerritoryOptions.find(t => t.value === territory)?.label || territory
                 return (
                   <span
                     key={territory}
@@ -151,8 +224,53 @@ export function GeographicalSection({ releaseData, onUpdate }: GeographicalSecti
             </div>
           </div>
         )}
+
+        {releaseData.availableWorldwideWithExclusions && (
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-gray-800">
+              Exclude Specific Territories
+            </label>
+            <Select
+              key={excludedTerritorySelectKey}
+              onValueChange={(value) => {
+                toggleExcludedTerritory(value)
+                setExcludedTerritorySelectKey((prev) => prev + 1)
+              }}
+            >
+              <SelectTrigger className="w-full md:w-80">
+                <SelectValue placeholder="Exclude Territories or Countries" />
+              </SelectTrigger>
+              <SelectContent>
+                {specificTerritoryOptions.map((territory) => (
+                  <SelectItem key={territory.value} value={territory.value}>
+                    {territory.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex flex-wrap gap-2">
+              {releaseData.excludedTerritories.map((territory) => {
+                const territoryLabel = specificTerritoryOptions.find(t => t.value === territory)?.label || territory
+                return (
+                  <span
+                    key={territory}
+                    className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-3 py-1 rounded-full"
+                  >
+                    {territoryLabel}
+                    <button type="button" onClick={() => toggleExcludedTerritory(territory)}>
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )
+              })}
+              {releaseData.excludedTerritories.length === 0 && (
+                <p className="text-xs text-gray-500">No excluded territories selected yet.</p>
+              )}
+            </div>
+          </div>
+        )}
         
-        {(releaseData.availableHome || releaseData.availableSpecific || releaseData.availableWorldwide) && (
+        {(releaseData.availableHome || releaseData.availableSpecific || releaseData.availableWorldwide || releaseData.availableWorldwideWithExclusions) && (
           <div className="border-t pt-4">
             <label className="flex items-start gap-3 cursor-pointer">
               <input

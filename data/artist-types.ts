@@ -195,11 +195,11 @@ export const ARTIST_TYPES: ArtistTypeConfig[] = [
       {
         id: 'vocal-role',
         title: 'Vocal services offered',
-        helpText: 'Select only your vocal roles here. Stylistic and genre descriptors are handled separately below.',
+        helpText: 'Select only your vocal roles here. Stylistic and genre descriptors are handled separately.',
         required: true,
         minSelect: 1,
         options: [
-          { id: 'all-vocals', label: 'All Vocals', description: 'Select all three vocal role options below' },
+          { id: 'all-vocals', label: 'All Vocals', description: 'Select all three vocal role options' },
           { id: 'lead-vocalist', label: 'Lead', description: 'Primary/featured vocal performances' },
           { id: 'backing-vocalist', label: 'Backing', description: 'Support vocal performances' },
           { id: 'harmony-vocalist', label: 'Harmony', description: 'Harmony vocal arrangements and parts' }

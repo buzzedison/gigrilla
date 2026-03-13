@@ -22,6 +22,11 @@ interface Release {
   cover_artwork_url: string | null
   country_of_origin: string | null
   available_worldwide: boolean
+  available_worldwide_with_exclusions?: boolean
+  available_home?: boolean
+  available_specific?: boolean
+  specific_territories?: string[]
+  excluded_territories?: string[]
   go_live_date: string | null
   master_rights_type: string | null
   publishing_rights_type: string | null
@@ -303,8 +308,19 @@ export default function ReleaseReviewPage({ params }: { params: Promise<{ id: st
               title="Geographical Availability"
               icon={<Globe className="w-5 h-5" />}
               items={[
-                { label: 'Country of Origin', value: release.country_of_origin || 'N/A' },
-                { label: 'Worldwide', value: release.available_worldwide ? 'Yes' : 'No' }
+                { label: 'Recording Country of Origin', value: release.country_of_origin || 'N/A' },
+                { label: 'Home Territory', value: release.available_home ? 'Yes' : 'No' },
+                { label: 'Specific Territories', value: release.available_specific ? 'Yes' : 'No' },
+                { label: 'Worldwide', value: release.available_worldwide ? 'Yes' : 'No' },
+                { label: 'Worldwide with Exclusions', value: release.available_worldwide_with_exclusions ? 'Yes' : 'No' },
+                {
+                  label: 'Selected Territories',
+                  value: release.specific_territories?.length ? release.specific_territories.join(', ') : 'N/A'
+                },
+                {
+                  label: 'Excluded Territories',
+                  value: release.excluded_territories?.length ? release.excluded_territories.join(', ') : 'N/A'
+                }
               ]}
             />
 

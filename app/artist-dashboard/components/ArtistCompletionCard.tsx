@@ -226,8 +226,9 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
       crew: hasCrewMembers,
       royalty_splits: hasCompleteRoyaltySplits,
       gig_ability: Boolean(
-        profile?.base_location ||
-        (profile?.minimum_set_length && profile?.maximum_set_length)
+        profile?.base_location &&
+        profile?.minimum_set_length &&
+        profile?.maximum_set_length
       ),
       bio: Boolean(profile?.bio && profile.bio.trim().length > 0),
       record_label: isContractItemComplete(profile?.record_label_status, profile?.record_label_name),

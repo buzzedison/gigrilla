@@ -729,10 +729,26 @@ export function getType5InstrumentOptions(): Array<{ id: string; label: string; 
 
     // Add all instrument families
     group.families.forEach(family => {
+      if (family.variants && family.variants.length > 0) {
+        options.push({
+          id: `${group.id}:all-${family.id}`,
+          label: `All ${family.label}`,
+          group: group.label
+        })
+      }
+
       options.push({
         id: family.id,
         label: family.label,
         group: group.label
+      })
+
+      family.variants?.forEach(variant => {
+        options.push({
+          id: `${group.id}:${family.id}:${variant.id}`,
+          label: `${family.label}: ${variant.label}`,
+          group: group.label
+        })
       })
     })
 

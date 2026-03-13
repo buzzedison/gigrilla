@@ -127,12 +127,12 @@ export function ReleaseTypeSection({ releaseData, onUpdate }: ReleaseTypeSection
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Release Version <span className="text-gray-400">(optional)</span>
             </label>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               <Select
                 value={releaseData.releaseVersion}
                 onValueChange={(value) => onUpdate('releaseVersion', value)}
               >
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-full md:w-[320px]">
                   <SelectValue placeholder="Select version" />
                 </SelectTrigger>
                 <SelectContent>

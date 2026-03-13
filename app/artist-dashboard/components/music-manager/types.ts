@@ -1,10 +1,13 @@
 // Types and interfaces for ArtistMusicManager
+import { getCountryOptions as getFullCountryOptions } from '@/lib/country-list'
 
 export interface TerritorySelection {
   home: boolean
   specific: boolean
   worldwide: boolean
+  worldwideWithExclusions: boolean
   specificList: string[]
+  excludedList: string[]
 }
 
 export interface RecordLabelEntry {
@@ -42,7 +45,9 @@ export interface ReleaseData {
   availableHome: boolean
   availableSpecific: boolean
   availableWorldwide: boolean
+  availableWorldwideWithExclusions: boolean
   specificTerritories: string[]
+  excludedTerritories: string[]
   territoryRightsConfirmed: boolean
   goLiveOption: 'past' | 'asap' | 'future' | ''
   goLiveDate: string
@@ -87,7 +92,9 @@ const emptyTerritorySelection: TerritorySelection = {
   home: false,
   specific: false,
   worldwide: false,
-  specificList: []
+  worldwideWithExclusions: false,
+  specificList: [],
+  excludedList: []
 }
 
 export const createRecordLabelEntry = (): RecordLabelEntry => ({
@@ -125,7 +132,9 @@ export const initialReleaseData: ReleaseData = {
   availableHome: false,
   availableSpecific: false,
   availableWorldwide: false,
+  availableWorldwideWithExclusions: false,
   specificTerritories: [],
+  excludedTerritories: [],
   territoryRightsConfirmed: false,
   goLiveOption: '',
   goLiveDate: '',
@@ -220,17 +229,17 @@ export const territoryOptions = [
   { value: 'middle-east', label: 'Middle East' }
 ]
 
-export const countryOptions = [
-  { value: 'united-kingdom', label: 'United Kingdom' },
-  { value: 'united-states', label: 'United States' },
-  { value: 'canada', label: 'Canada' },
-  { value: 'australia', label: 'Australia' },
-  { value: 'germany', label: 'Germany' },
-  { value: 'france', label: 'France' },
-  { value: 'brazil', label: 'Brazil' },
-  { value: 'south-africa', label: 'South Africa' },
-  { value: 'japan', label: 'Japan' }
-]
+const slugifyCountryValue = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+export const countryOptions = getFullCountryOptions().map((country) => ({
+  value: slugifyCountryValue(country.name),
+  label: country.name
+}))
 
 // Shared UI components
 export interface InfoBoxProps {

@@ -431,7 +431,7 @@ export default function ArtistProfile() {
         return (
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl font-semibold text-white mb-4">Artist Stage Name</h2>
+              <h2 className="text-2xl font-semibold text-white mb-4">Artist Name</h2>
               <Input
                 value={basicDetailsData.stage_name}
                 onChange={(e) => setBasicDetailsData(prev => ({ ...prev, stage_name: e.target.value }))}

@@ -8,6 +8,7 @@ import { SectionWrapper, InfoBox } from './shared'
 import { ReleaseData } from './types'
 import { GTINInfoModal } from './GTINInfoModal'
 import { validateGTIN, lookupGTIN, debounce } from './gtinUtils'
+import { getCountryOptions } from '@/lib/country-list'
 
 interface ReleaseRegistrationSectionProps {
   releaseData: ReleaseData
@@ -26,6 +27,13 @@ export function ReleaseRegistrationSection({
   const [isLookingUpEan, setIsLookingUpEan] = useState(false)
   const [lookupSuccess, setLookupSuccess] = useState<string | null>(null)
   const [showGTINInfo, setShowGTINInfo] = useState(false)
+
+  const slugifyCountryValue = (value: string) =>
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
 
   // Debounced lookup function
   const debouncedLookup = useCallback(
@@ -75,23 +83,13 @@ export function ReleaseRegistrationSection({
         }
 
         if (result.data.country) {
-          // Map country code to your country options if needed
-          const countryMap: Record<string, string> = {
-            'US': 'united-states',
-            'GB': 'united-kingdom',
-            'UK': 'united-kingdom',
-            'CA': 'canada',
-            'AU': 'australia',
-            'DE': 'germany',
-            'FR': 'france',
-            'BR': 'brazil',
-            'ZA': 'south-africa',
-            'JP': 'japan'
-          }
-          const mappedCountry = countryMap[result.data.country.toUpperCase()]
-          if (mappedCountry) {
-            onUpdate('countryOfOrigin', mappedCountry)
-          }
+          const countrySource = result.data.country.trim()
+          const countryOptions = getCountryOptions()
+          const countryByCode = countryOptions.find(
+            (country) => country.code.toUpperCase() === countrySource.toUpperCase()
+          )
+          const countryName = countryByCode?.name || countrySource
+          onUpdate('countryOfOrigin', slugifyCountryValue(countryName))
         }
 
         setLookupSuccess(`Found: ${result.data.releaseTitle} by ${result.data.artistName}`)
@@ -168,7 +166,7 @@ export function ReleaseRegistrationSection({
                 className="text-purple-600 border-purple-300 hover:bg-purple-50"
               >
                 <HelpCircle className="w-4 h-4 mr-1" />
-                What is a GTIN?
+                Get / Find a GTIN
               </Button>
               <a
                 href="https://www.gs1.org/"
@@ -215,7 +213,11 @@ export function ReleaseRegistrationSection({
                 variant={releaseData.upcConfirmed ? 'default' : 'outline'}
                 onClick={() => onUpdate('upcConfirmed', !releaseData.upcConfirmed)}
                 disabled={!canConfirmUpc}
-                className="w-full"
+                className={`w-full ${
+                  !releaseData.upcConfirmed && canConfirmUpc
+                    ? 'border-emerald-300 bg-emerald-600 text-white hover:bg-emerald-700'
+                    : ''
+                }`}
               >
                 {releaseData.upcConfirmed ? (
                   <>
@@ -254,7 +256,11 @@ export function ReleaseRegistrationSection({
                 variant={releaseData.eanConfirmed ? 'default' : 'outline'}
                 onClick={() => onUpdate('eanConfirmed', !releaseData.eanConfirmed)}
                 disabled={!canConfirmEan}
-                className="w-full"
+                className={`w-full ${
+                  !releaseData.eanConfirmed && canConfirmEan
+                    ? 'border-emerald-300 bg-emerald-600 text-white hover:bg-emerald-700'
+                    : ''
+                }`}
               >
                 {releaseData.eanConfirmed ? (
                   <>
@@ -311,6 +317,11 @@ export function ReleaseRegistrationSection({
                 variant={releaseData.releaseTitleConfirmed ? 'default' : 'outline'}
                 onClick={() => onUpdate('releaseTitleConfirmed', !releaseData.releaseTitleConfirmed)}
                 disabled={!releaseData.releaseTitle.trim()}
+                className={
+                  !releaseData.releaseTitleConfirmed && releaseData.releaseTitle.trim()
+                    ? 'border-emerald-300 bg-emerald-600 text-white hover:bg-emerald-700'
+                    : ''
+                }
               >
                 {releaseData.releaseTitleConfirmed ? (
                   <>

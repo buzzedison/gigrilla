@@ -77,25 +77,25 @@ const MEMBER_OPTIONS: Array<{
   },
   {
     type: "artist",
-    title: "Music Artist",
+    title: "Music Artist Profile",
     description:
       "Record, release, perform live, and unlock specialist tools once your fan profile is set.",
   },
   {
     type: "venue",
-    title: "Live Music Venue",
+    title: "Music Venue Profile",
     description:
       "Promote shows, take bookings, and manage artists with a venue-first control panel.",
   },
   {
     type: "service",
-    title: "Music Service Business",
+    title: "Music Service Profile",
     description:
       "List your services, accept bookings, and stay part of your customers' journey.",
   },
   {
     type: "pro",
-    title: "Music Industry Professional",
+    title: "Music Industry Pro Profile",
     description:
       "Offer expertise, host webinars, and build your network alongside the community.",
   },
@@ -744,6 +744,7 @@ export function SignUpWizard() {
   const [isProcessingStep, setIsProcessingStep] = useState(false);
   const [registrationError, setRegistrationError] = useState("");
   const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
+  const [isResendingVerification, setIsResendingVerification] = useState(false);
   const [signupEmail, setSignupEmail] = useState("");
   const [genreLookup, setGenreLookup] = useState<Map<string, string>>(new Map());
   const [genreLookupError, setGenreLookupError] = useState("");
@@ -762,6 +763,16 @@ export function SignUpWizard() {
   const [fanCompletionCheckFinished, setFanCompletionCheckFinished] = useState(!onboardingParam);
   const [subscriptionConfirmed, setSubscriptionConfirmed] = useState(false);
   const [artistRedirectLoading, setArtistRedirectLoading] = useState(onboardingParam === 'artist');
+
+  const pendingProfileLabel = selectedMemberType === "artist"
+    ? "Artist profile"
+    : selectedMemberType === "venue"
+      ? "Venue profile"
+      : selectedMemberType === "service"
+        ? "Music Service profile"
+        : selectedMemberType === "pro"
+          ? "Music Industry Pro profile"
+          : "Fan profile"
 
   useEffect(() => {
     if (!user?.id) return;
@@ -1839,6 +1850,44 @@ export function SignUpWizard() {
     return saved;
   };
 
+  const resendVerificationEmail = async () => {
+    if (!signupEmail.trim()) {
+      setRegistrationError('Missing email address for verification resend.')
+      return
+    }
+
+    setIsResendingVerification(true)
+    setRegistrationError('')
+
+    try {
+      const response = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: signupEmail.trim(),
+          memberType: selectedMemberType || 'fan'
+        })
+      })
+
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setRegistrationError(
+          typeof result.error === 'string'
+            ? result.error
+            : 'Unable to resend verification email right now.'
+        )
+        return
+      }
+    } catch (error) {
+      console.error('SignUpWizard: resendVerificationEmail failed', error)
+      setRegistrationError('Unable to resend verification email right now.')
+    } finally {
+      setIsResendingVerification(false)
+    }
+  }
+
   const uploadProfilePicture = async (file: File) => {
     if (!file) return;
 
@@ -2339,7 +2388,7 @@ export function SignUpWizard() {
   };
 
   const renderMemberSelector = () => (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {MEMBER_OPTIONS.map((option) => {
         const isActive = selectedMemberType === option.type;
         return (
@@ -2359,27 +2408,29 @@ export function SignUpWizard() {
               }
             }}
             className={cn(
-              "cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+              "cursor-pointer border border-border/60 transition hover:-translate-y-1 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
               isActive && "border-primary shadow-lg",
             )}
           >
             <CardHeader className="space-y-3">
-              <Badge className="w-fit rounded-full bg-accent px-3 py-1 text-[0.65rem] uppercase tracking-[0.2em] text-accent-foreground">
-                {option.type === "fan" ? "Start Here" : "Add Tooling"}
-              </Badge>
-              <CardTitle className="text-xl font-semibold">{option.title}</CardTitle>
+              <div className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    "inline-flex size-4 items-center justify-center rounded border",
+                    isActive
+                      ? "border-primary bg-primary"
+                      : "border-border bg-white",
+                  )}
+                  aria-hidden="true"
+                >
+                  {isActive && <span className="size-2 rounded-full bg-white" />}
+                </span>
+                <CardTitle className="text-lg text-foreground">{option.title}</CardTitle>
+              </div>
               <CardDescription className="text-sm text-foreground/80">
                 {option.description}
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Button
-                variant={isActive ? "default" : "outline"}
-                className="rounded-full px-4 py-2 text-[0.7rem] uppercase tracking-[0.18em]"
-              >
-                {isActive ? "Selected" : "Choose"}
-              </Button>
-            </CardContent>
           </Card>
         );
       })}
@@ -5376,7 +5427,7 @@ export function SignUpWizard() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="stageName" className="font-semibold">
-                  Artist Stage Name <span className="text-red-500">*</span>
+                  Artist Name <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="stageName"
@@ -5729,10 +5780,10 @@ export function SignUpWizard() {
                           value={artistProfile.recordLabelContactPhoneCode}
                           onValueChange={(v) => setArtistProfile(prev => ({ ...prev, recordLabelContactPhoneCode: v }))}
                         >
-                          <SelectTrigger className="font-ui w-[240px] shrink-0">
+                          <SelectTrigger className="font-ui w-[280px] shrink-0">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent className="max-h-80">
+                          <SelectContent className="max-h-80 min-w-[320px]">
                             {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
                               <SelectItem key={option.code} value={option.code}>
                                 {getDialCodeLabel(option)}
@@ -5862,10 +5913,10 @@ export function SignUpWizard() {
                           value={artistProfile.musicPublisherContactPhoneCode}
                           onValueChange={(v) => setArtistProfile(prev => ({ ...prev, musicPublisherContactPhoneCode: v }))}
                         >
-                          <SelectTrigger className="font-ui w-[240px] shrink-0">
+                          <SelectTrigger className="font-ui w-[280px] shrink-0">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent className="max-h-80">
+                          <SelectContent className="max-h-80 min-w-[320px]">
                             {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
                               <SelectItem key={option.code} value={option.code}>
                                 {getDialCodeLabel(option)}
@@ -5963,10 +6014,10 @@ export function SignUpWizard() {
                           value={artistProfile.artistManagerContactPhoneCode}
                           onValueChange={(v) => setArtistProfile(prev => ({ ...prev, artistManagerContactPhoneCode: v }))}
                         >
-                          <SelectTrigger className="font-ui w-[240px] shrink-0">
+                          <SelectTrigger className="font-ui w-[280px] shrink-0">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent className="max-h-80">
+                          <SelectContent className="max-h-80 min-w-[320px]">
                             {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
                               <SelectItem key={option.code} value={option.code}>
                                 {getDialCodeLabel(option)}
@@ -6064,10 +6115,10 @@ export function SignUpWizard() {
                           value={artistProfile.bookingAgentContactPhoneCode}
                           onValueChange={(v) => setArtistProfile(prev => ({ ...prev, bookingAgentContactPhoneCode: v }))}
                         >
-                          <SelectTrigger className="font-ui w-[240px] shrink-0">
+                          <SelectTrigger className="font-ui w-[280px] shrink-0">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent className="max-h-80">
+                          <SelectContent className="max-h-80 min-w-[320px]">
                             {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
                               <SelectItem key={option.code} value={option.code}>
                                 {getDialCodeLabel(option)}
@@ -6597,10 +6648,18 @@ export function SignUpWizard() {
           </h1>
           <p className="text-sm text-foreground/75">
             We&apos;ve sent a verification link to <span className="font-semibold">{signupEmail}</span>.
-            Confirm your email, then log in to finish setting up your Fan profile.
+            Confirm your email, then log in to finish setting up your {pendingProfileLabel}.
           </p>
         </div>
         <div className="flex w-full flex-col gap-3">
+          <Button
+            variant="outline"
+            onClick={resendVerificationEmail}
+            disabled={isResendingVerification}
+            className="w-full rounded-full px-5 py-2 text-[0.7rem] uppercase tracking-[0.18em]"
+          >
+            {isResendingVerification ? 'Resending...' : 'Re-send Verification Email'}
+          </Button>
           <Button
             onClick={() => router.push("/login")}
             className="w-full rounded-full bg-primary px-5 py-2 text-[0.7rem] uppercase tracking-[0.18em] text-primary-foreground hover:bg-primary/90"
@@ -6622,6 +6681,11 @@ export function SignUpWizard() {
           Didn&apos;t get an email? Double-check your spam folder, or wait a few minutes and try
           again.
         </p>
+        {registrationError && (
+          <p className="text-xs text-rose-600">
+            {registrationError}
+          </p>
+        )}
       </div>
     );
   }

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Save, ArrowRight, ArrowLeft, Loader2, CheckCircle, Plus, Eye, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
 import { formatDateDDMMMyyyy } from '@/lib/date-format'
-import { ReleaseData, initialReleaseData } from './types'
+import { ReleaseData, TrackData, initialReleaseData } from './types'
 
 // Database release type (snake_case from API)
 interface DbRelease {
@@ -26,7 +26,9 @@ interface DbRelease {
   available_home: boolean
   available_specific: boolean
   available_worldwide: boolean
+  available_worldwide_with_exclusions?: boolean
   specific_territories: string[]
+  excluded_territories?: string[]
   territory_rights_confirmed: boolean
   go_live_option: 'past' | 'asap' | 'future' | null
   go_live_date: string | null
@@ -91,7 +93,6 @@ import { InvitationModal, ErrorReportModal, SuccessModal, InvitationData, ErrorR
 
 // Step definitions
 const STEPS = [
-  { id: 'guide', label: 'Upload Guide' },
   { id: 'registration', label: 'Release Details' },
   { id: 'type', label: 'Release Type' },
   { id: 'geography', label: 'Availability' },
@@ -131,7 +132,9 @@ function dbToReleaseData(db: DbRelease): Partial<ReleaseData> {
     availableHome: db.available_home,
     availableSpecific: db.available_specific,
     availableWorldwide: db.available_worldwide,
+    availableWorldwideWithExclusions: db.available_worldwide_with_exclusions ?? false,
     specificTerritories: db.specific_territories || [],
+    excludedTerritories: db.excluded_territories || [],
     territoryRightsConfirmed: db.territory_rights_confirmed,
     goLiveOption: db.go_live_option || '',
     goLiveDate: db.go_live_date || '',
@@ -191,7 +194,9 @@ function releaseDataToDb(data: ReleaseData, uploadGuideConfirmed: boolean, curre
     available_home: data.availableHome,
     available_specific: data.availableSpecific,
     available_worldwide: data.availableWorldwide,
+    available_worldwide_with_exclusions: data.availableWorldwideWithExclusions,
     specific_territories: data.specificTerritories,
+    excluded_territories: data.excludedTerritories,
     territory_rights_confirmed: data.territoryRightsConfirmed,
     go_live_option: data.goLiveOption || null,
     go_live_date: data.goLiveDate || null,
@@ -233,6 +238,53 @@ function releaseDataToDb(data: ReleaseData, uploadGuideConfirmed: boolean, curre
   }
 }
 
+function hasValidTerritorySelection(selection: {
+  home: boolean
+  specific: boolean
+  worldwide: boolean
+  worldwideWithExclusions: boolean
+  specificList: string[]
+  excludedList: string[]
+}) {
+  return (
+    selection.worldwide ||
+    (selection.worldwideWithExclusions && selection.excludedList.length > 0) ||
+    selection.home ||
+    (selection.specific && selection.specificList.length > 0)
+  )
+}
+
+function slugifyCountryValue(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function inferArtistCountry(profile: Record<string, unknown> | null | undefined) {
+  const hometownCountry = typeof profile?.hometown_country === 'string' ? profile.hometown_country.trim() : ''
+  if (hometownCountry) {
+    return slugifyCountryValue(hometownCountry)
+  }
+
+  const baseLocation = typeof profile?.base_location === 'string' ? profile.base_location.trim() : ''
+  if (!baseLocation) return ''
+
+  const parts = baseLocation
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+  if (parts.length === 0) return ''
+
+  const country = parts.length >= 2 && ['uk', 'united kingdom'].includes(parts[parts.length - 1].toLowerCase())
+    ? `${parts[parts.length - 2]}, ${parts[parts.length - 1]}`
+    : parts[parts.length - 1]
+
+  return slugifyCountryValue(country)
+}
+
 export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManagerProps) {
   const permanentMessages = [
     {
@@ -258,7 +310,7 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
   const [musicView, setMusicView] = useState<MusicManagerView>(defaultView)
   
   // Current step state
-  const [currentStep, setCurrentStep] = useState<StepId>('guide')
+  const [currentStep, setCurrentStep] = useState<StepId>('registration')
 
   // Upload guide state
   const [showUploadGuide, setShowUploadGuide] = useState(true)
@@ -286,6 +338,7 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
   const [publishedReleases, setPublishedReleases] = useState<DbRelease[]>([])
   const [pendingReleases, setPendingReleases] = useState<DbRelease[]>([])
   const [isLoadingPublished, setIsLoadingPublished] = useState(true)
+  const [draftTracks, setDraftTracks] = useState<TrackData[]>([])
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Load existing draft release on mount
@@ -303,8 +356,29 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
         const draft = result.data[0] as DbRelease
         setReleaseId(draft.id)
         setUploadGuideConfirmed(draft.upload_guide_confirmed)
-        setCurrentStep((draft.current_step as StepId) || 'guide')
+        const savedStep = draft.current_step === 'guide' ? 'registration' : draft.current_step
+        setCurrentStep((savedStep as StepId) || 'registration')
         setReleaseData(prev => ({ ...prev, ...dbToReleaseData(draft) }))
+      } else {
+        try {
+          const artistResponse = await fetch('/api/artist-profile', { cache: 'no-store' })
+          const artistResult = await artistResponse.json()
+          const inferredCountry = inferArtistCountry(
+            artistResult?.data && typeof artistResult.data === 'object'
+              ? artistResult.data as Record<string, unknown>
+              : null
+          )
+
+          if (inferredCountry) {
+            setReleaseData((prev) => (
+              prev.countryOfOrigin
+                ? prev
+                : { ...prev, countryOfOrigin: inferredCountry }
+            ))
+          }
+        } catch (artistError) {
+          console.error('Error preloading artist country for release workflow:', artistError)
+        }
       }
     } catch (error) {
       console.error('Error loading draft release:', error)
@@ -386,15 +460,20 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
   const isStepComplete = (stepId: StepId): boolean => {
     const hasValidTerritories =
       releaseData.availableWorldwide ||
+      (releaseData.availableWorldwideWithExclusions && releaseData.excludedTerritories.length > 0) ||
       releaseData.availableHome ||
       (releaseData.availableSpecific && releaseData.specificTerritories.length > 0)
 
     const hasLabelDetails = releaseData.masterRightsType === 'label'
-      ? releaseData.recordLabels.some(label => label.name.trim() && label.confirmed)
+      ? releaseData.recordLabels.some(
+        label => label.name.trim() && label.confirmed && hasValidTerritorySelection(label.territories)
+      )
       : releaseData.masterRightsType === 'independent' && releaseData.masterRightsConfirmed
 
     const hasPublisherDetails = releaseData.publishingRightsType === 'publisher'
-      ? releaseData.publishers.some(publisher => publisher.name.trim() && publisher.confirmed)
+      ? releaseData.publishers.some(
+        publisher => publisher.name.trim() && publisher.confirmed && hasValidTerritorySelection(publisher.territories)
+      )
       : releaseData.publishingRightsType === 'independent' && releaseData.publishingRightsConfirmed
 
     const goLiveReady =
@@ -405,8 +484,6 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
           : Boolean(releaseData.goLiveDate)
 
     switch (stepId) {
-      case 'guide':
-        return uploadGuideConfirmed
       case 'registration':
         return (
           releaseData.releaseTitleConfirmed &&
@@ -557,16 +634,21 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
   const isFormValid = () => {
     const hasValidTerritories =
       releaseData.availableWorldwide ||
+      (releaseData.availableWorldwideWithExclusions && releaseData.excludedTerritories.length > 0) ||
       releaseData.availableHome ||
       (releaseData.availableSpecific && releaseData.specificTerritories.length > 0)
 
     const hasLabelDetails = releaseData.masterRightsType === 'independent'
       ? releaseData.masterRightsConfirmed
-      : releaseData.recordLabels.some(label => label.name.trim() && label.confirmed)
+      : releaseData.recordLabels.some(
+        label => label.name.trim() && label.confirmed && hasValidTerritorySelection(label.territories)
+      )
 
     const hasPublisherDetails = releaseData.publishingRightsType === 'independent'
       ? releaseData.publishingRightsConfirmed
-      : releaseData.publishers.some(publisher => publisher.name.trim() && publisher.confirmed)
+      : releaseData.publishers.some(
+        publisher => publisher.name.trim() && publisher.confirmed && hasValidTerritorySelection(publisher.territories)
+      )
 
     const goLiveReady =
       releaseData.goLiveOption === 'asap'
@@ -606,7 +688,7 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
   // Auto-save function (silent save without showing messages)
   const autoSave = useCallback(async () => {
     // Don't auto-save if we're in the guide step or if already saving
-    if (currentStep === 'guide' || isSaving || isSavingAndProceeding) return
+    if (isSaving || isSavingAndProceeding) return
 
     try {
       setAutoSaveStatus('saving')
@@ -660,6 +742,63 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
     }
   }, [releaseData, autoSave, isLoading])
 
+  const persistTrackDrafts = useCallback(async (activeReleaseId: string | null) => {
+    if (!activeReleaseId || draftTracks.length === 0) return
+
+    await Promise.all(
+      draftTracks.map(async (track) => {
+        await fetch('/api/music-tracks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            releaseId: activeReleaseId,
+            trackNumber: track.trackNumber,
+            trackTitle: track.trackTitle,
+            trackTitleConfirmed: track.trackTitleConfirmed,
+            trackVersion: track.trackVersion || releaseData.releaseVersion,
+            masterRecordingDate: track.masterRecordingDate,
+            isrc: track.isrc,
+            isrcConfirmed: track.isrcConfirmed,
+            iswc: track.iswc,
+            iswcConfirmed: track.iswcConfirmed,
+            musicalWorkTitle: track.musicalWorkTitle,
+            musicalWorkTitleConfirmed: track.musicalWorkTitleConfirmed,
+            primaryArtists: track.primaryArtists,
+            featuredArtists: track.featuredArtists,
+            sessionArtists: track.sessionArtists,
+            creators: track.creators,
+            producers: track.producers,
+            coverRights: track.coverRights,
+            coverLicenseUrl: track.coverLicenseUrl,
+            remixRights: track.remixRights,
+            remixAuthorizationUrl: track.remixAuthorizationUrl,
+            samplesRights: track.samplesRights,
+            samplesClearanceUrl: track.samplesClearanceUrl,
+            primaryGenre: track.primaryGenre,
+            secondaryGenre: track.secondaryGenre,
+            primaryMood: track.primaryMood,
+            secondaryMoods: track.secondaryMoods,
+            primaryLanguage: track.primaryLanguage,
+            secondaryLanguage: track.secondaryLanguage,
+            explicitContent: track.explicitContent,
+            childSafeContent: track.childSafeContent,
+            audioFileUrl: track.audioFileUrl,
+            audioFileSize: track.audioFileSize,
+            audioFormat: track.audioFormat,
+            dolbyAtmosFileUrl: track.dolbyAtmosFileUrl,
+            previewStartTime: track.previewStartTime,
+            lyrics: track.lyrics,
+            lyricsConfirmed: track.lyricsConfirmed,
+            lyricsFileUrl: track.lyricsFileUrl,
+            videoUrl: track.videoUrl,
+            videoUrlConfirmed: track.videoUrlConfirmed,
+            durationSeconds: track.durationSeconds
+          })
+        })
+      })
+    )
+  }, [draftTracks, releaseData.releaseVersion])
+
   // Handle save and come back later
   const handleSave = async () => {
     setIsSaving(true)
@@ -677,9 +816,11 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
       const result = await response.json()
 
       if (result.success) {
+        const activeReleaseId = releaseId || result.data?.id || null
         if (!releaseId && result.data?.id) {
           setReleaseId(result.data.id)
         }
+        await persistTrackDrafts(activeReleaseId)
         setSaveMessage({ type: 'success', text: 'Progress saved successfully!' })
         setTimeout(() => setSaveMessage(null), 3000)
       } else {
@@ -719,6 +860,8 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
       const result = await response.json()
       
       if (result.success) {
+        const activeReleaseId = releaseId || result.data?.id || null
+        await persistTrackDrafts(activeReleaseId)
         const finalStatus = result?.data?.status as string | undefined
         const isPublished = finalStatus === 'published'
         const isPending = finalStatus === 'pending_review'
@@ -727,9 +870,9 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
           type: 'success',
           text:
             isPublished
-              ? 'Release published successfully. Preview it in Fan Dashboard > Music.'
+              ? 'Release published successfully. Preview it as a fan.'
               : isPending
-                ? 'Release submitted for review. It will appear in Fan Dashboard after approval.'
+                ? 'Release submitted for review. It will appear in fan preview after approval.'
                 : 'Release saved successfully.'
         })
         // Could redirect to a releases list or show success state
@@ -749,7 +892,7 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
     setReleaseId(null)
     setReleaseData(initialReleaseData)
     setUploadGuideConfirmed(false)
-    setCurrentStep('guide')
+    setCurrentStep('registration')
     setSaveMessage(null)
     setMusicView('upload')
   }
@@ -765,8 +908,9 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
   }
 
   const applyReleaseToEditor = (release: DbRelease) => {
-    const nextStep = STEPS.some((step) => step.id === release.current_step)
-      ? (release.current_step as StepId)
+    const persistedStep = release.current_step === 'guide' ? 'registration' : release.current_step
+    const nextStep = STEPS.some((step) => step.id === persistedStep)
+      ? (persistedStep as StepId)
       : 'registration'
 
     setReleaseId(release.id)
@@ -812,15 +956,6 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
   // Render current step content
   const renderStepContent = () => {
     switch (currentStep) {
-      case 'guide':
-        return (
-          <UploadGuideSection
-            showUploadGuide={showUploadGuide}
-            uploadGuideConfirmed={uploadGuideConfirmed}
-            onToggle={handleToggleUploadGuide}
-            onConfirm={setUploadGuideConfirmed}
-          />
-        )
       case 'registration':
         return (
           <ReleaseRegistrationSection
@@ -882,6 +1017,7 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
             releaseData={releaseData}
             releaseId={releaseId}
             onUpdate={updateReleaseData}
+            onTracksUpdate={setDraftTracks}
           />
         )
       case 'submit':
@@ -1040,7 +1176,7 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
                 onClick={() => setMusicView('upload')}
                 className="border-purple-200 text-purple-700 hover:bg-purple-50"
               >
-                Continue Upload Flow
+                Continue Draft Upload Flow
               </Button>
             )}
             <Button
@@ -1049,7 +1185,7 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
               className="border-purple-200 text-purple-700 hover:bg-purple-50"
             >
               <Eye className="w-4 h-4 mr-2" />
-              Preview In Fan Dashboard
+              Preview as Fan
             </Button>
           </div>
         </div>
@@ -1073,7 +1209,7 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
                       onClick={() => setMusicView('upload')}
                       className="border-blue-300 text-blue-700 hover:bg-blue-100"
                     >
-                      Continue Draft
+                      Continue Draft Upload Flow
                     </Button>
                   )}
                 </div>
@@ -1084,7 +1220,7 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm font-semibold text-amber-900">Pending Review ({pendingReleases.length})</p>
                 <p className="mt-1 text-xs text-amber-800">
-                  These are submitted and waiting for admin approval before they appear in Fan Dashboard.
+                  These are submitted and waiting for admin approval before they appear in fan preview.
                 </p>
                 <div className="mt-3 grid gap-2 md:grid-cols-2">
                   {(musicView === 'manage' ? pendingReleases : pendingReleases.slice(0, 6)).map((release) => (
@@ -1121,11 +1257,11 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
 
             {publishedReleases.length === 0 ? (
               <p className="text-sm text-gray-500">
-                No releases published yet. Published releases appear here and in Fan Dashboard.
+                No releases published yet. Published releases appear here and in fan preview.
               </p>
             ) : (
               <div>
-                <p className="text-sm font-semibold text-gray-900 mb-3">Live In Fan Dashboard ({publishedReleases.length})</p>
+                <p className="text-sm font-semibold text-gray-900 mb-3">Live In Fan Preview ({publishedReleases.length})</p>
                 <div className="grid gap-3 md:grid-cols-2">
                   {(musicView === 'manage' ? publishedReleases : publishedReleases.slice(0, 6)).map((release) => (
                     <div key={release.id} className="rounded-xl border border-gray-200 p-4 bg-gray-50">
@@ -1165,6 +1301,15 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
 
       {musicView === 'upload' && (
         <div id="artist-music-upload-workflow" className="scroll-mt-28">
+          <div className="mb-6">
+            <UploadGuideSection
+              showUploadGuide={showUploadGuide}
+              uploadGuideConfirmed={uploadGuideConfirmed}
+              onToggle={handleToggleUploadGuide}
+              onConfirm={setUploadGuideConfirmed}
+            />
+          </div>
+
           {/* Step Progress Indicator */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
             <div className="flex items-center justify-between mb-4">

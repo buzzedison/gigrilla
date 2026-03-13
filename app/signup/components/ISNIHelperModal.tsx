@@ -86,12 +86,12 @@ export function ISNIHelperModal({ trigger, initialTab = 'get' }: ISNIHelperModal
                     <p className="text-sm font-medium text-foreground">Visit the ISNI Request page</p>
                     <p className="text-xs text-foreground/60 mb-1">Go to the official ISNI registration portal and click "Request an ISNI".</p>
                     <a
-                      href="https://isni.org/page/requests/"
+                      href="https://isni.org/page/get-an-isni/"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-xs text-purple-600 hover:underline font-medium"
                     >
-                      isni.org/page/requests/ <ExternalLink className="w-3 h-3" />
+                      isni.org/page/get-an-isni/ <ExternalLink className="w-3 h-3" />
                     </a>
                   </div>
                 </div>
@@ -157,7 +157,7 @@ export function ISNIHelperModal({ trigger, initialTab = 'get' }: ISNIHelperModal
               className="w-full bg-purple-600 hover:bg-purple-700 text-white"
               size="sm"
             >
-              <a href="https://isni.org/page/requests/" target="_blank" rel="noopener noreferrer">
+              <a href="https://isni.org/page/get-an-isni/" target="_blank" rel="noopener noreferrer">
                 Go to ISNI Registration <ExternalLink className="w-3.5 h-3.5 ml-1" />
               </a>
             </Button>

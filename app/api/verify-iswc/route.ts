@@ -14,8 +14,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Clean ISWC (remove dashes and spaces)
-    const cleanedISWC = iswc.replace(/[-\s]/g, '').toUpperCase()
+    // Clean ISWC (remove punctuation and spaces)
+    const cleanedISWC = iswc.replace(/[-.\s]/g, '').toUpperCase()
 
     // ISWC format: T-123456789-C (11 characters: T + 9 digits + check digit)
     // Or modern format: T-123.456.789-C

@@ -461,15 +461,15 @@ export function ArtistContractStatusManager() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Record Label Contact Phone</label>
-                    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-2">
+                    <div className="grid grid-cols-[minmax(0,280px)_minmax(0,1fr)] gap-2">
                       <Select
                         value={formData.record_label_phone_code}
                         onValueChange={(value) => handleInputChange('record_label_phone_code', value)}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Code" />
                         </SelectTrigger>
-                        <SelectContent className="max-h-64">
+                        <SelectContent className="max-h-64 min-w-[320px]">
                           {COUNTRY_DIAL_CODE_OPTIONS.map(option => (
                             <SelectItem key={`record-label-phone-${option.code}`} value={option.code}>
                               {getDialCodeLabel(option)}
@@ -560,15 +560,15 @@ export function ArtistContractStatusManager() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Music Publisher Contact Phone</label>
-                    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-2">
+                    <div className="grid grid-cols-[minmax(0,280px)_minmax(0,1fr)] gap-2">
                       <Select
                         value={formData.music_publisher_phone_code}
                         onValueChange={(value) => handleInputChange('music_publisher_phone_code', value)}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Code" />
                         </SelectTrigger>
-                        <SelectContent className="max-h-64">
+                        <SelectContent className="max-h-64 min-w-[320px]">
                           {COUNTRY_DIAL_CODE_OPTIONS.map(option => (
                             <SelectItem key={`publisher-phone-${option.code}`} value={option.code}>
                               {getDialCodeLabel(option)}
@@ -658,15 +658,15 @@ export function ArtistContractStatusManager() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Artist Manager Contact Phone</label>
-                    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-2">
+                    <div className="grid grid-cols-[minmax(0,280px)_minmax(0,1fr)] gap-2">
                       <Select
                         value={formData.artist_manager_phone_code}
                         onValueChange={(value) => handleInputChange('artist_manager_phone_code', value)}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Code" />
                         </SelectTrigger>
-                        <SelectContent className="max-h-64">
+                        <SelectContent className="max-h-64 min-w-[320px]">
                           {COUNTRY_DIAL_CODE_OPTIONS.map(option => (
                             <SelectItem key={`manager-phone-${option.code}`} value={option.code}>
                               {getDialCodeLabel(option)}
@@ -756,15 +756,15 @@ export function ArtistContractStatusManager() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Booking Agent Contact Phone</label>
-                    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-2">
+                    <div className="grid grid-cols-[minmax(0,280px)_minmax(0,1fr)] gap-2">
                       <Select
                         value={formData.booking_agent_phone_code}
                         onValueChange={(value) => handleInputChange('booking_agent_phone_code', value)}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Code" />
                         </SelectTrigger>
-                        <SelectContent className="max-h-64">
+                        <SelectContent className="max-h-64 min-w-[320px]">
                           {COUNTRY_DIAL_CODE_OPTIONS.map(option => (
                             <SelectItem key={`booking-phone-${option.code}`} value={option.code}>
                               {getDialCodeLabel(option)}

@@ -237,7 +237,9 @@ export async function POST(request: NextRequest) {
       available_home,
       available_specific,
       available_worldwide,
+      available_worldwide_with_exclusions,
       specific_territories,
+      excluded_territories,
       territory_rights_confirmed,
       go_live_option,
       go_live_date,
@@ -391,7 +393,9 @@ export async function POST(request: NextRequest) {
     assignIfDefined('available_home', available_home)
     assignIfDefined('available_specific', available_specific)
     assignIfDefined('available_worldwide', available_worldwide)
+    assignIfDefined('available_worldwide_with_exclusions', available_worldwide_with_exclusions)
     assignIfDefined('specific_territories', specific_territories)
+    assignIfDefined('excluded_territories', excluded_territories)
     assignIfDefined('territory_rights_confirmed', territory_rights_confirmed)
     assignIfDefined('go_live_option', go_live_option)
     assignIfDefined('go_live_date', go_live_date)

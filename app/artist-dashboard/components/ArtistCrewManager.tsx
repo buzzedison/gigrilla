@@ -212,6 +212,7 @@ export function ArtistCrewManager() {
     instruments3tier: SelectedInstrument[]
   }>({ firstName: '', lastName: '', nickname: '', phone: '', roles: [], instruments3tier: [] })
   const [ownerInstruments3tier, setOwnerInstruments3tier] = useState<SelectedInstrument[]>([])
+  const [ownerNicknameError, setOwnerNicknameError] = useState<string | null>(null)
   const [newMemberInstruments, setNewMemberInstruments] = useState<SelectedInstrument[]>([])
   const [savingMemberId, setSavingMemberId] = useState<string | null>(null)
   const [newMember, setNewMember] = useState<Partial<CrewMember>>({
@@ -576,6 +577,13 @@ export function ArtistCrewManager() {
   const saveProfileOwner = async () => {
     if (!profileOwner) return
 
+    const nickname = profileOwner.nickname?.trim() || ''
+    if (!nickname) {
+      setOwnerNicknameError('Nickname / Stagename is required.')
+      showNotification('error', 'Please add your Nickname / Stagename before saving.')
+      return
+    }
+
     try {
       setSavingOwner(true)
 
@@ -589,7 +597,7 @@ export function ArtistCrewManager() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          stage_name: profileOwner.nickname?.trim() || null,
+          stage_name: nickname,
           artist_primary_roles: [
             ...nonInstrumentRoles(profileOwner.roles),
             ...instrumentsToRoleStrings(ownerInstruments3tier),
@@ -610,6 +618,8 @@ export function ArtistCrewManager() {
         return
       }
 
+      setOwnerNicknameError(null)
+      setExpandedCategories(new Set())
       showNotification('success', 'Your own roles and profile info were saved successfully')
       notifyProfileUpdated('crew-owner')
     } catch (error) {
@@ -1055,15 +1065,22 @@ export function ArtistCrewManager() {
 
                   <div className="space-y-2">
                     <Label htmlFor="artistNickname" className="text-sm font-semibold text-gray-700">
-                      Artist Nickname / Stagename
+                      Artist Nickname / Stagename <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="artistNickname"
                       value={profileOwner.nickname}
-                      onChange={(e) => updateProfileOwner({ nickname: e.target.value })}
+                      onChange={(e) => {
+                        updateProfileOwner({ nickname: e.target.value })
+                        setOwnerNicknameError(null)
+                      }}
                       placeholder="Enter Nickname / Stagename (if you have one)"
-                      className="border-purple-200 focus:border-purple-400"
+                      className={cn(
+                        "border-purple-200 focus:border-purple-400",
+                        ownerNicknameError && "border-red-400 focus:border-red-500"
+                      )}
                     />
+                    {ownerNicknameError && <p className="text-xs text-red-600">{ownerNicknameError}</p>}
                     <p className="text-xs text-gray-500 italic">
                       is always public & searchable.
                     </p>
@@ -1522,12 +1539,12 @@ export function ArtistCrewManager() {
 
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-gray-700">
-                    Nickname?
+                    Nickname / Stagename?
                   </Label>
                   <Input
                     value={newMember.nickname || ''}
                     onChange={(e) => setNewMember(prev => ({ ...prev, nickname: e.target.value }))}
-                    placeholder="Nickname"
+                    placeholder="Nickname / Stagename"
                     className="border-purple-200 focus:border-purple-400"
                   />
                   <p className="text-xs text-gray-500 italic">is always public & searchable.</p>
@@ -1615,7 +1632,7 @@ export function ArtistCrewManager() {
                           )}
                         </div>
                       </CollapsibleTrigger>
-                      <CollapsibleContent className="mt-2 max-h-48 overflow-y-auto">
+                      <CollapsibleContent className="mt-2">
                         <div className="space-y-2 p-2 bg-purple-50 rounded-lg">
                           {ROLE_CATEGORIES.map((category) => (
                             <div key={category.id}>

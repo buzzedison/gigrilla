@@ -84,25 +84,31 @@ const INSTRUMENT_OPTIONS: MultiSelectOption[] = getType5InstrumentOptions().map(
 
 // Vocal role options (matching Artist Type 4)
 const VOCAL_ROLE_OPTIONS: MultiSelectOption[] = [
-  { id: 'all-vocals', label: 'All Vocals', description: 'Select all three vocal roles below' },
+  { id: 'all-vocals', label: 'All Vocals', description: 'Select all three vocal roles' },
   { id: 'lead', label: 'Lead', description: 'Primary/featured vocal performances' },
   { id: 'backing', label: 'Backing', description: 'Support vocal performances' },
   { id: 'harmony', label: 'Harmony', description: 'Harmony vocal arrangements and parts' }
 ]
 
 // Sound-based vocal descriptors
-const VOCAL_SOUND_DESCRIPTOR_OPTIONS: MultiSelectOption[] = RAW_VOCAL_SOUND_DESCRIPTORS.map(item => ({
-  id: item.id,
-  label: item.label,
-  group: item.group
-}))
+const VOCAL_SOUND_DESCRIPTOR_OPTIONS: MultiSelectOption[] = [
+  { id: 'any', label: 'Any', group: 'Sound-Based' },
+  ...RAW_VOCAL_SOUND_DESCRIPTORS.map(item => ({
+    id: item.id,
+    label: item.label,
+    group: item.group
+  }))
+]
 
 // Genre-based vocal descriptors
-const VOCAL_GENRE_DESCRIPTOR_OPTIONS: MultiSelectOption[] = RAW_VOCAL_GENRE_DESCRIPTORS.map(item => ({
-  id: item.id,
-  label: item.label,
-  group: item.group
-}))
+const VOCAL_GENRE_DESCRIPTOR_OPTIONS: MultiSelectOption[] = [
+  { id: 'any', label: 'Any', group: 'Genre-Based' },
+  ...RAW_VOCAL_GENRE_DESCRIPTORS.map(item => ({
+    id: item.id,
+    label: item.label,
+    group: item.group
+  }))
+]
 
 const PRODUCER_STUDIO_TYPES = ['Editing/Tuning', 'Mixing/Mastering', 'Studio Overseer']
 const PRODUCER_CREATIVE_TYPES = ['All-in-One', 'Beatmaker', 'Coach/Mentor']
@@ -463,12 +469,21 @@ export function ArtistAuditionsManager() {
                   options={VOCAL_ROLE_OPTIONS}
                   value={vocalistTypes}
                   onChange={(newValues) => {
-                    // Handle "All Vocals" logic
-                    if (newValues.includes('all-vocals')) {
-                      setVocalistTypes(['all-vocals', 'lead', 'backing', 'harmony'])
-                    } else {
-                      setVocalistTypes(newValues)
+                    const individualRoles = ['lead', 'backing', 'harmony']
+                    const includesAll = newValues.includes('all-vocals')
+                    const selectedIndividuals = individualRoles.filter((role) => newValues.includes(role))
+
+                    if (includesAll) {
+                      setVocalistTypes(['all-vocals', ...individualRoles])
+                      return
                     }
+
+                    if (selectedIndividuals.length === individualRoles.length) {
+                      setVocalistTypes(['all-vocals', ...individualRoles])
+                      return
+                    }
+
+                    setVocalistTypes(selectedIndividuals)
                   }}
                   placeholder="Select vocal roles needed..."
                   maxSelections={4}
@@ -478,7 +493,9 @@ export function ArtistAuditionsManager() {
                   label="Sound-Based Voice Descriptors (Optional)"
                   options={VOCAL_SOUND_DESCRIPTOR_OPTIONS}
                   value={vocalistSoundDescriptors}
-                  onChange={setVocalistSoundDescriptors}
+                  onChange={(newValues) => {
+                    setVocalistSoundDescriptors(newValues.includes('any') ? ['any'] : newValues.filter((value) => value !== 'any'))
+                  }}
                   placeholder="Select sound characteristics..."
                   grouped={true}
                 />
@@ -487,7 +504,9 @@ export function ArtistAuditionsManager() {
                   label="Genre-Based Voice Descriptors (Optional)"
                   options={VOCAL_GENRE_DESCRIPTOR_OPTIONS}
                   value={vocalistGenreDescriptors}
-                  onChange={setVocalistGenreDescriptors}
+                  onChange={(newValues) => {
+                    setVocalistGenreDescriptors(newValues.includes('any') ? ['any'] : newValues.filter((value) => value !== 'any'))
+                  }}
                   placeholder="Select genre styles..."
                   grouped={true}
                 />

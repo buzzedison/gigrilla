@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { X, ChevronDown } from 'lucide-react'
 import { INSTRUMENT_TAXONOMY_3TIER } from '../../../data/instrument-taxonomy'
 import type { InstrumentGroup3, Instrument3, SubInstrument } from '../../../data/instrument-taxonomy'
@@ -16,6 +16,9 @@ export interface SelectedInstrument {
   variantId?: string
   variantLabel?: string
 }
+
+const ALL_INSTRUMENT_ID = '__all__'
+const OTHER_INSTRUMENT_ID = '__other__'
 
 // ─── Serialise / deserialise for DB storage ────────────────────────────────────
 
@@ -45,8 +48,28 @@ export function deserializeInstruments3Tier(stored: string | null | undefined): 
       const [groupId, instrumentId, variantId] = item.split(':')
       if (!groupId || !instrumentId) return null
       const group = INSTRUMENT_TAXONOMY_3TIER.find(g => g.id === groupId)
-      const instrument = group?.instruments.find(i => i.id === instrumentId)
-      if (!group || !instrument) return null
+      if (!group) return null
+
+      if (instrumentId === ALL_INSTRUMENT_ID) {
+        return {
+          groupId,
+          groupName: group.name,
+          instrumentId,
+          instrumentLabel: group.allLabel,
+        }
+      }
+
+      if (instrumentId === OTHER_INSTRUMENT_ID) {
+        return {
+          groupId,
+          groupName: group.name,
+          instrumentId,
+          instrumentLabel: group.otherLabel,
+        }
+      }
+
+      const instrument = group.instruments.find(i => i.id === instrumentId)
+      if (!instrument) return null
       const variant = variantId
         ? instrument.variants?.find(v => v.id === variantId)
         : undefined
@@ -78,9 +101,11 @@ export function InstrumentPicker3Tier({
   allowedGroups,
   className,
 }: InstrumentPicker3TierProps) {
-  const groups = allowedGroups
-    ? INSTRUMENT_TAXONOMY_3TIER.filter(g => allowedGroups.includes(g.id))
-    : INSTRUMENT_TAXONOMY_3TIER
+  const groups = useMemo(() => (
+    allowedGroups
+      ? INSTRUMENT_TAXONOMY_3TIER.filter(g => allowedGroups.includes(g.id))
+      : INSTRUMENT_TAXONOMY_3TIER
+  ), [allowedGroups])
 
   const [activeGroupId, setActiveGroupId] = useState<string>(groups[0]?.id ?? '')
   const [expandedInstrumentId, setExpandedInstrumentId] = useState<string | null>(null)
@@ -103,6 +128,8 @@ export function InstrumentPicker3Tier({
     value.filter(s => s.groupId === groupId && s.instrumentId === instrumentId).length
 
   const groupHasSelection = (groupId: string) => value.some(s => s.groupId === groupId)
+  const isGroupOptionSelected = (groupId: string, optionId: string) =>
+    value.some(s => s.groupId === groupId && s.instrumentId === optionId && !s.variantId)
 
   // ── Toggle handlers ────────────────────────────────────────────────────────
 
@@ -112,7 +139,10 @@ export function InstrumentPicker3Tier({
     if (selected) {
       onChange(value.filter(s => !(s.groupId === group.id && s.instrumentId === instrument.id && !s.variantId)))
     } else {
-      onChange([...value, {
+      const cleaned = value.filter(
+        s => !(s.groupId === group.id && (s.instrumentId === ALL_INSTRUMENT_ID || s.instrumentId === OTHER_INSTRUMENT_ID))
+      )
+      onChange([...cleaned, {
         groupId: group.id,
         groupName: group.name,
         instrumentId: instrument.id,
@@ -135,7 +165,11 @@ export function InstrumentPicker3Tier({
     } else {
       // Remove the plain (no-variant) entry for this instrument if present
       const cleaned = value.filter(
-        s => !(s.groupId === group.id && s.instrumentId === instrument.id && !s.variantId)
+        s => !(s.groupId === group.id && (
+          (s.instrumentId === instrument.id && !s.variantId) ||
+          s.instrumentId === ALL_INSTRUMENT_ID ||
+          s.instrumentId === OTHER_INSTRUMENT_ID
+        ))
       )
       onChange([...cleaned, {
         groupId: group.id,
@@ -146,6 +180,22 @@ export function InstrumentPicker3Tier({
         variantLabel: variant.label,
       }])
     }
+  }
+
+  const toggleGroupOption = (group: InstrumentGroup3, optionId: typeof ALL_INSTRUMENT_ID | typeof OTHER_INSTRUMENT_ID) => {
+    const selected = isGroupOptionSelected(group.id, optionId)
+    if (selected) {
+      onChange(value.filter(s => !(s.groupId === group.id && s.instrumentId === optionId && !s.variantId)))
+      return
+    }
+
+    const cleaned = value.filter(s => s.groupId !== group.id)
+    onChange([...cleaned, {
+      groupId: group.id,
+      groupName: group.name,
+      instrumentId: optionId,
+      instrumentLabel: optionId === ALL_INSTRUMENT_ID ? group.allLabel : group.otherLabel,
+    }])
   }
 
   /** Remove one tag */
@@ -200,6 +250,54 @@ export function InstrumentPicker3Tier({
       {/* ── Instruments in active group ── */}
       {activeGroup && (
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => toggleGroupOption(activeGroup, ALL_INSTRUMENT_ID)}
+              className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all text-left ${
+                isGroupOptionSelected(activeGroup.id, ALL_INSTRUMENT_ID)
+                  ? 'border-purple-500 bg-purple-50 text-purple-900'
+                  : 'border-gray-200 bg-white text-gray-800 hover:border-purple-400 hover:bg-purple-50 hover:text-purple-900'
+              }`}
+            >
+              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                isGroupOptionSelected(activeGroup.id, ALL_INSTRUMENT_ID)
+                  ? 'border-purple-600 bg-purple-600'
+                  : 'border-gray-400'
+              }`}>
+                {isGroupOptionSelected(activeGroup.id, ALL_INSTRUMENT_ID) && (
+                  <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </div>
+              <span>{activeGroup.allLabel}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => toggleGroupOption(activeGroup, OTHER_INSTRUMENT_ID)}
+              className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all text-left ${
+                isGroupOptionSelected(activeGroup.id, OTHER_INSTRUMENT_ID)
+                  ? 'border-orange-500 bg-orange-50 text-orange-900'
+                  : 'border-gray-200 bg-white text-gray-800 hover:border-orange-400 hover:bg-orange-50 hover:text-orange-900'
+              }`}
+            >
+              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                isGroupOptionSelected(activeGroup.id, OTHER_INSTRUMENT_ID)
+                  ? 'border-orange-600 bg-orange-600'
+                  : 'border-gray-400'
+              }`}>
+                {isGroupOptionSelected(activeGroup.id, OTHER_INSTRUMENT_ID) && (
+                  <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </div>
+              <span>{activeGroup.otherLabel}</span>
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {activeGroup.instruments.map(instrument => {
               const hasVariants = instrument.variants && instrument.variants.length > 0
@@ -211,24 +309,19 @@ export function InstrumentPicker3Tier({
                 <div key={instrument.id} className="col-span-1">
 
                   {/* ── Instrument button ── */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (hasVariants) {
-                        setExpandedInstrumentId(isExpanded ? null : instrument.id)
-                      } else {
-                        toggleInstrument(activeGroup, instrument)
-                      }
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all text-left ${
+                  <div
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all text-left ${
                       count > 0
                         ? 'border-purple-500 bg-purple-50 text-purple-900'
                         : 'border-gray-200 bg-white text-gray-800 hover:border-purple-400 hover:bg-purple-50 hover:text-purple-900'
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      {/* Checkbox for instruments without variants */}
-                      {!hasVariants && (
+                      <button
+                        type="button"
+                        onClick={() => toggleInstrument(activeGroup, instrument)}
+                        className="flex items-center gap-2 min-w-0 text-left"
+                      >
                         <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
                           directlySelected
                             ? 'border-purple-600 bg-purple-600'
@@ -240,8 +333,8 @@ export function InstrumentPicker3Tier({
                             </svg>
                           )}
                         </div>
-                      )}
-                      <span className="truncate">{instrument.label}</span>
+                        <span className="truncate">{instrument.label}</span>
+                      </button>
                       {count > 0 && hasVariants && (
                         <span className="text-xs text-purple-700 font-semibold shrink-0 bg-purple-100 px-1.5 py-0.5 rounded-full">
                           {count} selected
@@ -249,11 +342,18 @@ export function InstrumentPicker3Tier({
                       )}
                     </div>
                     {hasVariants && (
-                      <ChevronDown
-                        className={`w-4 h-4 shrink-0 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                      />
+                      <button
+                        type="button"
+                        onClick={() => setExpandedInstrumentId(isExpanded ? null : instrument.id)}
+                        className="shrink-0 rounded-md p-1 text-gray-500 hover:bg-purple-100 hover:text-purple-700"
+                        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${instrument.label} variants`}
+                      >
+                        <ChevronDown
+                          className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                        />
+                      </button>
                     )}
-                  </button>
+                  </div>
 
                   {/* ── Variant checkboxes (expanded) ── */}
                   {hasVariants && isExpanded && (
@@ -305,18 +405,23 @@ export function InstrumentPicker3Tier({
                 key={i}
                 className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full bg-purple-600 text-white text-xs font-semibold shadow-sm"
               >
-                {sel.variantLabel ?? sel.instrumentLabel}
+                {sel.variantLabel ? `${sel.instrumentLabel}: ${sel.variantLabel}` : sel.instrumentLabel}
                 <button
                   type="button"
                   className="ml-0.5 p-0.5 rounded-full hover:bg-purple-500 transition-colors"
                   onClick={() => removeSelection(sel)}
-                  aria-label={`Remove ${sel.variantLabel ?? sel.instrumentLabel}`}
+                  aria-label={`Remove ${sel.variantLabel ? `${sel.instrumentLabel}: ${sel.variantLabel}` : sel.instrumentLabel}`}
                 >
                   <X className="w-3 h-3" />
                 </button>
               </span>
             ))}
           </div>
+          {value.some((sel) => sel.instrumentId === OTHER_INSTRUMENT_ID) && (
+            <div className="mt-3 rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800">
+              You selected an “Other” instrument. Gigrilla will flag this for manual follow-up so the taxonomy can be updated.
+            </div>
+          )}
         </div>
       )}
     </div>

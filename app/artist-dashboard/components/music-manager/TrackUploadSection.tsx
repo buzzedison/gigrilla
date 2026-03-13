@@ -12,6 +12,8 @@ import { ReleaseData, TrackData, createTrackData, releaseVersionOptions } from '
 import { TrackTalentSection } from './TrackTalentSection'
 import { TrackTagsSection } from './TrackTagsSection'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../components/ui/collapsible'
+import { ISRCInfoModal } from './ISRCInfoModal'
+import { ISWCInfoModal } from './ISWCInfoModal'
 
 // Notification Modal Component
 interface NotificationModalProps {
@@ -203,6 +205,7 @@ const validateISRC = (isrc: string): { valid: boolean; error?: string } => {
 
 export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksUpdate }: TrackUploadSectionProps) {
   const [tracks, setTracks] = useState<TrackData[]>([])
+  const [defaultPrimaryArtists, setDefaultPrimaryArtists] = useState<TrackData['primaryArtists']>([])
   const [uploadingTrackIndex, setUploadingTrackIndex] = useState<number | null>(null)
   const [uploadProgress, setUploadProgress] = useState<Record<number, number>>({})
   const [isLoadingTracks, setIsLoadingTracks] = useState(true)
@@ -213,8 +216,42 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
   const [iswcErrors, setIswcErrors] = useState<Record<number, string>>({})
   const [iswcSuccess, setIswcSuccess] = useState<Record<number, string>>({})
   const [isTrackUploadIntroCollapsed, setIsTrackUploadIntroCollapsed] = useState(false)
+  const [showISRCInfo, setShowISRCInfo] = useState(false)
+  const [showISWCInfo, setShowISWCInfo] = useState(false)
   const fileInputRefs = useRef<Record<number | string, HTMLInputElement | null>>({})
   const lyricsFileInputRefs = useRef<Record<number | string, HTMLInputElement | null>>({})
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadArtistDefaults = async () => {
+      try {
+        const response = await fetch('/api/artist-profile', { cache: 'no-store' })
+        const result = await response.json()
+        const stageName = typeof result?.data?.stage_name === 'string' ? result.data.stage_name.trim() : ''
+        const performerIsni = typeof result?.data?.performer_isni === 'string' ? result.data.performer_isni.trim() : ''
+
+        if (!cancelled && stageName) {
+          setDefaultPrimaryArtists([
+            {
+              id: 'artist-profile-owner',
+              name: stageName,
+              isni: performerIsni,
+              confirmed: true
+            }
+          ])
+        }
+      } catch (error) {
+        console.error('TrackUploadSection: Error loading artist defaults:', error)
+      }
+    }
+
+    void loadArtistDefaults()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Initialize tracks based on trackCount and load from DB if releaseId exists
   useEffect(() => {
@@ -300,11 +337,27 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
 
               const mergedTracks: TrackData[] = []
               for (let i = 1; i <= releaseData.trackCount; i++) {
-                mergedTracks.push(tracksByNumber.get(i) || createTrackData(i))
+                const existingTrack = tracksByNumber.get(i)
+                const fallbackTrack = createTrackData(i)
+                mergedTracks.push(
+                  existingTrack
+                    ? {
+                        ...existingTrack,
+                        primaryArtists:
+                          existingTrack.primaryArtists?.length
+                            ? existingTrack.primaryArtists
+                            : defaultPrimaryArtists
+                      }
+                    : {
+                        ...fallbackTrack,
+                        primaryArtists: defaultPrimaryArtists
+                      }
+                )
               }
 
               if (!isMounted) return
               setTracks(mergedTracks)
+              onTracksUpdate?.(mergedTracks)
               console.log('TrackUploadSection: Loaded existing tracks successfully')
               return // Exit early if we loaded tracks
             } else {
@@ -321,15 +374,20 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
           console.log('TrackUploadSection: Creating new empty tracks:', releaseData.trackCount)
           const newTracks: TrackData[] = []
           for (let i = 1; i <= releaseData.trackCount; i++) {
-            newTracks.push(createTrackData(i))
+            newTracks.push({
+              ...createTrackData(i),
+              primaryArtists: defaultPrimaryArtists
+            })
           }
           console.log('TrackUploadSection: Created tracks:', newTracks.length)
           if (!isMounted) return
           setTracks(newTracks)
+          onTracksUpdate?.(newTracks)
         } else {
           console.log('TrackUploadSection: No tracks to create (trackCount = 0)')
           if (!isMounted) return
           setTracks([])
+          onTracksUpdate?.([])
         }
       } catch (error) {
         console.error('TrackUploadSection: Fatal error during initialization:', error)
@@ -346,13 +404,43 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
     return () => {
       isMounted = false
     }
-  }, [releaseData.trackCount, releaseId])
+  }, [onTracksUpdate, releaseData.trackCount, releaseId])
+
+  useEffect(() => {
+    if (defaultPrimaryArtists.length === 0) return
+
+    setTracks((prev) => {
+      if (prev.length === 0) return prev
+
+      const updated = prev.map((track) =>
+        track.primaryArtists?.length
+          ? track
+          : { ...track, primaryArtists: defaultPrimaryArtists }
+      )
+      onTracksUpdate?.(updated)
+      return updated
+    })
+  }, [defaultPrimaryArtists, onTracksUpdate])
 
 
   const updateTrack = (index: number, field: keyof TrackData, value: unknown) => {
     setTracks(prev => {
       const updated = [...prev]
-      updated[index] = { ...updated[index], [field]: value }
+      const currentTrack = updated[index]
+      const nextTrack = { ...currentTrack, [field]: value }
+
+      if (field === 'trackTitle' && typeof value === 'string') {
+        const nextTitle = value
+        const shouldMirrorToMusicalWorkTitle =
+          !currentTrack.musicalWorkTitle.trim() ||
+          currentTrack.musicalWorkTitle.trim() === currentTrack.trackTitle.trim()
+
+        if (shouldMirrorToMusicalWorkTitle) {
+          nextTrack.musicalWorkTitle = nextTitle
+        }
+      }
+
+      updated[index] = nextTrack
       onTracksUpdate?.(updated)
       return updated
     })
@@ -597,7 +685,7 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
     })
 
     try {
-      const cleanedISWC = iswcCode.replace(/[-\s]/g, '').toUpperCase()
+      const cleanedISWC = iswcCode.replace(/[-.\s]/g, '').toUpperCase()
       const response = await fetch(`/api/verify-iswc?iswc=${encodeURIComponent(cleanedISWC)}`)
 
       if (!response.ok) {
@@ -1180,14 +1268,15 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                               </>
                             )}
                           </Button>
-                          <a
-                            href="https://usisrc.org/"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-purple-600 hover:text-purple-800 flex items-center whitespace-nowrap px-2"
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowISRCInfo(true)}
+                            className="text-sm text-purple-600 hover:text-purple-800 whitespace-nowrap px-2"
                           >
-                            Get ISRC
-                          </a>
+                            Get / Find
+                          </Button>
                         </div>
 
                         {/* Verification Status Messages */}
@@ -1275,14 +1364,15 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                               </>
                             )}
                           </Button>
-                          <a
-                            href="https://www.iswc.org/"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-purple-600 hover:text-purple-800 flex items-center whitespace-nowrap px-2"
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowISWCInfo(true)}
+                            className="text-sm text-purple-600 hover:text-purple-800 whitespace-nowrap px-2"
                           >
-                            Get ISWC
-                          </a>
+                            Get / Find
+                          </Button>
                         </div>
 
                         {/* Verification Status Messages */}
@@ -2034,6 +2124,8 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
           })}
         </div>
       </SectionWrapper >
+      <ISRCInfoModal isOpen={showISRCInfo} onClose={() => setShowISRCInfo(false)} />
+      <ISWCInfoModal isOpen={showISWCInfo} onClose={() => setShowISWCInfo(false)} />
     </>
   )
 }
