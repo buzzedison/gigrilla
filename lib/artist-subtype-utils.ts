@@ -67,6 +67,32 @@ const parseGroupAndValue = (value: string): { groupId: string; token: string } |
   return { groupId: groupId.trim(), token }
 }
 
+const parseStringValues = (rawValue: string): string[] => {
+  const trimmed = rawValue.trim()
+  if (!trimmed) return []
+
+  if ((trimmed.startsWith("[") && trimmed.endsWith("]")) || (trimmed.startsWith("{") && trimmed.endsWith("}"))) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) {
+        return parsed.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      }
+    } catch {
+      // fall through to delimiter parsing
+    }
+  }
+
+  if (trimmed.includes("|")) {
+    return trimmed.split("|").map((value) => value.trim()).filter(Boolean)
+  }
+
+  if (trimmed.includes(",")) {
+    return trimmed.split(",").map((value) => value.trim()).filter(Boolean)
+  }
+
+  return [trimmed]
+}
+
 export function normalizeArtistSubTypeSelections(
   rawValue: unknown,
   artistTypeId?: number | null
@@ -89,6 +115,28 @@ export function normalizeArtistSubTypeSelections(
 
         // If the format is already canonical and can't be resolved (e.g. stale config),
         // keep it so data is not lost.
+        addSelection(normalized, parsed.groupId, parsed.token)
+        continue
+      }
+
+      const resolved = resolveOption(artistTypeId, rawItem)
+      if (resolved) {
+        addSelection(normalized, resolved.groupId, resolved.optionId)
+      }
+    }
+
+    return normalized
+  }
+
+  if (typeof rawValue === "string") {
+    for (const rawItem of parseStringValues(rawValue)) {
+      const parsed = parseGroupAndValue(rawItem)
+      if (parsed) {
+        const resolved = resolveOption(artistTypeId, parsed.token, parsed.groupId)
+        if (resolved) {
+          addSelection(normalized, resolved.groupId, resolved.optionId)
+          continue
+        }
         addSelection(normalized, parsed.groupId, parsed.token)
         continue
       }

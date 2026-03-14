@@ -528,11 +528,10 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
               <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 flex gap-2">
                 <MapPin className="w-4 h-4 mt-0.5 text-blue-600" />
                 <div>
-                  <p className="font-semibold">Displays on your Artist Profile as:</p>
                   <p>
                     {cityState && baseLocationBits.country
-                      ? `${cityState}, ${baseLocationBits.country}`
-                      : 'City/Town (+State) and Country will populate once your base location is entered.'}
+                      ? `Your profile will display as: ${cityState}, ${baseLocationBits.country}.`
+                      : 'Your profile will display as: Town/City, County, Country — e.g. Fakenham, Norfolk, England, UK.'}
                   </p>
                 </div>
               </div>

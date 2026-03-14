@@ -25,7 +25,7 @@ import { ArtistContractStatusManager } from "./components/ArtistContractStatusMa
 import { ArtistInboxManager } from "./components/ArtistInboxManager"
 import { Badge } from "../components/ui/badge"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet"
-import { Music, Info, Menu } from "lucide-react"
+import { Music, Info, Menu, AlertCircle } from "lucide-react"
 import { getArtistTypeConfig, ArtistTypeCapabilities } from "../../data/artist-types"
 import { normalizeArtistSubTypeSelections } from "../../lib/artist-subtype-utils"
 
@@ -106,6 +106,7 @@ export default function ArtistDashboard() {
   const [onboardingCompleted, setOnboardingCompleted] = useState(false)
   const [activeSubSectionKey, setActiveSubSectionKey] = useState<string | null>(null)
   const [unreadMessages, setUnreadMessages] = useState(0)
+  const [missingArtistSubtype, setMissingArtistSubtype] = useState(false)
   const deepLinkedMessageFolder = searchParams?.get('folder') || null
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -140,6 +141,7 @@ export default function ArtistDashboard() {
             result.data.artist_sub_types,
             result.data.artist_type_id
           )
+          const hasSubtype = Object.values(subTypes).some((values) => Array.isArray(values) && values.length > 0)
 
           const selection: ArtistTypeSelection = {
             artistTypeId: result.data.artist_type_id,
@@ -148,6 +150,15 @@ export default function ArtistDashboard() {
           setArtistTypeSelection(selection)
           const config = getArtistTypeConfig(selection.artistTypeId)
           setCapabilities(config?.capabilities ?? null)
+          setMissingArtistSubtype(!hasSubtype)
+
+          if (!hasSubtype) {
+            setActiveSection('type')
+            setActiveSubSectionKey(null)
+            router.replace(`${pathname}?section=type`, { scroll: false })
+          }
+        } else {
+          setMissingArtistSubtype(false)
         }
         // Don't force redirect to type section - let users navigate freely
       } catch (error) {
@@ -156,7 +167,7 @@ export default function ArtistDashboard() {
     }
 
     loadArtistProfile()
-  }, [user, router])
+  }, [user, router, pathname])
 
   // Allow users to change their artist type even after onboarding is completed
   // useEffect(() => {
@@ -311,6 +322,7 @@ export default function ArtistDashboard() {
       setArtistTypeSelection(selection)
       const config = getArtistTypeConfig(selection.artistTypeId)
       setCapabilities(config?.capabilities ?? null)
+      setMissingArtistSubtype(false)
       setCompletionRefreshKey(prev => prev + 1)
       handleSectionChange('profile')
     } catch (error) {
@@ -756,6 +768,19 @@ export default function ArtistDashboard() {
                 </div>
 
                 <div className="space-y-6 lg:space-y-8">
+                  {missingArtistSubtype && (
+                    <div className="flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+                      <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" />
+                      <div>
+                        <p className="font-semibold">Artist subtype is still missing.</p>
+                        <p>
+                          Your artist type is saved, but no subtype is stored yet. Choose your subtype in
+                          <span className="font-semibold"> Artist Type &amp; Configuration</span>
+                          and save it to complete this required step.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   {renderContent(activeSection)}
                 </div>
 

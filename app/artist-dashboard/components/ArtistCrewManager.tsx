@@ -133,6 +133,57 @@ interface RoleCategory {
   expanded?: boolean
 }
 
+const POSTCODE_LIKE_REGEX = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i
+
+function sanitizeLocationPart(value?: string | null) {
+  if (typeof value !== 'string') return ''
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (POSTCODE_LIKE_REGEX.test(trimmed)) return ''
+  return trimmed
+}
+
+function splitLocation(value?: string | null) {
+  const parts = String(value || '')
+    .split(',')
+    .map(part => sanitizeLocationPart(part))
+    .filter(Boolean)
+
+  if (parts.length === 0) {
+    return { city: '', state: '', country: '' }
+  }
+
+  const working = [...parts]
+  let country = ''
+  if (working.length >= 2) {
+    const last = working[working.length - 1].toLowerCase()
+    const previous = working[working.length - 2].toLowerCase()
+    if (last === 'uk' && ['england', 'scotland', 'wales', 'northern ireland'].includes(previous)) {
+      country = `${working[working.length - 2]}, ${working[working.length - 1]}`
+      working.splice(-2, 2)
+    }
+  }
+
+  if (!country) {
+    country = working.pop() || ''
+  }
+
+  let state = working.length > 1 ? working[working.length - 1] || '' : ''
+  let city = ''
+
+  if (working.length === 1) {
+    city = working[0] || ''
+  } else if (working.length >= 2) {
+    city = working[working.length - 2] || ''
+  }
+
+  return { city, state, country }
+}
+
+function buildPublicLocation(parts: Array<string | null | undefined>) {
+  return parts.map(part => sanitizeLocationPart(part)).filter(Boolean).join(', ')
+}
+
 
 const ROLE_CATEGORIES: RoleCategory[] = [
   {
@@ -454,11 +505,21 @@ export function ArtistCrewManager() {
 
         if (user) {
           const dateOfBirth = user?.user_metadata?.date_of_birth || ''
-          const hometown = [
-            profileData?.hometown_city,
-            profileData?.hometown_state,
-            profileData?.hometown_country
-          ].filter(Boolean).join(', ') || profileData?.base_location || fanProfileData?.location_details?.city || ''
+          const fallbackLocation = splitLocation(profileData?.base_location)
+          const hometown = buildPublicLocation([
+            profileData?.hometown_city || fallbackLocation.city || fanProfileData?.location_details?.city,
+            profileData?.hometown_state || fallbackLocation.state || fanProfileData?.location_details?.state,
+            profileData?.hometown_country || fallbackLocation.country || fanProfileData?.location_details?.country
+          ])
+          const legalName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim()
+          const artistName = typeof profileData?.company_name === 'string' ? profileData.company_name.trim() : ''
+          const storedStageName = typeof profileData?.stage_name === 'string' ? profileData.stage_name.trim() : ''
+          const nickname =
+            storedStageName &&
+            storedStageName !== artistName &&
+            storedStageName !== legalName
+              ? storedStageName
+              : ''
 
           console.log('Extracted Date of Birth:', dateOfBirth)
           console.log('Extracted Hometown:', hometown)
@@ -467,8 +528,8 @@ export function ArtistCrewManager() {
 
           const owner: CrewMember = {
             id: user.id,
-            name: `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() || 'Your Name',
-            nickname: profileData?.stage_name || '',
+            name: legalName || 'Your Name',
+            nickname,
             dateOfBirth: dateOfBirth,
             hometown: hometown,
             roles: Array.isArray(profileData?.artist_primary_roles)

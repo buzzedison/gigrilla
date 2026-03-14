@@ -108,7 +108,7 @@ function DatePicker({
           maybeEmit(draftYear, draftMonth, nextDay);
         }}
       >
-        <SelectTrigger className="w-[72px] h-10 text-sm">
+        <SelectTrigger className="w-[92px] h-10 text-sm">
           <SelectValue placeholder="Day" />
         </SelectTrigger>
         <SelectContent>
@@ -167,7 +167,7 @@ function DatePicker({
             maybeEmit(nextYear, draftMonth, draftDay);
           }}
         >
-          <SelectTrigger className="w-[90px] h-10 rounded-none border-x-0 text-sm focus-visible:z-10">
+          <SelectTrigger className="w-[118px] h-10 rounded-none border-x-0 text-sm focus-visible:z-10">
             <SelectValue placeholder="Year" />
           </SelectTrigger>
           <SelectContent>
@@ -300,7 +300,7 @@ function MonthYearPicker({
             maybeEmit(nextYear, draftMonth);
           }}
         >
-          <SelectTrigger className="w-[90px] h-10 rounded-none border-x-0 text-sm focus-visible:z-10">
+          <SelectTrigger className="w-[118px] h-10 rounded-none border-x-0 text-sm focus-visible:z-10">
             <SelectValue placeholder="Year" />
           </SelectTrigger>
           <SelectContent>

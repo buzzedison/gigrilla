@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { useAuth } from "../../../lib/auth-context";
@@ -25,6 +25,7 @@ type ProfileLink = {
   href: string;
   badge?: string;
   disabled?: boolean;
+  actionLabel?: string;
 };
 
 const PROFILE_LINKS: ProfileLink[] = [
@@ -73,6 +74,7 @@ export default function ControlPanelPage() {
   const { user, signOut } = useAuth();
   const searchParams = useSearchParams();
   const isGuestMode = searchParams?.get("mode") === "guest";
+  const [hasArtistProfile, setHasArtistProfile] = useState<boolean | null>(null);
 
   const summaryTitle = useMemo(() => {
     if (isGuestMode) {
@@ -80,6 +82,56 @@ export default function ControlPanelPage() {
     }
     return "Control Panel";
   }, [isGuestMode]);
+
+  useEffect(() => {
+    if (!user) {
+      setHasArtistProfile(null);
+      return;
+    }
+
+    const loadArtistProfileState = async () => {
+      try {
+        const response = await fetch("/api/artist-profile", { cache: "no-store" });
+        const result = await response.json();
+        setHasArtistProfile(Boolean(response.ok && result?.data));
+      } catch (error) {
+        console.error("ControlPanel: failed to load artist profile state", error);
+        setHasArtistProfile(false);
+      }
+    };
+
+    void loadArtistProfileState();
+  }, [user]);
+
+  const profileLinks = useMemo<ProfileLink[]>(() => {
+    return PROFILE_LINKS.map((profile) => {
+      if (profile.key !== "artist") return profile;
+
+      if (hasArtistProfile === null) {
+        return {
+          ...profile,
+          disabled: true,
+          actionLabel: "Checking..."
+        };
+      }
+
+      if (hasArtistProfile) {
+        return {
+          ...profile,
+          disabled: false,
+          href: "/artist-dashboard",
+          actionLabel: "Open"
+        };
+      }
+
+      return {
+        ...profile,
+        disabled: false,
+        href: "/signup?onboarding=artist",
+        actionLabel: "Set Up"
+      };
+    });
+  }, [hasArtistProfile]);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 pb-16 pt-10 sm:px-10">
@@ -134,7 +186,7 @@ export default function ControlPanelPage() {
             </Button>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
-            {PROFILE_LINKS.map((profile) => (
+            {profileLinks.map((profile) => (
               <Card
                 key={profile.key}
                 className="border border-border/50 shadow-none transition hover:-translate-y-1 hover:shadow-md"
@@ -158,14 +210,14 @@ export default function ControlPanelPage() {
                       disabled
                       className="w-full rounded-full px-4 py-2 text-[0.7rem] uppercase tracking-[0.18em]"
                     >
-                      Coming Soon
+                      {profile.actionLabel ?? "Coming Soon"}
                     </Button>
                   ) : (
                     <Button
                       asChild
                       className="w-full rounded-full px-4 py-2 text-[0.7rem] uppercase tracking-[0.18em]"
                     >
-                      <Link href={profile.href}>Open</Link>
+                      <Link href={profile.href}>{profile.actionLabel ?? "Open"}</Link>
                     </Button>
                   )}
                 </CardContent>

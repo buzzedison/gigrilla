@@ -98,7 +98,14 @@ export async function GET(request: NextRequest) {
     const lat = result.geometry?.location?.lat
     const lon = result.geometry?.location?.lng
 
-    return NextResponse.json({ city, state, country, lat, lon })
+    return NextResponse.json({
+      formatted: result.formatted_address ?? '',
+      city,
+      state,
+      country,
+      lat,
+      lon
+    })
   } catch (error) {
     console.error('Location geocode error', error)
     return NextResponse.json({ error: 'Unexpected error fetching location details.' }, { status: 500 })

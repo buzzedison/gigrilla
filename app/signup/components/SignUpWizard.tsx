@@ -620,6 +620,75 @@ const FAN_MEMBERSHIP_BENEFITS = [
   "Pay-as-you-play streaming at £0.02 per spin with 100% to rights holders.",
 ];
 
+const DEFAULT_ARTIST_SELECTION = {
+  typeId: "",
+  subType: "",
+  vocalSoundTypes: "",
+  vocalGenreStyles: "",
+  availability: "",
+  instrumentCategory: "",
+  instrument: "",
+  instruments3tier: [] as SelectedInstrument[],
+  songwriterOption: "",
+  songwriterGenres: "",
+  lyricistOption: "",
+  lyricistGenres: "",
+  composerOption: "",
+  composerGenres: "",
+};
+
+const DEFAULT_ARTIST_PROFILE = {
+  stageName: "",
+  formedDate: "",
+  performingMembers: 1,
+  baseLocation: "",
+  baseLocationLat: null as number | null,
+  baseLocationLon: null as number | null,
+  publicGigsPerformed: 0,
+  recordingSessionGigs: 0,
+  songwritingCollaborations: 0,
+  performerIsni: "",
+  creatorIpiCae: "",
+  website: "",
+  facebookUrl: "",
+  instagramUrl: "",
+  threadsUrl: "",
+  xUrl: "",
+  tiktokUrl: "",
+  youtubeUrl: "",
+  snapchatUrl: "",
+  mastodonUrl: "",
+  blueskyUrl: "",
+  recordLabelStatus: "independent",
+  recordLabelName: "",
+  recordLabelContactFirstName: "",
+  recordLabelContactLastName: "",
+  recordLabelContactEmail: "",
+  recordLabelContactPhoneCode: "+44",
+  recordLabelContactPhoneNumber: "",
+  musicPublisherStatus: "independent",
+  musicPublisherName: "",
+  musicPublisherContactFirstName: "",
+  musicPublisherContactLastName: "",
+  musicPublisherContactEmail: "",
+  musicPublisherContactPhoneCode: "+44",
+  musicPublisherContactPhoneNumber: "",
+  artistManagerStatus: "self_managed",
+  artistManagerName: "",
+  artistManagerContactFirstName: "",
+  artistManagerContactLastName: "",
+  artistManagerContactEmail: "",
+  artistManagerContactPhoneCode: "+44",
+  artistManagerContactPhoneNumber: "",
+  bookingAgentStatus: "self_managed",
+  bookingAgentName: "",
+  bookingAgentContactFirstName: "",
+  bookingAgentContactLastName: "",
+  bookingAgentContactEmail: "",
+  bookingAgentContactPhoneCode: "+44",
+  bookingAgentContactPhoneNumber: "",
+};
+
 interface StepDefinition {
   key:
     | "member-selector"
@@ -839,74 +908,10 @@ export function SignUpWizard() {
     fetchingVideoMetadata: false,
   });
 
-  const [artistSelection, setArtistSelection] = useState({
-    typeId: "",
-    subType: "",
-    vocalSoundTypes: "",
-    vocalGenreStyles: "",
-    availability: "",
-    instrumentCategory: "",
-    instrument: "",
-    instruments3tier: [] as SelectedInstrument[],
-    songwriterOption: "",
-    songwriterGenres: "",
-    lyricistOption: "",
-    lyricistGenres: "",
-    composerOption: "",
-    composerGenres: "",
-  });
+  const [artistSelection, setArtistSelection] = useState(DEFAULT_ARTIST_SELECTION);
 
-  const [artistProfile, setArtistProfile] = useState({
-    stageName: "",
-    formedDate: "",
-    performingMembers: 1,
-    baseLocation: "",
-    baseLocationLat: null as number | null,
-    baseLocationLon: null as number | null,
-    publicGigsPerformed: 0,
-    recordingSessionGigs: 0,
-    songwritingCollaborations: 0,
-    performerIsni: "",
-    creatorIpiCae: "",
-    website: "",
-    facebookUrl: "",
-    instagramUrl: "",
-    threadsUrl: "",
-    xUrl: "",
-    tiktokUrl: "",
-    youtubeUrl: "",
-    snapchatUrl: "",
-    mastodonUrl: "",
-    blueskyUrl: "",
-    recordLabelStatus: "independent",
-    recordLabelName: "",
-    recordLabelContactFirstName: "",
-    recordLabelContactLastName: "",
-    recordLabelContactEmail: "",
-    recordLabelContactPhoneCode: "+44",
-    recordLabelContactPhoneNumber: "",
-    musicPublisherStatus: "independent",
-    musicPublisherName: "",
-    musicPublisherContactFirstName: "",
-    musicPublisherContactLastName: "",
-    musicPublisherContactEmail: "",
-    musicPublisherContactPhoneCode: "+44",
-    musicPublisherContactPhoneNumber: "",
-    artistManagerStatus: "self_managed",
-    artistManagerName: "",
-    artistManagerContactFirstName: "",
-    artistManagerContactLastName: "",
-    artistManagerContactEmail: "",
-    artistManagerContactPhoneCode: "+44",
-    artistManagerContactPhoneNumber: "",
-    bookingAgentStatus: "self_managed",
-    bookingAgentName: "",
-    bookingAgentContactFirstName: "",
-    bookingAgentContactLastName: "",
-    bookingAgentContactEmail: "",
-    bookingAgentContactPhoneCode: "+44",
-    bookingAgentContactPhoneNumber: "",
-  });
+  const [artistProfile, setArtistProfile] = useState(DEFAULT_ARTIST_PROFILE);
+  const [hasRestoredArtistDraft, setHasRestoredArtistDraft] = useState(false);
 
   const [venueSelection, setVenueSelection] = useState({
     typeId: "",
@@ -1312,6 +1317,15 @@ export function SignUpWizard() {
     [user, fanProfileCompletedFromDb, selectedMemberType],
   )
 
+  const shouldUseDirectProfileOnboarding = useMemo(
+    () =>
+      Boolean(user) &&
+      fanProfileCompletedFromDb &&
+      onboardingParam &&
+      onboardingParam !== "fan",
+    [user, fanProfileCompletedFromDb, onboardingParam],
+  )
+
   const steps = useMemo(() => {
     const effectiveBaseSteps = shouldSkipFanMembershipStep
       ? baseSteps.filter(
@@ -1325,6 +1339,7 @@ export function SignUpWizard() {
               "fan-profile-picture",
               "fan-photos",
               "fan-videos",
+              ...(shouldUseDirectProfileOnboarding ? ["profile-add"] : []),
             ].includes(step.key),
         )
       : baseSteps
@@ -1334,11 +1349,11 @@ export function SignUpWizard() {
       stepList.push(artistProfileSetupStep);
     }
     return stepList;
-  }, [baseSteps, personaStep, artistProfileSetupStep, shouldSkipFanMembershipStep]);
+  }, [baseSteps, personaStep, artistProfileSetupStep, shouldSkipFanMembershipStep, shouldUseDirectProfileOnboarding]);
 
   // Jump to profile-add step after steps are built and user has completed fan onboarding
   useEffect(() => {
-    if (steps.length === 0) return;
+    if (steps.length === 0 || shouldUseDirectProfileOnboarding) return;
     
     const profileAddIndex = steps.findIndex((s) => s.key === "profile-add");
     
@@ -1361,7 +1376,7 @@ export function SignUpWizard() {
       console.log('SignUpWizard: Jumping to profile-add step for additional profile...');
       setStepIndex(profileAddIndex);
     }
-  }, [steps, hasResumedOnboarding, onboardingParam, accountChoice, stepIndex, isRegistered]);
+  }, [steps, hasResumedOnboarding, onboardingParam, accountChoice, stepIndex, isRegistered, shouldUseDirectProfileOnboarding]);
 
   // Resume onboarding after email verification - run this after user is loaded AND steps are built
   useEffect(() => {
@@ -1404,6 +1419,14 @@ export function SignUpWizard() {
     }
 
     if (fanProfileCompletedFromDb && onboardingParam !== "fan") {
+      const directPersonaIndex = steps.findIndex((step) => step.key === personaStep?.key)
+      if (directPersonaIndex !== -1) {
+        console.log('✅ Fan onboarding already complete. Jumping straight to direct profile onboarding step')
+        setStepIndex(directPersonaIndex)
+        setHasResumedOnboarding(true)
+        return
+      }
+
       const profileAddIndex = steps.findIndex((step) => step.key === "profile-add")
       if (profileAddIndex !== -1) {
         console.log('✅ Fan onboarding already complete. Jumping straight to Add Profile step')
@@ -1442,7 +1465,7 @@ export function SignUpWizard() {
       setStepIndex(profileDetailsIndex);
       setHasResumedOnboarding(true);
     }
-  }, [authLoading, user, onboardingParam, fanCompletionCheckFinished, fanProfileCompletedFromDb, selectedMemberType, accountChoice, isRegistered, isProcessingStep, steps, hasResumedOnboarding, stepIndex]);
+  }, [authLoading, user, onboardingParam, fanCompletionCheckFinished, fanProfileCompletedFromDb, selectedMemberType, accountChoice, isRegistered, isProcessingStep, steps, hasResumedOnboarding, stepIndex, personaStep]);
 
   useEffect(() => {
     if (steps.length === 0) return;
@@ -1491,6 +1514,107 @@ export function SignUpWizard() {
       setAccountChoice("fan");
     }
   }, [selectedMemberType, accountChoice]);
+
+  const artistDraftStorageKey = user ? `artist-onboarding-draft-${user.id}` : null
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (!artistDraftStorageKey) return
+    if (onboardingParam !== "artist") return
+    if (hasRestoredArtistDraft) return
+
+    const rawDraft = window.localStorage.getItem(artistDraftStorageKey)
+    if (!rawDraft) {
+      setHasRestoredArtistDraft(true)
+      return
+    }
+
+    try {
+      const parsed = JSON.parse(rawDraft) as {
+        artistSelection?: Partial<typeof DEFAULT_ARTIST_SELECTION>
+        artistProfile?: Partial<typeof DEFAULT_ARTIST_PROFILE>
+      }
+
+      if (parsed.artistSelection) {
+        const restoredSelection = parsed.artistSelection
+        setArtistSelection((prev) => ({
+          ...prev,
+          ...DEFAULT_ARTIST_SELECTION,
+          ...restoredSelection,
+          instruments3tier: Array.isArray(restoredSelection.instruments3tier)
+            ? restoredSelection.instruments3tier
+            : prev.instruments3tier,
+        }))
+      }
+
+      if (parsed.artistProfile) {
+        setArtistProfile((prev) => ({
+          ...prev,
+          ...DEFAULT_ARTIST_PROFILE,
+          ...parsed.artistProfile,
+        }))
+      }
+    } catch (error) {
+      console.error("Failed to restore artist onboarding draft:", error)
+    } finally {
+      setHasRestoredArtistDraft(true)
+    }
+  }, [artistDraftStorageKey, hasRestoredArtistDraft, onboardingParam])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (!artistDraftStorageKey) return
+    if (onboardingParam !== "artist") return
+    if (!hasRestoredArtistDraft) return
+
+    const stepKey = steps[stepIndex]?.key
+    const artistStepKey =
+      stepKey === "artist-type" || stepKey === "artist-profile-setup"
+        ? stepKey
+        : undefined
+
+    window.localStorage.setItem(
+      artistDraftStorageKey,
+      JSON.stringify({
+        artistSelection,
+        artistProfile,
+        currentArtistStepKey: artistStepKey,
+        updatedAt: new Date().toISOString(),
+      })
+    )
+  }, [
+    artistDraftStorageKey,
+    artistProfile,
+    artistSelection,
+    hasRestoredArtistDraft,
+    onboardingParam,
+    stepIndex,
+    steps,
+  ])
+
+  useEffect(() => {
+    if (!hasRestoredArtistDraft) return
+    if (!artistDraftStorageKey) return
+    if (onboardingParam !== "artist") return
+    if (!hasResumedOnboarding) return
+    if (!steps.length) return
+
+    try {
+      const rawDraft = window.localStorage.getItem(artistDraftStorageKey)
+      if (!rawDraft) return
+
+      const parsed = JSON.parse(rawDraft) as { currentArtistStepKey?: string }
+      const targetStepKey = parsed.currentArtistStepKey
+      if (!targetStepKey) return
+
+      const targetIndex = steps.findIndex((step) => step.key === targetStepKey)
+      if (targetIndex !== -1 && stepIndex !== targetIndex) {
+        setStepIndex(targetIndex)
+      }
+    } catch (error) {
+      console.error("Failed to resume artist onboarding step from draft:", error)
+    }
+  }, [artistDraftStorageKey, hasResumedOnboarding, hasRestoredArtistDraft, onboardingParam, stepIndex, steps])
 
   useEffect(() => {
     if (fanProfileCompletedFromDb && selectedMemberType && selectedMemberType !== "fan" && accountChoice !== "fan") {
@@ -1610,8 +1734,14 @@ export function SignUpWizard() {
       case "fan-videos":
       case "profile-add":
         return true;
-      case "artist-type":
-        return Boolean(artistSelection.typeId);
+      case "artist-type": {
+        if (!artistSelection.typeId) return false
+        const selectedArtistTypeOption = ARTIST_TYPE_OPTIONS.find((option) => option.id === artistSelection.typeId)
+        if (selectedArtistTypeOption?.subTypes?.length) {
+          return Boolean(artistSelection.subType?.trim())
+        }
+        return true
+      }
       case "artist-profile-setup":
         return Boolean(artistProfile.stageName?.trim());
       case "venue-type":
@@ -2233,6 +2363,41 @@ export function SignUpWizard() {
           stepCompleted = true; // Always allow progression
           break;
         }
+        case "artist-type": {
+          try {
+            const response = await fetch('/api/artist-profile', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                artist_type_id: artistSelection.typeId ? parseInt(artistSelection.typeId.replace('type', '')) : null,
+                artist_sub_types: artistSelection.subType ? [artistSelection.subType] : [],
+                vocal_sound_types: artistSelection.vocalSoundTypes || null,
+                vocal_genre_styles: artistSelection.vocalGenreStyles || null,
+                availability: artistSelection.availability || null,
+                instrument_category: artistSelection.instrumentCategory || null,
+                instrument: serializeInstruments3Tier(artistSelection.instruments3tier) || artistSelection.instrument || null,
+                songwriter_option: artistSelection.songwriterOption || null,
+                songwriter_genres: artistSelection.songwriterGenres || null,
+                lyricist_option: artistSelection.lyricistOption || null,
+                lyricist_genres: artistSelection.lyricistGenres || null,
+                composer_option: artistSelection.composerOption || null,
+                composer_genres: artistSelection.composerGenres || null
+              })
+            })
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}))
+              throw new Error(`Failed to save artist type: ${errorData.error || response.statusText}`)
+            }
+
+            console.log('✅ Artist type saved successfully')
+          } catch (error) {
+            console.error('Error saving artist type:', error)
+            // Allow progression, but keep local draft so the user does not lose state.
+          }
+          stepCompleted = true
+          break
+        }
         case "artist-profile-setup": {
           // Save artist profile data
           try {
@@ -2370,7 +2535,8 @@ export function SignUpWizard() {
     setPhotoUploadError("");
     setVideoFormError("");
     setPasswordErrors([]);
-    setArtistSelection({ typeId: "", subType: "", vocalSoundTypes: "", vocalGenreStyles: "", availability: "", instrumentCategory: "", instrument: "", instruments3tier: [], songwriterOption: "", songwriterGenres: "", lyricistOption: "", lyricistGenres: "", composerOption: "", composerGenres: "" });
+    setArtistSelection(DEFAULT_ARTIST_SELECTION);
+    setArtistProfile(DEFAULT_ARTIST_PROFILE);
     setVenueSelection({ typeId: "", subType: "" });
     setServiceDetails({
       summary: "",
@@ -4131,16 +4297,35 @@ export function SignUpWizard() {
       <div className="space-y-4">
         {ARTIST_TYPE_OPTIONS.map((option) => {
           const isActive = artistSelection.typeId === option.id;
+          const selectArtistType = () => {
+            if (artistSelection.typeId === option.id) return
+            setArtistSelection({
+              typeId: option.id,
+              subType: "",
+              vocalSoundTypes: "",
+              vocalGenreStyles: "",
+              availability: "",
+              instrumentCategory: "",
+              instrument: "",
+              instruments3tier: [],
+              songwriterOption: "",
+              songwriterGenres: "",
+              lyricistOption: "",
+              lyricistGenres: "",
+              composerOption: "",
+              composerGenres: "",
+            })
+          }
           return (
             <Card
               key={option.id}
               role="button"
               tabIndex={0}
-              onClick={() => setArtistSelection({ typeId: option.id, subType: "", vocalSoundTypes: "", vocalGenreStyles: "", availability: "", instrumentCategory: "", instrument: "", instruments3tier: [], songwriterOption: "", songwriterGenres: "", lyricistOption: "", lyricistGenres: "", composerOption: "", composerGenres: "" })}
+              onClick={selectArtistType}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  setArtistSelection({ typeId: option.id, subType: "", vocalSoundTypes: "", vocalGenreStyles: "", availability: "", instrumentCategory: "", instrument: "", instruments3tier: [], songwriterOption: "", songwriterGenres: "", lyricistOption: "", lyricistGenres: "", composerOption: "", composerGenres: "" });
+                  selectArtistType()
                 }
               }}
               className={cn(
@@ -5429,6 +5614,9 @@ export function SignUpWizard() {
                 <Label htmlFor="stageName" className="font-semibold">
                   Artist Name <span className="text-red-500">*</span>
                 </Label>
+                <p className="min-h-[1rem] text-xs italic text-transparent select-none" aria-hidden="true">
+                  Select the month and year when you started performing together
+                </p>
                 <Input
                   id="stageName"
                   placeholder="The name you perform under..."
@@ -5442,16 +5630,19 @@ export function SignUpWizard() {
                 <Label htmlFor="formedDate" className="font-semibold flex items-center gap-2">
                   Artist Formed <span className="text-lg">🗓️</span>
                 </Label>
+                <p className="min-h-[1rem] text-xs italic text-foreground/60">
+                  Select the month and year when you started performing together
+                </p>
                 <MonthYearPicker
                   value={artistProfile.formedDate}
                   onChange={(v) => setArtistProfile(prev => ({ ...prev, formedDate: v }))}
                 />
-                <p className="text-xs text-foreground/60 italic">
-                  Select the month and year when you started performing together
-                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="performingMembers" className="font-semibold">Number of Performing Members</Label>
+                <p className="min-h-[1rem] text-xs text-transparent select-none" aria-hidden="true">
+                  It pays to be honest - used for gig stats
+                </p>
                 <Input
                   id="performingMembers"
                   type="number"
@@ -5469,7 +5660,7 @@ export function SignUpWizard() {
               {artistCapabilities?.needsGigsPerformed && (
               <div className="space-y-2">
                 <Label htmlFor="publicGigsPerformed" className="font-semibold">Public Gigs Performed</Label>
-                <p className="text-xs text-foreground/60">It pays to be honest - used for gig stats</p>
+                <p className="min-h-[1rem] text-xs text-foreground/60">It pays to be honest - used for gig stats</p>
                 <Input
                   id="publicGigsPerformed"
                   type="number"
@@ -5484,7 +5675,7 @@ export function SignUpWizard() {
               {artistCapabilities?.hasSessionGigs && (
               <div className="space-y-2">
                 <Label htmlFor="recordingSessionGigs" className="font-semibold">Recording Session Gigs</Label>
-                <p className="text-xs text-foreground/60">It pays to be honest - used for gig stats</p>
+                <p className="min-h-[1rem] text-xs text-foreground/60">It pays to be honest - used for gig stats</p>
                 <Input
                   id="recordingSessionGigs"
                   type="number"
@@ -6708,13 +6899,19 @@ export function SignUpWizard() {
     )
   }
 
+  const completedFanTargetStepKey =
+    shouldUseDirectProfileOnboarding
+      ? (personaStep?.key ?? "profile-add")
+      : "profile-add"
+
   const shouldHoldForCompletedFanProfileJump =
     Boolean(onboardingParam) &&
     onboardingParam !== "fan" &&
     Boolean(user) &&
     fanCompletionCheckFinished &&
     fanProfileCompletedFromDb &&
-    steps[stepIndex]?.key !== "profile-add"
+    !hasResumedOnboarding &&
+    steps[stepIndex]?.key !== completedFanTargetStepKey
 
   if (shouldHoldForCompletedFanProfileJump) {
     return (
@@ -6864,6 +7061,9 @@ export function SignUpWizard() {
                     }
                     
                     console.log('✅ Artist profile saved successfully');
+                    if (artistDraftStorageKey && typeof window !== "undefined") {
+                      window.localStorage.removeItem(artistDraftStorageKey);
+                    }
                   } catch (error) {
                     console.error('Error saving artist profile:', error);
                     // Continue to redirect even if save fails

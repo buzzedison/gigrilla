@@ -184,9 +184,12 @@ export function LocationAutocompleteInput({
         )
         if (res.ok) {
           const details = await res.json() as {
-            city?: string; state?: string; country?: string; lat?: number; lon?: number
+            formatted?: string; city?: string; state?: string; country?: string; lat?: number; lon?: number
           }
-          onSelect({ ...suggestion, ...details })
+          const resolvedFormatted = details.formatted?.trim() || suggestion.formatted
+          setInputValue(resolvedFormatted)
+          onInputChange?.(resolvedFormatted)
+          onSelect({ ...suggestion, ...details, formatted: resolvedFormatted })
           return
         }
       } catch (geocodeError) {

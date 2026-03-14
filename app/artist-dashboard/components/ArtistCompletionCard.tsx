@@ -5,6 +5,7 @@ import { useAuth } from "../../../lib/auth-context"
 import { HelpCircle, CheckCircle2, Circle, PartyPopper, X } from "lucide-react"
 import { Badge } from "../../components/ui/badge"
 import { Button } from "../../components/ui/button"
+import { getArtistSubTypeLabels } from "../../../lib/artist-subtype-utils"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,7 +48,7 @@ export interface CompletionItemState extends CompletionItemDefinition {
 interface ArtistProfileData {
   stage_name?: string | null
   artist_type_id?: number | null
-  artist_sub_types?: string[] | Record<string, string[] | string | null | undefined> | null
+  artist_sub_types?: string[] | Record<string, string[] | string | null | undefined> | string | null
   established_date?: string | null
   preferred_genre_ids?: string[] | null
   bio?: string | null
@@ -203,18 +204,7 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
       return true
     }
 
-    const hasArtistSubTypes = (() => {
-      const raw = profile?.artist_sub_types
-      if (!raw) return false
-      if (Array.isArray(raw)) return raw.length > 0
-      if (typeof raw === 'object') {
-        return Object.values(raw).some(value => {
-          if (Array.isArray(value)) return value.length > 0
-          return typeof value === 'string' && value.trim().length > 0
-        })
-      }
-      return false
-    })()
+    const hasArtistSubTypes = getArtistSubTypeLabels(profile?.artist_sub_types, profile?.artist_type_id).length > 0
 
     const profileMetrics: Record<string, boolean> = {
       stage_name: !!profile?.stage_name,
