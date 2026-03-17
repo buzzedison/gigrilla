@@ -19,7 +19,12 @@ import {
   VOCAL_SOUND_DESCRIPTORS as RAW_VOCAL_SOUND_DESCRIPTORS,
   VOCAL_GENRE_DESCRIPTORS as RAW_VOCAL_GENRE_DESCRIPTORS
 } from '@/data/vocal-descriptors'
-import { getType5InstrumentOptions } from '@/data/instrument-taxonomy-aligned'
+import { INSTRUMENT_TAXONOMY_3TIER } from '@/data/instrument-taxonomy'
+import {
+  InstrumentPicker3Tier,
+  ALL_FAMILY_VARIANT_ID,
+  type SelectedInstrument
+} from '../../components/ui/instrument-picker-3tier'
 import { MultiSelectChips, type MultiSelectOption } from '../../components/ui/multi-select-chips'
 
 interface AuditionAdvert {
@@ -75,13 +80,6 @@ const ADVERT_TYPES = [
   { value: 'vocalist-rehearsal', label: 'Vocalist - Wanted For Rehearsal', requiresVocalistType: true }
 ]
 
-// Convert instrument options for multi-select
-const INSTRUMENT_OPTIONS: MultiSelectOption[] = getType5InstrumentOptions().map(opt => ({
-  id: opt.id,
-  label: opt.label,
-  group: opt.group
-}))
-
 // Vocal role options (matching Artist Type 4)
 const VOCAL_ROLE_OPTIONS: MultiSelectOption[] = [
   { id: 'all-vocals', label: 'All Vocals', description: 'Select all three vocal roles' },
@@ -89,6 +87,112 @@ const VOCAL_ROLE_OPTIONS: MultiSelectOption[] = [
   { id: 'backing', label: 'Backing', description: 'Support vocal performances' },
   { id: 'harmony', label: 'Harmony', description: 'Harmony vocal arrangements and parts' }
 ]
+
+const VOCAL_INDIVIDUAL_ROLE_IDS = ['lead', 'backing', 'harmony'] as const
+
+function normalizeVocalistTypes(values: string[]) {
+  const selectedIndividuals = VOCAL_INDIVIDUAL_ROLE_IDS.filter((role) => values.includes(role))
+  const includesAll = values.includes('all-vocals')
+
+  if (includesAll || selectedIndividuals.length === VOCAL_INDIVIDUAL_ROLE_IDS.length) {
+    return ['all-vocals', ...VOCAL_INDIVIDUAL_ROLE_IDS]
+  }
+
+  return selectedIndividuals
+}
+
+function reconcileVocalistTypes(previousValues: string[], newValues: string[]) {
+  const previousHadAll = previousValues.includes('all-vocals')
+  const newHasAll = newValues.includes('all-vocals')
+  const selectedIndividuals = VOCAL_INDIVIDUAL_ROLE_IDS.filter((role) => newValues.includes(role))
+
+  if (previousHadAll && !newHasAll && selectedIndividuals.length === VOCAL_INDIVIDUAL_ROLE_IDS.length) {
+    return []
+  }
+
+  if (previousHadAll && newHasAll && selectedIndividuals.length < VOCAL_INDIVIDUAL_ROLE_IDS.length) {
+    return selectedIndividuals
+  }
+
+  if (!previousHadAll && newHasAll) {
+    return ['all-vocals', ...VOCAL_INDIVIDUAL_ROLE_IDS]
+  }
+
+  if (selectedIndividuals.length === VOCAL_INDIVIDUAL_ROLE_IDS.length) {
+    return ['all-vocals', ...VOCAL_INDIVIDUAL_ROLE_IDS]
+  }
+
+  return selectedIndividuals
+}
+
+function formatInstrumentSelection(selection: SelectedInstrument) {
+  if (selection.variantId === ALL_FAMILY_VARIANT_ID && selection.variantLabel) {
+    return selection.variantLabel
+  }
+
+  return selection.variantLabel
+    ? `${selection.instrumentLabel}: ${selection.variantLabel}`
+    : selection.instrumentLabel
+}
+
+function instrumentSelectionsToLabels(selections: SelectedInstrument[]) {
+  return selections.map(formatInstrumentSelection)
+}
+
+function instrumentLabelsToSelections(labels: string[]): SelectedInstrument[] {
+  const byLabel = new Map<string, SelectedInstrument>()
+
+  INSTRUMENT_TAXONOMY_3TIER.forEach((group) => {
+    byLabel.set(group.allLabel, {
+      groupId: group.id,
+      groupName: group.name,
+      instrumentId: '__all__',
+      instrumentLabel: group.allLabel
+    })
+
+    byLabel.set(group.otherLabel, {
+      groupId: group.id,
+      groupName: group.name,
+      instrumentId: '__other__',
+      instrumentLabel: group.otherLabel
+    })
+
+    group.instruments.forEach((instrument) => {
+      byLabel.set(instrument.label, {
+        groupId: group.id,
+        groupName: group.name,
+        instrumentId: instrument.id,
+        instrumentLabel: instrument.label
+      })
+
+      if (instrument.variants?.length) {
+        byLabel.set(`All ${instrument.label}`, {
+          groupId: group.id,
+          groupName: group.name,
+          instrumentId: instrument.id,
+          instrumentLabel: instrument.label,
+          variantId: ALL_FAMILY_VARIANT_ID,
+          variantLabel: `All ${instrument.label}`
+        })
+
+        instrument.variants.forEach((variant) => {
+          byLabel.set(`${instrument.label}: ${variant.label}`, {
+            groupId: group.id,
+            groupName: group.name,
+            instrumentId: instrument.id,
+            instrumentLabel: instrument.label,
+            variantId: variant.id,
+            variantLabel: variant.label
+          })
+        })
+      }
+    })
+  })
+
+  return labels
+    .map((label) => byLabel.get(label))
+    .filter((selection): selection is SelectedInstrument => Boolean(selection))
+}
 
 // Sound-based vocal descriptors
 const VOCAL_SOUND_DESCRIPTOR_OPTIONS: MultiSelectOption[] = [
@@ -134,7 +238,7 @@ export function ArtistAuditionsManager() {
 
   // Form state
   const [advertType, setAdvertType] = useState('')
-  const [instruments, setInstruments] = useState<string[]>([])
+  const [instrumentSelections, setInstrumentSelections] = useState<SelectedInstrument[]>([])
   const [vocalistTypes, setVocalistTypes] = useState<string[]>([])
   const [vocalistSoundDescriptors, setVocalistSoundDescriptors] = useState<string[]>([])
   const [vocalistGenreDescriptors, setVocalistGenreDescriptors] = useState<string[]>([])
@@ -176,7 +280,7 @@ export function ArtistAuditionsManager() {
 
   const resetForm = () => {
     setAdvertType('')
-    setInstruments([])
+    setInstrumentSelections([])
     setVocalistTypes([])
     setVocalistSoundDescriptors([])
     setVocalistGenreDescriptors([])
@@ -200,8 +304,8 @@ export function ArtistAuditionsManager() {
   const handleEdit = (advert: AuditionAdvert) => {
     setEditingId(advert.id)
     setAdvertType(advert.advert_type)
-    setInstruments(advert.instruments || [])
-    setVocalistTypes(advert.vocalist_types || [])
+    setInstrumentSelections(instrumentLabelsToSelections(advert.instruments || []))
+    setVocalistTypes(normalizeVocalistTypes(advert.vocalist_types || []))
     setVocalistSoundDescriptors(advert.vocalist_sound_descriptors || [])
     setVocalistGenreDescriptors(advert.vocalist_genre_descriptors || [])
     setProducerType(advert.producer_type || '')
@@ -267,7 +371,7 @@ export function ArtistAuditionsManager() {
       return
     }
 
-    if (selectedAdvertType?.requiresInstrument && instruments.length === 0) {
+    if (selectedAdvertType?.requiresInstrument && instrumentSelections.length === 0) {
       showNotification('error', 'Please select at least one Instrument')
       return
     }
@@ -297,8 +401,8 @@ export function ArtistAuditionsManager() {
       const payload = {
         id: editingId,
         advert_type: advertType,
-        instruments,
-        vocalist_types: vocalistTypes,
+        instruments: instrumentSelectionsToLabels(instrumentSelections),
+        vocalist_types: normalizeVocalistTypes(vocalistTypes),
         vocalist_sound_descriptors: selectedAdvertType?.requiresVocalistType ? vocalistSoundDescriptors : [],
         vocalist_genre_descriptors: selectedAdvertType?.requiresVocalistType ? vocalistGenreDescriptors : [],
         producer_type: producerType,
@@ -430,7 +534,7 @@ export function ArtistAuditionsManager() {
                 }
                 if (!typeConfig?.requiresInstrument) {
                   // Clear instrument fields if not needed
-                  setInstruments([])
+                  setInstrumentSelections([])
                 }
               }}>
                 <SelectTrigger id="advert-type">
@@ -447,15 +551,14 @@ export function ArtistAuditionsManager() {
             </div>
 
             {selectedAdvertType?.requiresInstrument && (
-              <MultiSelectChips
-                label="Instruments *"
-                options={INSTRUMENT_OPTIONS}
-                value={instruments}
-                onChange={setInstruments}
-                placeholder="Select instruments you need..."
-                grouped={true}
-                allowSelectAll={true}
-              />
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Instruments *</Label>
+                <InstrumentPicker3Tier
+                  value={instrumentSelections}
+                  onChange={setInstrumentSelections}
+                  allowedGroups={['strings', 'wind', 'percussion', 'keyboard', 'electronic']}
+                />
+              </div>
             )}
 
             {selectedAdvertType?.requiresVocalistType && (
@@ -469,21 +572,7 @@ export function ArtistAuditionsManager() {
                   options={VOCAL_ROLE_OPTIONS}
                   value={vocalistTypes}
                   onChange={(newValues) => {
-                    const individualRoles = ['lead', 'backing', 'harmony']
-                    const includesAll = newValues.includes('all-vocals')
-                    const selectedIndividuals = individualRoles.filter((role) => newValues.includes(role))
-
-                    if (includesAll) {
-                      setVocalistTypes(['all-vocals', ...individualRoles])
-                      return
-                    }
-
-                    if (selectedIndividuals.length === individualRoles.length) {
-                      setVocalistTypes(['all-vocals', ...individualRoles])
-                      return
-                    }
-
-                    setVocalistTypes(selectedIndividuals)
+                    setVocalistTypes((prev) => reconcileVocalistTypes(prev, newValues))
                   }}
                   placeholder="Select vocal roles needed..."
                   maxSelections={4}

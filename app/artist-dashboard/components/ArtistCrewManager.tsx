@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../compo
 import { ChevronDown, ChevronUp, Plus, User, Users2, Music, Mic, Guitar, Drum, Piano, Keyboard, Briefcase, Settings, ExternalLink, CheckCircle2, XCircle, AlertCircle, Loader2, Info } from 'lucide-react'
 import { useAuth } from '../../../lib/auth-context'
 import { cn } from '../../../lib/utils'
+import { ISNIHelperModal } from '../../signup/components/ISNIHelperModal'
 import {
   validateISNI,
   validateIPI,
@@ -26,6 +27,7 @@ import {
 import { INSTRUMENT_TAXONOMY_3TIER } from '@/data/instrument-taxonomy'
 import {
   InstrumentPicker3Tier,
+  ALL_FAMILY_VARIANT_ID,
   serializeInstruments3Tier,
   type SelectedInstrument,
 } from '../../components/ui/instrument-picker-3tier'
@@ -51,13 +53,14 @@ function instrumentRolesFromStrings(roles: string[]): SelectedInstrument[] {
       const instrument = group?.instruments.find(i => i.id === instrumentId)
       if (!group || !instrument) return null
       const variant = variantId ? instrument.variants?.find(v => v.id === variantId) : undefined
+      const isFamilyAllSelection = Boolean(instrument.variants?.length) && !variantId
       return {
         groupId,
         groupName: group.name,
         instrumentId,
         instrumentLabel: instrument.label,
-        variantId: variantId || undefined,
-        variantLabel: variant?.label,
+        variantId: variantId || (isFamilyAllSelection ? ALL_FAMILY_VARIANT_ID : undefined),
+        variantLabel: variant?.label ?? (isFamilyAllSelection ? `All ${instrument.label}` : undefined),
       }
     })
     .filter((x): x is SelectedInstrument => x !== null)
@@ -249,9 +252,12 @@ export function ArtistCrewManager() {
   const { user } = useAuth()
   const [crewMembers, setCrewMembers] = useState<CrewMember[]>([])
   const [profileOwner, setProfileOwner] = useState<CrewMember | null>(null)
+  const [profileOwnerLocationDetails, setProfileOwnerLocationDetails] = useState<Record<string, unknown>>({})
   const [savingOwner, setSavingOwner] = useState(false)
   const [updatingAdminMemberId, setUpdatingAdminMemberId] = useState<string | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['vocals', 'strings']))
+  const [ownerInstrumentPickerResetKey, setOwnerInstrumentPickerResetKey] = useState(0)
+  const [ownerInstrumentPickerStartCollapsed, setOwnerInstrumentPickerStartCollapsed] = useState(false)
   const [showAddMember, setShowAddMember] = useState(false)
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [editingMemberFields, setEditingMemberFields] = useState<{
@@ -506,19 +512,30 @@ export function ArtistCrewManager() {
         if (user) {
           const dateOfBirth = user?.user_metadata?.date_of_birth || ''
           const fallbackLocation = splitLocation(profileData?.base_location)
+          const existingLocationDetails =
+            profileData?.location_details &&
+            typeof profileData.location_details === 'object' &&
+            !Array.isArray(profileData.location_details)
+              ? profileData.location_details as Record<string, unknown>
+              : {}
           const hometown = buildPublicLocation([
-            profileData?.hometown_city || fallbackLocation.city || fanProfileData?.location_details?.city,
-            profileData?.hometown_state || fallbackLocation.state || fanProfileData?.location_details?.state,
-            profileData?.hometown_country || fallbackLocation.country || fanProfileData?.location_details?.country
+            sanitizeLocationPart(profileData?.hometown_city) || fallbackLocation.city || sanitizeLocationPart(fanProfileData?.location_details?.city),
+            sanitizeLocationPart(profileData?.hometown_state) || fallbackLocation.state || sanitizeLocationPart(fanProfileData?.location_details?.state),
+            sanitizeLocationPart(profileData?.hometown_country) || fallbackLocation.country || sanitizeLocationPart(fanProfileData?.location_details?.country)
           ])
           const legalName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim()
           const artistName = typeof profileData?.company_name === 'string' ? profileData.company_name.trim() : ''
+          const storedOwnerNickname = typeof existingLocationDetails.artist_owner_nickname === 'string'
+            ? existingLocationDetails.artist_owner_nickname.trim()
+            : ''
           const storedStageName = typeof profileData?.stage_name === 'string' ? profileData.stage_name.trim() : ''
           const nickname =
-            storedStageName &&
-            storedStageName !== artistName &&
-            storedStageName !== legalName
-              ? storedStageName
+            storedOwnerNickname
+              ? storedOwnerNickname
+              : storedStageName &&
+                storedStageName !== artistName &&
+                storedStageName !== legalName
+                ? ''
               : ''
 
           console.log('Extracted Date of Birth:', dateOfBirth)
@@ -545,6 +562,7 @@ export function ArtistCrewManager() {
             creatorIpiCae: profileData?.creator_ipi_cae || ''
           }
 
+          setProfileOwnerLocationDetails(existingLocationDetails)
           // Convert invitations to crew members
           const invitationMembers: CrewMember[] = (membersData.invitations || []).map((inv: InvitationData) => ({
             id: inv.id,
@@ -604,6 +622,7 @@ export function ArtistCrewManager() {
             isPublic: false,
             isProfileOwner: true
           }
+          setProfileOwnerLocationDetails({})
           setProfileOwner(owner)
           setCrewMembers([owner])
         }
@@ -658,7 +677,10 @@ export function ArtistCrewManager() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          stage_name: nickname,
+          location_details: {
+            ...profileOwnerLocationDetails,
+            artist_owner_nickname: nickname
+          },
           artist_primary_roles: [
             ...nonInstrumentRoles(profileOwner.roles),
             ...instrumentsToRoleStrings(ownerInstruments3tier),
@@ -681,6 +703,8 @@ export function ArtistCrewManager() {
 
       setOwnerNicknameError(null)
       setExpandedCategories(new Set())
+      setOwnerInstrumentPickerStartCollapsed(true)
+      setOwnerInstrumentPickerResetKey(prev => prev + 1)
       showNotification('success', 'Your own roles and profile info were saved successfully')
       notifyProfileUpdated('crew-owner')
     } catch (error) {
@@ -1234,22 +1258,28 @@ export function ArtistCrewManager() {
                       </p>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
-                      <a
-                        href={PROFESSIONAL_ID_URLS.isni.register}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
-                      >
-                        Get an ISNI <ExternalLink className="w-3 h-3" />
-                      </a>
-                      <a
-                        href={PROFESSIONAL_ID_URLS.isni.search}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
-                      >
-                        Find an ISNI <ExternalLink className="w-3 h-3" />
-                      </a>
+                      <ISNIHelperModal
+                        initialTab="get"
+                        trigger={
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
+                          >
+                            Get an ISNI
+                          </button>
+                        }
+                      />
+                      <ISNIHelperModal
+                        initialTab="find"
+                        trigger={
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
+                          >
+                            Find an ISNI
+                          </button>
+                        }
+                      />
                     </div>
                   </div>
                   <div className="relative">
@@ -1416,7 +1446,7 @@ export function ArtistCrewManager() {
               {/* Roles Section */}
               <div className="space-y-4">
                 <div>
-                  <h4 className="font-bold text-xl text-purple-900">Roles & Skills</h4>
+                  <h4 className="font-bold text-xl text-blue-100">Roles & Skills</h4>
                 </div>
 
                 <div className="space-y-3">
@@ -1470,14 +1500,19 @@ export function ArtistCrewManager() {
 
                 {/* Instruments (3-tier multi-select) */}
                 <div className="space-y-3 pt-2 border-t border-purple-200">
-                  <h5 className="font-semibold text-base text-gray-900 flex items-center gap-2 pt-1">
-                    <Guitar className="w-4 h-4 text-purple-600" />
+                  <h5 className="font-semibold text-base text-blue-100 flex items-center gap-2 pt-1">
+                    <Guitar className="w-4 h-4 text-blue-100" />
                     Instruments
                   </h5>
                   <InstrumentPicker3Tier
+                    key={ownerInstrumentPickerResetKey}
                     value={ownerInstruments3tier}
-                    onChange={setOwnerInstruments3tier}
+                    onChange={(value) => {
+                      setOwnerInstrumentPickerStartCollapsed(false)
+                      setOwnerInstruments3tier(value)
+                    }}
                     allowedGroups={['strings', 'wind', 'percussion', 'keyboard', 'electronic']}
+                    startCollapsed={ownerInstrumentPickerStartCollapsed}
                   />
                 </div>
               </div>
@@ -1772,6 +1807,12 @@ export function ArtistCrewManager() {
             {/* Manage Team Section */}
             <div className="space-y-4">
               <h4 className="font-semibold text-sm text-purple-900">Manage Team</h4>
+              {crewMembers.filter(member => !member.isProfileOwner).length > 0 && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                  Existing team members and invitations have been loaded from this artist profile.
+                  Use <span className="font-semibold">Manage</span> to review them or <span className="font-semibold">Remove</span> if they no longer belong to this profile.
+                </div>
+              )}
               {crewMembers.filter(member => !member.isProfileOwner).length > 0 ? (
                 <div className="space-y-3">
                   {crewMembers.filter(member => !member.isProfileOwner).map((member) => (
@@ -1915,8 +1956,8 @@ export function ArtistCrewManager() {
 
                             {/* Instruments (3-tier multi-select) */}
                             <div className="space-y-3 mt-3 pt-3 border-t border-purple-200">
-                              <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                                <Guitar className="w-4 h-4 text-purple-600" />
+                              <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                                <Guitar className="w-4 h-4 text-blue-700" />
                                 Instruments
                               </p>
                               <InstrumentPicker3Tier

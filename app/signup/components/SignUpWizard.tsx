@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Download, CheckCircle2, XCircle, AlertCircle, X } from "lucide-react";
 
@@ -57,9 +57,11 @@ import { IPIHelperModal } from "./IPIHelperModal";
 import { MUSIC_PUBLISHER_NAMES } from "../../../data/music-publishers";
 import {
   InstrumentPicker3Tier,
+  deserializeInstruments3Tier,
   serializeInstruments3Tier,
   type SelectedInstrument,
 } from "../../components/ui/instrument-picker-3tier";
+import { getArtistSubTypeLabels } from "../../../lib/artist-subtype-utils";
 
 type MemberType = "fan" | "artist" | "venue" | "service" | "pro";
 type AccountChoice = "guest" | "fan";
@@ -644,6 +646,9 @@ const DEFAULT_ARTIST_PROFILE = {
   baseLocation: "",
   baseLocationLat: null as number | null,
   baseLocationLon: null as number | null,
+  hometownCity: "",
+  hometownState: "",
+  hometownCountry: "",
   publicGigsPerformed: 0,
   recordingSessionGigs: 0,
   songwritingCollaborations: 0,
@@ -688,6 +693,56 @@ const DEFAULT_ARTIST_PROFILE = {
   bookingAgentContactPhoneCode: "+44",
   bookingAgentContactPhoneNumber: "",
 };
+
+const SIGNUP_POSTCODE_LIKE_REGEX = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i
+
+const sanitizeSignupLocationPart = (value?: string | null) => {
+  if (typeof value !== "string") return ""
+  const trimmed = value.trim()
+  if (!trimmed) return ""
+  if (SIGNUP_POSTCODE_LIKE_REGEX.test(trimmed)) return ""
+  return trimmed
+}
+
+const splitSignupLocation = (value?: string | null) => {
+  const parts = String(value || "")
+    .split(",")
+    .map((part) => sanitizeSignupLocationPart(part))
+    .filter(Boolean)
+
+  if (parts.length === 0) {
+    return { city: "", state: "", country: "" }
+  }
+
+  const working = [...parts]
+  let country = ""
+  if (working.length >= 2) {
+    const last = working[working.length - 1].toLowerCase()
+    const previous = working[working.length - 2].toLowerCase()
+    if (
+      last === "uk" &&
+      ["england", "scotland", "wales", "northern ireland"].includes(previous)
+    ) {
+      country = `${working[working.length - 2]}, ${working[working.length - 1]}`
+      working.splice(-2, 2)
+    }
+  }
+
+  if (!country) {
+    country = working.pop() || ""
+  }
+
+  let state = working.length > 1 ? working[working.length - 1] || "" : ""
+  let city = ""
+
+  if (working.length === 1) {
+    city = working[0] || ""
+  } else if (working.length >= 2) {
+    city = working[working.length - 2] || ""
+  }
+
+  return { city, state, country }
+}
 
 interface StepDefinition {
   key:
@@ -751,6 +806,66 @@ type FanProfileSnapshot = {
   avatar_url?: string | null
 }
 
+type ArtistProfileSnapshot = {
+  artist_type_id?: number | null
+  artist_sub_types?: unknown
+  stage_name?: string | null
+  established_date?: string | null
+  performing_members?: number | null
+  base_location?: string | null
+  base_location_lat?: number | null
+  base_location_lon?: number | null
+  hometown_city?: string | null
+  hometown_state?: string | null
+  hometown_country?: string | null
+  gigs_performed?: number | null
+  recording_session_gigs?: number | null
+  songwriting_collaborations?: number | null
+  performer_isni?: string | null
+  creator_ipi_cae?: string | null
+  website?: string | null
+  facebook_url?: string | null
+  instagram_url?: string | null
+  threads_url?: string | null
+  x_url?: string | null
+  tiktok_url?: string | null
+  youtube_url?: string | null
+  snapchat_url?: string | null
+  mastodon_url?: string | null
+  bluesky_url?: string | null
+  record_label_status?: string | null
+  record_label_name?: string | null
+  record_label_contact_name?: string | null
+  record_label_email?: string | null
+  record_label_phone?: string | null
+  music_publisher_status?: string | null
+  music_publisher_name?: string | null
+  music_publisher_contact_name?: string | null
+  music_publisher_email?: string | null
+  music_publisher_phone?: string | null
+  artist_manager_status?: string | null
+  artist_manager_name?: string | null
+  artist_manager_contact_name?: string | null
+  artist_manager_email?: string | null
+  artist_manager_phone?: string | null
+  booking_agent_status?: string | null
+  booking_agent_name?: string | null
+  booking_agent_contact_name?: string | null
+  booking_agent_email?: string | null
+  booking_agent_phone?: string | null
+  vocal_sound_types?: string[] | string | null
+  vocal_genre_styles?: string[] | string | null
+  availability?: string[] | string | null
+  instrument_category?: string | null
+  instrument?: string | null
+  songwriter_option?: string | null
+  songwriter_genres?: string[] | string | null
+  lyricist_option?: string | null
+  lyricist_genres?: string[] | string | null
+  composer_option?: string | null
+  composer_genres?: string[] | string | null
+}
+
 const toTrimmedString = (value: unknown) => {
   if (typeof value !== "string") return ""
   return value.trim()
@@ -759,6 +874,33 @@ const toTrimmedString = (value: unknown) => {
 const toStringArray = (value: unknown) => {
   if (!Array.isArray(value)) return []
   return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+}
+
+const toDelimitedString = (value: unknown) => {
+  if (typeof value === "string") return value.trim()
+  return toStringArray(value).join(", ")
+}
+
+const preferDraftNumber = (draftValue: number, defaultValue: number, persistedValue: number | null | undefined) => {
+  if (draftValue !== defaultValue) return draftValue
+  return typeof persistedValue === "number" ? persistedValue : defaultValue
+}
+
+const splitPhoneNumber = (rawValue: string) => {
+  const value = rawValue.trim()
+  if (!value) {
+    return { code: "", number: "" }
+  }
+
+  const match = value.match(/^(\+\d{1,4})(?:\s+)?(.*)$/)
+  if (!match) {
+    return { code: "", number: value }
+  }
+
+  return {
+    code: match[1]?.trim() || "",
+    number: match[2]?.trim() || "",
+  }
 }
 
 const isFanProfileActuallyComplete = (profile: FanProfileSnapshot | null | undefined) => {
@@ -912,6 +1054,33 @@ export function SignUpWizard() {
 
   const [artistProfile, setArtistProfile] = useState(DEFAULT_ARTIST_PROFILE);
   const [hasRestoredArtistDraft, setHasRestoredArtistDraft] = useState(false);
+  const [artistResumeStepKey, setArtistResumeStepKey] = useState<string | null>(null);
+
+  const saveArtistProfilePatch = useCallback(
+    async (patch: Record<string, unknown>) => {
+      if (!user || onboardingParam !== "artist") return false
+
+      try {
+        const response = await fetch("/api/artist-profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch),
+        })
+
+        if (!response.ok) {
+          const result = await response.json().catch(() => ({}))
+          console.error("SignUpWizard: Failed to save artist onboarding patch", result)
+          return false
+        }
+
+        return true
+      } catch (error) {
+        console.error("SignUpWizard: Failed to save artist onboarding patch", error)
+        return false
+      }
+    },
+    [onboardingParam, user]
+  )
 
   const [venueSelection, setVenueSelection] = useState({
     typeId: "",
@@ -1533,6 +1702,7 @@ export function SignUpWizard() {
       const parsed = JSON.parse(rawDraft) as {
         artistSelection?: Partial<typeof DEFAULT_ARTIST_SELECTION>
         artistProfile?: Partial<typeof DEFAULT_ARTIST_PROFILE>
+        currentArtistStepKey?: string
       }
 
       if (parsed.artistSelection) {
@@ -1554,12 +1724,142 @@ export function SignUpWizard() {
           ...parsed.artistProfile,
         }))
       }
+
+      if (parsed.currentArtistStepKey === "artist-type" || parsed.currentArtistStepKey === "artist-profile-setup") {
+        setArtistResumeStepKey(parsed.currentArtistStepKey)
+      }
     } catch (error) {
       console.error("Failed to restore artist onboarding draft:", error)
     } finally {
       setHasRestoredArtistDraft(true)
     }
   }, [artistDraftStorageKey, hasRestoredArtistDraft, onboardingParam])
+
+  useEffect(() => {
+    if (!user) return
+    if (onboardingParam !== "artist") return
+    if (!hasRestoredArtistDraft) return
+
+    let cancelled = false
+
+    const hydrateArtistProfile = async () => {
+      try {
+        const response = await fetch("/api/artist-profile")
+        if (!response.ok) return
+
+        const result = await response.json()
+        const profile = (result?.data ?? null) as ArtistProfileSnapshot | null
+        if (!profile || cancelled) return
+
+        const artistTypeId = typeof profile.artist_type_id === "number" ? profile.artist_type_id : null
+        const savedSubTypeLabels = getArtistSubTypeLabels(profile.artist_sub_types, artistTypeId)
+        const firstSavedSubType = savedSubTypeLabels[0] || ""
+        const savedInstrumentSelections = deserializeInstruments3Tier(toTrimmedString(profile.instrument))
+        const recordLabelPhone = splitPhoneNumber(toTrimmedString(profile.record_label_phone))
+        const publisherPhone = splitPhoneNumber(toTrimmedString(profile.music_publisher_phone))
+        const managerPhone = splitPhoneNumber(toTrimmedString(profile.artist_manager_phone))
+        const bookingPhone = splitPhoneNumber(toTrimmedString(profile.booking_agent_phone))
+
+        setArtistSelection((prev) => ({
+          ...prev,
+          typeId: prev.typeId || (artistTypeId ? `type${artistTypeId}` : ""),
+          subType: prev.subType || firstSavedSubType,
+          vocalSoundTypes: prev.vocalSoundTypes || toDelimitedString(profile.vocal_sound_types),
+          vocalGenreStyles: prev.vocalGenreStyles || toDelimitedString(profile.vocal_genre_styles),
+          availability: prev.availability || toDelimitedString(profile.availability),
+          instrumentCategory: prev.instrumentCategory || toTrimmedString(profile.instrument_category),
+          instrument: prev.instrument || toTrimmedString(profile.instrument),
+          instruments3tier: prev.instruments3tier.length > 0 ? prev.instruments3tier : savedInstrumentSelections,
+          songwriterOption: prev.songwriterOption || toTrimmedString(profile.songwriter_option),
+          songwriterGenres: prev.songwriterGenres || toDelimitedString(profile.songwriter_genres),
+          lyricistOption: prev.lyricistOption || toTrimmedString(profile.lyricist_option),
+          lyricistGenres: prev.lyricistGenres || toDelimitedString(profile.lyricist_genres),
+          composerOption: prev.composerOption || toTrimmedString(profile.composer_option),
+          composerGenres: prev.composerGenres || toDelimitedString(profile.composer_genres),
+        }))
+
+        setArtistProfile((prev) => ({
+          ...prev,
+          stageName: prev.stageName || toTrimmedString(profile.stage_name),
+          formedDate: prev.formedDate || toTrimmedString(profile.established_date).slice(0, 7),
+          performingMembers: preferDraftNumber(prev.performingMembers, DEFAULT_ARTIST_PROFILE.performingMembers, profile.performing_members),
+          baseLocation: prev.baseLocation || toTrimmedString(profile.base_location),
+          baseLocationLat: prev.baseLocationLat ?? (typeof profile.base_location_lat === "number" ? profile.base_location_lat : null),
+          baseLocationLon: prev.baseLocationLon ?? (typeof profile.base_location_lon === "number" ? profile.base_location_lon : null),
+          hometownCity: prev.hometownCity || toTrimmedString(profile.hometown_city),
+          hometownState: prev.hometownState || toTrimmedString(profile.hometown_state),
+          hometownCountry: prev.hometownCountry || toTrimmedString(profile.hometown_country),
+          publicGigsPerformed: preferDraftNumber(prev.publicGigsPerformed, DEFAULT_ARTIST_PROFILE.publicGigsPerformed, profile.gigs_performed),
+          recordingSessionGigs: preferDraftNumber(prev.recordingSessionGigs, DEFAULT_ARTIST_PROFILE.recordingSessionGigs, profile.recording_session_gigs),
+          songwritingCollaborations: preferDraftNumber(prev.songwritingCollaborations, DEFAULT_ARTIST_PROFILE.songwritingCollaborations, profile.songwriting_collaborations),
+          performerIsni: prev.performerIsni || toTrimmedString(profile.performer_isni),
+          creatorIpiCae: prev.creatorIpiCae || toTrimmedString(profile.creator_ipi_cae),
+          website: prev.website || toTrimmedString(profile.website),
+          facebookUrl: prev.facebookUrl || toTrimmedString(profile.facebook_url),
+          instagramUrl: prev.instagramUrl || toTrimmedString(profile.instagram_url),
+          threadsUrl: prev.threadsUrl || toTrimmedString(profile.threads_url),
+          xUrl: prev.xUrl || toTrimmedString(profile.x_url),
+          tiktokUrl: prev.tiktokUrl || toTrimmedString(profile.tiktok_url),
+          youtubeUrl: prev.youtubeUrl || toTrimmedString(profile.youtube_url),
+          snapchatUrl: prev.snapchatUrl || toTrimmedString(profile.snapchat_url),
+          mastodonUrl: prev.mastodonUrl || toTrimmedString(profile.mastodon_url),
+          blueskyUrl: prev.blueskyUrl || toTrimmedString(profile.bluesky_url),
+          recordLabelStatus: prev.recordLabelStatus || toTrimmedString(profile.record_label_status) || DEFAULT_ARTIST_PROFILE.recordLabelStatus,
+          recordLabelName: prev.recordLabelName || toTrimmedString(profile.record_label_name),
+          recordLabelContactFirstName: prev.recordLabelContactFirstName || toTrimmedString(profile.record_label_contact_name).split(/\s+/)[0] || "",
+          recordLabelContactLastName: prev.recordLabelContactLastName || toTrimmedString(profile.record_label_contact_name).split(/\s+/).slice(1).join(" "),
+          recordLabelContactEmail: prev.recordLabelContactEmail || toTrimmedString(profile.record_label_email),
+          recordLabelContactPhoneCode: prev.recordLabelContactPhoneCode !== DEFAULT_ARTIST_PROFILE.recordLabelContactPhoneCode
+            ? prev.recordLabelContactPhoneCode
+            : (recordLabelPhone.code || DEFAULT_ARTIST_PROFILE.recordLabelContactPhoneCode),
+          recordLabelContactPhoneNumber: prev.recordLabelContactPhoneNumber || recordLabelPhone.number,
+          musicPublisherStatus: prev.musicPublisherStatus || toTrimmedString(profile.music_publisher_status) || DEFAULT_ARTIST_PROFILE.musicPublisherStatus,
+          musicPublisherName: prev.musicPublisherName || toTrimmedString(profile.music_publisher_name),
+          musicPublisherContactFirstName: prev.musicPublisherContactFirstName || toTrimmedString(profile.music_publisher_contact_name).split(/\s+/)[0] || "",
+          musicPublisherContactLastName: prev.musicPublisherContactLastName || toTrimmedString(profile.music_publisher_contact_name).split(/\s+/).slice(1).join(" "),
+          musicPublisherContactEmail: prev.musicPublisherContactEmail || toTrimmedString(profile.music_publisher_email),
+          musicPublisherContactPhoneCode: prev.musicPublisherContactPhoneCode !== DEFAULT_ARTIST_PROFILE.musicPublisherContactPhoneCode
+            ? prev.musicPublisherContactPhoneCode
+            : (publisherPhone.code || DEFAULT_ARTIST_PROFILE.musicPublisherContactPhoneCode),
+          musicPublisherContactPhoneNumber: prev.musicPublisherContactPhoneNumber || publisherPhone.number,
+          artistManagerStatus: prev.artistManagerStatus || toTrimmedString(profile.artist_manager_status) || DEFAULT_ARTIST_PROFILE.artistManagerStatus,
+          artistManagerName: prev.artistManagerName || toTrimmedString(profile.artist_manager_name),
+          artistManagerContactFirstName: prev.artistManagerContactFirstName || toTrimmedString(profile.artist_manager_contact_name).split(/\s+/)[0] || "",
+          artistManagerContactLastName: prev.artistManagerContactLastName || toTrimmedString(profile.artist_manager_contact_name).split(/\s+/).slice(1).join(" "),
+          artistManagerContactEmail: prev.artistManagerContactEmail || toTrimmedString(profile.artist_manager_email),
+          artistManagerContactPhoneCode: prev.artistManagerContactPhoneCode !== DEFAULT_ARTIST_PROFILE.artistManagerContactPhoneCode
+            ? prev.artistManagerContactPhoneCode
+            : (managerPhone.code || DEFAULT_ARTIST_PROFILE.artistManagerContactPhoneCode),
+          artistManagerContactPhoneNumber: prev.artistManagerContactPhoneNumber || managerPhone.number,
+          bookingAgentStatus: prev.bookingAgentStatus || toTrimmedString(profile.booking_agent_status) || DEFAULT_ARTIST_PROFILE.bookingAgentStatus,
+          bookingAgentName: prev.bookingAgentName || toTrimmedString(profile.booking_agent_name),
+          bookingAgentContactFirstName: prev.bookingAgentContactFirstName || toTrimmedString(profile.booking_agent_contact_name).split(/\s+/)[0] || "",
+          bookingAgentContactLastName: prev.bookingAgentContactLastName || toTrimmedString(profile.booking_agent_contact_name).split(/\s+/).slice(1).join(" "),
+          bookingAgentContactEmail: prev.bookingAgentContactEmail || toTrimmedString(profile.booking_agent_email),
+          bookingAgentContactPhoneCode: prev.bookingAgentContactPhoneCode !== DEFAULT_ARTIST_PROFILE.bookingAgentContactPhoneCode
+            ? prev.bookingAgentContactPhoneCode
+            : (bookingPhone.code || DEFAULT_ARTIST_PROFILE.bookingAgentContactPhoneCode),
+          bookingAgentContactPhoneNumber: prev.bookingAgentContactPhoneNumber || bookingPhone.number,
+        }))
+
+        if (!artistResumeStepKey) {
+          if (artistTypeId && firstSavedSubType) {
+            setArtistResumeStepKey("artist-profile-setup")
+          } else if (artistTypeId) {
+            setArtistResumeStepKey("artist-type")
+          }
+        }
+      } catch (error) {
+        console.error("SignUpWizard: Failed to hydrate artist onboarding profile", error)
+      }
+    }
+
+    hydrateArtistProfile()
+
+    return () => {
+      cancelled = true
+    }
+  }, [artistResumeStepKey, hasRestoredArtistDraft, onboardingParam, user])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -1604,7 +1904,7 @@ export function SignUpWizard() {
       if (!rawDraft) return
 
       const parsed = JSON.parse(rawDraft) as { currentArtistStepKey?: string }
-      const targetStepKey = parsed.currentArtistStepKey
+      const targetStepKey = parsed.currentArtistStepKey || artistResumeStepKey
       if (!targetStepKey) return
 
       const targetIndex = steps.findIndex((step) => step.key === targetStepKey)
@@ -1614,7 +1914,7 @@ export function SignUpWizard() {
     } catch (error) {
       console.error("Failed to resume artist onboarding step from draft:", error)
     }
-  }, [artistDraftStorageKey, hasResumedOnboarding, hasRestoredArtistDraft, onboardingParam, stepIndex, steps])
+  }, [artistDraftStorageKey, artistResumeStepKey, hasResumedOnboarding, hasRestoredArtistDraft, onboardingParam, stepIndex, steps])
 
   useEffect(() => {
     if (fanProfileCompletedFromDb && selectedMemberType && selectedMemberType !== "fan" && accountChoice !== "fan") {
@@ -2411,6 +2711,9 @@ export function SignUpWizard() {
                 base_location: artistProfile.baseLocation,
                 base_location_lat: artistProfile.baseLocationLat,
                 base_location_lon: artistProfile.baseLocationLon,
+                hometown_city: artistProfile.hometownCity || null,
+                hometown_state: artistProfile.hometownState || null,
+                hometown_country: artistProfile.hometownCountry || null,
                 gigs_performed: artistProfile.publicGigsPerformed,
                 facebook_url: artistProfile.facebookUrl,
                 instagram_url: artistProfile.instagramUrl,
@@ -5714,28 +6017,33 @@ export function SignUpWizard() {
                   setArtistProfile(prev => ({ ...prev, baseLocation: v }))
                 }
                 onSelect={(suggestion: LocationSuggestion) => {
-                  // Build the display string from the structured fields the API now
-                  // returns correctly:
-                  //   city    = town / city     (Fakenham)
-                  //   state   = traditional county (Norfolk)
-                  //   country = constituent country + UK  (England, UK)
-                  const parts = [suggestion.city, suggestion.state, suggestion.country]
-                    .map(p => p?.trim())
-                    .filter(Boolean)
-                  const displayLocation = parts.length > 0
-                    ? parts.join(', ')
-                    : suggestion.formatted
+                  const formattedAddress = suggestion.formatted?.trim() || artistProfile.baseLocation
                   setArtistProfile(prev => ({
                     ...prev,
-                    baseLocation: displayLocation,
+                    baseLocation: formattedAddress,
                     baseLocationLat: suggestion.lat ?? null,
                     baseLocationLon: suggestion.lon ?? null,
+                    hometownCity: sanitizeSignupLocationPart(suggestion.city) || prev.hometownCity,
+                    hometownState: sanitizeSignupLocationPart(suggestion.state) || prev.hometownState,
+                    hometownCountry: sanitizeSignupLocationPart(suggestion.country) || prev.hometownCountry,
                   }))
                 }}
               />
               <p className="text-xs text-foreground/60 italic flex items-start gap-1">
                 <span>ℹ️</span>
-                <span>Your profile will display as: Town/City, County, Country — e.g. Fakenham, Norfolk, England, UK</span>
+                <span>
+                  {(() => {
+                    const fallbackLocation = splitSignupLocation(artistProfile.baseLocation)
+                    const city = sanitizeSignupLocationPart(artistProfile.hometownCity) || fallbackLocation.city
+                    const state = sanitizeSignupLocationPart(artistProfile.hometownState) || fallbackLocation.state
+                    const country = sanitizeSignupLocationPart(artistProfile.hometownCountry) || fallbackLocation.country
+                    const displayParts = [city, state, country].filter(Boolean)
+
+                    return displayParts.length > 0
+                      ? `Your profile will display as: ${displayParts.join(", ")}`
+                      : "Your profile will display as: Town/City, County, Country — e.g. Fakenham, Norfolk, England, UK"
+                  })()}
+                </span>
               </p>
             </div>
           </CardContent>
@@ -6381,6 +6689,11 @@ export function SignUpWizard() {
                   placeholder="e.g. 0000 0001 2103 2164"
                   value={artistProfile.performerIsni}
                   onChange={(e) => setArtistProfile(prev => ({ ...prev, performerIsni: e.target.value }))}
+                  onBlur={() => {
+                    void saveArtistProfilePatch({
+                      performer_isni: artistProfile.performerIsni.trim() || null,
+                    })
+                  }}
                   className={`font-ui h-11 pr-10 ${
                     isniLookup.status === 'found' ? 'border-green-500 focus-visible:ring-green-500/30' :
                     isniLookup.status === 'not_found' || isniLookup.status === 'invalid' ? 'border-amber-400 focus-visible:ring-amber-400/30' : ''
@@ -6463,6 +6776,11 @@ export function SignUpWizard() {
                   placeholder="e.g. 00000000000 (11 digits)"
                   value={artistProfile.creatorIpiCae}
                   onChange={(e) => setArtistProfile(prev => ({ ...prev, creatorIpiCae: e.target.value }))}
+                  onBlur={() => {
+                    void saveArtistProfilePatch({
+                      creator_ipi_cae: artistProfile.creatorIpiCae.trim() || null,
+                    })
+                  }}
                   className={`font-ui h-11 pr-10 ${
                     ipiFormat === 'valid' ? 'border-green-500 focus-visible:ring-green-500/30' :
                     ipiFormat === 'invalid' ? 'border-amber-400 focus-visible:ring-amber-400/30' : ''
@@ -7003,6 +7321,9 @@ export function SignUpWizard() {
                         base_location: artistProfile.baseLocation,
                         base_location_lat: artistProfile.baseLocationLat,
                         base_location_lon: artistProfile.baseLocationLon,
+                        hometown_city: artistProfile.hometownCity || null,
+                        hometown_state: artistProfile.hometownState || null,
+                        hometown_country: artistProfile.hometownCountry || null,
                         gigs_performed: artistProfile.publicGigsPerformed,
                         recording_session_gigs: artistProfile.recordingSessionGigs,
                         songwriting_collaborations: artistProfile.songwritingCollaborations,

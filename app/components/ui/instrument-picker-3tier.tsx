@@ -19,6 +19,19 @@ export interface SelectedInstrument {
 
 const ALL_INSTRUMENT_ID = '__all__'
 const OTHER_INSTRUMENT_ID = '__other__'
+export const ALL_FAMILY_VARIANT_ID = '__all_family__'
+
+const getFamilyAllLabel = (instrumentLabel: string) => `All ${instrumentLabel}`
+
+const getSelectionDisplayLabel = (selection: SelectedInstrument) => {
+  if (selection.variantId === ALL_FAMILY_VARIANT_ID && selection.variantLabel) {
+    return selection.variantLabel
+  }
+
+  return selection.variantLabel
+    ? `${selection.instrumentLabel}: ${selection.variantLabel}`
+    : selection.instrumentLabel
+}
 
 // ─── Serialise / deserialise for DB storage ────────────────────────────────────
 
@@ -73,13 +86,15 @@ export function deserializeInstruments3Tier(stored: string | null | undefined): 
       const variant = variantId
         ? instrument.variants?.find(v => v.id === variantId)
         : undefined
+
+      const isFamilyAllSelection = Boolean(instrument.variants?.length) && !variantId
       return {
         groupId,
         groupName: group.name,
         instrumentId,
         instrumentLabel: instrument.label,
-        variantId: variantId || undefined,
-        variantLabel: variant?.label,
+        variantId: variantId || (isFamilyAllSelection ? ALL_FAMILY_VARIANT_ID : undefined),
+        variantLabel: variant?.label ?? (isFamilyAllSelection ? getFamilyAllLabel(instrument.label) : undefined),
       }
     })
     .filter((x): x is SelectedInstrument => x !== null)
@@ -93,6 +108,7 @@ interface InstrumentPicker3TierProps {
   /** Optional subset of group IDs to show — defaults to all groups */
   allowedGroups?: string[]
   className?: string
+  startCollapsed?: boolean
 }
 
 export function InstrumentPicker3Tier({
@@ -100,6 +116,7 @@ export function InstrumentPicker3Tier({
   onChange,
   allowedGroups,
   className,
+  startCollapsed = false,
 }: InstrumentPicker3TierProps) {
   const groups = useMemo(() => (
     allowedGroups
@@ -107,7 +124,7 @@ export function InstrumentPicker3Tier({
       : INSTRUMENT_TAXONOMY_3TIER
   ), [allowedGroups])
 
-  const [activeGroupId, setActiveGroupId] = useState<string>(groups[0]?.id ?? '')
+  const [activeGroupId, setActiveGroupId] = useState<string>(startCollapsed ? '' : (groups[0]?.id ?? ''))
   const [expandedInstrumentId, setExpandedInstrumentId] = useState<string | null>(null)
 
   const activeGroup = groups.find(g => g.id === activeGroupId) ?? null
@@ -117,6 +134,11 @@ export function InstrumentPicker3Tier({
   const isVariantSelected = (groupId: string, instrumentId: string, variantId: string) =>
     value.some(
       s => s.groupId === groupId && s.instrumentId === instrumentId && s.variantId === variantId
+    )
+
+  const isFamilyAllSelected = (groupId: string, instrumentId: string) =>
+    value.some(
+      s => s.groupId === groupId && s.instrumentId === instrumentId && s.variantId === ALL_FAMILY_VARIANT_ID
     )
 
   const isInstrumentDirectlySelected = (groupId: string, instrumentId: string) =>
@@ -135,20 +157,64 @@ export function InstrumentPicker3Tier({
 
   /** Instrument with NO variants — direct toggle */
   const toggleInstrument = (group: InstrumentGroup3, instrument: Instrument3) => {
-    const selected = isInstrumentDirectlySelected(group.id, instrument.id)
+    const usesFamilyAll = Boolean(instrument.variants?.length)
+    const selected = usesFamilyAll
+      ? isFamilyAllSelected(group.id, instrument.id)
+      : isInstrumentDirectlySelected(group.id, instrument.id)
+
     if (selected) {
-      onChange(value.filter(s => !(s.groupId === group.id && s.instrumentId === instrument.id && !s.variantId)))
+      onChange(value.filter(s => !(
+        s.groupId === group.id &&
+        s.instrumentId === instrument.id &&
+        (usesFamilyAll ? s.variantId === ALL_FAMILY_VARIANT_ID : !s.variantId)
+      )))
     } else {
       const cleaned = value.filter(
-        s => !(s.groupId === group.id && (s.instrumentId === ALL_INSTRUMENT_ID || s.instrumentId === OTHER_INSTRUMENT_ID))
+        s => !(
+          s.groupId === group.id && (
+            s.instrumentId === ALL_INSTRUMENT_ID ||
+            s.instrumentId === OTHER_INSTRUMENT_ID ||
+            s.instrumentId === instrument.id
+          )
+        )
       )
       onChange([...cleaned, {
         groupId: group.id,
         groupName: group.name,
         instrumentId: instrument.id,
         instrumentLabel: instrument.label,
+        variantId: usesFamilyAll ? ALL_FAMILY_VARIANT_ID : undefined,
+        variantLabel: usesFamilyAll ? getFamilyAllLabel(instrument.label) : undefined,
       }])
     }
+  }
+
+  const toggleFamilyAll = (group: InstrumentGroup3, instrument: Instrument3) => {
+    const selected = isFamilyAllSelected(group.id, instrument.id)
+
+    if (selected) {
+      onChange(value.filter(
+        s => !(s.groupId === group.id && s.instrumentId === instrument.id && s.variantId === ALL_FAMILY_VARIANT_ID)
+      ))
+      return
+    }
+
+    const cleaned = value.filter(
+      s => !(s.groupId === group.id && (
+        s.instrumentId === instrument.id ||
+        s.instrumentId === ALL_INSTRUMENT_ID ||
+        s.instrumentId === OTHER_INSTRUMENT_ID
+      ))
+    )
+
+    onChange([...cleaned, {
+      groupId: group.id,
+      groupName: group.name,
+      instrumentId: instrument.id,
+      instrumentLabel: instrument.label,
+      variantId: ALL_FAMILY_VARIANT_ID,
+      variantLabel: getFamilyAllLabel(instrument.label),
+    }])
   }
 
   /** Specific variant toggle */
@@ -166,7 +232,7 @@ export function InstrumentPicker3Tier({
       // Remove the plain (no-variant) entry for this instrument if present
       const cleaned = value.filter(
         s => !(s.groupId === group.id && (
-          (s.instrumentId === instrument.id && !s.variantId) ||
+          (s.instrumentId === instrument.id && (!s.variantId || s.variantId === ALL_FAMILY_VARIANT_ID)) ||
           s.instrumentId === ALL_INSTRUMENT_ID ||
           s.instrumentId === OTHER_INSTRUMENT_ID
         ))
@@ -213,7 +279,7 @@ export function InstrumentPicker3Tier({
     <div className={`space-y-3 ${className ?? ''}`}>
 
       {/* ── Group tabs ── */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         {groups.map(group => {
           const hasSelection = groupHasSelection(group.id)
           const isActive = activeGroupId === group.id
@@ -245,6 +311,18 @@ export function InstrumentPicker3Tier({
             </button>
           )
         })}
+        {activeGroup && (
+          <button
+            type="button"
+            onClick={() => {
+              setActiveGroupId('')
+              setExpandedInstrumentId(null)
+            }}
+            className="ml-auto inline-flex items-center rounded-full border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900"
+          >
+            Collapse all
+          </button>
+        )}
       </div>
 
       {/* ── Instruments in active group ── */}
@@ -303,7 +381,9 @@ export function InstrumentPicker3Tier({
               const hasVariants = instrument.variants && instrument.variants.length > 0
               const isExpanded = expandedInstrumentId === instrument.id
               const count = countForInstrument(activeGroup.id, instrument.id)
-              const directlySelected = isInstrumentDirectlySelected(activeGroup.id, instrument.id)
+              const directlySelected = hasVariants
+                ? isFamilyAllSelected(activeGroup.id, instrument.id)
+                : isInstrumentDirectlySelected(activeGroup.id, instrument.id)
 
               return (
                 <div key={instrument.id} className="col-span-1">
@@ -358,6 +438,29 @@ export function InstrumentPicker3Tier({
                   {/* ── Variant checkboxes (expanded) ── */}
                   {hasVariants && isExpanded && (
                     <div className="mt-1.5 ml-3 pl-3 border-l-2 border-purple-300 space-y-0.5">
+                      <button
+                        type="button"
+                        onClick={() => toggleFamilyAll(activeGroup, instrument)}
+                        className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-sm font-medium transition-all text-left ${
+                          isFamilyAllSelected(activeGroup.id, instrument.id)
+                            ? 'bg-purple-100 text-purple-900'
+                            : 'text-gray-700 bg-white hover:bg-purple-50 hover:text-purple-900'
+                        }`}
+                      >
+                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                          isFamilyAllSelected(activeGroup.id, instrument.id)
+                            ? 'border-purple-600 bg-purple-600'
+                            : 'border-gray-400'
+                        }`}>
+                          {isFamilyAllSelected(activeGroup.id, instrument.id) && (
+                            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        {getFamilyAllLabel(instrument.label)}
+                      </button>
+
                       {instrument.variants!.map(variant => {
                         const selected = isVariantSelected(activeGroup.id, instrument.id, variant.id)
                         return (
@@ -405,12 +508,12 @@ export function InstrumentPicker3Tier({
                 key={i}
                 className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full bg-purple-600 text-white text-xs font-semibold shadow-sm"
               >
-                {sel.variantLabel ? `${sel.instrumentLabel}: ${sel.variantLabel}` : sel.instrumentLabel}
+                {getSelectionDisplayLabel(sel)}
                 <button
                   type="button"
                   className="ml-0.5 p-0.5 rounded-full hover:bg-purple-500 transition-colors"
                   onClick={() => removeSelection(sel)}
-                  aria-label={`Remove ${sel.variantLabel ? `${sel.instrumentLabel}: ${sel.variantLabel}` : sel.instrumentLabel}`}
+                  aria-label={`Remove ${getSelectionDisplayLabel(sel)}`}
                 >
                   <X className="w-3 h-3" />
                 </button>

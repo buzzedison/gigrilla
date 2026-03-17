@@ -61,33 +61,48 @@ const GROUP_ICON_MAP: Record<string, string> = {
 
 const toLegacyGroupId = (groupId: string) => GROUP_ID_MAP[groupId] ?? groupId
 
+const sortByLabel = <T extends { label: string }>(items: T[]): T[] =>
+  [...items].sort((a, b) => a.label.localeCompare(b.label))
+
 const toInstrument3 = (family: NotionInstrumentFamily): Instrument3 => ({
   id: family.id,
   label: family.label,
-  variants: family.variants?.map((variant: NotionInstrumentVariant) => ({
-    id: variant.id,
-    label: variant.label
-  }))
+  variants: family.variants
+    ? sortByLabel(family.variants).map((variant: NotionInstrumentVariant) => ({
+      id: variant.id,
+      label: variant.label
+    }))
+    : undefined
 })
+
+const sortFamilies = (families: NotionInstrumentFamily[]): NotionInstrumentFamily[] =>
+  sortByLabel(families).map((family) => ({
+    ...family,
+    variants: family.variants ? sortByLabel(family.variants) : undefined
+  }))
 
 const toInstrumentGroup3 = (group: NotionInstrumentGroup): InstrumentGroup3 => {
   const legacyGroupId = toLegacyGroupId(group.id)
+  const sortedFamilies = sortFamilies(group.families)
   return {
     id: legacyGroupId,
     name: group.label,
     icon: GROUP_ICON_MAP[legacyGroupId] ?? '🎵',
     allLabel: group.allOptionLabel,
     otherLabel: group.otherOptionLabel,
-    instruments: group.families.map(toInstrument3)
+    instruments: sortedFamilies.map(toInstrument3)
   }
 }
 
-export const INSTRUMENT_GROUP_SCHEMA: InstrumentGroupSchema[] = INSTRUMENT_TAXONOMY_NOTION_ALIGNED.map((group) => ({
-  id: toLegacyGroupId(group.id),
-  name: group.label,
-  allLabel: group.allOptionLabel,
-  families: group.families.map((family) => family.label)
-}))
+export const INSTRUMENT_GROUP_SCHEMA: InstrumentGroupSchema[] = INSTRUMENT_TAXONOMY_NOTION_ALIGNED.map((group) => {
+  const sortedFamilies = sortFamilies(group.families)
+  return {
+    id: toLegacyGroupId(group.id),
+    name: group.label,
+    allLabel: group.allOptionLabel,
+    families: sortedFamilies.map((family) => family.label)
+  }
+})
 
 export const CREW_INSTRUMENT_ROLE_GROUPS: InstrumentGroupList[] = INSTRUMENT_GROUP_SCHEMA.map((group) => ({
   id: group.id,
@@ -115,7 +130,7 @@ export const TYPE5_INSTRUMENT_GROUP_OPTIONS: Type5InstrumentOption[] = INSTRUMEN
 
 export const TYPE5_MAIN_INSTRUMENT_FAMILY_OPTIONS: Type5InstrumentOption[] =
   INSTRUMENT_TAXONOMY_NOTION_ALIGNED.flatMap((group) =>
-    group.families.map((family) => ({
+    sortFamilies(group.families).map((family) => ({
       id: family.id,
       label: `${group.label}: ${family.label}`
     }))
