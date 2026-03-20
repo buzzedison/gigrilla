@@ -3,7 +3,14 @@ export type CountryDialCodeOption = {
   countries: string[]
 }
 
-export const COUNTRY_DIAL_CODE_OPTIONS: CountryDialCodeOption[] = [
+export type CountryDialCodeChoice = {
+  value: string
+  code: string
+  country: string
+  label: string
+}
+
+const RAW_COUNTRY_DIAL_CODE_OPTIONS: CountryDialCodeOption[] = [
   {
     "code": "+1",
     "countries": [
@@ -1241,3 +1248,59 @@ export const COUNTRY_DIAL_CODE_OPTIONS: CountryDialCodeOption[] = [
     ]
   }
 ]
+
+const sortCountryNames = (countries: string[]) =>
+  [...countries].sort((a, b) => a.localeCompare(b))
+
+export const COUNTRY_DIAL_CODE_OPTIONS: CountryDialCodeOption[] =
+  RAW_COUNTRY_DIAL_CODE_OPTIONS
+    .map((option) => ({
+      ...option,
+      countries: sortCountryNames(option.countries)
+    }))
+    .sort((a, b) => {
+      const countryA = a.countries[0] ?? ''
+      const countryB = b.countries[0] ?? ''
+      return countryA.localeCompare(countryB)
+    })
+
+export const DEFAULT_COUNTRY_DIAL_CODE = '+44'
+
+const PREFERRED_COUNTRY_BY_CODE: Record<string, string> = {
+  '+1': 'United States',
+  '+44': 'United Kingdom',
+  '+7': 'Russia',
+}
+
+export const COUNTRY_DIAL_CODE_CHOICES: CountryDialCodeChoice[] =
+  COUNTRY_DIAL_CODE_OPTIONS
+    .flatMap((option) =>
+      option.countries.map((country) => ({
+        value: `${option.code}|${country}`,
+        code: option.code,
+        country,
+        label: `${option.code} - ${country}`
+      }))
+    )
+    .sort((a, b) => a.country.localeCompare(b.country))
+
+export const getDialCodeChoiceValue = (code?: string | null) => {
+  const normalizedCode = code?.trim() || DEFAULT_COUNTRY_DIAL_CODE
+  const preferredCountry = PREFERRED_COUNTRY_BY_CODE[normalizedCode]
+
+  if (preferredCountry) {
+    const preferredChoice = COUNTRY_DIAL_CODE_CHOICES.find(
+      (choice) => choice.code === normalizedCode && choice.country === preferredCountry
+    )
+    if (preferredChoice) return preferredChoice.value
+  }
+
+  return COUNTRY_DIAL_CODE_CHOICES.find((choice) => choice.code === normalizedCode)?.value
+    ?? COUNTRY_DIAL_CODE_CHOICES.find((choice) => choice.code === DEFAULT_COUNTRY_DIAL_CODE)?.value
+    ?? ''
+}
+
+export const getDialCodeFromChoiceValue = (value?: string | null) => {
+  if (!value) return DEFAULT_COUNTRY_DIAL_CODE
+  return value.split('|')[0] || DEFAULT_COUNTRY_DIAL_CODE
+}

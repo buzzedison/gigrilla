@@ -51,7 +51,11 @@ import { cn } from "../../components/ui/utils";
 import { useAuth } from "../../../lib/auth-context";
 import { getClient } from "../../../lib/supabase/client";
 import { getArtistTypeCapabilities } from "../../../lib/artist-type-config";
-import { COUNTRY_DIAL_CODE_OPTIONS } from "../../../lib/country-dial-codes";
+import {
+  COUNTRY_DIAL_CODE_CHOICES,
+  getDialCodeChoiceValue,
+  getDialCodeFromChoiceValue,
+} from "../../../lib/country-dial-codes";
 import { ISNIHelperModal } from "./ISNIHelperModal";
 import { IPIHelperModal } from "./IPIHelperModal";
 import { MUSIC_PUBLISHER_NAMES } from "../../../data/music-publishers";
@@ -148,13 +152,6 @@ const DEFAULT_SUB_GENRES = [
 
 const PROFILE_PICTURE_BUCKET = "avatars";
 const FAN_GALLERY_BUCKET = "fan-gallery";
-
-const getDialCodeLabel = (option: { code: string; countries: string[] }) => {
-  const [primaryCountry, ...rest] = option.countries
-  if (!primaryCountry) return option.code
-  if (rest.length === 0) return `${option.code} - ${primaryCountry}`
-  return `${option.code} - ${primaryCountry} (+${rest.length})`
-}
 
 const ADDITIONAL_PROFILE_OPTIONS: Array<{
   key: AdditionalProfileKey;
@@ -447,13 +444,13 @@ const ARTIST_TYPE_OPTIONS: ArtistTypeOption[] = [
       ],
       "Percussion Instruments": [
         "All Percussion Instruments",
+        "Cowbell",
         "Drum Set",
         "Hand Drums",
         "Mallet Percussion",
         "Metal Percussion",
-        "Cowbell",
-        "Shakers",
-        "Misc. Percussion"
+        "Misc. Percussion",
+        "Shakers"
       ],
       "Keyboard Instruments": [
         "All Keyboard Instruments",
@@ -6276,16 +6273,16 @@ export function SignUpWizard() {
                       <Label htmlFor="recordLabelContactPhoneNumber">Record Label Contact Phone</Label>
                       <div className="flex gap-2">
                         <Select
-                          value={artistProfile.recordLabelContactPhoneCode}
-                          onValueChange={(v) => setArtistProfile(prev => ({ ...prev, recordLabelContactPhoneCode: v }))}
+                          value={getDialCodeChoiceValue(artistProfile.recordLabelContactPhoneCode)}
+                          onValueChange={(v) => setArtistProfile(prev => ({ ...prev, recordLabelContactPhoneCode: getDialCodeFromChoiceValue(v) }))}
                         >
                           <SelectTrigger className="font-ui w-[280px] shrink-0">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="max-h-80 min-w-[320px]">
-                            {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
-                              <SelectItem key={option.code} value={option.code}>
-                                {getDialCodeLabel(option)}
+                            {COUNTRY_DIAL_CODE_CHOICES.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -6409,16 +6406,16 @@ export function SignUpWizard() {
                       <Label htmlFor="musicPublisherContactPhoneNumber">Music Publisher Contact Phone</Label>
                       <div className="flex gap-2">
                         <Select
-                          value={artistProfile.musicPublisherContactPhoneCode}
-                          onValueChange={(v) => setArtistProfile(prev => ({ ...prev, musicPublisherContactPhoneCode: v }))}
+                          value={getDialCodeChoiceValue(artistProfile.musicPublisherContactPhoneCode)}
+                          onValueChange={(v) => setArtistProfile(prev => ({ ...prev, musicPublisherContactPhoneCode: getDialCodeFromChoiceValue(v) }))}
                         >
                           <SelectTrigger className="font-ui w-[280px] shrink-0">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="max-h-80 min-w-[320px]">
-                            {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
-                              <SelectItem key={option.code} value={option.code}>
-                                {getDialCodeLabel(option)}
+                            {COUNTRY_DIAL_CODE_CHOICES.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -6510,16 +6507,16 @@ export function SignUpWizard() {
                       <Label htmlFor="artistManagerContactPhoneNumber">Artist Manager Contact Phone</Label>
                       <div className="flex gap-2">
                         <Select
-                          value={artistProfile.artistManagerContactPhoneCode}
-                          onValueChange={(v) => setArtistProfile(prev => ({ ...prev, artistManagerContactPhoneCode: v }))}
+                          value={getDialCodeChoiceValue(artistProfile.artistManagerContactPhoneCode)}
+                          onValueChange={(v) => setArtistProfile(prev => ({ ...prev, artistManagerContactPhoneCode: getDialCodeFromChoiceValue(v) }))}
                         >
                           <SelectTrigger className="font-ui w-[280px] shrink-0">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="max-h-80 min-w-[320px]">
-                            {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
-                              <SelectItem key={option.code} value={option.code}>
-                                {getDialCodeLabel(option)}
+                            {COUNTRY_DIAL_CODE_CHOICES.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -6611,16 +6608,16 @@ export function SignUpWizard() {
                       <Label htmlFor="bookingAgentContactPhoneNumber">Booking Agent Contact Phone</Label>
                       <div className="flex gap-2">
                         <Select
-                          value={artistProfile.bookingAgentContactPhoneCode}
-                          onValueChange={(v) => setArtistProfile(prev => ({ ...prev, bookingAgentContactPhoneCode: v }))}
+                          value={getDialCodeChoiceValue(artistProfile.bookingAgentContactPhoneCode)}
+                          onValueChange={(v) => setArtistProfile(prev => ({ ...prev, bookingAgentContactPhoneCode: getDialCodeFromChoiceValue(v) }))}
                         >
                           <SelectTrigger className="font-ui w-[280px] shrink-0">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="max-h-80 min-w-[320px]">
-                            {COUNTRY_DIAL_CODE_OPTIONS.map((option) => (
-                              <SelectItem key={option.code} value={option.code}>
-                                {getDialCodeLabel(option)}
+                            {COUNTRY_DIAL_CODE_CHOICES.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
                               </SelectItem>
                             ))}
                           </SelectContent>

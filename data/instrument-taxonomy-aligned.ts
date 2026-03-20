@@ -581,8 +581,12 @@ export const INSTRUMENT_TAXONOMY_NOTION_ALIGNED: InstrumentGroup[] = [
       {
         id: 'metal-percussion',
         label: 'Metal Percussion',
+        variants: []
+      },
+      {
+        id: 'cowbell',
+        label: 'Cowbell',
         variants: [
-          { id: 'cowbell', label: 'Cowbell' },
           { id: 'cymbals-orchestral', label: 'Cymbals (Orchestral)' },
           { id: 'gong', label: 'Gong' },
           { id: 'triangle', label: 'Triangle' },

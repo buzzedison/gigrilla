@@ -283,9 +283,15 @@ export default function ArtistDashboard() {
   const handleSectionChange = (section: DashboardSection) => {
     setActiveSection(section)
     setActiveSubSectionKey(null)
+    const defaultSubSection =
+      section === 'music-upload'
+        ? 'workflow'
+        : section === 'music-manage'
+          ? 'library'
+          : null
     replaceDashboardQuery(section, {
       folderId: section === 'messages' ? deepLinkedMessageFolder : null,
-      subSection: null
+      subSection: defaultSubSection
     })
   }
 
@@ -598,7 +604,15 @@ export default function ArtistDashboard() {
         return renderGuardedSection('music-upload', (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             <div className="xl:col-span-3">
-              <ArtistMusicManager defaultView="upload" />
+              <ArtistMusicManager
+                defaultView={activeSubSectionKey === 'music-upload:guide' ? 'guide' : 'upload'}
+                forcedSubSection={
+                  activeSubSectionKey?.startsWith('music-upload:')
+                    ? (activeSubSectionKey.split(':')[1] as 'intro' | 'guide' | 'workflow')
+                    : 'workflow'
+                }
+                onSubSectionNavigate={(subSection) => handleSubSectionChange('music-upload', subSection)}
+              />
             </div>
             <div className="xl:col-span-1">
               <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
@@ -609,7 +623,7 @@ export default function ArtistDashboard() {
         return renderGuardedSection('music-manage', (
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
             <div className="xl:col-span-3">
-              <ArtistMusicManager defaultView="manage" />
+              <ArtistMusicManager defaultView="manage" forcedSubSection="library" />
             </div>
             <div className="xl:col-span-1">
               <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />

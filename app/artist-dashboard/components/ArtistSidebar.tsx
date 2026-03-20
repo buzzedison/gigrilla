@@ -177,6 +177,7 @@ const sectionSubSections: Partial<Record<ArtistDashboardSection, SidebarSubSecti
   ],
   'music-upload': [
     { id: 'intro', label: 'Upload Intro' },
+    { id: 'guide', label: 'Upload Guide' },
     { id: 'workflow', label: 'Release Workflow' }
   ],
   'music-manage': [

@@ -203,6 +203,8 @@ const validateISRC = (isrc: string): { valid: boolean; error?: string } => {
   return { valid: true }
 }
 
+const normalizeISWCInput = (value: string) => value.replace(/[.\s]/g, '').toUpperCase()
+
 export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksUpdate }: TrackUploadSectionProps) {
   const [tracks, setTracks] = useState<TrackData[]>([])
   const [defaultPrimaryArtists, setDefaultPrimaryArtists] = useState<TrackData['primaryArtists']>([])
@@ -1318,7 +1320,7 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                             id={`iswc-${index}`}
                             value={track.iswc}
                             onChange={(e) => {
-                              updateTrack(index, 'iswc', e.target.value.toUpperCase())
+                              updateTrack(index, 'iswc', normalizeISWCInput(e.target.value))
                               // Clear previous verification status
                               setIswcErrors(prev => {
                                 const updated = { ...prev }
@@ -1337,6 +1339,22 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                               if (e.target.value.trim().length >= 11) {
                                 verifyISWC(index, e.target.value)
                               }
+                            }}
+                            onPaste={(e) => {
+                              e.preventDefault()
+                              const pastedText = e.clipboardData.getData('text')
+                              updateTrack(index, 'iswc', normalizeISWCInput(pastedText))
+                              setIswcErrors(prev => {
+                                const updated = { ...prev }
+                                delete updated[index]
+                                return updated
+                              })
+                              setIswcSuccess(prev => {
+                                const updated = { ...prev }
+                                delete updated[index]
+                                return updated
+                              })
+                              updateTrack(index, 'iswcConfirmed', false)
                             }}
                             placeholder="T-123456789-0"
                             className={`flex-1 ${iswcErrors[index] ? 'border-red-500' :

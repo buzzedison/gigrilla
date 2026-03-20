@@ -6,7 +6,7 @@ import { Button } from '../../../components/ui/button'
 import { Input } from '../../../components/ui/input'
 import { SectionWrapper, InfoBox } from './shared'
 import { ReleaseData } from './types'
-import { GTINInfoModal } from './GTINInfoModal'
+import { GTINInfoModal, GTINInfoTab } from './GTINInfoModal'
 import { validateGTIN, lookupGTIN, debounce } from './gtinUtils'
 import { getCountryOptions } from '@/lib/country-list'
 
@@ -27,6 +27,7 @@ export function ReleaseRegistrationSection({
   const [isLookingUpEan, setIsLookingUpEan] = useState(false)
   const [lookupSuccess, setLookupSuccess] = useState<string | null>(null)
   const [showGTINInfo, setShowGTINInfo] = useState(false)
+  const [gtinInfoTab, setGtinInfoTab] = useState<GTINInfoTab>('get')
 
   const slugifyCountryValue = (value: string) =>
     value
@@ -141,6 +142,14 @@ export function ReleaseRegistrationSection({
 
   const canConfirmUpc = !upcError && releaseData.upc.replace(/\D/g, '').length === 12 && !isLookingUpUpc
   const canConfirmEan = !eanError && releaseData.ean.replace(/\D/g, '').length === 13 && !isLookingUpEan
+  const canConfirmReleaseTitle = !!releaseData.releaseTitle.trim()
+  const hasConfirmedIdentifier = releaseData.upcConfirmed || releaseData.eanConfirmed
+  const registrationStepReady = hasConfirmedIdentifier && releaseData.releaseTitleConfirmed
+
+  const openGTINHelper = (tab: GTINInfoTab) => {
+    setGtinInfoTab(tab)
+    setShowGTINInfo(true)
+  }
 
   return (
     <>
@@ -158,25 +167,22 @@ export function ReleaseRegistrationSection({
               Global Trade Item Number (for this specific Release); UPC is generally used in the USA, while EAN is generally used Internationally; you only need one of these, not both.
             </p>
             <div className="flex gap-3 flex-wrap">
-              <Button
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setShowGTINInfo(true)}
-                className="text-purple-600 border-purple-300 hover:bg-purple-50"
+                onClick={() => openGTINHelper('get')}
+                className="inline-flex items-center gap-1 text-sm text-purple-600 font-medium hover:text-purple-800 transition-colors"
               >
-                <HelpCircle className="w-4 h-4 mr-1" />
-                Get / Find a GTIN
-              </Button>
-              <a
-                href="https://www.gs1.org/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-sm text-purple-600 font-medium hover:text-purple-800 px-3 py-2 rounded-lg hover:bg-purple-50 transition-colors"
+                <HelpCircle className="w-4 h-4" />
+                Get a GTIN
+              </button>
+              <button
+                type="button"
+                onClick={() => openGTINHelper('find')}
+                className="inline-flex items-center gap-1 text-sm text-purple-600 font-medium hover:text-purple-800 transition-colors"
               >
                 <Search className="w-4 h-4" />
-                Get a GTIN from GS1
-              </a>
+                Find a GTIN
+              </button>
             </div>
 
             {lookupSuccess && (
@@ -214,9 +220,11 @@ export function ReleaseRegistrationSection({
                 onClick={() => onUpdate('upcConfirmed', !releaseData.upcConfirmed)}
                 disabled={!canConfirmUpc}
                 className={`w-full ${
-                  !releaseData.upcConfirmed && canConfirmUpc
+                  releaseData.upcConfirmed
                     ? 'border-emerald-300 bg-emerald-600 text-white hover:bg-emerald-700'
-                    : ''
+                    : canConfirmUpc
+                      ? 'border-emerald-300 bg-emerald-600 text-white hover:bg-emerald-700'
+                      : ''
                 }`}
               >
                 {releaseData.upcConfirmed ? (
@@ -257,9 +265,11 @@ export function ReleaseRegistrationSection({
                 onClick={() => onUpdate('eanConfirmed', !releaseData.eanConfirmed)}
                 disabled={!canConfirmEan}
                 className={`w-full ${
-                  !releaseData.eanConfirmed && canConfirmEan
+                  releaseData.eanConfirmed
                     ? 'border-emerald-300 bg-emerald-600 text-white hover:bg-emerald-700'
-                    : ''
+                    : canConfirmEan
+                      ? 'border-emerald-300 bg-emerald-600 text-white hover:bg-emerald-700'
+                      : ''
                 }`}
               >
                 {releaseData.eanConfirmed ? (
@@ -316,12 +326,14 @@ export function ReleaseRegistrationSection({
               <Button
                 variant={releaseData.releaseTitleConfirmed ? 'default' : 'outline'}
                 onClick={() => onUpdate('releaseTitleConfirmed', !releaseData.releaseTitleConfirmed)}
-                disabled={!releaseData.releaseTitle.trim()}
-                className={
-                  !releaseData.releaseTitleConfirmed && releaseData.releaseTitle.trim()
-                    ? 'border-emerald-300 bg-emerald-600 text-white hover:bg-emerald-700'
-                    : ''
-                }
+                disabled={!canConfirmReleaseTitle}
+                className={`${
+                  releaseData.releaseTitleConfirmed
+                    ? 'border-emerald-300 bg-emerald-600 text-white hover:border-emerald-300 hover:bg-emerald-700'
+                    : canConfirmReleaseTitle
+                      ? 'border-emerald-300 bg-emerald-600 text-white hover:border-emerald-300 hover:bg-emerald-700'
+                      : ''
+                }`}
               >
                 {releaseData.releaseTitleConfirmed ? (
                   <>
@@ -344,6 +356,25 @@ export function ReleaseRegistrationSection({
             </div>
           </div>
 
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-sm font-semibold text-gray-900">Required before you can click Next</p>
+            <div className="mt-3 space-y-2 text-sm">
+              <div className={`flex items-center gap-2 ${hasConfirmedIdentifier ? 'text-emerald-700' : 'text-gray-600'}`}>
+                <CheckCircle className={`w-4 h-4 ${hasConfirmedIdentifier ? 'text-emerald-600' : 'text-gray-400'}`} />
+                Confirm either a UPC or an EAN
+              </div>
+              <div className={`flex items-center gap-2 ${releaseData.releaseTitleConfirmed ? 'text-emerald-700' : 'text-gray-600'}`}>
+                <CheckCircle className={`w-4 h-4 ${releaseData.releaseTitleConfirmed ? 'text-emerald-600' : 'text-gray-400'}`} />
+                Confirm the release title
+              </div>
+            </div>
+            {!registrationStepReady && (
+              <p className="mt-3 text-xs text-amber-700">
+                Next stays disabled until both confirmations above are complete.
+              </p>
+            )}
+          </div>
+
           {releaseData.releaseTitleSource === 'gtin' ? (
             <InfoBox title="Release Title Pull-Through" variant="info">
               <p>
@@ -361,7 +392,11 @@ export function ReleaseRegistrationSection({
       </div>
     </SectionWrapper>
 
-    <GTINInfoModal isOpen={showGTINInfo} onClose={() => setShowGTINInfo(false)} />
-  </>
+      <GTINInfoModal
+        isOpen={showGTINInfo}
+        initialTab={gtinInfoTab}
+        onClose={() => setShowGTINInfo(false)}
+      />
+    </>
   )
 }

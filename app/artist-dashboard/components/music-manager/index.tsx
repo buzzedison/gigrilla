@@ -105,10 +105,14 @@ const STEPS = [
 ] as const
 
 type StepId = typeof STEPS[number]['id']
-type MusicManagerView = 'upload' | 'manage'
+type MusicManagerView = 'guide' | 'upload' | 'manage'
+type MusicUploadSubSection = 'intro' | 'guide' | 'workflow'
+type MusicManageSubSection = 'library'
 
 interface ArtistMusicManagerProps {
   defaultView?: MusicManagerView
+  forcedSubSection?: MusicUploadSubSection | MusicManageSubSection | null
+  onSubSectionNavigate?: (subSection: MusicUploadSubSection | MusicManageSubSection) => void
 }
 
 const MUSIC_MANAGER_INTRO_COLLAPSED_STORAGE_KEY = 'artist-music-manager:intro-collapsed:v1'
@@ -285,7 +289,11 @@ function inferArtistCountry(profile: Record<string, unknown> | null | undefined)
   return slugifyCountryValue(country)
 }
 
-export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManagerProps) {
+export function ArtistMusicManager({
+  defaultView = 'upload',
+  forcedSubSection = null,
+  onSubSectionNavigate
+}: ArtistMusicManagerProps) {
   const permanentMessages = [
     {
       icon: '💎',
@@ -313,7 +321,6 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
   const [currentStep, setCurrentStep] = useState<StepId>('registration')
 
   // Upload guide state
-  const [showUploadGuide, setShowUploadGuide] = useState(true)
   const [uploadGuideConfirmed, setUploadGuideConfirmed] = useState(false)
 
   // Release data state
@@ -425,6 +432,41 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
     setMusicView(defaultView)
   }, [defaultView])
 
+  const currentMusicView: MusicManagerView = musicView
+  const isEmbeddedDashboardSubPage = forcedSubSection !== null
+  const showInternalViewSwitcher = !isEmbeddedDashboardSubPage
+  const showMusicIntro =
+    musicView === 'upload' &&
+    (!isEmbeddedDashboardSubPage || forcedSubSection === 'intro')
+  const showMusicWorkflow =
+    musicView === 'upload' &&
+    (!isEmbeddedDashboardSubPage || forcedSubSection === 'workflow')
+  const showGuidePage =
+    musicView === 'guide' ||
+    (musicView === 'upload' && forcedSubSection === 'guide')
+  const showManageLibrary =
+    musicView === 'manage' &&
+    (!isEmbeddedDashboardSubPage || forcedSubSection === 'library')
+
+  const navigateMusicSubSection = (subSection: MusicUploadSubSection | MusicManageSubSection) => {
+    if (onSubSectionNavigate) {
+      onSubSectionNavigate(subSection)
+      return
+    }
+
+    if (subSection === 'library') {
+      setMusicView('manage')
+      return
+    }
+
+    if (subSection === 'guide') {
+      setMusicView('guide')
+      return
+    }
+
+    setMusicView('upload')
+  }
+
   useEffect(() => {
     if (typeof window === 'undefined') return
     const savedState = window.localStorage.getItem(MUSIC_MANAGER_INTRO_COLLAPSED_STORAGE_KEY)
@@ -532,13 +574,6 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
       data.signatoryLastName.trim() !== '' &&
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.signatoryEmail.trim())
     return Boolean(termsOk && confirmOk && roleOk && signatureOk)
-  }
-
-  // Toggle upload guide visibility
-  const handleToggleUploadGuide = () => {
-    if (uploadGuideConfirmed) {
-      setShowUploadGuide(!showUploadGuide)
-    }
   }
 
   // Update release data
@@ -658,7 +693,6 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
           : Boolean(releaseData.goLiveDate)
 
     const baseValid =
-      uploadGuideConfirmed &&
       (releaseData.upcConfirmed || releaseData.eanConfirmed) &&
       releaseData.releaseTitleConfirmed &&
       releaseData.releaseType !== '' &&
@@ -687,7 +721,7 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
 
   // Auto-save function (silent save without showing messages)
   const autoSave = useCallback(async () => {
-    // Don't auto-save if we're in the guide step or if already saving
+    // Don't auto-save if already saving
     if (isSaving || isSavingAndProceeding) return
 
     try {
@@ -1057,6 +1091,7 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
         </div>
       )}
 
+      {showMusicIntro && (
       <div id="artist-music-upload-intro" className="bg-gradient-to-br from-purple-700 to-purple-900 rounded-3xl text-white p-6 md:p-8 mb-6 shadow-lg border border-purple-600/40 scroll-mt-28">
         <div className="flex items-start justify-between">
           <div className="flex-1">
@@ -1126,12 +1161,24 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
               </div>
             </div>
 
+            {showInternalViewSwitcher && (
             <div className="mt-5 inline-flex rounded-xl border border-white/20 bg-white/10 p-1">
+              <button
+                type="button"
+                onClick={() => setMusicView('guide')}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                  currentMusicView === 'guide'
+                    ? 'bg-white text-purple-700'
+                    : 'text-purple-100 hover:bg-white/15'
+                }`}
+              >
+                Upload Guide
+              </button>
               <button
                 type="button"
                 onClick={() => setMusicView('upload')}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                  musicView === 'upload'
+                  currentMusicView === 'upload'
                     ? 'bg-white text-purple-700'
                     : 'text-purple-100 hover:bg-white/15'
                 }`}
@@ -1142,7 +1189,7 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
                 type="button"
                 onClick={() => setMusicView('manage')}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                  musicView === 'manage'
+                  currentMusicView === 'manage'
                     ? 'bg-white text-purple-700'
                     : 'text-purple-100 hover:bg-white/15'
                 }`}
@@ -1150,6 +1197,7 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
                 Manage Music
               </button>
             </div>
+            )}
           </>
         )}
         {isIntroCollapsed && (
@@ -1158,9 +1206,22 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
           </div>
         )}
       </div>
+      )}
+
+      {showMusicIntro && isEmbeddedDashboardSubPage && (
+        <div className="flex justify-end mb-6">
+          <Button
+            type="button"
+            onClick={() => navigateMusicSubSection('guide')}
+            className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-md"
+          >
+            Next <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        </div>
+      )}
 
       {/* Manage Music Library */}
-      {musicView === 'manage' && (
+      {showManageLibrary && (
         <div id="artist-music-manage-library" className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6 scroll-mt-28">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
@@ -1203,15 +1264,6 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
                       You have an in-progress upload. Open Upload Music to continue editing and submit.
                     </p>
                   </div>
-                  {musicView === 'manage' && (
-                    <Button
-                      variant="outline"
-                      onClick={() => setMusicView('upload')}
-                      className="border-blue-300 text-blue-700 hover:bg-blue-100"
-                    >
-                      Continue Draft Upload Flow
-                    </Button>
-                  )}
                 </div>
               </div>
             )}
@@ -1299,17 +1351,36 @@ export function ArtistMusicManager({ defaultView = 'upload' }: ArtistMusicManage
           </div>
         )}
 
-      {musicView === 'upload' && (
-        <div id="artist-music-upload-workflow" className="scroll-mt-28">
-          <div className="mb-6">
-            <UploadGuideSection
-              showUploadGuide={showUploadGuide}
-              uploadGuideConfirmed={uploadGuideConfirmed}
-              onToggle={handleToggleUploadGuide}
-              onConfirm={setUploadGuideConfirmed}
-            />
-          </div>
+      {showGuidePage && (
+        <div id="artist-music-upload-guide" className="scroll-mt-28">
+          <UploadGuideSection
+            uploadGuideConfirmed={uploadGuideConfirmed}
+            onConfirm={setUploadGuideConfirmed}
+          />
+          {isEmbeddedDashboardSubPage && (
+            <div className="flex justify-between items-center mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigateMusicSubSection('intro')}
+                className="border-gray-300 hover:bg-gray-50"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" /> Back
+              </Button>
+              <Button
+                type="button"
+                onClick={() => navigateMusicSubSection('workflow')}
+                className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 shadow-md"
+              >
+                Next <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
+      {showMusicWorkflow && (
+        <div id="artist-music-upload-workflow" className="scroll-mt-28">
           {/* Step Progress Indicator */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
             <div className="flex items-center justify-between mb-4">

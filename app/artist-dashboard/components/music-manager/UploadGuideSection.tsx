@@ -1,20 +1,15 @@
 'use client'
 
-import { ChevronDown, ChevronRight, ChevronUp, FileText, CheckCircle } from 'lucide-react'
-import { Button } from '../../../components/ui/button'
+import { ChevronRight, FileText, CheckCircle } from 'lucide-react'
 import { SectionWrapper, InfoBox } from './shared'
 
 interface UploadGuideSectionProps {
-  showUploadGuide: boolean
   uploadGuideConfirmed: boolean
-  onToggle: () => void
   onConfirm: (confirmed: boolean) => void
 }
 
 export function UploadGuideSection({
-  showUploadGuide,
   uploadGuideConfirmed,
-  onToggle,
   onConfirm
 }: UploadGuideSectionProps) {
   const infoBlocks = [
@@ -65,30 +60,11 @@ export function UploadGuideSection({
   return (
     <SectionWrapper
       title="Upload Guide for Pre-Registered Music"
-      subtitle="Show / Hide Upload Guide below (must tick confirmation underneath)"
+      subtitle="Review the guide here. It is separate from the main upload workflow."
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onToggle}
-          disabled={!uploadGuideConfirmed}
-          className="text-gray-700"
-        >
-          {showUploadGuide ? (
-            <>
-              <ChevronUp className="w-4 h-4 mr-1" /> Hide Upload Guide
-            </>
-          ) : (
-            <>
-              <ChevronDown className="w-4 h-4 mr-1" /> Show Upload Guide
-            </>
-          )}
-        </Button>
-        <p className="text-xs text-gray-500">
-          Tips load automatically and can be hidden once you’ve confirmed the guide.
-        </p>
-      </div>
+      <p className="text-xs text-gray-500">
+        This guide lives on its own page so the release workflow stays focused on metadata, rights, artwork, and tracks.
+      </p>
 
       <div className="mt-4 border rounded-xl p-4 bg-gray-50">
         <label className="flex items-start gap-3 text-sm text-gray-700">
@@ -101,80 +77,72 @@ export function UploadGuideSection({
             }}
             className="mt-1 w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
           />
-          <span>I confirm that I have read and understood the Upload Guide below.</span>
+          <span>I confirm that I have read and understood the Upload Guide.</span>
+          
         </label>
       </div>
 
-      {showUploadGuide && (
-        <div className="mt-6 rounded-2xl border border-gray-100 bg-white shadow-inner">
-          <div className="p-4 md:p-6 space-y-6 max-h-[560px] overflow-y-auto pr-2">
-            <div className="space-y-3">
-              {infoBlocks.map((text) => (
-                <div key={text} className="flex gap-2 text-sm text-gray-800">
-                  <span className="text-purple-500" aria-hidden="true">ℹ️</span>
-                  <p>{text}</p>
+      <div className="mt-6 rounded-2xl border border-gray-100 bg-white shadow-inner">
+        <div className="p-4 md:p-6 space-y-6">
+          <div className="space-y-3">
+            {infoBlocks.map((text) => (
+              <div key={text} className="flex gap-2 text-sm text-gray-800">
+                <span className="text-purple-500" aria-hidden="true">ℹ️</span>
+                <p>{text}</p>
+              </div>
+            ))}
+            <div className="rounded-2xl border border-purple-100 bg-white p-4">
+              <div className="flex items-start gap-3">
+                <FileText className="w-5 h-5 text-purple-500 mt-0.5" />
+                <div>
+                  <p className="font-medium text-gray-900">Audio Filename Format</p>
+                  <p className="text-sm text-gray-700">Use “Artist Name - Track Title.wav” for every file.</p>
                 </div>
-              ))}
-              <div className="rounded-2xl border border-purple-100 bg-white p-4">
-                <div className="flex items-start gap-3">
-                  <FileText className="w-5 h-5 text-purple-500 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-gray-900">Audio Filename Format</p>
-                    <p className="text-sm text-gray-700">Use “Artist Name - Track Title.wav” for every file.</p>
+              </div>
+              <div className="mt-4 grid md:grid-cols-2 gap-3">
+                {audioRequirements.map((tip) => (
+                  <div key={tip} className="flex items-start gap-2 text-sm text-gray-700">
+                    <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5" />
+                    <span>{tip}</span>
                   </div>
-                </div>
-                <div className="mt-4 grid md:grid-cols-2 gap-3">
-                  {audioRequirements.map((tip) => (
-                    <div key={tip} className="flex items-start gap-2 text-sm text-gray-700">
-                      <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5" />
-                      <span>{tip}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-start gap-2 text-sm text-gray-800">
-                <span className="text-purple-500">ℹ️</span>
-                <p>Lyrics must be full and cleanly formatted for each Track, remembering to match lyric version to Track version for radio edits/child-safe Tracks.</p>
-              </div>
-              <div className="flex items-start gap-2 text-sm text-gray-800">
-                <span className="text-purple-500">ℹ️</span>
-                <p>
-                  For each individual Track, you’ll need all relevant ISNI, IPI/CAE, ISRC, &amp; ISWC codes. You’ll also need a GTIN (UPC/EAN) for each Specific Release. Click the ‘Get’ or ‘Find’ links below for help getting or finding these details before you upload your music.
-                </p>
+                ))}
               </div>
             </div>
-
-            <div className="space-y-4">
-              {codeResources.map((resource) => (
-                <div key={resource.title} className="border border-gray-100 rounded-2xl p-4 bg-white shadow-sm">
-                  <h4 className="text-sm font-semibold text-gray-900 mb-2">{resource.title}</h4>
-                  <p className="text-sm text-gray-700 mb-3">{resource.description}</p>
-                  <a
-                    href={resource.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center text-sm text-purple-600 hover:text-purple-800 font-medium"
-                  >
-                    Get / Find Details
-                    <ChevronRight className="w-4 h-4 ml-1" />
-                  </a>
-                </div>
-              ))}
+            <div className="flex items-start gap-2 text-sm text-gray-800">
+              <span className="text-purple-500">ℹ️</span>
+              <p>Lyrics must be full and cleanly formatted for each Track, remembering to match lyric version to Track version for radio edits/child-safe Tracks.</p>
             </div>
-
-            <InfoBox title="Guide Visibility" variant="info">
-              <p>Everything above is auto-shown until you confirm the checklist. After that, the Show/Hide control simply remembers your preference per admin account.</p>
-            </InfoBox>
+            <div className="flex items-start gap-2 text-sm text-gray-800">
+              <span className="text-purple-500">ℹ️</span>
+              <p>
+                For each individual Track, you’ll need all relevant ISNI, IPI/CAE, ISRC, &amp; ISWC codes. You’ll also need a GTIN (UPC/EAN) for each Specific Release. Click the ‘Get’ or ‘Find’ links below for help getting or finding these details before you upload your music.
+              </p>
+            </div>
           </div>
-        </div>
-      )}
 
-      {!showUploadGuide && uploadGuideConfirmed && (
-        <div className="flex items-center gap-2 text-sm text-green-600 mt-3">
-          <CheckCircle className="w-4 h-4" />
-          Upload Guide confirmed. Toggle available anytime.
+          <div className="space-y-4">
+            {codeResources.map((resource) => (
+              <div key={resource.title} className="border border-gray-100 rounded-2xl p-4 bg-white shadow-sm">
+                <h4 className="text-sm font-semibold text-gray-900 mb-2">{resource.title}</h4>
+                <p className="text-sm text-gray-700 mb-3">{resource.description}</p>
+                <a
+                  href={resource.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-sm text-purple-600 hover:text-purple-800 font-medium"
+                >
+                  Get / Find Details
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </a>
+              </div>
+            ))}
+          </div>
+
+          <InfoBox title="Guide Visibility" variant="info">
+            <p>This guide is intentionally separate from the release workflow. Use this page whenever you need the full reference while uploading music.</p>
+          </InfoBox>
         </div>
-      )}
+      </div>
     </SectionWrapper>
   )
 }
