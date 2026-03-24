@@ -1,278 +1,100 @@
-"use client";
+"use client"
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { LayoutDashboard, Loader2, Music, UserRound } from "lucide-react"
 
-import { useAuth } from "../../../lib/auth-context";
-import { Badge } from "../../components/ui/badge";
-import { Button } from "../../components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../../components/ui/card";
-import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
-import { Separator } from "../../components/ui/separator";
+import { useAuth } from "../../../lib/auth-context"
+import { ProtectedRoute } from "../../../lib/protected-route"
 
-type ProfileLink = {
-  key: "fan" | "artist" | "venue" | "service" | "pro";
-  label: string;
-  description: string;
-  href: string;
-  badge?: string;
-  disabled?: boolean;
-  actionLabel?: string;
-};
-
-const PROFILE_LINKS: ProfileLink[] = [
-  {
-    key: "fan",
-    label: "Fan Profile",
-    description:
-      "Update your preferences, playlists, and gig alerts. Manage photos, videos, and favourite genres.",
-    href: "/fan-dashboard",
-    badge: "Primary",
-  },
-  {
-    key: "artist",
-    label: "Artist Profile",
-    description:
-      "Add artist members, set royalty splits, publish releases, and manage gig bookings.",
-    href: "/artist-dashboard",
-  },
-  {
-    key: "venue",
-    label: "Venue Profile",
-    description:
-      "Publish availability, manage stage specs, handle ticketing, and approve artist offers.",
-    href: "/venue-setup",
-    disabled: true,
-  },
-  {
-    key: "service",
-    label: "Music Service Profile",
-    description:
-      "List your services, accept bookings, and collaborate on artist and venue projects.",
-    href: "/music-service-setup",
-    disabled: true,
-  },
-  {
-    key: "pro",
-    label: "Music Pro Profile",
-    description:
-      "Host webinars, deliver consultations, and support members across the music industry.",
-    href: "/music-pro-setup",
-    disabled: true,
-  },
-];
+type ArtistProfileResponse = {
+  data?: {
+    stage_name?: string | null
+    onboarding_completed?: boolean | null
+  } | null
+}
 
 export default function ControlPanelPage() {
-  const { user, signOut } = useAuth();
-  const searchParams = useSearchParams();
-  const isGuestMode = searchParams?.get("mode") === "guest";
-  const [hasArtistProfile, setHasArtistProfile] = useState<boolean | null>(null);
-
-  const summaryTitle = useMemo(() => {
-    if (isGuestMode) {
-      return "Guest Control Panel";
-    }
-    return "Control Panel";
-  }, [isGuestMode]);
+  const { user } = useAuth()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const [status, setStatus] = useState<'checking' | 'artist' | 'fan'>('checking')
 
   useEffect(() => {
-    if (!user) {
-      setHasArtistProfile(null);
-      return;
+    if (!user) return
+
+    const routeToWorkspace = async () => {
+      try {
+        const response = await fetch('/api/artist-profile', { cache: 'no-store' })
+        const payload: ArtistProfileResponse = await response.json().catch(() => ({}))
+        const hasArtistProfile = Boolean(response.ok && payload?.data)
+
+        if (hasArtistProfile) {
+          setStatus('artist')
+          router.replace('/artist-dashboard?section=home')
+          return
+        }
+
+        setStatus('fan')
+        router.replace('/fan-dashboard')
+      } catch {
+        setStatus('fan')
+        router.replace('/fan-dashboard')
+      }
     }
 
-    const loadArtistProfileState = async () => {
-      try {
-        const response = await fetch("/api/artist-profile", { cache: "no-store" });
-        const result = await response.json();
-        setHasArtistProfile(Boolean(response.ok && result?.data));
-      } catch (error) {
-        console.error("ControlPanel: failed to load artist profile state", error);
-        setHasArtistProfile(false);
-      }
-    };
+    void routeToWorkspace()
+  }, [router, user])
 
-    void loadArtistProfileState();
-  }, [user]);
-
-  const profileLinks = useMemo<ProfileLink[]>(() => {
-    return PROFILE_LINKS.map((profile) => {
-      if (profile.key !== "artist") return profile;
-
-      if (hasArtistProfile === null) {
-        return {
-          ...profile,
-          disabled: true,
-          actionLabel: "Checking..."
-        };
-      }
-
-      if (hasArtistProfile) {
-        return {
-          ...profile,
-          disabled: false,
-          href: "/artist-dashboard",
-          actionLabel: "Open"
-        };
-      }
-
-      return {
-        ...profile,
-        disabled: false,
-        href: "/signup?onboarding=artist",
-        actionLabel: "Set Up"
-      };
-    });
-  }, [hasArtistProfile]);
+  const requestedMode = searchParams?.get('mode')
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 pb-16 pt-10 sm:px-10">
-      <header className="space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="uppercase tracking-[0.35em] text-[0.7rem] text-foreground-alt/70">
-              {summaryTitle}
-            </p>
-            <h1 className="text-3xl font-bold text-foreground sm:text-4xl">
-              {isGuestMode
-                ? "Explore Gigrilla as a Guest"
-                : "Manage Your Profiles and Membership"}
-            </h1>
+    <ProtectedRoute>
+      <div className="flex min-h-screen items-center justify-center bg-[#4a2c5a] px-6">
+        <div className="w-full max-w-xl rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,_#1f122b,_#3d1d58_55%,_#211234)] p-8 text-white shadow-[0_30px_80px_rgba(40,10,60,0.28)]">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-purple-100">
+            <LayoutDashboard className="h-3.5 w-3.5" />
+            Control Panel
           </div>
-          <Button
-            variant="outline"
-            className="rounded-full px-5 py-2 text-[0.7rem] uppercase tracking-[0.18em]"
-            onClick={() => {
-              void signOut();
-            }}
-          >
-            Log out
-          </Button>
-        </div>
-        <p className="max-w-3xl text-sm text-foreground/75">
-          {isGuestMode
-            ? "You’re viewing the limited guest experience. Upgrade to full membership to unlock streaming, downloads, profile upgrades, and the wider community."
-            : "Switch between Fan, Artist, Venue, Service, and Music Pro profiles, manage memberships, and invite your team—all from one place."}
-        </p>
-        {isGuestMode && (
-          <Button
-            asChild
-            className="w-fit rounded-full bg-primary px-6 py-2 text-[0.75rem] font-semibold uppercase tracking-[0.18em] text-primary-foreground hover:bg-primary/90"
-          >
-            <Link href="/upgrade?type=full-fan">Upgrade to Full Membership</Link>
-          </Button>
-        )}
-      </header>
 
-      <section className="grid gap-6 md:grid-cols-[2fr,1.2fr]">
-        <Card className="border-border/60">
-          <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <CardTitle className="text-xl text-foreground">Your Profiles</CardTitle>
-              <CardDescription className="text-sm text-foreground/75">
-                Access profile-specific tools and dashboards. Disabled options need setup.
-              </CardDescription>
-            </div>
-            <Button asChild variant="secondary" className="rounded-full px-4 py-2 text-[0.7rem] uppercase tracking-[0.18em]">
-              <Link href="/profile-setup">Add a New Profile Type</Link>
-            </Button>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            {profileLinks.map((profile) => (
-              <Card
-                key={profile.key}
-                className="border border-border/50 shadow-none transition hover:-translate-y-1 hover:shadow-md"
-              >
-                <CardHeader className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    {profile.badge && (
-                      <Badge className="rounded-full bg-secondary px-3 py-1 text-[0.65rem] uppercase tracking-[0.2em] text-secondary-foreground">
-                        {profile.badge}
-                      </Badge>
-                    )}
-                    <CardTitle className="text-lg text-foreground">{profile.label}</CardTitle>
-                  </div>
-                  <CardDescription className="text-sm text-foreground/75">
-                    {profile.description}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {profile.disabled ? (
-                    <Button
-                      disabled
-                      className="w-full rounded-full px-4 py-2 text-[0.7rem] uppercase tracking-[0.18em]"
-                    >
-                      {profile.actionLabel ?? "Coming Soon"}
-                    </Button>
-                  ) : (
-                    <Button
-                      asChild
-                      className="w-full rounded-full px-4 py-2 text-[0.7rem] uppercase tracking-[0.18em]"
-                    >
-                      <Link href={profile.href}>{profile.actionLabel ?? "Open"}</Link>
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </CardContent>
-        </Card>
+          <h1 className="mt-5 text-3xl font-black tracking-tight">Opening your main dashboard.</h1>
+          <p className="mt-3 text-sm leading-7 text-purple-100/85">
+            Control Panel is now your entry point into the active workspace. Artists are routed into the artist dashboard shell. Fan-only users are routed into the fan dashboard.
+          </p>
 
-        <Card className="border-border/60">
-          <CardHeader>
-            <CardTitle className="text-xl text-foreground">Account Snapshot</CardTitle>
-            <CardDescription className="text-sm text-foreground/75">
-              Quick details from your member record.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm text-foreground/80">
-            <div className="flex flex-col gap-1">
-              <span className="text-xs uppercase tracking-[0.2em] text-foreground/60">
-                Member
-              </span>
-              <span>{user?.email ?? "Unknown"}</span>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-xs uppercase tracking-[0.2em] text-foreground/60">
-                Membership Status
-              </span>
-              <span>{isGuestMode ? "Guest (Limited Access)" : "Fan Member (£1/year)"}</span>
-            </div>
-            <Separator />
-            <div className="space-y-3">
-              <Label htmlFor="invite-email" className="text-xs uppercase tracking-[0.2em] text-foreground/60">
-                Invite Admins
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="invite-email"
-                  type="email"
-                  placeholder="Add teammate email"
-                  className="rounded-full bg-input-background"
-                />
-                <Button
-                  variant="outline"
-                  className="rounded-full px-4 py-2 text-[0.7rem] uppercase tracking-[0.18em]"
-                  disabled
-                >
-                  Invite
-                </Button>
+          <div className="mt-8 grid gap-3 sm:grid-cols-2">
+            <div className={`rounded-2xl border px-4 py-4 ${status === 'artist' ? 'border-emerald-300/40 bg-emerald-400/10' : 'border-white/10 bg-white/5'}`}>
+              <div className="flex items-center gap-3">
+                <Music className="h-5 w-5 text-emerald-300" />
+                <div>
+                  <div className="text-sm font-semibold text-white">Artist workspace</div>
+                  <div className="text-xs text-purple-100/70">Artist Home, gigs, music, crew, and messages</div>
+                </div>
               </div>
-              <p className="text-xs text-foreground/60">
-                Teammate invites will be enabled once profile admin tooling is fully integrated.
-              </p>
             </div>
-          </CardContent>
-        </Card>
-      </section>
-    </div>
-  );
+            <div className={`rounded-2xl border px-4 py-4 ${status === 'fan' ? 'border-cyan-300/40 bg-cyan-400/10' : 'border-white/10 bg-white/5'}`}>
+              <div className="flex items-center gap-3">
+                <UserRound className="h-5 w-5 text-cyan-300" />
+                <div>
+                  <div className="text-sm font-semibold text-white">Fan workspace</div>
+                  <div className="text-xs text-purple-100/70">Fan profile, preferences, and listening views</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm text-purple-100/85">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {requestedMode === 'guest'
+              ? 'Resolving guest workspace…'
+              : status === 'artist'
+                ? 'Opening Artist Home…'
+                : status === 'fan'
+                  ? 'Opening Fan Dashboard…'
+                  : 'Checking available profile workspaces…'}
+          </div>
+        </div>
+      </div>
+    </ProtectedRoute>
+  )
 }

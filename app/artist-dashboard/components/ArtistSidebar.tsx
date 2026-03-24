@@ -5,6 +5,7 @@ import Image from "next/image";
 import {
   User,
   Users2,
+  BarChart3,
   BookOpen,
   Music,
   Music2,
@@ -39,12 +40,18 @@ import { useAuth } from "../../../lib/auth-context";
 import { ArtistTypeCapabilities } from "../../../data/artist-types";
 
 export type ArtistDashboardSection =
+  | 'home'
   | 'profile'
   | 'payments'
   | 'crew'
   | 'auditions'
   | 'royalty'
   | 'gigability'
+  | 'gig-bookings'
+  | 'gig-reporting'
+  | 'gig-negotiations'
+  | 'gig-planner'
+  | 'gig-statistics'
   | 'gig-calendar'
   | 'gig-create'
   | 'gig-upcoming'
@@ -56,6 +63,9 @@ export type ArtistDashboardSection =
   | 'logo'
   | 'photos'
   | 'videos'
+  | 'music-uploads'
+  | 'music-catalogue'
+  | 'music-statistics'
   | 'music-upload'
   | 'music-manage'
   | 'messages'
@@ -82,11 +92,16 @@ function isSectionEnabled(section: ArtistDashboardSection, capabilities: ArtistT
 
   if (!capabilities) {
     // Keep core navigation accessible before capabilities load.
-    return section === 'profile' || section === 'messages'
+    return section === 'home' || section === 'profile' || section === 'messages'
   }
 
   switch (section) {
     case 'gigability':
+    case 'gig-bookings':
+    case 'gig-reporting':
+    case 'gig-negotiations':
+    case 'gig-planner':
+    case 'gig-statistics':
     case 'gig-calendar':
     case 'gig-create':
     case 'gig-upcoming':
@@ -94,6 +109,9 @@ function isSectionEnabled(section: ArtistDashboardSection, capabilities: ArtistT
     case 'gig-invites':
     case 'gig-requests':
       return capabilities.showGigAbility
+    case 'music-uploads':
+    case 'music-catalogue':
+    case 'music-statistics':
     case 'music-upload':
     case 'music-manage':
       return capabilities.canUploadMusic
@@ -108,23 +126,25 @@ type SidebarSubSection = {
 }
 
 const sectionSubSections: Partial<Record<ArtistDashboardSection, SidebarSubSection[]>> = {
+  home: [
+    { id: 'overview', label: 'Overview' }
+  ],
   profile: [
-    { id: 'details', label: 'Artist Details' },
-    { id: 'social', label: 'Social Accounts' }
+    { id: 'details', label: 'Artist Basics' },
+    { id: 'social', label: 'Artist Web Links' }
   ],
   payments: [
-    { id: 'preference', label: 'Banking Preference' },
-    { id: 'out', label: 'Payments Out' },
-    { id: 'in', label: 'Payments In' }
+    { id: 'out', label: 'Money Out' },
+    { id: 'in', label: 'Money In' }
   ],
   crew: [
     { id: 'owner', label: 'Your Roles & Info' },
-    { id: 'add-members', label: 'Add Members' },
-    { id: 'manage-team', label: 'Manage Team' }
+    { id: 'add-members', label: 'Add Crew Member' },
+    { id: 'manage-team', label: 'View Crew & Admins' }
   ],
   auditions: [
-    { id: 'add', label: 'Add Advert' },
-    { id: 'manage', label: 'Manage Adverts' }
+    { id: 'add', label: '+Create an Ad' },
+    { id: 'manage', label: 'Published & Historic Ads' }
   ],
   contract: [
     { id: 'label', label: 'Record Label' },
@@ -143,10 +163,37 @@ const sectionSubSections: Partial<Record<ArtistDashboardSection, SidebarSubSecti
     { id: 'local', label: 'Local Area' },
     { id: 'wider', label: 'Wider Area' }
   ],
+  'gig-bookings': [
+    { id: 'book-new', label: '+Book a New Gig' },
+    { id: 'add-manually', label: '+Add Gig Manually' },
+    { id: 'drafts', label: 'Draft Gigs' },
+    { id: 'upcoming', label: 'Upcoming Gigs' },
+    { id: 'scheduled-hidden', label: 'Scheduled / Hidden' },
+    { id: 'historic', label: 'Historic Gigs' }
+  ],
+  'gig-reporting': [
+    { id: 'confirm-gig', label: 'Confirm a Gig' },
+    { id: 'report-venue', label: 'Report a Venue' }
+  ],
+  'gig-negotiations': [
+    { id: 'gig_invites', label: 'Gig Invites' },
+    { id: 'gig_requests', label: 'Gig Requests' },
+    { id: 'confirmations', label: 'Confirmations' }
+  ],
+  'gig-planner': [
+    { id: 'calendar', label: 'View Calendar' },
+    { id: 'unavailability', label: '+Unavailability' }
+  ],
+  'gig-statistics': [
+    { id: 'performed', label: 'Gigs Performed' },
+    { id: 'locations', label: 'Gig Locations' },
+    { id: 'venues', label: 'Gig Venues' },
+    { id: 'earnings', label: 'Gig Earnings' }
+  ],
   'gig-calendar': [
-    { id: 'add', label: 'ADD/CREATE GIG' },
-    { id: 'upcoming', label: 'AMEND UPCOMING GIGS' },
-    { id: 'past', label: 'Past & Unscheduled' }
+    { id: 'add', label: '+Book a New Gig' },
+    { id: 'upcoming', label: '+Add Gig Manually' },
+    { id: 'past', label: 'View Calendar' }
   ],
   'gig-invites': [
     { id: 'overview', label: 'Overview' },
@@ -159,39 +206,66 @@ const sectionSubSections: Partial<Record<ArtistDashboardSection, SidebarSubSecti
     { id: 'history', label: 'Request History' }
   ],
   bio: [
-    { id: 'editor', label: 'Bio Editor' }
+    { id: 'editor', label: 'Artist Bio' }
   ],
   genres: [
-    { id: 'selector', label: 'Genre Selector' }
+    { id: 'selector', label: 'Artist Genres' }
   ],
   logo: [
-    { id: 'logo', label: 'Logo Upload' },
-    { id: 'header', label: 'Header Image' }
+    { id: 'logo', label: 'Logo' },
+    { id: 'header', label: 'Header' }
   ],
   photos: [
-    { id: 'gallery', label: 'Photo Gallery' }
+    { id: 'gallery', label: 'Photos' }
   ],
   videos: [
-    { id: 'upload', label: 'Add Videos' },
-    { id: 'manage', label: 'Manage Videos' }
+    { id: 'upload', label: 'Videos' },
+    { id: 'manage', label: 'Manage Video Links' }
   ],
   'music-upload': [
     { id: 'intro', label: 'Upload Intro' },
     { id: 'guide', label: 'Upload Guide' },
-    { id: 'workflow', label: 'Release Workflow' }
+    { id: 'workflow', label: '+Upload Music' }
+  ],
+  'music-uploads': [
+    { id: 'guide', label: 'Upload Guide' },
+    { id: 'workflow', label: '+Upload Music' },
+    { id: 'drafts', label: 'Draft Uploads' }
+  ],
+  'music-catalogue': [
+    { id: 'published', label: 'Published Music' },
+    { id: 'published-tracks', label: 'All Tracks' },
+    { id: 'published-singles', label: 'Singles' },
+    { id: 'published-eps', label: 'EPs' },
+    { id: 'published-albums', label: 'Albums' },
+    { id: 'scheduled', label: 'Scheduled Music' },
+    { id: 'scheduled-tracks', label: 'All Tracks' },
+    { id: 'scheduled-singles', label: 'Singles' },
+    { id: 'scheduled-eps', label: 'EPs' },
+    { id: 'scheduled-albums', label: 'Albums' }
+  ],
+  'music-statistics': [
+    { id: 'streams', label: 'All Streams' },
+    { id: 'downloads', label: 'All Downloads' },
+    { id: 'earnings', label: 'Music Earnings' }
   ],
   'music-manage': [
-    { id: 'library', label: 'Library' }
+    { id: 'library', label: 'Music Catalogue' }
   ],
   messages: [
     { id: 'gig_invites', label: 'Gig Invites' },
     { id: 'gig_requests', label: 'Gig Requests' },
-    { id: 'release_updates', label: 'Release Updates' },
-    { id: 'venue_updates', label: 'Venue Updates' },
-    { id: 'system', label: 'System' }
+    { id: 'colleagues', label: 'Colleague Messages' },
+    { id: 'auditions', label: 'Audition / Collab Msgs' },
+    { id: 'fans', label: 'Fan Messages' },
+    { id: 'artists', label: 'Artist Messages' },
+    { id: 'venues', label: 'Venue Messages' },
+    { id: 'services', label: 'Service Messages' },
+    { id: 'pros', label: 'MusicPro Messages' },
+    { id: 'system', label: 'System Messages' }
   ],
   type: [
-    { id: 'selector', label: 'Type Selector' }
+    { id: 'selector', label: 'Artist Type' }
   ]
 }
 
@@ -211,10 +285,14 @@ export function ArtistSidebar({
   const pathname = usePathname();
   const { signOut } = useAuth();
   const defaultExpandedSections = useMemo<Record<string, boolean>>(() => ({
-    profile: false,
-    musicManager: false,
+    basics: false,
+    media: false,
+    crew: false,
+    auditions: false,
+    banking: false,
     gigManager: false,
-    artworkMedia: false,
+    musicManager: false,
+    messages: false,
     administration: false
   }), [])
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
@@ -264,15 +342,27 @@ export function ArtistSidebar({
 
   useEffect(() => {
     const groupBySection: Partial<Record<ArtistDashboardSection, keyof typeof defaultExpandedSections>> = {
-      profile: 'profile',
-      payments: 'profile',
-      crew: 'profile',
-      auditions: 'profile',
-      contract: 'profile',
-      royalty: 'profile',
-      bio: 'profile',
-      genres: 'profile',
-      type: 'profile',
+      home: 'basics',
+      profile: 'basics',
+      contract: 'basics',
+      royalty: 'basics',
+      bio: 'basics',
+      genres: 'basics',
+      type: 'basics',
+      logo: 'media',
+      photos: 'media',
+      videos: 'media',
+      crew: 'crew',
+      auditions: 'auditions',
+      payments: 'banking',
+      'gig-bookings': 'gigManager',
+      'gig-reporting': 'gigManager',
+      'gig-negotiations': 'gigManager',
+      'gig-planner': 'gigManager',
+      'gig-statistics': 'gigManager',
+      'music-uploads': 'musicManager',
+      'music-catalogue': 'musicManager',
+      'music-statistics': 'musicManager',
       'music-upload': 'musicManager',
       'music-manage': 'musicManager',
       gigability: 'gigManager',
@@ -282,9 +372,7 @@ export function ArtistSidebar({
       'gig-past': 'gigManager',
       'gig-invites': 'gigManager',
       'gig-requests': 'gigManager',
-      logo: 'artworkMedia',
-      photos: 'artworkMedia',
-      videos: 'artworkMedia',
+      messages: 'messages',
     }
 
     const targetGroup = groupBySection[activeSection]
@@ -304,39 +392,52 @@ export function ArtistSidebar({
   }
 
   const mainMenuItems: { icon: typeof FileText; label: string; section: ArtistDashboardSection }[] = [
-    { icon: FileText, label: "Artist Dashboard", section: "profile" },
-    { icon: MessageSquare, label: "Messages", section: "messages" }
+    { icon: FileText, label: "Artist Home", section: "home" }
   ]
 
-  const profileItems = [
-    { icon: Banknote, label: "Artist Payments", section: "payments" as ArtistDashboardSection },
-    { icon: Users2, label: "Artist Crew", section: "crew" as ArtistDashboardSection },
-    { icon: Megaphone, label: "Auditions & Collabs", section: "auditions" as ArtistDashboardSection },
+  const artistBasicsItems = [
+    { icon: User, label: "Artist Basics", section: "profile" as ArtistDashboardSection },
+    { icon: Settings, label: "Artist Type", section: "type" as ArtistDashboardSection },
+    { icon: Music, label: "Artist Genres", section: "genres" as ArtistDashboardSection },
+    { icon: BookOpen, label: "Artist Bio", section: "bio" as ArtistDashboardSection },
     { icon: FileCheck, label: "Contract Status", section: "contract" as ArtistDashboardSection },
     { icon: DollarSign, label: "Default Gig Royalty Splits", section: "royalty" as ArtistDashboardSection },
-    { icon: BookOpen, label: "Artist Biography", section: "bio" as ArtistDashboardSection },
-    { icon: Music, label: "Artist Genres", section: "genres" as ArtistDashboardSection },
-    { icon: Settings, label: "Artist Type & Config", section: "type" as ArtistDashboardSection }
   ].filter(item => !(hideTypeSection && item.section === 'type'))
 
+  const artistMediaItems = [
+    { icon: Palette, label: "Logo & Header", section: "logo" as ArtistDashboardSection },
+    { icon: ImageIcon, label: "Photos", section: "photos" as ArtistDashboardSection },
+    { icon: Video, label: "Videos", section: "videos" as ArtistDashboardSection }
+  ]
+
+  const artistCrewItems = [
+    { icon: Users2, label: "Artist Crew", section: "crew" as ArtistDashboardSection }
+  ]
+
+  const auditionsItems = [
+    { icon: Megaphone, label: "Auditions & Collabs", section: "auditions" as ArtistDashboardSection }
+  ]
+
+  const artistBankingItems = [
+    { icon: Banknote, label: "Artist Banking", section: "payments" as ArtistDashboardSection }
+  ]
+
   const musicManagerItems = [
-    { icon: Music2, label: "Upload Music", section: "music-upload" as ArtistDashboardSection },
-    { icon: Music, label: "Manage Music", section: "music-manage" as ArtistDashboardSection }
+    { icon: Music2, label: "Music Uploads", section: "music-upload" as ArtistDashboardSection },
+    { icon: Music, label: "Music Catalogue", section: "music-manage" as ArtistDashboardSection }
   ]
 
   const gigManagerItems = [
     { icon: Clock, label: "Gig-Ability", section: "gigability" as ArtistDashboardSection },
-    { icon: Plus, label: "Add / Create Gig", section: "gig-create" as ArtistDashboardSection },
-    { icon: Edit, label: "Amend Upcoming Gigs", section: "gig-upcoming" as ArtistDashboardSection },
-    { icon: CalendarDays, label: "Past & Unscheduled", section: "gig-past" as ArtistDashboardSection },
-    { icon: Mail, label: "Gig Invites", section: "gig-invites" as ArtistDashboardSection },
-    { icon: Inbox, label: "Gig Requests", section: "gig-requests" as ArtistDashboardSection }
+    { icon: CalendarDays, label: "Gig Bookings", section: "gig-bookings" as ArtistDashboardSection },
+    { icon: FileCheck, label: "Gig Reporting", section: "gig-reporting" as ArtistDashboardSection },
+    { icon: Mail, label: "Gig Negotiations", section: "gig-negotiations" as ArtistDashboardSection },
+    { icon: CalendarDays, label: "Gig Planner", section: "gig-planner" as ArtistDashboardSection },
+    { icon: BarChart3, label: "Gig Statistics", section: "gig-statistics" as ArtistDashboardSection }
   ]
 
-  const artworkMediaItems = [
-    { icon: Palette, label: "Logo/Profile Artwork", section: "logo" as ArtistDashboardSection },
-    { icon: ImageIcon, label: "Photos", section: "photos" as ArtistDashboardSection },
-    { icon: Video, label: "Videos", section: "videos" as ArtistDashboardSection }
+  const messageItems = [
+    { icon: MessageSquare, label: "Messages", section: "messages" as ArtistDashboardSection }
   ]
 
   const renderSectionItems = (items: { icon: typeof FileText; label: string; section: ArtistDashboardSection }[]) => (
@@ -352,8 +453,8 @@ export function ArtistSidebar({
               disabled={disabled}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
                 } ${isActive
-                  ? "bg-purple-600/20 text-white"
-                  : "text-gray-400 hover:text-white hover:bg-purple-600/10"
+                  ? "bg-[#ff8fa31f] text-white shadow-[inset_0_0_0_1px_rgba(255,143,163,0.24)]"
+                  : "text-[#b7a8c2] hover:text-white hover:bg-white/5"
                 }`}
             >
               <div className="flex items-center space-x-2">
@@ -374,8 +475,8 @@ export function ArtistSidebar({
                       key={subKey}
                       onClick={() => handleSubSectionChange(item.section, subSection.id)}
                       className={`w-full text-left text-xs px-2 py-1 rounded transition-colors ${isSubActive
-                        ? 'bg-purple-500/20 text-white'
-                        : 'text-purple-200 hover:text-white hover:bg-purple-600/10'
+                        ? 'bg-white/10 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]'
+                        : 'text-[#c7bbd0] hover:text-white hover:bg-white/5'
                         }`}
                     >
                       {subSection.label}
@@ -397,10 +498,10 @@ export function ArtistSidebar({
         const hasUnreadMessages = item.section === 'messages' && unreadMessages > 0
         const isActive = activeSection === item.section && !disabled
         const itemClass = isActive
-          ? "bg-purple-600/20 text-white"
+          ? "bg-[#ff8fa31f] text-white shadow-[inset_0_0_0_1px_rgba(255,143,163,0.24)]"
           : hasUnreadMessages
             ? "bg-emerald-700/20 text-emerald-200 hover:bg-emerald-700/30"
-            : "text-gray-400 hover:text-white hover:bg-purple-600/10"
+            : "text-[#b7a8c2] hover:text-white hover:bg-white/5"
         return (
           <button
             key={index}
@@ -440,7 +541,7 @@ export function ArtistSidebar({
   ];
 
   return (
-    <aside className={`h-full w-full max-w-[20rem] bg-[#2a1b3d] p-6 text-left flex flex-col overflow-y-auto lg:w-64 ${className ?? ''}`}>
+    <aside className={`h-full w-full max-w-[20rem] bg-[linear-gradient(180deg,_#26122f_0%,_#211028_100%)] p-6 text-left flex flex-col overflow-y-auto lg:w-64 ${className ?? ''}`}>
       <div className="flex items-center mb-8">
         <Image
           src="/logos/Gigrilla Logo-Word alongside Logo-Head Dark Pruple Cerise Clear-PNG 3556 x 1086.png"
@@ -452,55 +553,100 @@ export function ArtistSidebar({
       </div>
 
       <div className="mb-6">
-        <h3 className="text-purple-300 text-sm uppercase tracking-wider mb-3 font-medium">EDIT PROFILE</h3>
+        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-[0.32em] text-[#9d8baa]">ARTIST WORKSPACE</h3>
         {!capabilities && (
-          <div className="bg-purple-900/40 border border-purple-400/40 rounded-lg p-3 text-xs text-purple-100">
+          <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-[#f0e9f5]">
             Select your official Artist Type to unlock the rest of the dashboard.
           </div>
         )}
       </div>
 
       <div className="mb-6">
-        <h3 className="text-gray-400 text-sm uppercase tracking-wider mb-3">Main Menu</h3>
+        <h3 className="mb-3 text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d]">Overview</h3>
         {renderMainMenuItems(mainMenuItems)}
       </div>
 
       <div className="mb-6">
         <button
-          onClick={() => toggleSection('profile')}
-          className="w-full flex items-center justify-between text-gray-400 text-sm uppercase tracking-wider mb-3 hover:text-white"
+          onClick={() => toggleSection('basics')}
+          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
         >
-          <span>PROFILE</span>
-          {expandedSections.profile ? (
+          <span>ARTIST PROFILE MENU</span>
+          {expandedSections.basics ? (
             <ChevronDown className="w-4 h-4" />
           ) : (
             <ChevronRight className="w-4 h-4" />
           )}
         </button>
-        {expandedSections.profile && renderSectionItems(profileItems)}
+        {expandedSections.basics && renderSectionItems(artistBasicsItems)}
       </div>
 
       <div className="mb-6">
         <button
-          onClick={() => toggleSection('musicManager')}
-          className="w-full flex items-center justify-between text-gray-400 text-sm uppercase tracking-wider mb-3 hover:text-white"
+          onClick={() => toggleSection('media')}
+          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
         >
-          <span>MUSIC MANAGER</span>
-          {expandedSections.musicManager ? (
+          <span>ARTIST MEDIA</span>
+          {expandedSections.media ? (
             <ChevronDown className="w-4 h-4" />
           ) : (
             <ChevronRight className="w-4 h-4" />
           )}
         </button>
-        {expandedSections.musicManager && renderSectionItems(musicManagerItems)}
+        {expandedSections.media && renderSectionItems(artistMediaItems)}
       </div>
 
-      <div className="mb-6 pt-4 border-t border-purple-900/50">
+      <div className="mb-6">
+        <button
+          onClick={() => toggleSection('crew')}
+          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
+        >
+          <span>ARTIST CREW</span>
+          {expandedSections.crew ? (
+            <ChevronDown className="w-4 h-4" />
+          ) : (
+            <ChevronRight className="w-4 h-4" />
+          )}
+        </button>
+        {expandedSections.crew && renderSectionItems(artistCrewItems)}
+      </div>
+
+      <div className="mb-6">
+        <button
+          onClick={() => toggleSection('auditions')}
+          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
+        >
+          <span>AUDITIONS & COLLABS</span>
+          {expandedSections.auditions ? (
+            <ChevronDown className="w-4 h-4" />
+          ) : (
+            <ChevronRight className="w-4 h-4" />
+          )}
+        </button>
+        {expandedSections.auditions && renderSectionItems(auditionsItems)}
+      </div>
+
+      <div className="mb-6">
+        <button
+          onClick={() => toggleSection('banking')}
+          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
+        >
+          <span>ARTIST BANKING</span>
+          {expandedSections.banking ? (
+            <ChevronDown className="w-4 h-4" />
+          ) : (
+            <ChevronRight className="w-4 h-4" />
+          )}
+        </button>
+        {expandedSections.banking && renderSectionItems(artistBankingItems)}
+      </div>
+
+      <div className="mb-6">
         <button
           onClick={() => toggleSection('gigManager')}
-          className="w-full flex items-center justify-between text-gray-400 text-sm uppercase tracking-wider mb-3 hover:text-white"
+          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
         >
-          <span>GIG MANAGER</span>
+          <span>GIG MENU</span>
           {expandedSections.gigManager ? (
             <ChevronDown className="w-4 h-4" />
           ) : (
@@ -512,23 +658,38 @@ export function ArtistSidebar({
 
       <div className="mb-6">
         <button
-          onClick={() => toggleSection('artworkMedia')}
-          className="w-full flex items-center gap-2 text-gray-400 text-sm uppercase tracking-wider mb-3 hover:text-white"
+          onClick={() => toggleSection('musicManager')}
+          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
         >
-          <span className="flex-1 text-left">ARTIST ARTWORK & MEDIA</span>
-          {expandedSections.artworkMedia ? (
+          <span>MUSIC MENU</span>
+          {expandedSections.musicManager ? (
             <ChevronDown className="w-4 h-4" />
           ) : (
             <ChevronRight className="w-4 h-4" />
           )}
         </button>
-        {expandedSections.artworkMedia && renderSectionItems(artworkMediaItems)}
+        {expandedSections.musicManager && renderSectionItems(musicManagerItems)}
+      </div>
+
+      <div className="mb-6 border-t border-white/8 pt-4">
+        <button
+          onClick={() => toggleSection('messages')}
+          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
+        >
+          <span>MESSAGE MENU</span>
+          {expandedSections.messages ? (
+            <ChevronDown className="w-4 h-4" />
+          ) : (
+            <ChevronRight className="w-4 h-4" />
+          )}
+        </button>
+        {expandedSections.messages && renderSectionItems(messageItems)}
       </div>
 
       <div className="flex-1">
         <button
           onClick={() => toggleSection('administration')}
-          className="w-full flex items-center justify-between text-gray-400 text-sm uppercase tracking-wider mb-3 hover:text-white"
+          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
         >
           <span>ADMINISTRATION</span>
           {expandedSections.administration ? (
@@ -545,7 +706,7 @@ export function ArtistSidebar({
                   key={index}
                   href={item.path}
                   onClick={item.onClick}
-                  className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-purple-600/10"
+                  className="w-full flex items-center space-x-3 rounded-lg px-3 py-2 text-[#b7a8c2] hover:bg-white/5 hover:text-white"
                 >
                   <item.icon className="w-4 h-4" />
                   <span className="text-sm">{item.label}</span>
@@ -555,8 +716,8 @@ export function ArtistSidebar({
                   key={index}
                   href={item.path}
                   className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${pathname === item.path
-                    ? "bg-purple-600/20 text-white"
-                    : "text-gray-400 hover:text-white hover:bg-purple-600/10"
+                    ? "bg-[#ff8fa31f] text-white shadow-[inset_0_0_0_1px_rgba(255,143,163,0.24)]"
+                    : "text-[#b7a8c2] hover:text-white hover:bg-white/5"
                     }`}
                 >
                   <item.icon className="w-4 h-4" />

@@ -30,26 +30,28 @@ function parseStoredGenreEntry(entry: string, families: GenreFamily[]): ArtistGe
 
   if (value.includes(':')) {
     const [familyIdRaw, typeIdRaw, subIdRaw] = value.split(':')
-    const familyId = familyIdRaw?.trim()
-    const typeId = typeIdRaw?.trim()
-    const subId = subIdRaw?.trim()
-    if (!familyId || !typeId) return null
+    const familyToken = familyIdRaw?.trim()
+    const typeToken = typeIdRaw?.trim()
+    const subToken = subIdRaw?.trim()
+    if (!familyToken || !typeToken) return null
 
-    const family = families.find((candidate) => candidate.id === familyId)
+    const family = families.find((candidate) => candidate.id === familyToken || candidate.name === familyToken)
     if (!family) return null
 
-    const type = family.mainGenres.find((candidate) => candidate.id === typeId)
+    const type = family.mainGenres.find((candidate) => candidate.id === typeToken || candidate.name === typeToken)
     if (!type) return null
 
-    if (subId) {
-      const sub = type.subGenres?.find((candidate) => candidate.id === subId)
+    let subId: string | undefined
+    if (subToken) {
+      const sub = type.subGenres?.find((candidate) => candidate.id === subToken || candidate.name === subToken)
       if (!sub) return null
+      subId = sub.id
     }
 
     return {
-      familyId,
-      typeId,
-      subId: subId || undefined
+      familyId: family.id,
+      typeId: type.id,
+      subId
     }
   }
 
@@ -112,7 +114,17 @@ export function ArtistGenresManager() {
         setProfileLoading(false)
       }
     }
+
+    const handleProfileUpdated = () => {
+      loadGenres()
+    }
+
     loadGenres()
+    window.addEventListener('artist-profile-updated', handleProfileUpdated)
+
+    return () => {
+      window.removeEventListener('artist-profile-updated', handleProfileUpdated)
+    }
   }, [])
 
   useEffect(() => {

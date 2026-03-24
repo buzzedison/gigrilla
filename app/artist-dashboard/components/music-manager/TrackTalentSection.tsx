@@ -7,6 +7,8 @@ import { Input } from '../../../components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select'
 import { Label } from '../../../components/ui/label'
 import { TrackData, creatorRoleOptions, producerRoleOptions, sessionArtistRoleOptions } from './types'
+import { ISNIHelperModal } from '../../../signup/components/ISNIHelperModal'
+import { IPIHelperModal } from '../../../signup/components/IPIHelperModal'
 
 interface TrackTalentSectionProps {
   track: TrackData
@@ -16,6 +18,8 @@ interface TrackTalentSectionProps {
 }
 
 export function TrackTalentSection({ track, trackIndex, onUpdate, onInviteArtist }: TrackTalentSectionProps) {
+  const helperButtonClassName = 'inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors whitespace-nowrap'
+
   const addPrimaryArtist = () => {
     const newArtist = {
       id: crypto.randomUUID(),
@@ -166,14 +170,24 @@ export function TrackTalentSection({ track, trackIndex, onUpdate, onInviteArtist
                     onChange={(e) => updatePrimaryArtist(artist.id, 'isni', e.target.value)}
                     placeholder="ISNI code"
                   />
-                  <a
-                    href="https://isni.org/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-purple-600 hover:text-purple-800 whitespace-nowrap flex items-center"
-                  >
-                    Get ISNI
-                  </a>
+                  <div className="flex gap-2">
+                    <ISNIHelperModal
+                      initialTab="get"
+                      trigger={
+                        <button type="button" className={helperButtonClassName}>
+                          Get ISNI
+                        </button>
+                      }
+                    />
+                    <ISNIHelperModal
+                      initialTab="find"
+                      trigger={
+                        <button type="button" className={helperButtonClassName}>
+                          Find ISNI
+                        </button>
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -227,12 +241,31 @@ export function TrackTalentSection({ track, trackIndex, onUpdate, onInviteArtist
               </div>
               <div>
                 <Label className="text-xs">Performer ISNI</Label>
-                <Input
-                  value={artist.isni}
-                  onChange={(e) => updateFeaturedArtist(artist.id, 'isni', e.target.value)}
-                  placeholder="ISNI code"
-                  className="mt-1"
-                />
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    value={artist.isni}
+                    onChange={(e) => updateFeaturedArtist(artist.id, 'isni', e.target.value)}
+                    placeholder="ISNI code"
+                  />
+                  <div className="flex gap-2">
+                    <ISNIHelperModal
+                      initialTab="get"
+                      trigger={
+                        <button type="button" className={helperButtonClassName}>
+                          Get ISNI
+                        </button>
+                      }
+                    />
+                    <ISNIHelperModal
+                      initialTab="find"
+                      trigger={
+                        <button type="button" className={helperButtonClassName}>
+                          Find ISNI
+                        </button>
+                      }
+                    />
+                  </div>
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2 mt-2">
@@ -285,12 +318,31 @@ export function TrackTalentSection({ track, trackIndex, onUpdate, onInviteArtist
               </div>
               <div>
                 <Label className="text-xs">Performer ISNI</Label>
-                <Input
-                  value={artist.isni}
-                  onChange={(e) => updateSessionArtist(artist.id, 'isni', e.target.value)}
-                  placeholder="ISNI code"
-                  className="mt-1"
-                />
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    value={artist.isni}
+                    onChange={(e) => updateSessionArtist(artist.id, 'isni', e.target.value)}
+                    placeholder="ISNI code"
+                  />
+                  <div className="flex gap-2">
+                    <ISNIHelperModal
+                      initialTab="get"
+                      trigger={
+                        <button type="button" className={helperButtonClassName}>
+                          Get ISNI
+                        </button>
+                      }
+                    />
+                    <ISNIHelperModal
+                      initialTab="find"
+                      trigger={
+                        <button type="button" className={helperButtonClassName}>
+                          Find ISNI
+                        </button>
+                      }
+                    />
+                  </div>
+                </div>
               </div>
             </div>
             <div className="mb-3">
@@ -370,21 +422,59 @@ export function TrackTalentSection({ track, trackIndex, onUpdate, onInviteArtist
               </div>
               <div>
                 <Label className="text-xs">ISNI</Label>
-                <Input
-                  value={creator.isni}
-                  onChange={(e) => updateCreator(creator.id, 'isni', e.target.value)}
-                  placeholder="ISNI code"
-                  className="mt-1"
-                />
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    value={creator.isni}
+                    onChange={(e) => updateCreator(creator.id, 'isni', e.target.value)}
+                    placeholder="ISNI code"
+                  />
+                  <div className="flex gap-2">
+                    <ISNIHelperModal
+                      initialTab="get"
+                      trigger={
+                        <button type="button" className={helperButtonClassName}>
+                          Get ISNI
+                        </button>
+                      }
+                    />
+                    <ISNIHelperModal
+                      initialTab="find"
+                      trigger={
+                        <button type="button" className={helperButtonClassName}>
+                          Find ISNI
+                        </button>
+                      }
+                    />
+                  </div>
+                </div>
               </div>
               <div>
                 <Label className="text-xs">IPI/CAE</Label>
-                <Input
-                  value={creator.ipiCae}
-                  onChange={(e) => updateCreator(creator.id, 'ipiCae', e.target.value)}
-                  placeholder="IPI/CAE code"
-                  className="mt-1"
-                />
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    value={creator.ipiCae}
+                    onChange={(e) => updateCreator(creator.id, 'ipiCae', e.target.value)}
+                    placeholder="IPI/CAE code"
+                  />
+                  <div className="flex gap-2">
+                    <IPIHelperModal
+                      initialTab="get"
+                      trigger={
+                        <button type="button" className={helperButtonClassName}>
+                          Get IPI
+                        </button>
+                      }
+                    />
+                    <IPIHelperModal
+                      initialTab="find"
+                      trigger={
+                        <button type="button" className={helperButtonClassName}>
+                          Find IPI
+                        </button>
+                      }
+                    />
+                  </div>
+                </div>
               </div>
             </div>
             <div className="mb-3">
@@ -464,21 +554,59 @@ export function TrackTalentSection({ track, trackIndex, onUpdate, onInviteArtist
               </div>
               <div>
                 <Label className="text-xs">ISNI</Label>
-                <Input
-                  value={producer.isni}
-                  onChange={(e) => updateProducer(producer.id, 'isni', e.target.value)}
-                  placeholder="ISNI code"
-                  className="mt-1"
-                />
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    value={producer.isni}
+                    onChange={(e) => updateProducer(producer.id, 'isni', e.target.value)}
+                    placeholder="ISNI code"
+                  />
+                  <div className="flex gap-2">
+                    <ISNIHelperModal
+                      initialTab="get"
+                      trigger={
+                        <button type="button" className={helperButtonClassName}>
+                          Get ISNI
+                        </button>
+                      }
+                    />
+                    <ISNIHelperModal
+                      initialTab="find"
+                      trigger={
+                        <button type="button" className={helperButtonClassName}>
+                          Find ISNI
+                        </button>
+                      }
+                    />
+                  </div>
+                </div>
               </div>
               <div>
                 <Label className="text-xs">IPI/CAE (Optional)</Label>
-                <Input
-                  value={producer.ipiCae}
-                  onChange={(e) => updateProducer(producer.id, 'ipiCae', e.target.value)}
-                  placeholder="IPI/CAE code"
-                  className="mt-1"
-                />
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    value={producer.ipiCae}
+                    onChange={(e) => updateProducer(producer.id, 'ipiCae', e.target.value)}
+                    placeholder="IPI/CAE code"
+                  />
+                  <div className="flex gap-2">
+                    <IPIHelperModal
+                      initialTab="get"
+                      trigger={
+                        <button type="button" className={helperButtonClassName}>
+                          Get IPI
+                        </button>
+                      }
+                    />
+                    <IPIHelperModal
+                      initialTab="find"
+                      trigger={
+                        <button type="button" className={helperButtonClassName}>
+                          Find IPI
+                        </button>
+                      }
+                    />
+                  </div>
+                </div>
               </div>
             </div>
             <div className="mb-3">

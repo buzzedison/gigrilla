@@ -34,8 +34,11 @@ const parseArtistTypeId = (value: unknown): number | null => {
 
 interface GenreTaxonomyLookup {
   familyIds: Set<string>
+  familyIdByName: Map<string, string>
   typeFamilyById: Map<string, string>
+  typeFamilyByName: Map<string, { typeId: string; familyId: string }>
   subTypeById: Map<string, { typeId: string; familyId: string }>
+  subTypeByName: Map<string, { subTypeId: string; typeId: string; familyId: string }>
 }
 
 const areStringArraysEqual = (a: string[], b: string[]) => {
@@ -45,9 +48,9 @@ const areStringArraysEqual = (a: string[], b: string[]) => {
 
 const loadGenreTaxonomyLookup = async (supabase: ReturnType<typeof createServerClient>): Promise<GenreTaxonomyLookup> => {
   const [{ data: families, error: familiesError }, { data: types, error: typesError }, { data: subTypes, error: subTypesError }] = await Promise.all([
-    supabase.from('genre_families').select('id'),
-    supabase.from('genre_types').select('id,family_id'),
-    supabase.from('genre_subtypes').select('id,type_id')
+    supabase.from('genre_families').select('id,name'),
+    supabase.from('genre_types').select('id,family_id,name'),
+    supabase.from('genre_subtypes').select('id,type_id,name')
   ])
 
   if (familiesError || typesError || subTypesError) {
@@ -59,21 +62,37 @@ const loadGenreTaxonomyLookup = async (supabase: ReturnType<typeof createServerC
   }
 
   const familyRows = Array.isArray(families) ? families as Array<{ id: string }> : []
-  const typeRows = Array.isArray(types) ? types as Array<{ id: string; family_id: string }> : []
-  const subTypeRows = Array.isArray(subTypes) ? subTypes as Array<{ id: string; type_id: string }> : []
+  const typeRows = Array.isArray(types) ? types as Array<{ id: string; family_id: string; name?: string }> : []
+  const subTypeRows = Array.isArray(subTypes) ? subTypes as Array<{ id: string; type_id: string; name?: string }> : []
 
   const familyIds = new Set<string>(familyRows.map((family) => family.id))
+  const familyIdByName = new Map<string, string>()
+  for (const familyRow of familyRows as Array<{ id: string; name?: string }>) {
+    if (typeof familyRow.name === 'string' && familyRow.name.trim()) {
+      familyIdByName.set(familyRow.name.trim().toLowerCase(), familyRow.id)
+    }
+  }
   const typeFamilyById = new Map<string, string>(typeRows.map((typeRow) => [typeRow.id, typeRow.family_id]))
+  const typeFamilyByName = new Map<string, { typeId: string; familyId: string }>()
+  for (const typeRow of typeRows) {
+    if (typeof typeRow.name === 'string' && typeRow.name.trim()) {
+      typeFamilyByName.set(typeRow.name.trim().toLowerCase(), { typeId: typeRow.id, familyId: typeRow.family_id })
+    }
+  }
 
   const subTypeEntries: Array<[string, { typeId: string; familyId: string }]> = []
+  const subTypeByName = new Map<string, { subTypeId: string; typeId: string; familyId: string }>()
   for (const subType of subTypeRows) {
     const familyId = typeFamilyById.get(subType.type_id)
     if (!familyId) continue
     subTypeEntries.push([subType.id, { typeId: subType.type_id, familyId }])
+    if (typeof subType.name === 'string' && subType.name.trim()) {
+      subTypeByName.set(subType.name.trim().toLowerCase(), { subTypeId: subType.id, typeId: subType.type_id, familyId })
+    }
   }
   const subTypeById = new Map<string, { typeId: string; familyId: string }>(subTypeEntries)
 
-  return { familyIds, typeFamilyById, subTypeById }
+  return { familyIds, familyIdByName, typeFamilyById, typeFamilyByName, subTypeById, subTypeByName }
 }
 
 const normalizePreferredGenreIds = (rawValues: unknown, taxonomy: GenreTaxonomyLookup) => {
@@ -88,21 +107,37 @@ const normalizePreferredGenreIds = (rawValues: unknown, taxonomy: GenreTaxonomyL
     if (!value) continue
 
     if (value.includes(':')) {
-      const [familyIdRaw, typeIdRaw, subIdRaw] = value.split(':')
-      const familyId = familyIdRaw?.trim()
-      const typeId = typeIdRaw?.trim()
-      const subId = subIdRaw?.trim()
-      if (!familyId || !typeId) continue
+      const [familyTokenRaw, typeTokenRaw, subTokenRaw] = value.split(':')
+      const familyToken = familyTokenRaw?.trim()
+      const typeToken = typeTokenRaw?.trim()
+      const subToken = subTokenRaw?.trim()
+      if (!familyToken || !typeToken) continue
 
-      const expectedFamilyId = taxonomy.typeFamilyById.get(typeId)
-      if (!expectedFamilyId || expectedFamilyId !== familyId) continue
+      const resolvedFamilyId =
+        taxonomy.familyIds.has(familyToken)
+          ? familyToken
+          : (taxonomy.familyIdByName.get(familyToken.toLowerCase()) ?? null)
 
-      if (subId) {
-        const subTypeInfo = taxonomy.subTypeById.get(subId)
-        if (!subTypeInfo || subTypeInfo.typeId !== typeId || subTypeInfo.familyId !== familyId) continue
+      const resolvedType =
+        taxonomy.typeFamilyById.has(typeToken)
+          ? { typeId: typeToken, familyId: taxonomy.typeFamilyById.get(typeToken)! }
+          : (taxonomy.typeFamilyByName.get(typeToken.toLowerCase()) ?? null)
+
+      if (!resolvedFamilyId || !resolvedType || resolvedType.familyId !== resolvedFamilyId) continue
+
+      let resolvedSubId: string | null = null
+      if (subToken) {
+        const subTypeInfo =
+          taxonomy.subTypeById.has(subToken)
+            ? { subTypeId: subToken, ...taxonomy.subTypeById.get(subToken)! }
+            : (taxonomy.subTypeByName.get(subToken.toLowerCase()) ?? null)
+        if (!subTypeInfo || subTypeInfo.typeId !== resolvedType.typeId || subTypeInfo.familyId !== resolvedFamilyId) continue
+        resolvedSubId = subTypeInfo.subTypeId
       }
 
-      const canonicalValue = subId ? `${familyId}:${typeId}:${subId}` : `${familyId}:${typeId}`
+      const canonicalValue = resolvedSubId
+        ? `${resolvedFamilyId}:${resolvedType.typeId}:${resolvedSubId}`
+        : `${resolvedFamilyId}:${resolvedType.typeId}`
       if (!seen.has(canonicalValue)) {
         seen.add(canonicalValue)
         normalized.push(canonicalValue)
@@ -329,24 +364,20 @@ export async function GET() {
     }
 
     try {
-      const requiresNormalization = artistGenreIds.some((value) => !value.includes(':'))
-
-      if (requiresNormalization) {
+      if (artistGenreIds.length > 0) {
         const taxonomyLookup = await loadGenreTaxonomyLookup(supabase)
+        const normalizedArtistGenres = normalizePreferredGenreIds(artistGenreIds, taxonomyLookup)
 
-        if (requiresNormalization) {
-          const normalizedArtistGenres = normalizePreferredGenreIds(artistGenreIds, taxonomyLookup)
-          if (normalizedArtistGenres.length > 0) {
-            responseProfileData = { ...responseProfileData, preferred_genre_ids: normalizedArtistGenres }
-            if (!areStringArraysEqual(artistGenreIds, normalizedArtistGenres) && profileId) {
-              await supabase
-                .from('user_profiles')
-                .update({
-                  preferred_genre_ids: normalizedArtistGenres,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', profileId)
-            }
+        if (!areStringArraysEqual(artistGenreIds, normalizedArtistGenres)) {
+          responseProfileData = { ...responseProfileData, preferred_genre_ids: normalizedArtistGenres }
+          if (profileId) {
+            await supabase
+              .from('user_profiles')
+              .update({
+                preferred_genre_ids: normalizedArtistGenres,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', profileId)
           }
         }
       }

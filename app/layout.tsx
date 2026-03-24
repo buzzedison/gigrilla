@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Lexend, Rajdhani } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../lib/auth-context";
 import PasswordProtection from './components/PasswordProtection';
+import { GlobalMusicPlayerDock } from "./components/GlobalMusicPlayerDock";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -67,6 +68,7 @@ export default function RootLayout({
         <AuthProvider>
           <PasswordProtection>
             {children}
+            <GlobalMusicPlayerDock />
           </PasswordProtection>
         </AuthProvider>
       </body>

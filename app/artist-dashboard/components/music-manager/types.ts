@@ -338,10 +338,13 @@ export interface TrackData {
   audioFormat: string
   dolbyAtmosFileUrl: string
   previewStartTime: number // seconds for 30sFP
+  hasNoLyrics: boolean
+  lyricsInputMode: 'paste' | 'upload'
   lyrics: string
   lyricsConfirmed: boolean
   lyricsFile: File | null
   lyricsFileUrl: string
+  hasNoVideo: boolean
   videoUrl: string
   videoUrlConfirmed: boolean
   durationSeconds: number
@@ -385,10 +388,13 @@ export const createTrackData = (trackNumber: number): TrackData => ({
   audioFormat: '',
   dolbyAtmosFileUrl: '',
   previewStartTime: 0,
+  hasNoLyrics: false,
+  lyricsInputMode: 'paste',
   lyrics: '',
   lyricsConfirmed: false,
   lyricsFile: null,
   lyricsFileUrl: '',
+  hasNoVideo: false,
   videoUrl: '',
   videoUrlConfirmed: false,
   durationSeconds: 0,

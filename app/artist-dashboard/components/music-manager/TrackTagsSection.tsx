@@ -365,21 +365,31 @@ export function TrackTagsSection({ track, trackIndex, onUpdate, applyToAll }: Tr
         <Label htmlFor={`primary-mood-${trackIndex}`}>
           Primary Mood <span className="text-red-500">*</span>
         </Label>
-        <Select
-          value={track.primaryMood}
-          onValueChange={(value) => onUpdate('primaryMood', value)}
-        >
-          <SelectTrigger className="mt-1">
-            <SelectValue placeholder="Select primary mood" />
-          </SelectTrigger>
-          <SelectContent>
-            {moodOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap gap-2 mt-2">
+          {moodOptions.map((mood) => {
+            const isSelected = track.primaryMood === mood.value
+            return (
+              <button
+                key={mood.value}
+                type="button"
+                onClick={() => {
+                  const nextPrimaryMood = mood.value
+                  onUpdate('primaryMood', nextPrimaryMood)
+                  if (nextPrimaryMood !== 'none' && track.secondaryMoods.includes(nextPrimaryMood)) {
+                    onUpdate('secondaryMoods', track.secondaryMoods.filter((item) => item !== nextPrimaryMood))
+                  }
+                }}
+                className={`px-3 py-1 text-sm rounded-full border ${
+                  isSelected
+                    ? 'bg-purple-100 border-purple-500 text-purple-700'
+                    : 'bg-white border-gray-300 text-gray-700 hover:border-gray-400'
+                }`}
+              >
+                {mood.label}
+              </button>
+            )
+          })}
+        </div>
         {applyToAll && (
           <label className="flex items-center gap-2 mt-2 text-sm text-gray-600 cursor-pointer">
             <input

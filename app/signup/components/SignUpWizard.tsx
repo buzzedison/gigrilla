@@ -797,6 +797,7 @@ type FanProfileSnapshot = {
   account_type?: string | null
   onboarding_completed?: boolean | null
   username?: string | null
+  preferred_genre_ids?: string[] | null
   contact_details?: Record<string, unknown> | null
   location_details?: Record<string, unknown> | null
   music_preferences?: Record<string, unknown> | null
@@ -806,6 +807,7 @@ type FanProfileSnapshot = {
 type ArtistProfileSnapshot = {
   artist_type_id?: number | null
   artist_sub_types?: unknown
+  preferred_genre_ids?: string[] | null
   stage_name?: string | null
   established_date?: string | null
   performing_members?: number | null
@@ -969,6 +971,8 @@ export function SignUpWizard() {
   const [hasResumedOnboarding, setHasResumedOnboarding] = useState(false);
   const [fanProfileCompletedFromDb, setFanProfileCompletedFromDb] = useState(false);
   const [fanCompletionCheckFinished, setFanCompletionCheckFinished] = useState(!onboardingParam);
+  const [fanPreferredGenreIdsSeed, setFanPreferredGenreIdsSeed] = useState<string[]>([])
+  const [artistHasSavedPreferredGenres, setArtistHasSavedPreferredGenres] = useState(false)
   const [subscriptionConfirmed, setSubscriptionConfirmed] = useState(false);
   const [artistRedirectLoading, setArtistRedirectLoading] = useState(onboardingParam === 'artist');
 
@@ -1148,8 +1152,12 @@ export function SignUpWizard() {
 
         const profile = (result.data ?? null) as FanProfileSnapshot | null;
         const dbOnboardingCompleted = hasCompletedFullFanProfile(profile);
+        const savedFanPreferredGenreIds = Array.isArray(profile?.preferred_genre_ids)
+          ? profile.preferred_genre_ids.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+          : []
         if (!cancelled) {
           setFanProfileCompletedFromDb(dbOnboardingCompleted)
+          setFanPreferredGenreIdsSeed(savedFanPreferredGenreIds)
         }
         
         console.log('SignUpWizard: Onboarding check', {
@@ -1752,6 +1760,9 @@ export function SignUpWizard() {
         const savedSubTypeLabels = getArtistSubTypeLabels(profile.artist_sub_types, artistTypeId)
         const firstSavedSubType = savedSubTypeLabels[0] || ""
         const savedInstrumentSelections = deserializeInstruments3Tier(toTrimmedString(profile.instrument))
+        const savedArtistPreferredGenreIds = Array.isArray(profile.preferred_genre_ids)
+          ? profile.preferred_genre_ids.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+          : []
         const recordLabelPhone = splitPhoneNumber(toTrimmedString(profile.record_label_phone))
         const publisherPhone = splitPhoneNumber(toTrimmedString(profile.music_publisher_phone))
         const managerPhone = splitPhoneNumber(toTrimmedString(profile.artist_manager_phone))
@@ -1774,6 +1785,8 @@ export function SignUpWizard() {
           composerOption: prev.composerOption || toTrimmedString(profile.composer_option),
           composerGenres: prev.composerGenres || toDelimitedString(profile.composer_genres),
         }))
+
+        setArtistHasSavedPreferredGenres(savedArtistPreferredGenreIds.length > 0)
 
         setArtistProfile((prev) => ({
           ...prev,
@@ -2668,6 +2681,9 @@ export function SignUpWizard() {
               body: JSON.stringify({
                 artist_type_id: artistSelection.typeId ? parseInt(artistSelection.typeId.replace('type', '')) : null,
                 artist_sub_types: artistSelection.subType ? [artistSelection.subType] : [],
+                ...(!artistHasSavedPreferredGenres && fanPreferredGenreIdsSeed.length > 0
+                  ? { preferred_genre_ids: fanPreferredGenreIdsSeed }
+                  : {}),
                 vocal_sound_types: artistSelection.vocalSoundTypes || null,
                 vocal_genre_styles: artistSelection.vocalGenreStyles || null,
                 availability: artistSelection.availability || null,
@@ -7358,6 +7374,9 @@ export function SignUpWizard() {
                         booking_agent_phone: artistProfile.bookingAgentContactPhoneNumber ? `${artistProfile.bookingAgentContactPhoneCode} ${artistProfile.bookingAgentContactPhoneNumber}`.trim() : null,
                         artist_type_id: artistSelection.typeId ? parseInt(artistSelection.typeId.replace('type', '')) : null,
                         artist_sub_types: artistSelection.subType ? [artistSelection.subType] : [],
+                        ...(!artistHasSavedPreferredGenres && fanPreferredGenreIdsSeed.length > 0
+                          ? { preferred_genre_ids: fanPreferredGenreIdsSeed }
+                          : {}),
                         vocal_sound_types: artistSelection.vocalSoundTypes || null,
                         vocal_genre_styles: artistSelection.vocalGenreStyles || null,
                         availability: artistSelection.availability || null,

@@ -205,9 +205,64 @@ const validateISRC = (isrc: string): { valid: boolean; error?: string } => {
 
 const normalizeISWCInput = (value: string) => value.replace(/[.\s]/g, '').toUpperCase()
 
+const resolveMusicalWorkTitle = (track: Pick<TrackData, 'trackTitle' | 'musicalWorkTitle'>) => {
+  const musicalWorkTitle = track.musicalWorkTitle.trim()
+  if (musicalWorkTitle) return musicalWorkTitle
+  return track.trackTitle.trim()
+}
+
+const buildTrackPayload = (track: TrackData, releaseId: string, releaseVersion: string) => ({
+  releaseId,
+  trackNumber: track.trackNumber,
+  trackTitle: track.trackTitle,
+  trackTitleConfirmed: track.trackTitleConfirmed,
+  trackVersion: track.trackVersion || releaseVersion,
+  masterRecordingDate: track.masterRecordingDate,
+  isrc: track.isrc.replace(/-/g, '').toUpperCase(),
+  isrcConfirmed: track.isrcConfirmed,
+  iswc: track.iswc,
+  iswcConfirmed: track.iswcConfirmed,
+  musicalWorkTitle: resolveMusicalWorkTitle(track),
+  musicalWorkTitleConfirmed: track.musicalWorkTitleConfirmed,
+  primaryArtists: track.primaryArtists,
+  featuredArtists: track.featuredArtists,
+  sessionArtists: track.sessionArtists,
+  creators: track.creators,
+  producers: track.producers,
+  coverRights: track.coverRights,
+  coverLicenseUrl: track.coverLicenseUrl,
+  remixRights: track.remixRights,
+  remixAuthorizationUrl: track.remixAuthorizationUrl,
+  samplesRights: track.samplesRights,
+  samplesClearanceUrl: track.samplesClearanceUrl,
+  primaryGenre: track.primaryGenre,
+  secondaryGenre: track.secondaryGenre,
+  primaryMood: track.primaryMood,
+  secondaryMoods: track.secondaryMoods,
+  primaryLanguage: track.primaryLanguage,
+  secondaryLanguage: track.secondaryLanguage,
+  explicitContent: track.explicitContent,
+  childSafeContent: track.childSafeContent,
+  audioFileUrl: track.audioFileUrl,
+  audioFileSize: track.audioFileSize,
+  audioFormat: track.audioFormat,
+  dolbyAtmosFileUrl: track.dolbyAtmosFileUrl,
+  previewStartTime: track.previewStartTime,
+  hasNoLyrics: track.hasNoLyrics,
+  lyricsInputMode: track.lyricsInputMode,
+  lyrics: track.lyrics,
+  lyricsConfirmed: track.lyricsConfirmed,
+  lyricsFileUrl: track.lyricsFileUrl,
+  hasNoVideo: track.hasNoVideo,
+  videoUrl: track.videoUrl,
+  videoUrlConfirmed: track.videoUrlConfirmed,
+  durationSeconds: track.durationSeconds
+})
+
 export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksUpdate }: TrackUploadSectionProps) {
   const [tracks, setTracks] = useState<TrackData[]>([])
   const [defaultPrimaryArtists, setDefaultPrimaryArtists] = useState<TrackData['primaryArtists']>([])
+  const [defaultCreators, setDefaultCreators] = useState<TrackData['creators']>([])
   const [uploadingTrackIndex, setUploadingTrackIndex] = useState<number | null>(null)
   const [uploadProgress, setUploadProgress] = useState<Record<number, number>>({})
   const [isLoadingTracks, setIsLoadingTracks] = useState(true)
@@ -232,6 +287,7 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
         const result = await response.json()
         const stageName = typeof result?.data?.stage_name === 'string' ? result.data.stage_name.trim() : ''
         const performerIsni = typeof result?.data?.performer_isni === 'string' ? result.data.performer_isni.trim() : ''
+        const creatorIpiCae = typeof result?.data?.creator_ipi_cae === 'string' ? result.data.creator_ipi_cae.trim() : ''
 
         if (!cancelled && stageName) {
           setDefaultPrimaryArtists([
@@ -239,6 +295,17 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
               id: 'artist-profile-owner',
               name: stageName,
               isni: performerIsni,
+              confirmed: true
+            }
+          ])
+
+          setDefaultCreators([
+            {
+              id: 'artist-profile-creator',
+              name: stageName,
+              isni: performerIsni,
+              ipiCae: creatorIpiCae,
+              roles: [],
               confirmed: true
             }
           ])
@@ -291,7 +358,7 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                 isrcConfirmed: dbTrack.isrc_confirmed || false,
                 iswc: dbTrack.iswc || '',
                 iswcConfirmed: dbTrack.iswc_confirmed || false,
-                musicalWorkTitle: dbTrack.musical_work_title || '',
+                musicalWorkTitle: dbTrack.musical_work_title || dbTrack.track_title || '',
                 musicalWorkTitleConfirmed: dbTrack.musical_work_title_confirmed || false,
                 primaryArtists: dbTrack.primary_artists || [],
                 featuredArtists: dbTrack.featured_artists || [],
@@ -320,10 +387,13 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                 audioFormat: dbTrack.audio_format || '',
                 dolbyAtmosFileUrl: dbTrack.dolby_atmos_file_url || '',
                 previewStartTime: dbTrack.preview_start_time || 0,
+                hasNoLyrics: dbTrack.no_lyrics || false,
+                lyricsInputMode: dbTrack.lyrics_input_mode === 'upload' ? 'upload' : 'paste',
                 lyrics: dbTrack.lyrics || '',
                 lyricsConfirmed: dbTrack.lyrics_confirmed || false,
                 lyricsFile: null,
                 lyricsFileUrl: dbTrack.lyrics_file_url || '',
+                hasNoVideo: dbTrack.no_video || false,
                 videoUrl: dbTrack.video_url || '',
                 videoUrlConfirmed: dbTrack.video_url_confirmed || false,
                 durationSeconds: dbTrack.duration_seconds || 0,
@@ -345,6 +415,11 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                   existingTrack
                     ? {
                         ...existingTrack,
+                        musicalWorkTitle: resolveMusicalWorkTitle(existingTrack),
+                        creators:
+                          existingTrack.creators?.length
+                            ? existingTrack.creators
+                            : defaultCreators,
                         primaryArtists:
                           existingTrack.primaryArtists?.length
                             ? existingTrack.primaryArtists
@@ -352,6 +427,7 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                       }
                     : {
                         ...fallbackTrack,
+                        creators: defaultCreators,
                         primaryArtists: defaultPrimaryArtists
                       }
                 )
@@ -378,6 +454,7 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
           for (let i = 1; i <= releaseData.trackCount; i++) {
             newTracks.push({
               ...createTrackData(i),
+              creators: defaultCreators,
               primaryArtists: defaultPrimaryArtists
             })
           }
@@ -409,20 +486,20 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
   }, [onTracksUpdate, releaseData.trackCount, releaseId])
 
   useEffect(() => {
-    if (defaultPrimaryArtists.length === 0) return
+    if (defaultPrimaryArtists.length === 0 && defaultCreators.length === 0) return
 
     setTracks((prev) => {
       if (prev.length === 0) return prev
 
-      const updated = prev.map((track) =>
-        track.primaryArtists?.length
-          ? track
-          : { ...track, primaryArtists: defaultPrimaryArtists }
-      )
+      const updated = prev.map((track) => ({
+        ...track,
+        primaryArtists: track.primaryArtists?.length ? track.primaryArtists : defaultPrimaryArtists,
+        creators: track.creators?.length ? track.creators : defaultCreators
+      }))
       onTracksUpdate?.(updated)
       return updated
     })
-  }, [defaultPrimaryArtists, onTracksUpdate])
+  }, [defaultCreators, defaultPrimaryArtists, onTracksUpdate])
 
 
   const updateTrack = (index: number, field: keyof TrackData, value: unknown) => {
@@ -464,6 +541,48 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
     await uploadAudioFile(index, file)
   }
 
+  const parseUploadFailure = (xhr: XMLHttpRequest): { success: false; error: string } => {
+    const rawText = xhr.responseText?.trim() || ''
+    const contentType = xhr.getResponseHeader('content-type') || ''
+
+    if (contentType.includes('application/json') && rawText) {
+      try {
+        const parsed = JSON.parse(rawText) as { error?: string; details?: string }
+        return {
+          success: false,
+          error: parsed.error || parsed.details || 'Upload failed'
+        }
+      } catch {
+        // Fall through to the generic parser below.
+      }
+    }
+
+    if (xhr.status === 413 || /payload too large/i.test(rawText)) {
+      return {
+        success: false,
+        error: 'Upload failed before Gigrilla could process the file. The file is still only selected locally and has not been uploaded.'
+      }
+    }
+
+    if (rawText) {
+      const compactText = rawText
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 180)
+
+      return {
+        success: false,
+        error: compactText || `Upload failed with status ${xhr.status}`
+      }
+    }
+
+    return {
+      success: false,
+      error: `Upload failed with status ${xhr.status || 'unknown'}. The file is still only selected locally and has not been uploaded.`
+    }
+  }
+
   const uploadAudioFile = async (index: number, file: File) => {
     if (!releaseId) {
       showNotification('Release Not Saved', 'Please save the release first before uploading tracks.', 'warning')
@@ -492,15 +611,15 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
         })
 
         xhr.addEventListener('load', () => {
-          try {
-            const response = JSON.parse(xhr.responseText)
-            if (xhr.status >= 200 && xhr.status < 300) {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText)
               resolve(response)
-            } else {
-              resolve({ success: false, error: response.error || 'Upload failed' })
+            } catch {
+              resolve(parseUploadFailure(xhr))
             }
-          } catch {
-            resolve({ success: false, error: 'Invalid server response' })
+          } else {
+            resolve(parseUploadFailure(xhr))
           }
         })
 
@@ -537,10 +656,16 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
           'success'
         )
       } else {
+        updateTrack(index, 'audioFileUrl', '')
+        updateTrack(index, 'audioFileSize', 0)
+        updateTrack(index, 'uploaded', false)
         showNotification('Upload Failed', result.error || 'Failed to upload audio file. Please try again.', 'error')
       }
     } catch (error) {
       console.error('Error uploading audio:', error)
+      updateTrack(index, 'audioFileUrl', '')
+      updateTrack(index, 'audioFileSize', 0)
+      updateTrack(index, 'uploaded', false)
       showNotification('Upload Error', 'Failed to upload audio file. Please check your connection and try again.', 'error')
     } finally {
       setUploadingTrackIndex(null)
@@ -582,8 +707,18 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
       if (result.success && result.url) {
         // Read lyrics file content
         const text = await file.text()
+        updateTrack(index, 'hasNoLyrics', false)
+        updateTrack(index, 'lyricsInputMode', 'upload')
         updateTrack(index, 'lyrics', text)
         updateTrack(index, 'lyricsFileUrl', result.url)
+        updateTrack(index, 'lyricsConfirmed', false)
+        await saveTrackSilently(index, {
+          hasNoLyrics: false,
+          lyricsInputMode: 'upload',
+          lyrics: text,
+          lyricsFileUrl: result.url,
+          lyricsConfirmed: false
+        })
       } else {
         showNotification('Upload Failed', result.error || 'Failed to upload lyrics file. Please try again.', 'error')
       }
@@ -739,50 +874,7 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
     const mergedTrack: TrackData = { ...track, ...overrides }
 
     try {
-      const payload = {
-        releaseId,
-        trackNumber: mergedTrack.trackNumber,
-        trackTitle: mergedTrack.trackTitle,
-        trackTitleConfirmed: mergedTrack.trackTitleConfirmed,
-        trackVersion: mergedTrack.trackVersion || releaseData.releaseVersion,
-        masterRecordingDate: mergedTrack.masterRecordingDate,
-        isrc: mergedTrack.isrc.replace(/-/g, '').toUpperCase(),
-        isrcConfirmed: mergedTrack.isrcConfirmed,
-        iswc: mergedTrack.iswc,
-        iswcConfirmed: mergedTrack.iswcConfirmed,
-        musicalWorkTitle: mergedTrack.musicalWorkTitle,
-        musicalWorkTitleConfirmed: mergedTrack.musicalWorkTitleConfirmed,
-        primaryArtists: mergedTrack.primaryArtists,
-        featuredArtists: mergedTrack.featuredArtists,
-        sessionArtists: mergedTrack.sessionArtists,
-        creators: mergedTrack.creators,
-        producers: mergedTrack.producers,
-        coverRights: mergedTrack.coverRights,
-        coverLicenseUrl: mergedTrack.coverLicenseUrl,
-        remixRights: mergedTrack.remixRights,
-        remixAuthorizationUrl: mergedTrack.remixAuthorizationUrl,
-        samplesRights: mergedTrack.samplesRights,
-        samplesClearanceUrl: mergedTrack.samplesClearanceUrl,
-        primaryGenre: mergedTrack.primaryGenre,
-        secondaryGenre: mergedTrack.secondaryGenre,
-        primaryMood: mergedTrack.primaryMood,
-        secondaryMoods: mergedTrack.secondaryMoods,
-        primaryLanguage: mergedTrack.primaryLanguage,
-        secondaryLanguage: mergedTrack.secondaryLanguage,
-        explicitContent: mergedTrack.explicitContent,
-        childSafeContent: mergedTrack.childSafeContent,
-        audioFileUrl: mergedTrack.audioFileUrl,
-        audioFileSize: mergedTrack.audioFileSize,
-        audioFormat: mergedTrack.audioFormat,
-        dolbyAtmosFileUrl: mergedTrack.dolbyAtmosFileUrl,
-        previewStartTime: mergedTrack.previewStartTime,
-        lyrics: mergedTrack.lyrics,
-        lyricsConfirmed: mergedTrack.lyricsConfirmed,
-        lyricsFileUrl: mergedTrack.lyricsFileUrl,
-        videoUrl: mergedTrack.videoUrl,
-        videoUrlConfirmed: mergedTrack.videoUrlConfirmed,
-        durationSeconds: mergedTrack.durationSeconds
-      }
+      const payload = buildTrackPayload(mergedTrack, releaseId, releaseData.releaseVersion)
 
       const response = await fetch('/api/music-tracks', {
         method: 'POST',
@@ -827,50 +919,7 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
     }
 
     try {
-      const payload = {
-        releaseId,
-        trackNumber: track.trackNumber,
-        trackTitle: track.trackTitle,
-        trackTitleConfirmed: track.trackTitleConfirmed,
-        trackVersion: track.trackVersion || releaseData.releaseVersion,
-        masterRecordingDate: track.masterRecordingDate,
-        isrc: track.isrc.replace(/-/g, '').toUpperCase(),
-        isrcConfirmed: track.isrcConfirmed,
-        iswc: track.iswc,
-        iswcConfirmed: track.iswcConfirmed,
-        musicalWorkTitle: track.musicalWorkTitle,
-        musicalWorkTitleConfirmed: track.musicalWorkTitleConfirmed,
-        primaryArtists: track.primaryArtists,
-        featuredArtists: track.featuredArtists,
-        sessionArtists: track.sessionArtists,
-        creators: track.creators,
-        producers: track.producers,
-        coverRights: track.coverRights,
-        coverLicenseUrl: track.coverLicenseUrl,
-        remixRights: track.remixRights,
-        remixAuthorizationUrl: track.remixAuthorizationUrl,
-        samplesRights: track.samplesRights,
-        samplesClearanceUrl: track.samplesClearanceUrl,
-        primaryGenre: track.primaryGenre,
-        secondaryGenre: track.secondaryGenre,
-        primaryMood: track.primaryMood,
-        secondaryMoods: track.secondaryMoods,
-        primaryLanguage: track.primaryLanguage,
-        secondaryLanguage: track.secondaryLanguage,
-        explicitContent: track.explicitContent,
-        childSafeContent: track.childSafeContent,
-        audioFileUrl: track.audioFileUrl,
-        audioFileSize: track.audioFileSize,
-        audioFormat: track.audioFormat,
-        dolbyAtmosFileUrl: track.dolbyAtmosFileUrl,
-        previewStartTime: track.previewStartTime,
-        lyrics: track.lyrics,
-        lyricsConfirmed: track.lyricsConfirmed,
-        lyricsFileUrl: track.lyricsFileUrl,
-        videoUrl: track.videoUrl,
-        videoUrlConfirmed: track.videoUrlConfirmed,
-        durationSeconds: track.durationSeconds
-      }
+      const payload = buildTrackPayload(track, releaseId, releaseData.releaseVersion)
 
       const response = await fetch('/api/music-tracks', {
         method: 'POST',
@@ -1842,115 +1891,153 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                       </div>
                     </CollapsibleTrigger>
                     <CollapsibleContent className="mt-4 space-y-4">
-                      {/* Standard Audio File */}
-                      <div>
-                        <Label>Standard Audio File <span className="text-red-500">*</span></Label>
-                        <div className="mt-2">
-                          <input
-                            ref={(el) => { fileInputRefs.current[index] = el }}
-                            type="file"
-                            accept=".wav,.aiff,.aif,audio/wav,audio/x-wav,audio/aiff,audio/x-aiff"
-                            onChange={(e) => handleAudioFileSelect(index, e.target.files?.[0] || null)}
-                            className="hidden"
-                          />
-                          <div className="flex items-center gap-3">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => fileInputRefs.current[index]?.click()}
-                              disabled={uploadingTrackIndex === index}
-                            >
-                              {uploadingTrackIndex === index ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                  Uploading... {uploadProgress[index] || 0}%
-                                </>
-                              ) : (
-                                <>
-                                  <Upload className="w-4 h-4 mr-2" />
-                                  {track.audioFileUrl ? 'Replace Audio' : 'Upload Standard Audio File'}
-                                </>
+                      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+                        <div className="space-y-4">
+                          {/* Standard Audio File */}
+                          <div>
+                            <Label>Standard Audio File <span className="text-red-500">*</span></Label>
+                            <div className="mt-2">
+                              <input
+                                ref={(el) => { fileInputRefs.current[index] = el }}
+                                type="file"
+                                accept=".wav,.aiff,.aif,audio/wav,audio/x-wav,audio/aiff,audio/x-aiff"
+                                onChange={(e) => handleAudioFileSelect(index, e.target.files?.[0] || null)}
+                                className="hidden"
+                              />
+                              <div className="flex items-center gap-3">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => {
+                                    if (track.audioFile && !track.audioFileUrl) {
+                                      void uploadAudioFile(index, track.audioFile)
+                                      return
+                                    }
+
+                                    fileInputRefs.current[index]?.click()
+                                  }}
+                                  disabled={uploadingTrackIndex === index}
+                                >
+                                  {uploadingTrackIndex === index ? (
+                                    <>
+                                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                      Uploading... {uploadProgress[index] || 0}%
+                                    </>
+                                  ) : track.audioFile && !track.audioFileUrl ? (
+                                    <>
+                                      <Upload className="w-4 h-4 mr-2" />
+                                      Retry Audio Upload
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Upload className="w-4 h-4 mr-2" />
+                                      {track.audioFileUrl ? 'Replace Audio' : 'Upload Standard Audio File'}
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                              {uploadingTrackIndex === index && (
+                                <div className="mt-3">
+                                  <div className="flex items-center justify-between text-sm mb-1">
+                                    <span className="text-gray-600">Uploading audio file...</span>
+                                    <span className="font-medium text-purple-600">{uploadProgress[index] || 0}%</span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                                    <div
+                                      className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-300 ease-out"
+                                      style={{ width: `${uploadProgress[index] || 0}%` }}
+                                    />
+                                  </div>
+                                  <p className="text-xs text-gray-500 mt-1">Please don&apos;t close this page while uploading</p>
+                                </div>
                               )}
-                            </Button>
-                          </div>
-                          {/* Upload Progress Bar */}
-                          {uploadingTrackIndex === index && (
-                            <div className="mt-3">
-                              <div className="flex items-center justify-between text-sm mb-1">
-                                <span className="text-gray-600">Uploading audio file...</span>
-                                <span className="font-medium text-purple-600">{uploadProgress[index] || 0}%</span>
-                              </div>
-                              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                                <div
-                                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-300 ease-out"
-                                  style={{ width: `${uploadProgress[index] || 0}%` }}
-                                />
-                              </div>
-                              <p className="text-xs text-gray-500 mt-1">Please don&apos;t close this page while uploading</p>
+                              {track.audioFileUrl && (
+                                <span className="text-sm text-gray-600 flex items-center gap-2">
+                                  <CheckCircle className="w-4 h-4 text-emerald-500" />
+                                  Audio uploaded
+                                </span>
+                              )}
+                              {track.audioFile && !track.audioFileUrl && uploadingTrackIndex !== index && (
+                                <span className="text-sm text-amber-700 flex items-center gap-2">
+                                  <AlertCircle className="w-4 h-4 text-amber-500" />
+                                  File selected locally only. Upload not confirmed yet.
+                                </span>
+                              )}
+                              {track.audioFile && (
+                                <span className="text-sm text-gray-600">
+                                  {track.audioFile.name} ({(track.audioFile.size / (1024 * 1024)).toFixed(2)} MB)
+                                </span>
+                              )}
                             </div>
-                          )}
-                          {track.audioFileUrl && (
-                            <span className="text-sm text-gray-600 flex items-center gap-2">
-                              <CheckCircle className="w-4 h-4 text-emerald-500" />
-                              Audio uploaded
-                            </span>
-                          )}
-                          {track.audioFile && (
-                            <span className="text-sm text-gray-600">
-                              {track.audioFile.name} ({(track.audioFile.size / (1024 * 1024)).toFixed(2)} MB)
-                            </span>
-                          )}
+                          </div>
+
+                          {/* Dolby Atmos Audio File (Optional) */}
+                          <div>
+                            <Label>Dolby Atmos/Spacial Audio File (Optional)</Label>
+                            <div className="mt-2">
+                              <input
+                                ref={(el) => { fileInputRefs.current[`dolby-${index}`] = el }}
+                                type="file"
+                                accept=".wav,.aiff,.aif,audio/wav,audio/x-wav,audio/aiff,audio/x-aiff"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0]
+                                  if (!file || !releaseId) return
+                                  const validation = validateAudioFile(file)
+                                  if (!validation.valid) {
+                                    showNotification('Invalid Audio File', validation.error || 'Please check the file format.', 'error')
+                                    return
+                                  }
+                                  try {
+                                    const formData = new FormData()
+                                    formData.append('file', file)
+                                    formData.append('type', 'track-audio')
+                                    formData.append('entityId', releaseId)
+                                    const response = await fetch('/api/upload', { method: 'POST', body: formData })
+                                    if (!response.ok) {
+                                      const errorData = await response.json().catch(() => ({ error: 'Unknown server error' }))
+                                      showNotification('Upload Failed', errorData.error || 'Failed to upload Dolby Atmos file.', 'error')
+                                      return
+                                    }
+                                    const result = await response.json()
+                                    if (result.success) {
+                                      updateTrack(index, 'dolbyAtmosFileUrl', result.url)
+                                      showNotification('Success', 'Dolby Atmos file uploaded successfully!', 'success')
+                                    } else {
+                                      showNotification('Upload Failed', result.error || 'Failed to upload Dolby Atmos file.', 'error')
+                                    }
+                                  } catch (error) {
+                                    console.error('Dolby upload error:', error)
+                                    showNotification('Upload Error', 'Failed to upload Dolby Atmos file. Please try again.', 'error')
+                                  }
+                                }}
+                                className="hidden"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => fileInputRefs.current[`dolby-${index}`]?.click()}
+                              >
+                                <Upload className="w-4 h-4 mr-2" />
+                                Upload Dolby Audio File
+                              </Button>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      {/* Dolby Atmos Audio File (Optional) */}
-                      <div>
-                        <Label>Dolby Atmos/Spacial Audio File (Optional)</Label>
-                        <div className="mt-2">
-                          <input
-                            ref={(el) => { fileInputRefs.current[`dolby-${index}`] = el }}
-                            type="file"
-                            accept=".wav,.aiff,.aif,audio/wav,audio/x-wav,audio/aiff,audio/x-aiff"
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0]
-                              if (!file || !releaseId) return
-                              const validation = validateAudioFile(file)
-                              if (!validation.valid) {
-                                showNotification('Invalid Audio File', validation.error || 'Please check the file format.', 'error')
-                                return
-                              }
-                              try {
-                                const formData = new FormData()
-                                formData.append('file', file)
-                                formData.append('type', 'track-audio')
-                                formData.append('entityId', releaseId)
-                                const response = await fetch('/api/upload', { method: 'POST', body: formData })
-                                if (!response.ok) {
-                                  const errorData = await response.json().catch(() => ({ error: 'Unknown server error' }))
-                                  showNotification('Upload Failed', errorData.error || 'Failed to upload Dolby Atmos file.', 'error')
-                                  return
-                                }
-                                const result = await response.json()
-                                if (result.success) {
-                                  updateTrack(index, 'dolbyAtmosFileUrl', result.url)
-                                  showNotification('Success', 'Dolby Atmos file uploaded successfully!', 'success')
-                                } else {
-                                  showNotification('Upload Failed', result.error || 'Failed to upload Dolby Atmos file.', 'error')
-                                }
-                              } catch (error) {
-                                console.error('Dolby upload error:', error)
-                                showNotification('Upload Error', 'Failed to upload Dolby Atmos file. Please try again.', 'error')
-                              }
-                            }}
-                            className="hidden"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => fileInputRefs.current[`dolby-${index}`]?.click()}
-                          >
-                            <Upload className="w-4 h-4 mr-2" />
-                            Upload Dolby Audio File
-                          </Button>
+
+                        <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
+                          <h4 className="font-semibold text-purple-800 mb-2">Audio upload notes</h4>
+                          <div className="space-y-2 text-sm text-gray-700">
+                            <p>Audio filenames must be <strong>Artist Name - Track Title.wav</strong>.</p>
+                            <ul className="space-y-1 list-none">
+                              <li>✓ WAV/AIFF 16-24-bit, 44.1-96 kHz. No clipping or dithering artifacts.</li>
+                              <li>✓ Loudness tip: Aim -14 LUFS integrated; avoid limiter pumping. We won&apos;t alter your master.</li>
+                              <li>✓ Stereo required. Mono is not accepted.</li>
+                              <li>✓ True Peak must be below -1 dBTP.</li>
+                              <li>✓ No silence longer than 2 seconds at the start or end.</li>
+                              <li>✓ Maximum file size: 2GB.</li>
+                              <li>✓ Minimum duration: 30 seconds. Maximum duration: 60 minutes.</li>
+                            </ul>
+                          </div>
                         </div>
                       </div>
 
@@ -2021,25 +2108,80 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input
                               type="checkbox"
-                              checked={track.lyrics === '' && !track.lyricsFileUrl}
+                              checked={track.hasNoLyrics}
                               onChange={(e) => {
+                                updateTrack(index, 'hasNoLyrics', e.target.checked)
                                 if (e.target.checked) {
                                   updateTrack(index, 'lyrics', '')
                                   updateTrack(index, 'lyricsFileUrl', '')
+                                  updateTrack(index, 'lyricsConfirmed', false)
                                 }
                               }}
                               className="w-4 h-4"
                             />
                             <span className="text-sm">This Track has no Lyrics - it is an Instrumental.</span>
                           </label>
+                          <div className="flex flex-wrap items-center gap-3 text-sm">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={!track.hasNoLyrics && track.lyricsInputMode === 'paste'}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    updateTrack(index, 'hasNoLyrics', false)
+                                    updateTrack(index, 'lyricsInputMode', 'paste')
+                                    if (track.lyricsFileUrl) {
+                                      updateTrack(index, 'lyricsFileUrl', '')
+                                      updateTrack(index, 'lyricsConfirmed', false)
+                                    }
+                                  }
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <span>Copy / Paste Lyrics</span>
+                            </label>
+                            <span className="text-gray-400 font-medium">OR</span>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={!track.hasNoLyrics && track.lyricsInputMode === 'upload'}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    updateTrack(index, 'hasNoLyrics', false)
+                                    updateTrack(index, 'lyricsInputMode', 'upload')
+                                    if (track.lyrics && !track.lyricsFileUrl) {
+                                      updateTrack(index, 'lyrics', '')
+                                      updateTrack(index, 'lyricsConfirmed', false)
+                                    }
+                                  }
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <span>Upload Lyrics File</span>
+                            </label>
+                          </div>
                           <Textarea
                             id={`lyrics-${index}`}
                             value={track.lyrics}
-                            onChange={(e) => updateTrack(index, 'lyrics', e.target.value)}
-                            placeholder="Copy and paste lyrics text here..."
+                            onChange={(e) => {
+                              updateTrack(index, 'hasNoLyrics', false)
+                              updateTrack(index, 'lyricsInputMode', 'paste')
+                              updateTrack(index, 'lyrics', e.target.value)
+                              if (track.lyricsFileUrl) {
+                                updateTrack(index, 'lyricsFileUrl', '')
+                              }
+                              updateTrack(index, 'lyricsConfirmed', false)
+                            }}
+                            placeholder={
+                              track.hasNoLyrics
+                                ? 'Lyrics not required for instrumentals.'
+                                : track.lyricsInputMode === 'upload'
+                                  ? 'Lyrics upload mode selected. Switch to Copy / Paste Lyrics to type here.'
+                                  : 'Copy and paste lyrics text here...'
+                            }
                             rows={8}
                             className="font-mono text-sm"
-                            disabled={track.lyrics === '' && !track.lyricsFileUrl}
+                            disabled={track.hasNoLyrics || track.lyricsInputMode === 'upload'}
                           />
                           <div className="flex items-center gap-3">
                             <input
@@ -2054,6 +2196,7 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                               variant="outline"
                               size="sm"
                               onClick={() => lyricsFileInputRefs.current[index]?.click()}
+                              disabled={track.hasNoLyrics || track.lyricsInputMode !== 'upload'}
                             >
                               <FileText className="w-4 h-4 mr-2" />
                               Upload Lyrics File
@@ -2079,8 +2222,9 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input
                               type="checkbox"
-                              checked={!track.videoUrl}
+                              checked={track.hasNoVideo}
                               onChange={(e) => {
+                                updateTrack(index, 'hasNoVideo', e.target.checked)
                                 if (e.target.checked) {
                                   updateTrack(index, 'videoUrl', '')
                                   updateTrack(index, 'videoUrlConfirmed', false)
@@ -2093,10 +2237,16 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                           <Input
                             id={`video-url-${index}`}
                             value={track.videoUrl}
-                            onChange={(e) => updateTrack(index, 'videoUrl', e.target.value)}
+                            onChange={(e) => {
+                              if (e.target.value.trim()) {
+                                updateTrack(index, 'hasNoVideo', false)
+                              }
+                              updateTrack(index, 'videoUrl', e.target.value)
+                              updateTrack(index, 'videoUrlConfirmed', false)
+                            }}
                             placeholder="Paste YouTube URL here..."
                             className="mt-1"
-                            disabled={!track.videoUrl && track.videoUrlConfirmed === false}
+                            disabled={track.hasNoVideo}
                           />
                           {track.videoUrl && (
                             <Button

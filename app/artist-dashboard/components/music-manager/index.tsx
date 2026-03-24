@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Save, ArrowRight, ArrowLeft, Loader2, CheckCircle, Plus, Eye, ChevronDown, ChevronUp } from 'lucide-react'
+import { Save, ArrowRight, ArrowLeft, Loader2, CheckCircle, Plus, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
 import { formatDateDDMMMyyyy } from '@/lib/date-format'
 import { ReleaseData, TrackData, initialReleaseData } from './types'
@@ -781,7 +781,7 @@ export function ArtistMusicManager({
 
     await Promise.all(
       draftTracks.map(async (track) => {
-        await fetch('/api/music-tracks', {
+        const response = await fetch('/api/music-tracks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -821,14 +821,22 @@ export function ArtistMusicManager({
             audioFormat: track.audioFormat,
             dolbyAtmosFileUrl: track.dolbyAtmosFileUrl,
             previewStartTime: track.previewStartTime,
+            hasNoLyrics: track.hasNoLyrics,
+            lyricsInputMode: track.lyricsInputMode,
             lyrics: track.lyrics,
             lyricsConfirmed: track.lyricsConfirmed,
             lyricsFileUrl: track.lyricsFileUrl,
+            hasNoVideo: track.hasNoVideo,
             videoUrl: track.videoUrl,
             videoUrlConfirmed: track.videoUrlConfirmed,
             durationSeconds: track.durationSeconds
           })
         })
+
+        if (!response.ok) {
+          const result = await response.json().catch(() => ({ error: 'Failed to persist track draft' }))
+          throw new Error(result.error || `Failed to persist track ${track.trackNumber}`)
+        }
       })
     )
   }, [draftTracks, releaseData.releaseVersion])
@@ -1240,14 +1248,6 @@ export function ArtistMusicManager({
                 Continue Draft Upload Flow
               </Button>
             )}
-            <Button
-              variant="outline"
-              onClick={() => window.location.assign('/fan-dashboard')}
-              className="border-purple-200 text-purple-700 hover:bg-purple-50"
-            >
-              <Eye className="w-4 h-4 mr-2" />
-              Preview as Fan
-            </Button>
           </div>
         </div>
 
@@ -1309,11 +1309,11 @@ export function ArtistMusicManager({
 
             {publishedReleases.length === 0 ? (
               <p className="text-sm text-gray-500">
-                No releases published yet. Published releases appear here and in fan preview.
+                No releases published yet. Published releases appear here once they go live.
               </p>
             ) : (
               <div>
-                <p className="text-sm font-semibold text-gray-900 mb-3">Live In Fan Preview ({publishedReleases.length})</p>
+                <p className="text-sm font-semibold text-gray-900 mb-3">Published Music ({publishedReleases.length})</p>
                 <div className="grid gap-3 md:grid-cols-2">
                   {(musicView === 'manage' ? publishedReleases : publishedReleases.slice(0, 6)).map((release) => (
                     <div key={release.id} className="rounded-xl border border-gray-200 p-4 bg-gray-50">
