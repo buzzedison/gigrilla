@@ -9,7 +9,7 @@ import { Badge } from '../../components/ui/badge'
 import { Switch } from '../../components/ui/switch'
 // Separator import removed - not used
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../components/ui/collapsible'
-import { ChevronDown, ChevronUp, Plus, User, Users2, Music, Mic, Guitar, Drum, Piano, Keyboard, Briefcase, Settings, ExternalLink, CheckCircle2, XCircle, AlertCircle, Loader2, Info } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, User, Users2, Music, Mic, Guitar, Briefcase, Settings, ExternalLink, CheckCircle2, XCircle, AlertCircle, Loader2, Info } from 'lucide-react'
 import { useAuth } from '../../../lib/auth-context'
 import { cn } from '../../../lib/utils'
 import { ISNIHelperModal } from '../../signup/components/ISNIHelperModal'

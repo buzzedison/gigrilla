@@ -830,12 +830,12 @@ export async function POST(request: NextRequest) {
     // Gig ability fields (migrations 033 and 034 have been run)
     if (minimum_set_length !== undefined) {
       const minLength = typeof minimum_set_length === 'number' ? minimum_set_length : parseInt(minimum_set_length)
-      profileData.minimum_set_length = Number.isFinite(minLength) && minLength >= 15 && minLength <= 180 && minLength % 15 === 0 ? minLength : 30
+      profileData.minimum_set_length = Number.isFinite(minLength) && minLength >= 15 && minLength <= 300 && minLength % 15 === 0 ? minLength : 30
     }
 
     if (maximum_set_length !== undefined) {
       const maxLength = typeof maximum_set_length === 'number' ? maximum_set_length : parseInt(maximum_set_length)
-      profileData.maximum_set_length = Number.isFinite(maxLength) && maxLength >= 15 && maxLength <= 180 && maxLength % 15 === 0 ? maxLength : 120
+      profileData.maximum_set_length = Number.isFinite(maxLength) && maxLength >= 15 && maxLength <= 300 && maxLength % 15 === 0 ? maxLength : 120
     }
 
     if (local_gig_fee !== undefined) {

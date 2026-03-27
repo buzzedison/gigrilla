@@ -71,6 +71,7 @@ export type ArtistDashboardSection =
   | 'messages'
   | 'type'
   | 'contract'
+  | 'settings'
 
 interface ArtistSidebarProps {
   activeSection?: ArtistDashboardSection
@@ -373,6 +374,7 @@ export function ArtistSidebar({
       'gig-invites': 'gigManager',
       'gig-requests': 'gigManager',
       messages: 'messages',
+      settings: 'administration',
     }
 
     const targetGroup = groupBySection[activeSection]
@@ -530,15 +532,19 @@ export function ArtistSidebar({
     </div>
   )
 
-  const administrationItems = [
-    { icon: Eye, label: "View Profile", path: "/artist-dashboard?section=view" },
-    { icon: Edit3, label: "Edit Profile", path: "/artist-dashboard?section=edit" },
-    { icon: User, label: "Manage Admins", path: "/artist-dashboard?section=admins" },
-    { icon: CreditCard, label: "Billing & Payments", path: "/artist-dashboard?section=billing" },
-    { icon: Settings, label: "Settings", path: "/artist-dashboard?section=settings" },
+  type AdministrationItem =
+    | { icon: typeof FileText; label: string; section: ArtistDashboardSection; subSection?: string; path?: never; onClick?: never }
+    | { icon: typeof FileText; label: string; path: string; onClick?: () => void; section?: never; subSection?: never }
+
+  const administrationItems: AdministrationItem[] = [
+    { icon: Eye, label: "View Profile", path: "/artist-profile" },
+    { icon: Edit3, label: "Edit Profile", section: "profile", subSection: "details" },
+    { icon: User, label: "Manage Admins", section: "crew", subSection: "manage-team" },
+    { icon: CreditCard, label: "Billing & Payments", section: "payments", subSection: "out" },
+    { icon: Settings, label: "Settings", section: "settings" },
     { icon: RefreshCw, label: "Switch Profile", path: "/profile-setup" },
     { icon: LogOut, label: "Log Out", path: "/login", onClick: handleSignOut }
-  ];
+  ]
 
   return (
     <aside className={`h-full w-full max-w-[20rem] bg-[linear-gradient(180deg,_#26122f_0%,_#211028_100%)] p-6 text-left flex flex-col overflow-y-auto lg:w-64 ${className ?? ''}`}>
@@ -701,24 +707,40 @@ export function ArtistSidebar({
         {expandedSections.administration && (
           <div className="space-y-1">
             {administrationItems.map((item, index) => (
-              item.label === 'Log Out' ? (
-                <Link
+              'section' in item ? (
+                (() => {
+                  const targetSection = item.section as ArtistDashboardSection
+                  return (
+                <button
                   key={index}
-                  href={item.path}
-                  onClick={item.onClick}
-                  className="w-full flex items-center space-x-3 rounded-lg px-3 py-2 text-[#b7a8c2] hover:bg-white/5 hover:text-white"
+                  type="button"
+                  onClick={() => {
+                    handleSectionChange(targetSection)
+                    if (item.subSection) {
+                      handleSubSectionChange(targetSection, item.subSection)
+                    }
+                  }}
+                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-left ${
+                    activeSection === targetSection
+                      ? "bg-[#ff8fa31f] text-white shadow-[inset_0_0_0_1px_rgba(255,143,163,0.24)]"
+                      : "text-[#b7a8c2] hover:text-white hover:bg-white/5"
+                  }`}
                 >
                   <item.icon className="w-4 h-4" />
                   <span className="text-sm">{item.label}</span>
-                </Link>
+                </button>
+                  )
+                })()
               ) : (
                 <Link
                   key={index}
                   href={item.path}
-                  className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${pathname === item.path
-                    ? "bg-[#ff8fa31f] text-white shadow-[inset_0_0_0_1px_rgba(255,143,163,0.24)]"
-                    : "text-[#b7a8c2] hover:text-white hover:bg-white/5"
-                    }`}
+                  onClick={item.onClick}
+                  className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                    pathname === item.path
+                      ? "bg-[#ff8fa31f] text-white shadow-[inset_0_0_0_1px_rgba(255,143,163,0.24)]"
+                      : "text-[#b7a8c2] hover:text-white hover:bg-white/5"
+                  }`}
                 >
                   <item.icon className="w-4 h-4" />
                   <span className="text-sm">{item.label}</span>

@@ -46,9 +46,16 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { caption } = body
+    const { caption, focus_x, focus_y } = body
+    const nextCaption = typeof caption === 'string' ? caption : undefined
+    const nextFocusX = typeof focus_x === 'number' && Number.isFinite(focus_x)
+      ? Math.min(100, Math.max(0, focus_x))
+      : undefined
+    const nextFocusY = typeof focus_y === 'number' && Number.isFinite(focus_y)
+      ? Math.min(100, Math.max(0, focus_y))
+      : undefined
 
-    console.log('API: Updating photo caption for photo:', photoId, 'user:', user.id)
+    console.log('API: Updating photo metadata for photo:', photoId, 'user:', user.id)
 
     // First verify the photo belongs to the user
     const { data: existingPhoto, error: fetchError } = await supabase
@@ -63,13 +70,25 @@ export async function PATCH(
       return NextResponse.json({ error: 'Photo not found or access denied' }, { status: 404 })
     }
 
-    // Update the photo caption
+    const updatePayload: Record<string, string | number> = {
+      updated_at: new Date().toISOString()
+    }
+
+    if (nextCaption !== undefined) {
+      updatePayload.caption = nextCaption
+    }
+
+    if (nextFocusX !== undefined) {
+      updatePayload.focus_x = nextFocusX
+    }
+
+    if (nextFocusY !== undefined) {
+      updatePayload.focus_y = nextFocusY
+    }
+
     const { data: updatedPhoto, error: updateError } = await supabase
       .from('artist_photos')
-      .update({
-        caption: caption || '',
-        updated_at: new Date().toISOString()
-      })
+      .update(updatePayload)
       .eq('id', photoId)
       .eq('user_id', user.id)
       .select()
@@ -83,7 +102,7 @@ export async function PATCH(
       }, { status: 500 })
     }
 
-    console.log('API: Successfully updated photo caption:', photoId)
+    console.log('API: Successfully updated photo metadata:', photoId)
 
     return NextResponse.json({
       data: updatedPhoto,

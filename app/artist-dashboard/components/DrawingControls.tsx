@@ -6,6 +6,15 @@ import * as L from 'leaflet'
 
 interface DrawingControlsProps {
   mode: 'radius' | 'polygon' | 'country'
+  baseLocation?: { lat: number; lng: number }
+  value?: {
+    type: 'radius' | 'polygon' | 'country'
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data: any[] | any
+    coordinates?: number[][]
+    radius?: number
+    center?: [number, number]
+  } | null
   onZoneCreated: (zone: {
     type: 'radius' | 'polygon' | 'country'
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -16,7 +25,7 @@ interface DrawingControlsProps {
   } | null) => void
 }
 
-function DrawingControlsInner({ mode, onZoneCreated }: DrawingControlsProps) {
+function DrawingControlsInner({ mode, baseLocation, value, onZoneCreated }: DrawingControlsProps) {
   const map = useMap() // Use the hook directly at the top level
   const drawnItemsRef = useRef<L.FeatureGroup | null>(null)
   const drawControlRef = useRef<L.Control.Draw | null>(null)
@@ -58,6 +67,13 @@ function DrawingControlsInner({ mode, onZoneCreated }: DrawingControlsProps) {
         drawnItemsRef.current = new L.FeatureGroup()
         map.addLayer(drawnItemsRef.current)
 
+        const shapeOptions = {
+          color: '#3b82f6',
+          fillColor: '#3b82f6',
+          fillOpacity: 0.2,
+          weight: 2
+        }
+
         // Configure draw options
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const drawOptions: any = {
@@ -70,36 +86,15 @@ function DrawingControlsInner({ mode, onZoneCreated }: DrawingControlsProps) {
             polyline: false,
             marker: false,
             circlemarker: false,
-            circle: mode === 'radius',
+            circle: false,
             polygon: mode === 'polygon'
-          }
-        }
-
-        // Add circle options for radius mode
-        if (mode === 'radius') {
-          drawOptions.draw.circle = {
-            shapeOptions: {
-              color: '#3b82f6',
-              fillColor: '#3b82f6',
-              fillOpacity: 0.2,
-              weight: 2
-            },
-            showRadius: true,
-            metric: true,
-            feet: false,
-            radius: 50000 // 50km in meters
           }
         }
 
         // Add polygon options for polygon mode
         if (mode === 'polygon') {
           drawOptions.draw.polygon = {
-            shapeOptions: {
-              color: '#3b82f6',
-              fillColor: '#3b82f6',
-              fillOpacity: 0.2,
-              weight: 2
-            },
+            shapeOptions,
             allowIntersection: false,
             drawError: {
               color: '#e1e5e9',
@@ -109,19 +104,53 @@ function DrawingControlsInner({ mode, onZoneCreated }: DrawingControlsProps) {
           }
         }
 
-        // Verify L.Control.Draw is available before using it
-        if (!L.Control.Draw) {
+        // Verify L.Control.Draw is available before using it where needed
+        if (mode === 'polygon' && !L.Control.Draw) {
           console.error('Leaflet.Draw Control not properly loaded')
           console.log('Available L properties:', Object.keys(L))
           console.log('Available L.Control properties:', Object.keys(L.Control))
           return
         }
 
-        // Add draw control to map
-        drawControlRef.current = new L.Control.Draw(drawOptions)
-        map.addControl(drawControlRef.current)
+        const cleanupFns: Array<() => void> = []
 
-        console.log('Drawing controls added to map')
+        const keepCircleInView = (circle: L.Circle) => {
+          const circleBounds = circle.getBounds()
+          const currentBounds = map.getBounds().pad(-0.08)
+
+          if (!currentBounds.contains(circleBounds)) {
+            map.fitBounds(circleBounds, {
+              padding: [50, 50],
+              animate: false
+            })
+          }
+        }
+
+        if (mode === 'polygon') {
+          // Add draw control to map
+          drawControlRef.current = new L.Control.Draw(drawOptions)
+          map.addControl(drawControlRef.current)
+          console.log('Drawing controls added to map')
+        }
+
+        if (mode === 'radius') {
+          drawControlRef.current = new L.Control.Draw({
+            edit: {
+              featureGroup: drawnItemsRef.current,
+              remove: true
+            },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            draw: {
+              rectangle: false,
+              polyline: false,
+              marker: false,
+              circlemarker: false,
+              circle: false,
+              polygon: false
+            } as any
+          })
+          map.addControl(drawControlRef.current)
+        }
 
         // Handle drawing creation
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -139,29 +168,7 @@ function DrawingControlsInner({ mode, onZoneCreated }: DrawingControlsProps) {
             drawnItemsRef.current.addLayer(layer)
           }
 
-          if (e.layerType === 'circle') {
-            // Handle radius circle
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const center = (layer as any).getLatLng()
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const radius = (layer as any).getRadius() / 1000 // Convert meters to km
-
-            // Auto-zoom map to fit the entire circle
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const bounds = (layer as any).getBounds()
-            if (bounds && map) {
-              map.fitBounds(bounds, { padding: [50, 50] })
-            }
-
-            const zone = {
-              type: 'radius' as const,
-              data: [{ lat: center.lat, lng: center.lng }],
-              radius: Math.round(radius)
-            }
-
-            console.log('Radius zone created:', zone)
-            onZoneCreated(zone)
-          } else if (e.layerType === 'polygon') {
+          if (e.layerType === 'polygon') {
             // Handle polygon
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const latlngs = (layer as any).getLatLngs()[0]
@@ -193,27 +200,167 @@ function DrawingControlsInner({ mode, onZoneCreated }: DrawingControlsProps) {
           onZoneCreated(null)
         }
 
-        // Use string event names instead of L.Draw.Event constants
-        map.on('draw:created', handleDrawCreated)
-        map.on('draw:deleted', handleDrawDeleted)
+        if (mode === 'polygon') {
+          // Use string event names instead of L.Draw.Event constants
+          map.on('draw:created', handleDrawCreated)
+          map.on('draw:deleted', handleDrawDeleted)
+          cleanupFns.push(() => map.off('draw:created', handleDrawCreated))
+          cleanupFns.push(() => map.off('draw:deleted', handleDrawDeleted))
+        }
+
+        if (mode === 'radius' && baseLocation) {
+          const center = L.latLng(baseLocation.lat, baseLocation.lng)
+          let isRadiusDrawing = false
+          let activeCircle: L.Circle | null = null
+          const container = map.getContainer()
+          container.style.cursor = 'crosshair'
+
+          const getRadiusCenter = () => {
+            if (value?.type === 'radius') {
+              if (value.center && value.center.length === 2) {
+                return L.latLng(value.center[0], value.center[1])
+              }
+
+              if (Array.isArray(value.data) && value.data[0]?.lat && value.data[0]?.lng) {
+                return L.latLng(value.data[0].lat, value.data[0].lng)
+              }
+            }
+
+            return center
+          }
+
+          const syncRadiusZone = (circle: L.Circle) => {
+            const circleCenter = circle.getLatLng()
+            const nextRadiusKm = Math.round(circle.getRadius() / 1000)
+
+            onZoneCreated({
+              type: 'radius',
+              data: [{ lat: circleCenter.lat, lng: circleCenter.lng }],
+              radius: nextRadiusKm,
+              center: [circleCenter.lat, circleCenter.lng]
+            })
+          }
+
+          const initialCenter = getRadiusCenter()
+
+          if (value?.type === 'radius' && typeof value.radius === 'number' && value.radius > 0) {
+            activeCircle = L.circle(initialCenter, {
+              ...shapeOptions,
+              radius: value.radius * 1000
+            })
+            drawnItemsRef.current?.clearLayers()
+            drawnItemsRef.current?.addLayer(activeCircle)
+            keepCircleInView(activeCircle)
+          }
+
+          const updateRadiusCircle = (latlng: L.LatLng) => {
+            const nextRadius = Math.max(initialCenter.distanceTo(latlng), 1)
+
+            if (!activeCircle) {
+              activeCircle = L.circle(initialCenter, {
+                ...shapeOptions,
+                radius: nextRadius
+              })
+              drawnItemsRef.current?.clearLayers()
+              drawnItemsRef.current?.addLayer(activeCircle)
+            } else {
+              activeCircle.setRadius(nextRadius)
+            }
+
+            if (activeCircle) {
+              keepCircleInView(activeCircle)
+            }
+          }
+
+          const startRadiusDraw = (e: L.LeafletMouseEvent) => {
+            isRadiusDrawing = true
+            map.dragging.disable()
+            updateRadiusCircle(e.latlng)
+          }
+
+          const moveRadiusDraw = (e: L.LeafletMouseEvent) => {
+            if (!isRadiusDrawing) return
+            updateRadiusCircle(e.latlng)
+          }
+
+          const finishRadiusDraw = (e?: L.LeafletMouseEvent) => {
+            if (!isRadiusDrawing) return
+            isRadiusDrawing = false
+            map.dragging.enable()
+
+            if (e) updateRadiusCircle(e.latlng)
+            if (!activeCircle) return
+
+            map.fitBounds(activeCircle.getBounds(), { padding: [50, 50] })
+            syncRadiusZone(activeCircle)
+          }
+
+          const handleEdited = () => {
+            if (!drawnItemsRef.current) return
+
+            drawnItemsRef.current.eachLayer((layer) => {
+              if (layer instanceof L.Circle) {
+                activeCircle = layer
+                keepCircleInView(layer)
+                syncRadiusZone(layer)
+              }
+            })
+          }
+
+          const handleEditStart = () => {
+            if (activeCircle) {
+              keepCircleInView(activeCircle)
+            }
+          }
+
+          map.on('mousedown', startRadiusDraw)
+          map.on('mousemove', moveRadiusDraw)
+          map.on('mouseup', finishRadiusDraw)
+          map.on('mouseout', finishRadiusDraw)
+          map.on('draw:edited', handleEdited)
+          map.on('draw:editstart', handleEditStart)
+          map.on('draw:deleted', handleDrawDeleted)
+
+          cleanupFns.push(() => {
+            container.style.cursor = ''
+            map.off('mousedown', startRadiusDraw)
+            map.off('mousemove', moveRadiusDraw)
+            map.off('mouseup', finishRadiusDraw)
+            map.off('mouseout', finishRadiusDraw)
+            map.off('draw:edited', handleEdited)
+            map.off('draw:editstart', handleEditStart)
+            map.off('draw:deleted', handleDrawDeleted)
+            map.dragging.enable()
+          })
+        }
+
+        return () => {
+          cleanupFns.forEach((cleanup) => cleanup())
+        }
 
       } catch (error) {
         console.error('Error initializing drawing controls:', error)
       }
     }
 
-    initializeDrawing()
+    let cleanupDrawing: (() => void) | undefined
+    initializeDrawing().then((cleanup) => {
+      cleanupDrawing = cleanup
+    })
 
     // Cleanup
     return () => {
+      cleanupDrawing?.()
       if (map && drawControlRef.current) {
         map.removeControl(drawControlRef.current)
+        drawControlRef.current = null
       }
       if (map && drawnItemsRef.current) {
         map.removeLayer(drawnItemsRef.current)
+        drawnItemsRef.current = null
       }
     }
-  }, [map, mode, onZoneCreated])
+  }, [map, mode, onZoneCreated, baseLocation, value])
 
   return null // Controls are added directly to the map
 }

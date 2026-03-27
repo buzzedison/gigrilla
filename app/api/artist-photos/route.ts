@@ -116,6 +116,8 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File
     const type = formData.get('type') as string
     const caption = formData.get('caption') as string
+    const focusX = Number(formData.get('focus_x') ?? 50)
+    const focusY = Number(formData.get('focus_y') ?? 50)
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -124,6 +126,9 @@ export async function POST(request: NextRequest) {
     if (!type || !['logo', 'header', 'photo'].includes(type)) {
       return NextResponse.json({ error: 'Invalid photo type' }, { status: 400 })
     }
+
+    const normalisedFocusX = Number.isFinite(focusX) ? Math.min(100, Math.max(0, focusX)) : 50
+    const normalisedFocusY = Number.isFinite(focusY) ? Math.min(100, Math.max(0, focusY)) : 50
 
     // Validate file type
     const validTypes = ['image/jpeg', 'image/png', 'image/webp']
@@ -200,6 +205,8 @@ export async function POST(request: NextRequest) {
         url: publicUrl,
         caption: caption || '',
         type: type,
+        focus_x: normalisedFocusX,
+        focus_y: normalisedFocusY,
         created_at: new Date().toISOString()
       })
       .select()

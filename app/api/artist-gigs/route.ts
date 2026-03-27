@@ -1270,6 +1270,20 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    for (const [fieldName, label] of [
+      ['third_party_ticket_link', 'Third-party ticket link'],
+      ['free_third_party_ticket_link', 'Free third-party ticket link'],
+      ['paid_third_party_ticket_link', 'Paid third-party ticket link'],
+    ] as const) {
+      if (typeof mergedMetadata[fieldName] === 'string' && mergedMetadata[fieldName].trim()) {
+        try {
+          validateUrl(mergedMetadata[fieldName].trim(), label)
+        } catch (error) {
+          return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid ticket link.' }, { status: 400 })
+        }
+      }
+    }
+
     let venueIdToUse: string | null = existingGig.venue_id
 
     const hasVenueNameInput = body.venue_name !== undefined
@@ -1533,20 +1547,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'custom_ticket_count must be a positive number when ticket availability is less than full venue capacity.' }, { status: 400 })
     }
 
-    if (typeof metadata.third_party_ticket_link === 'string' && metadata.third_party_ticket_link.trim()) {
-      try {
-        validateUrl(metadata.third_party_ticket_link.trim(), 'Third-party ticket link')
-      } catch (error) {
-        return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid ticket link.' }, { status: 400 })
+    for (const [fieldName, label] of [
+      ['third_party_ticket_link', 'Third-party ticket link'],
+      ['free_third_party_ticket_link', 'Free third-party ticket link'],
+      ['paid_third_party_ticket_link', 'Paid third-party ticket link'],
+    ] as const) {
+      if (typeof metadata[fieldName] === 'string' && metadata[fieldName].trim()) {
+        try {
+          validateUrl(metadata[fieldName].trim(), label)
+        } catch (error) {
+          return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid ticket link.' }, { status: 400 })
+        }
       }
     }
 
     const ticketPriceOnline = normalizeFee(metadata.ticket_price_online)
     const ticketPriceVenue = normalizeFee(metadata.ticket_price_venue)
-    const ticketPrice = (ticketPriceOnline !== null || ticketPriceVenue !== null)
+    const ticketPriceGigrillaDigital = normalizeFee(metadata.ticket_price_gigrilla_digital)
+    const ticketPriceThirdPartyDigital = normalizeFee(metadata.ticket_price_third_party_digital)
+    const ticketPrice = (ticketPriceOnline !== null || ticketPriceVenue !== null || ticketPriceGigrillaDigital !== null || ticketPriceThirdPartyDigital !== null)
       ? {
           online: ticketPriceOnline,
           venue: ticketPriceVenue,
+          gigrillaDigital: ticketPriceGigrillaDigital,
+          thirdPartyDigital: ticketPriceThirdPartyDigital,
           currency,
         }
       : null

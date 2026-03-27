@@ -20,9 +20,11 @@ import { ArtistGigAbilityManager } from "./components/ArtistGigAbilityManager"
 import { ArtistGigCalendarManager } from "./components/ArtistGigCalendarManager"
 import { ArtistGigInvitesManager } from "./components/ArtistGigInvitesManager"
 import { ArtistGigRequestsManager } from "./components/ArtistGigRequestsManager"
+import { ArtistBookNewGigManager } from "./components/ArtistBookNewGigManager"
 import { ArtistMusicManager } from "./components/ArtistMusicManager"
 import { ArtistContractStatusManager } from "./components/ArtistContractStatusManager"
 import { ArtistInboxManager } from "./components/ArtistInboxManager"
+import { ArtistSettingsManager } from "./components/ArtistSettingsManager"
 import { Badge } from "../components/ui/badge"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet"
 import { Music, Info, Menu, AlertCircle, ArrowRight, CalendarDays, Disc3, FolderKanban, Inbox, LayoutDashboard, BarChart3, Search, Bell, MapPin, Clock3, Radio, ChevronDown, ChevronUp, PlayCircle } from "lucide-react"
@@ -89,6 +91,7 @@ type DashboardSection =
   | 'messages'
   | 'type'
   | 'contract'
+  | 'settings'
 
 const DASHBOARD_SECTIONS: DashboardSection[] = [
   'home',
@@ -122,10 +125,29 @@ const DASHBOARD_SECTIONS: DashboardSection[] = [
   'messages',
   'type',
   'contract',
+  'settings',
 ]
 
 function isDashboardSection(value: string | null): value is DashboardSection {
   return Boolean(value && (DASHBOARD_SECTIONS as string[]).includes(value))
+}
+
+function normalizeDashboardLocation(
+  section: string | null,
+  subSection: string | null
+): { section: DashboardSection | null; subSection: string | null } {
+  switch (section) {
+    case 'view':
+      return { section: 'profile', subSection: 'details' }
+    case 'edit':
+      return { section: 'profile', subSection: 'details' }
+    case 'admins':
+      return { section: 'crew', subSection: 'manage-team' }
+    case 'billing':
+      return { section: 'payments', subSection: 'out' }
+    default:
+      return { section: isDashboardSection(section) ? section : null, subSection }
+  }
 }
 
 export default function ArtistDashboard() {
@@ -296,18 +318,24 @@ export default function ArtistDashboard() {
 
   useEffect(() => {
     const requestedSection = searchParams?.get('section')
-    if (!isDashboardSection(requestedSection)) return
+    const requestedSubSection = searchParams?.get('subSection')
+    const normalized = normalizeDashboardLocation(requestedSection, requestedSubSection)
+    if (!normalized.section) return
 
-    setActiveSection(requestedSection)
-    if (requestedSection === 'messages') {
+    if (requestedSection !== normalized.section || requestedSubSection !== normalized.subSection) {
+      replaceDashboardQuery(normalized.section, { subSection: normalized.subSection })
+      return
+    }
+
+    setActiveSection(normalized.section)
+    if (normalized.section === 'messages') {
       const folder = searchParams?.get('folder')
       setActiveSubSectionKey(folder ? `messages:${folder}` : null)
       return
     }
 
-    const subSection = searchParams?.get('subSection')
-    setActiveSubSectionKey(subSection ? `${requestedSection}:${subSection}` : null)
-  }, [searchParams])
+    setActiveSubSectionKey(normalized.subSection ? `${normalized.section}:${normalized.subSection}` : null)
+  }, [replaceDashboardQuery, searchParams])
 
   const loadUnreadSummary = useCallback(async () => {
     try {
@@ -870,6 +898,8 @@ export default function ArtistDashboard() {
         )
       case 'contract':
         return renderWithCompletion(<ArtistContractStatusManager />)
+      case 'settings':
+        return <ArtistSettingsManager />
       case 'payments':
         return renderWithCompletion(<ArtistPaymentsManager />)
       case 'crew':
@@ -884,8 +914,28 @@ export default function ArtistDashboard() {
         ))
       case 'gig-bookings':
         return renderGuardedSection('gig-bookings', (
-          currentSubSection === 'add-manually'
-            ? renderWithCompletion(<ArtistGigCalendarManager defaultView="create" />)
+          currentSubSection === 'book-new'
+            ? (
+                <ArtistBookNewGigManager
+                  onBookVenue={() => handleSectionChange('gig-create')}
+                  onAddManualGig={() => handleSubSectionChange('gig-bookings', 'add-manually')}
+                />
+              )
+            : currentSubSection === 'add-manually'
+            ? renderWithCompletion(
+                <ArtistGigCalendarManager
+                  defaultView="create"
+                  onNavigateToView={(view) => {
+                    if (view === 'upcoming') {
+                      handleSubSectionChange('gig-bookings', 'upcoming')
+                      return
+                    }
+                    if (view === 'past') {
+                      handleSubSectionChange('gig-bookings', 'historic')
+                    }
+                  }}
+                />
+              )
             : currentSubSection === 'upcoming'
               ? renderWithCompletion(<ArtistGigCalendarManager defaultView="upcoming" />)
               : currentSubSection === 'historic'
@@ -938,7 +988,20 @@ export default function ArtistDashboard() {
       case 'gig-calendar':
       case 'gig-create':
         return renderGuardedSection('gig-create', (
-          renderWithCompletion(<ArtistGigCalendarManager defaultView="create" />)
+          renderWithCompletion(
+            <ArtistGigCalendarManager
+              defaultView="create"
+              onNavigateToView={(view) => {
+                if (view === 'upcoming') {
+                  handleSubSectionChange('gig-bookings', 'upcoming')
+                  return
+                }
+                if (view === 'past') {
+                  handleSubSectionChange('gig-bookings', 'historic')
+                }
+              }}
+            />
+          )
         ))
       case 'gig-upcoming':
         return renderGuardedSection('gig-upcoming', (
@@ -1073,7 +1136,8 @@ export default function ArtistDashboard() {
     'music-statistics': 'Music Statistics',
     'music-upload': 'Music Manager • Upload Music',
     'music-manage': 'Music Manager • Manage Music',
-    messages: 'Artist Messages'
+    messages: 'Artist Messages',
+    settings: 'Artist Settings'
   }
 
   const headerSubtitleMap: Record<DashboardSection, string> = {
@@ -1107,7 +1171,8 @@ export default function ArtistDashboard() {
     'music-statistics': 'Review stream counts, download totals, and music earnings',
     'music-upload': 'Upload new releases and complete submission details',
     'music-manage': 'Manage drafts, pending releases, and published catalog',
-    messages: 'Read and manage in-app notifications and updates'
+    messages: 'Read and manage in-app notifications and updates',
+    settings: 'Open artist-level settings and account administration shortcuts'
   }
 
   return (

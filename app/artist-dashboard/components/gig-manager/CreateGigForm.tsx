@@ -14,6 +14,13 @@ import { Textarea } from '../../../components/ui/textarea'
 import { LocationAutocompleteInput } from '../../../components/ui/location-autocomplete'
 import { readImageMetadata } from '@/lib/image-metadata'
 import { getCurrencyOptions, getCurrencySymbol } from '@/lib/currency-options'
+import { BOOK_NEW_GIG_STORAGE_KEY } from '../ArtistBookNewGigManager'
+import {
+    COUNTRY_DIAL_CODE_CHOICES,
+    getDialCodeChoiceValue,
+    getDialCodeFromChoiceValue,
+} from '@/lib/country-dial-codes'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select'
 
 /* ── Types ────────────────────────────────────────────── */
 
@@ -71,9 +78,12 @@ interface GigFormData {
     ticketMode: 'unknown' | 'known'
     freeTicketOptions: string[]
     paidTicketOptions: string[]
-    thirdPartyTicketLink: string
+    freeThirdPartyTicketLink: string
+    paidThirdPartyTicketLink: string
     ticketPriceVenue: string
     ticketPriceOnline: string
+    ticketPriceGigrillaDigital: string
+    ticketPriceThirdPartyDigital: string
     ticketCurrency: string
     customTickets: TicketOption[]
     ticketAvailability: 'skip' | 'full_venue_capacity' | 'less_than_full_venue_capacity'
@@ -88,6 +98,11 @@ interface GigFormData {
     publishTime: string
     // Description (additional)
     description: string
+}
+
+interface ArtistProfilePhoneDefaults {
+    hometown_country?: string | null
+    base_location?: string | null
 }
 
 export type CreateGigFormInitialData = Partial<GigFormData>
@@ -135,9 +150,12 @@ const DEFAULT_FORM: GigFormData = {
     ticketMode: 'unknown',
     freeTicketOptions: [],
     paidTicketOptions: [],
-    thirdPartyTicketLink: '',
+    freeThirdPartyTicketLink: '',
+    paidThirdPartyTicketLink: '',
     ticketPriceVenue: '',
     ticketPriceOnline: '',
+    ticketPriceGigrillaDigital: '',
+    ticketPriceThirdPartyDigital: '',
     ticketCurrency: 'GBP',
     customTickets: [],
     ticketAvailability: 'skip',
@@ -195,6 +213,40 @@ function buildInitialFormState(initialData?: CreateGigFormInitialData): GigFormD
         gigFinishDate: fallbackFinishDate,
         venueContactPhoneCode: initialData?.venueContactPhoneCode || DEFAULT_FORM.venueContactPhoneCode,
     }
+}
+
+function normalizeCountryName(value?: string | null) {
+    return (value || '')
+        .toLowerCase()
+        .replace(/[().,]/g, ' ')
+        .replace(/\buk\b/g, 'united kingdom')
+        .replace(/\busa\b/g, 'united states')
+        .replace(/\bu s a\b/g, 'united states')
+        .replace(/\bu s\b/g, 'united states')
+        .replace(/\s+/g, ' ')
+        .trim()
+}
+
+function getDialCodeForCountry(country?: string | null) {
+    const normalized = normalizeCountryName(country)
+    if (!normalized) return null
+
+    const matchedChoice = COUNTRY_DIAL_CODE_CHOICES.find(
+        (choice) => normalizeCountryName(choice.country) === normalized
+    )
+
+    return matchedChoice?.code || null
+}
+
+function inferCountryFromAddress(address?: string | null) {
+    if (!address) return null
+    const parts = address.split(',').map((part) => part.trim()).filter(Boolean)
+    return parts.at(-1) || null
+}
+
+function extractAgeThreshold(option: string) {
+    const match = option.match(/(\d+)/)
+    return match ? parseInt(match[1], 10) : null
 }
 
 export function CreateGigForm({
@@ -267,6 +319,69 @@ export function CreateGigForm({
     useEffect(() => {
         setForm(buildInitialFormState(initialData))
     }, [initialData, mode])
+
+    useEffect(() => {
+        if (mode !== 'create') return
+        if (typeof window === 'undefined') return
+
+        const raw = window.sessionStorage.getItem(BOOK_NEW_GIG_STORAGE_KEY)
+        if (!raw) return
+
+        try {
+            const venue = JSON.parse(raw) as Partial<VenueSuggestion>
+            setForm(prev => ({
+                ...prev,
+                venueName: prev.venueName || venue.name || '',
+                venueAddress: prev.venueAddress || venue.address || '',
+                venueContactName: prev.venueContactName || venue.contactName || '',
+                venueContactEmail: prev.venueContactEmail || venue.contactEmail || '',
+                venueContactPhoneCode: prev.venueContactPhoneCode !== '+' ? prev.venueContactPhoneCode : (venue.contactPhoneCode || '+'),
+                venueContactPhone: prev.venueContactPhone || venue.contactPhone || '',
+            }))
+        } catch {
+            // Ignore malformed venue draft payloads
+        } finally {
+            window.sessionStorage.removeItem(BOOK_NEW_GIG_STORAGE_KEY)
+        }
+    }, [mode])
+
+    useEffect(() => {
+        if (form.venueContactPhoneCode !== '+') return
+
+        let cancelled = false
+
+        const loadArtistHomeCountryCode = async () => {
+            try {
+                const response = await fetch('/api/artist-profile', {
+                    cache: 'no-store',
+                    headers: { Accept: 'application/json' }
+                })
+
+                if (!response.ok) return
+
+                const payload = await response.json().catch(() => null) as ArtistProfilePhoneDefaults | null
+                if (!payload || cancelled) return
+
+                const resolvedCountry = payload.hometown_country || inferCountryFromAddress(payload.base_location)
+                const dialCode = getDialCodeForCountry(resolvedCountry)
+                if (!dialCode || cancelled) return
+
+                setForm((prev) => (
+                    prev.venueContactPhoneCode === '+'
+                        ? { ...prev, venueContactPhoneCode: dialCode }
+                        : prev
+                ))
+            } catch {
+                // Ignore fallback dial-code lookup failures
+            }
+        }
+
+        loadArtistHomeCountryCode()
+
+        return () => {
+            cancelled = true
+        }
+    }, [form.venueContactPhoneCode])
 
     useEffect(() => {
         return () => {
@@ -377,6 +492,7 @@ export function CreateGigForm({
                 const filtered = current.filter(option => option !== 'All ages')
                 const isOver = value.startsWith('Over')
                 const isUnder = value.startsWith('Under')
+                const valueThreshold = extractAgeThreshold(value)
 
                 if (alreadySelected) {
                     return {
@@ -386,16 +502,42 @@ export function CreateGigForm({
                 }
 
                 if (isOver) {
+                    const nextUnder = filtered.find(option => option.startsWith('Under')) || null
+                    const underThreshold = extractAgeThreshold(nextUnder || '')
+                    const keepUnder = (
+                        nextUnder &&
+                        valueThreshold !== null &&
+                        underThreshold !== null &&
+                        valueThreshold < underThreshold
+                    ) ? [nextUnder] : []
+
                     return {
                         ...prev,
-                        ageRestrictions: [...filtered.filter(option => !option.startsWith('Over')), value],
+                        ageRestrictions: [
+                            ...filtered.filter(option => !option.startsWith('Over') && !option.startsWith('Under')),
+                            ...keepUnder,
+                            value,
+                        ],
                     }
                 }
 
                 if (isUnder) {
+                    const nextOver = filtered.find(option => option.startsWith('Over')) || null
+                    const overThreshold = extractAgeThreshold(nextOver || '')
+                    const keepOver = (
+                        nextOver &&
+                        valueThreshold !== null &&
+                        overThreshold !== null &&
+                        overThreshold < valueThreshold
+                    ) ? [nextOver] : []
+
                     return {
                         ...prev,
-                        ageRestrictions: [...filtered.filter(option => !option.startsWith('Under')), value],
+                        ageRestrictions: [
+                            ...filtered.filter(option => !option.startsWith('Over') && !option.startsWith('Under')),
+                            ...keepOver,
+                            value,
+                        ],
                     }
                 }
 
@@ -407,13 +549,55 @@ export function CreateGigForm({
             return
         }
 
-        setForm(prev => {
-            const arr = prev[key]
-            return {
-                ...prev,
-                [key]: arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value],
-            }
-        })
+        if (key === 'freeTicketOptions') {
+            setForm(prev => {
+                const arr = prev.freeTicketOptions
+                const nextFree = arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value]
+                const isSelectingFree = !arr.includes(value)
+                const isRemovingThirdParty = value === 'free_3rd_party' && arr.includes(value)
+
+                return {
+                    ...prev,
+                    freeTicketOptions: nextFree,
+                    paidTicketOptions: isSelectingFree ? [] : prev.paidTicketOptions,
+                    paidThirdPartyTicketLink: isSelectingFree ? '' : prev.paidThirdPartyTicketLink,
+                    freeThirdPartyTicketLink: isRemovingThirdParty ? '' : prev.freeThirdPartyTicketLink,
+                    ticketPriceGigrillaDigital: isSelectingFree ? '' : prev.ticketPriceGigrillaDigital,
+                    ticketPriceThirdPartyDigital: isSelectingFree ? '' : prev.ticketPriceThirdPartyDigital,
+                    ticketPriceVenue: isSelectingFree ? '' : prev.ticketPriceVenue,
+                    ticketPriceOnline: isSelectingFree ? '' : prev.ticketPriceOnline,
+                }
+            })
+            return
+        }
+
+        if (key === 'paidTicketOptions') {
+            setForm(prev => {
+                const arr = prev.paidTicketOptions
+                const nextPaid = arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value]
+                const isSelectingPaid = !arr.includes(value)
+                const isRemovingVenue = value === 'paid_at_venue' && arr.includes(value)
+                const isRemovingOnline = value === 'paid_online_advance' && arr.includes(value)
+                const isRemovingGigrillaDigital = value === 'paid_gigrilla_digital' && arr.includes(value)
+                const isRemovingThirdParty = value === 'paid_3rd_party' && arr.includes(value)
+
+                return {
+                    ...prev,
+                    paidTicketOptions: nextPaid,
+                    freeTicketOptions: isSelectingPaid ? [] : prev.freeTicketOptions,
+                    freeThirdPartyTicketLink: isSelectingPaid ? '' : prev.freeThirdPartyTicketLink,
+                    paidThirdPartyTicketLink: isRemovingThirdParty ? '' : prev.paidThirdPartyTicketLink,
+                    ticketPriceVenue: isSelectingPaid ? prev.ticketPriceVenue : (isRemovingVenue ? '' : prev.ticketPriceVenue),
+                    ticketPriceOnline: isSelectingPaid ? prev.ticketPriceOnline : (isRemovingOnline ? '' : prev.ticketPriceOnline),
+                    ticketPriceGigrillaDigital: isSelectingPaid ? prev.ticketPriceGigrillaDigital : (isRemovingGigrillaDigital ? '' : prev.ticketPriceGigrillaDigital),
+                    ticketPriceThirdPartyDigital: isSelectingPaid ? prev.ticketPriceThirdPartyDigital : (isRemovingThirdParty ? '' : prev.ticketPriceThirdPartyDigital),
+                }
+            })
+            return
+        }
+
+        const exhaustiveCheck: never = key
+        return exhaustiveCheck
     }
 
     const getAgeDisplay = (selections: string[]) => {
@@ -452,6 +636,20 @@ export function CreateGigForm({
         const underCount = uniqueSelections.filter(option => option.startsWith('Under')).length
         if (overCount > 1 || underCount > 1) {
             throw new Error('You can choose up to one "Over" and one "Under" age option')
+        }
+
+        const over = uniqueSelections.find(option => option.startsWith('Over')) || null
+        const under = uniqueSelections.find(option => option.startsWith('Under')) || null
+        const overThreshold = extractAgeThreshold(over || '')
+        const underThreshold = extractAgeThreshold(under || '')
+        if (
+            over &&
+            under &&
+            overThreshold !== null &&
+            underThreshold !== null &&
+            overThreshold >= underThreshold
+        ) {
+            throw new Error('Your selected age restrictions conflict. The "Over" age must be lower than the "Under" age.')
         }
 
         return uniqueSelections
@@ -613,6 +811,15 @@ export function CreateGigForm({
             if (form.ticketAvailability === 'less_than_full_venue_capacity' && !form.customTicketCount) {
                 throw new Error('Please enter how many tickets are available')
             }
+            if (form.freeTicketOptions.length > 0 && form.paidTicketOptions.length > 0) {
+                throw new Error('Choose either free tickets or paid tickets, not both')
+            }
+            if (form.freeTicketOptions.includes('free_3rd_party') && !form.freeThirdPartyTicketLink.trim()) {
+                throw new Error('Please enter the link for free 3rd-party tickets')
+            }
+            if (form.paidTicketOptions.includes('paid_3rd_party') && !form.paidThirdPartyTicketLink.trim()) {
+                throw new Error('Please enter the link for paid 3rd-party tickets')
+            }
 
             // Build start datetime
             const startDatetime = new Date(`${form.gigStartDate}T${form.setStartTime}:00`).toISOString()
@@ -685,9 +892,13 @@ export function CreateGigForm({
                     ticket_mode: form.ticketMode,
                     free_ticket_options: form.freeTicketOptions,
                     paid_ticket_options: form.paidTicketOptions,
-                    third_party_ticket_link: form.thirdPartyTicketLink || null,
+                    free_third_party_ticket_link: form.freeThirdPartyTicketLink || null,
+                    paid_third_party_ticket_link: form.paidThirdPartyTicketLink || null,
+                    third_party_ticket_link: form.paidThirdPartyTicketLink || form.freeThirdPartyTicketLink || null,
                     ticket_price_venue: form.ticketPriceVenue || null,
                     ticket_price_online: form.ticketPriceOnline || null,
+                    ticket_price_gigrilla_digital: form.ticketPriceGigrillaDigital || null,
+                    ticket_price_third_party_digital: form.ticketPriceThirdPartyDigital || null,
                     ticket_currency: form.ticketCurrency,
                     custom_tickets: form.customTickets,
                     ticket_availability: form.ticketAvailability,
@@ -1015,13 +1226,21 @@ export function CreateGigForm({
                             <div className="sm:col-span-2">
                                 <Label>Venue Contact Phone</Label>
                                 <div className="flex gap-2 mt-1">
-                                    <Input
-                                        id="venueContactPhoneCode"
-                                        placeholder="+Country code"
-                                        value={form.venueContactPhoneCode}
-                                        onChange={e => update('venueContactPhoneCode', e.target.value)}
-                                        className="w-36 shrink-0"
-                                    />
+                                    <Select
+                                        value={getDialCodeChoiceValue(form.venueContactPhoneCode)}
+                                        onValueChange={(value) => update('venueContactPhoneCode', getDialCodeFromChoiceValue(value))}
+                                    >
+                                        <SelectTrigger id="venueContactPhoneCode" className="w-[280px] shrink-0 bg-white">
+                                            <SelectValue placeholder="Code" />
+                                        </SelectTrigger>
+                                        <SelectContent className="max-h-64 min-w-[320px]">
+                                            {COUNTRY_DIAL_CODE_CHOICES.map((option) => (
+                                                <SelectItem key={`venue-phone-${option.value}`} value={option.value}>
+                                                    {option.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                     <Input
                                         placeholder="Phone number…"
                                         value={form.venueContactPhone}
@@ -1157,7 +1376,7 @@ export function CreateGigForm({
                             />
                             <div>
                                 <p className="text-sm font-medium text-gray-900">I know how Tickets work for this Gig</p>
-                                <p className="text-xs text-gray-500">Multiple choice — this can be superseded by a Venue hosting this Gig.</p>
+                                <p className="text-xs text-gray-500">Choose one model: free tickets or paid tickets. This can be superseded by a Venue hosting this Gig.</p>
                             </div>
                         </label>
                     </div>
@@ -1193,6 +1412,19 @@ export function CreateGigForm({
                                     <input type="checkbox" checked={form.freeTicketOptions.includes('free_3rd_party')} onChange={() => toggleArrayItem('freeTicketOptions', 'free_3rd_party')} className="accent-purple-600" />
                                     Digital Tickets Available From 3rd Party
                                 </label>
+                                {form.freeTicketOptions.includes('free_3rd_party') && (
+                                    <div className="ml-6 mt-1">
+                                        <Label htmlFor="freeThirdPartyTicketLink">Link to Free 3rd Party Online Tickets</Label>
+                                        <Input
+                                            id="freeThirdPartyTicketLink"
+                                            type="url"
+                                            placeholder="https://…"
+                                            value={form.freeThirdPartyTicketLink}
+                                            onChange={e => update('freeThirdPartyTicketLink', e.target.value)}
+                                            className="mt-1"
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -1211,8 +1443,9 @@ export function CreateGigForm({
                                                 <select value={form.ticketCurrency} onChange={e => update('ticketCurrency', e.target.value)} className="h-8 rounded border border-input px-2 text-sm">
                                                     {currencyOptions.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
                                                 </select>
+                                                <span className="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">From</span>
                                                 <Input
-                                                    type="number" step="0.01" min="0" placeholder="Price"
+                                                    type="number" step="0.01" min="0" placeholder="From"
                                                     value={form.ticketPriceVenue} onChange={e => update('ticketPriceVenue', e.target.value)}
                                                     className="w-24 h-8"
                                                 />
@@ -1230,38 +1463,100 @@ export function CreateGigForm({
                                             <select value={form.ticketCurrency} onChange={e => update('ticketCurrency', e.target.value)} className="h-8 rounded border border-input px-2 text-sm">
                                                 {currencyOptions.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
                                             </select>
+                                            <span className="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">From</span>
                                             <Input
-                                                type="number" step="0.01" min="0" placeholder="Price"
+                                                type="number" step="0.01" min="0" placeholder="From"
                                                 value={form.ticketPriceOnline} onChange={e => update('ticketPriceOnline', e.target.value)}
                                                 className="w-24 h-8"
                                             />
                                         </div>
                                     )}
                                 </div>
-                                <label className="flex items-center gap-2 text-sm cursor-pointer py-1">
-                                    <input type="checkbox" checked={form.paidTicketOptions.includes('paid_gigrilla_digital')} onChange={() => toggleArrayItem('paidTicketOptions', 'paid_gigrilla_digital')} className="accent-purple-600" />
-                                    Digital Tickets Available From Gigrilla
-                                </label>
-                                <label className="flex items-center gap-2 text-sm cursor-pointer py-1">
-                                    <input type="checkbox" checked={form.paidTicketOptions.includes('paid_3rd_party')} onChange={() => toggleArrayItem('paidTicketOptions', 'paid_3rd_party')} className="accent-purple-600" />
-                                    Digital Tickets Available From 3rd Party
-                                </label>
-                            </div>
-
-                            {/* 3rd party link */}
-                            {(form.freeTicketOptions.includes('free_3rd_party') || form.paidTicketOptions.includes('paid_3rd_party')) && (
-                                <div className="mt-2">
-                                    <Label htmlFor="thirdPartyTicketLink">Link to 3rd Party Online Tickets</Label>
-                                    <Input
-                                        id="thirdPartyTicketLink"
-                                        type="url"
-                                        placeholder="https://…"
-                                        value={form.thirdPartyTicketLink}
-                                        onChange={e => update('thirdPartyTicketLink', e.target.value)}
-                                        className="mt-1"
-                                    />
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <label className="flex items-center gap-2 text-sm cursor-pointer py-1">
+                                        <input type="checkbox" checked={form.paidTicketOptions.includes('paid_gigrilla_digital')} onChange={() => toggleArrayItem('paidTicketOptions', 'paid_gigrilla_digital')} className="accent-purple-600" />
+                                        Digital Tickets Available From Gigrilla
+                                    </label>
+                                    {form.paidTicketOptions.includes('paid_gigrilla_digital') && (
+                                        <div className="flex items-center gap-1">
+                                            <select value={form.ticketCurrency} onChange={e => update('ticketCurrency', e.target.value)} className="h-8 rounded border border-input px-2 text-sm">
+                                                {currencyOptions.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                                            </select>
+                                            <span className="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">From</span>
+                                            <Input
+                                                type="number" step="0.01" min="0" placeholder="From"
+                                                value={form.ticketPriceGigrillaDigital} onChange={e => update('ticketPriceGigrillaDigital', e.target.value)}
+                                                className="w-24 h-8"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
-                            )}
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <label className="flex items-center gap-2 text-sm cursor-pointer py-1">
+                                            <input type="checkbox" checked={form.paidTicketOptions.includes('paid_3rd_party')} onChange={() => toggleArrayItem('paidTicketOptions', 'paid_3rd_party')} className="accent-purple-600" />
+                                            Digital Tickets Available From 3rd Party
+                                        </label>
+                                        {form.paidTicketOptions.includes('paid_3rd_party') && (
+                                            <div className="flex items-center gap-1">
+                                                <select value={form.ticketCurrency} onChange={e => update('ticketCurrency', e.target.value)} className="h-8 rounded border border-input px-2 text-sm">
+                                                    {currencyOptions.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                                                </select>
+                                                <span className="px-2 text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">From</span>
+                                                <Input
+                                                    type="number" step="0.01" min="0" placeholder="From"
+                                                    value={form.ticketPriceThirdPartyDigital} onChange={e => update('ticketPriceThirdPartyDigital', e.target.value)}
+                                                    className="w-24 h-8"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                {form.paidTicketOptions.includes('paid_3rd_party') && (
+                                    <div className="ml-6 mt-1">
+                                        <Label htmlFor="paidThirdPartyTicketLink">Link to Paid 3rd Party Online Tickets</Label>
+                                        <Input
+                                            id="paidThirdPartyTicketLink"
+                                            type="url"
+                                            placeholder="https://…"
+                                            value={form.paidThirdPartyTicketLink}
+                                            onChange={e => update('paidThirdPartyTicketLink', e.target.value)}
+                                            className="mt-1"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="space-y-3 rounded-lg border border-purple-200 bg-purple-50/50 p-4">
+                            <p className="text-sm font-medium text-gray-900">Total Tickets Available</p>
+                            <p className="text-xs text-gray-500">Add this if you know the ticket allocation for this gig. This applies to physical gigs and live stream gigs.</p>
+                            <div className="space-y-2">
+                                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="ticketAvailability" checked={form.ticketAvailability === 'skip'} onChange={() => update('ticketAvailability', 'skip')} className="accent-purple-600" />
+                                    Skip Ticket Availability Details
+                                </label>
+                                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="ticketAvailability" checked={form.ticketAvailability === 'full_venue_capacity'} onChange={() => update('ticketAvailability', 'full_venue_capacity')} className="accent-purple-600" />
+                                    Total Tickets Available equals full venue capacity
+                                </label>
+                                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="radio" name="ticketAvailability" checked={form.ticketAvailability === 'less_than_full_venue_capacity'} onChange={() => update('ticketAvailability', 'less_than_full_venue_capacity')} className="accent-purple-600" />
+                                    Total Tickets Available = specific number
+                                </label>
+                                {form.ticketAvailability === 'less_than_full_venue_capacity' && (
+                                    <div className="ml-6">
+                                        <Input
+                                            type="number"
+                                            min="1"
+                                            placeholder="Total Tickets Available"
+                                            value={form.customTicketCount}
+                                            onChange={e => update('customTicketCount', e.target.value)}
+                                            className="w-56"
+                                        />
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Build Your Paid Ticket Options */}
@@ -1383,37 +1678,6 @@ export function CreateGigForm({
                                         </div>
                                     </div>
                                 )}
-
-                                {/* Ticket Availability */}
-                                <div className="space-y-3 mt-4">
-                                    <p className="text-sm font-medium text-gray-900">OPTIONAL: How Many Tickets Available (Total)?</p>
-                                    <p className="text-xs text-gray-500">Only enter Ticket Availability details if you know them and have permission from the Venue.</p>
-                                    <div className="space-y-2">
-                                        <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                            <input type="radio" name="ticketAvailability" checked={form.ticketAvailability === 'skip'} onChange={() => update('ticketAvailability', 'skip')} className="accent-purple-600" />
-                                            Skip Ticket Availability Details
-                                        </label>
-                                        <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                            <input type="radio" name="ticketAvailability" checked={form.ticketAvailability === 'full_venue_capacity'} onChange={() => update('ticketAvailability', 'full_venue_capacity')} className="accent-purple-600" />
-                                            Ticket availability equals full venue capacity
-                                        </label>
-                                        <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                            <input type="radio" name="ticketAvailability" checked={form.ticketAvailability === 'less_than_full_venue_capacity'} onChange={() => update('ticketAvailability', 'less_than_full_venue_capacity')} className="accent-purple-600" />
-                                            Less tickets available than full venue capacity
-                                        </label>
-                                        {form.ticketAvailability === 'less_than_full_venue_capacity' && (
-                                            <div className="ml-6">
-                                                <Input
-                                                    type="number" min="1"
-                                                    placeholder="Number of tickets available"
-                                                    value={form.customTicketCount}
-                                                    onChange={e => update('customTicketCount', e.target.value)}
-                                                    className="w-48"
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
                             </div>
                         )}
                     </div>
@@ -1427,6 +1691,12 @@ export function CreateGigForm({
                     <strong>{form.gigEventName || 'Your Gig'}</strong> — this can be superseded by a Venue hosting this Gig.
                     This is your Gig Artwork across Gigrilla.
                 </p>
+                <InfoBox>
+                    <div className="space-y-1">
+                        <p><strong>Gig Artwork Upload Guide:</strong> Upload a square image, but be aware that many Gig cards and public-profile placements display a cropped landscape rectangle from the centre of that square.</p>
+                        <p>Keep faces, logos, and key text inside the middle safe area. Anything near the top, bottom, or far edges of the square may be cropped on some views.</p>
+                    </div>
+                </InfoBox>
                 <p className="text-xs text-gray-500">
                     Artwork must be: .jpg (preferred) or .png — a 1:1 square image with min. 3000×3000 pixels, max. 6000×6000 pixels, max. 10MB file size. If DPI metadata is present, keep it between 72 and 300 DPI.
                 </p>

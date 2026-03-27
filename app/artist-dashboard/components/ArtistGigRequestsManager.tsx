@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, Inbox, RefreshCw } from 'lucide-react'
+import { AlertCircle, CalendarDays, Inbox, RefreshCw } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
@@ -16,6 +16,81 @@ function formatDate(value: string | null) {
   return formatDateTimeDDMMMyyyy(value, 'Date TBD')
 }
 
+function formatTime(value: string | null) {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+}
+
+function readMetadataString(metadata: Record<string, unknown> | null | undefined, key: string) {
+  if (!metadata || typeof metadata !== 'object') return ''
+  const raw = metadata[key]
+  return typeof raw === 'string' ? raw : ''
+}
+
+function getLivestreamPlatformLabel(url: string | null) {
+  if (!url) return 'Live Stream'
+
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname.replace(/^www\./, '')
+
+    if (host.includes('youtube')) return 'YouTube'
+    if (host.includes('youtu.be')) return 'YouTube'
+    if (host.includes('twitch')) return 'Twitch'
+    if (host.includes('vimeo')) return 'Vimeo'
+    if (host.includes('facebook')) return 'Facebook Live'
+    if (host.includes('instagram')) return 'Instagram Live'
+    if (host.includes('tiktok')) return 'TikTok Live'
+    if (host.includes('restream')) return 'Restream'
+    if (host.includes('zoom')) return 'Zoom'
+
+    const root = host.split('.').at(0) || host
+    return root.charAt(0).toUpperCase() + root.slice(1)
+  } catch {
+    return 'Live Stream'
+  }
+}
+
+function getLivestreamDisplayLink(url: string | null) {
+  if (!url) return 'Stream link to be confirmed'
+
+  try {
+    const parsed = new URL(url)
+    return parsed.hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
+}
+
+function renderRequestTileMeta(request: ArtistGigRecord) {
+  const metadata = request.metadata && typeof request.metadata === 'object' ? request.metadata : null
+  const isLivestream = (request.eventType || '').toLowerCase() === 'livestream'
+  const livestreamUrl = readMetadataString(metadata, 'live_stream_url') || null
+  const displayVenueName = isLivestream
+    ? getLivestreamPlatformLabel(livestreamUrl)
+    : request.venueName || 'Venue TBD'
+  const displayVenueAddress = isLivestream
+    ? getLivestreamDisplayLink(livestreamUrl)
+    : request.venueAddress || 'Address unavailable'
+  const performanceStart = request.artistTile?.performanceStartDatetime || request.startDatetime
+  const performanceEnd = request.artistTile?.performanceEndDatetime || request.endDatetime
+  const sourceOfTruth = request.sourceOfTruth || request.publicDisplay?.sourceOfTruth || 'artist'
+
+  return {
+    displayVenueName,
+    displayVenueAddress,
+    performanceStart,
+    performanceEnd,
+    sourceOfTruth,
+  }
+}
+
 export function ArtistGigRequestsManager() {
   const [requests, setRequests] = useState<ArtistGigRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -24,6 +99,7 @@ export function ArtistGigRequestsManager() {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<RequestFilter>('all')
   const [actioningId, setActioningId] = useState<string | null>(null)
+  const [brokenGigArtwork, setBrokenGigArtwork] = useState<Record<string, boolean>>({})
 
   const load = useCallback(async (isRefresh = false) => {
     try {
@@ -158,29 +234,84 @@ export function ArtistGigRequestsManager() {
           ) : (
             <div className="space-y-3">
               {pending.map((request) => (
-                <div key={request.id} className="rounded-lg border border-gray-200 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-gray-900">{request.gigTitle}</p>
-                      <p className="text-sm text-gray-600">{request.venueName}</p>
-                      <p className="text-xs text-gray-500 mt-1">{formatDate(request.startDatetime)}</p>
-                      {request.sourceOfTruth === 'venue' && (
-                        <p className="text-xs text-blue-700 mt-1">Venue official data supersedes artist data for this gig.</p>
-                      )}
-                    </div>
-                    <Badge variant="secondary">Pending</Badge>
-                  </div>
-                  <div className="mt-4">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleCancelRequest(request.id)}
-                      disabled={actioningId === request.id}
-                      className="border-red-300 text-red-700 hover:bg-red-50"
-                    >
-                      Cancel Request
-                    </Button>
-                  </div>
+                <div key={request.id} className="rounded-lg border border-gray-200 overflow-hidden bg-white">
+                  {(() => {
+                    const metadata = request.metadata && typeof request.metadata === 'object' ? request.metadata : null
+                    const gigArtworkUrl = request.publicDisplay?.artworkUrl || readMetadataString(metadata, 'artwork_url') || ''
+                    const showGigArtwork = Boolean(gigArtworkUrl) && !brokenGigArtwork[request.id]
+
+                    return showGigArtwork ? (
+                      <div className="relative h-32 w-full overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={gigArtworkUrl}
+                          alt={`${request.gigTitle} artwork`}
+                          className="absolute inset-0 block h-full w-full scale-[1.2] object-cover object-center"
+                          onError={() => {
+                            setBrokenGigArtwork((prev) => ({ ...prev, [request.id]: true }))
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="h-32 bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center">
+                        <CalendarDays className="w-10 h-10 text-white/50" />
+                      </div>
+                    )
+                  })()}
+                  {(() => {
+                    const {
+                      displayVenueName,
+                      displayVenueAddress,
+                      performanceStart,
+                      performanceEnd,
+                      sourceOfTruth,
+                    } = renderRequestTileMeta(request)
+
+                    return (
+                  <div className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-gray-900">{request.gigTitle}</p>
+                            <p className="text-sm text-gray-700 mt-1">@ {displayVenueName}</p>
+                            <p className="text-sm italic text-gray-600">{displayVenueAddress}</p>
+                            <p className="text-xs text-purple-700 mt-2">
+                              Gig Date: <strong>{formatDate(request.startDatetime)}</strong>
+                            </p>
+                            {formatTime(performanceStart) && (
+                              <p className="text-xs text-gray-600">
+                                Artist Set Time: <strong>{formatTime(performanceStart)}</strong>
+                                {formatTime(performanceEnd) ? ` - ${formatTime(performanceEnd)}` : ''}
+                              </p>
+                            )}
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                              <Badge variant="secondary">Pending</Badge>
+                              <span>• {(request.eventType || 'gig').replace(/_/g, ' ')}</span>
+                              <span className={`font-medium ${sourceOfTruth === 'venue' ? 'text-blue-700' : 'text-gray-500'}`}>
+                                • {sourceOfTruth === 'venue' ? 'Venue Official Data' : 'Artist Submitted Data'}
+                              </span>
+                              {request.gigStatus && <span>• {request.gigStatus}</span>}
+                            </div>
+                            {sourceOfTruth === 'venue' && (
+                              <p className="text-xs text-blue-700 mt-2">
+                                Venue official data supersedes artist data for this gig.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mt-4">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCancelRequest(request.id)}
+                            disabled={actioningId === request.id}
+                            className="border-red-300 text-red-700 hover:bg-red-50"
+                          >
+                            Cancel Request
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
               ))}
             </div>
@@ -213,33 +344,88 @@ export function ArtistGigRequestsManager() {
           ) : (
             <div className="space-y-3">
               {filtered.filter((request) => request.bookingStatus !== 'pending').map((request) => (
-                <div key={request.id} className="rounded-lg border border-gray-200 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-gray-900">{request.gigTitle}</p>
-                      <p className="text-sm text-gray-600">{request.venueName}</p>
-                      <p className="text-xs text-gray-500 mt-1">{formatDate(request.startDatetime)}</p>
-                      {request.sourceOfTruth === 'venue' && (
-                        <p className="text-xs text-blue-700 mt-1">Venue official data supersedes artist data for this gig.</p>
-                      )}
-                    </div>
-                    <Badge variant={request.bookingStatus === 'confirmed' ? 'default' : 'outline'}>
-                      {request.bookingStatus}
-                    </Badge>
-                  </div>
+                <div key={request.id} className="rounded-lg border border-gray-200 overflow-hidden bg-white">
+                  {(() => {
+                    const metadata = request.metadata && typeof request.metadata === 'object' ? request.metadata : null
+                    const gigArtworkUrl = request.publicDisplay?.artworkUrl || readMetadataString(metadata, 'artwork_url') || ''
+                    const showGigArtwork = Boolean(gigArtworkUrl) && !brokenGigArtwork[request.id]
 
-                  {request.bookingStatus === 'confirmed' && (
-                    <div className="mt-4">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleMarkCompleted(request.id)}
-                        disabled={actioningId === request.id}
-                      >
-                        Mark Completed
-                      </Button>
-                    </div>
-                  )}
+                    return showGigArtwork ? (
+                      <div className="relative h-32 w-full overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={gigArtworkUrl}
+                          alt={`${request.gigTitle} artwork`}
+                          className="absolute inset-0 block h-full w-full scale-[1.2] object-cover object-center"
+                          onError={() => {
+                            setBrokenGigArtwork((prev) => ({ ...prev, [request.id]: true }))
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="h-32 bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center">
+                        <CalendarDays className="w-10 h-10 text-white/50" />
+                      </div>
+                    )
+                  })()}
+                  {(() => {
+                    const {
+                      displayVenueName,
+                      displayVenueAddress,
+                      performanceStart,
+                      performanceEnd,
+                      sourceOfTruth,
+                    } = renderRequestTileMeta(request)
+
+                    return (
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-gray-900">{request.gigTitle}</p>
+                            <p className="text-sm text-gray-700 mt-1">@ {displayVenueName}</p>
+                            <p className="text-sm italic text-gray-600">{displayVenueAddress}</p>
+                            <p className="text-xs text-purple-700 mt-2">
+                              Gig Date: <strong>{formatDate(request.startDatetime)}</strong>
+                            </p>
+                            {formatTime(performanceStart) && (
+                              <p className="text-xs text-gray-600">
+                                Artist Set Time: <strong>{formatTime(performanceStart)}</strong>
+                                {formatTime(performanceEnd) ? ` - ${formatTime(performanceEnd)}` : ''}
+                              </p>
+                            )}
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                              <Badge variant={request.bookingStatus === 'confirmed' ? 'default' : 'outline'}>
+                                {request.bookingStatus}
+                              </Badge>
+                              <span>• {(request.eventType || 'gig').replace(/_/g, ' ')}</span>
+                              <span className={`font-medium ${sourceOfTruth === 'venue' ? 'text-blue-700' : 'text-gray-500'}`}>
+                                • {sourceOfTruth === 'venue' ? 'Venue Official Data' : 'Artist Submitted Data'}
+                              </span>
+                              {request.gigStatus && <span>• {request.gigStatus}</span>}
+                            </div>
+                            {sourceOfTruth === 'venue' && (
+                              <p className="text-xs text-blue-700 mt-2">
+                                Venue official data supersedes artist data for this gig.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {request.bookingStatus === 'confirmed' && (
+                          <div className="mt-4">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleMarkCompleted(request.id)}
+                              disabled={actioningId === request.id}
+                            >
+                              Mark Completed
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
               ))}
             </div>

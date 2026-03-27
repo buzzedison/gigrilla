@@ -75,7 +75,15 @@ const TIME_OPTIONS = [
   { label: '2hr', value: 120 },
   { label: '2hr15m', value: 135 },
   { label: '2hr30m', value: 150 },
-  { label: '3hr', value: 180 }
+  { label: '3hr', value: 180 },
+  { label: '3hr15m', value: 195 },
+  { label: '3hr30m', value: 210 },
+  { label: '3hr45m', value: 225 },
+  { label: '4hr', value: 240 },
+  { label: '4hr15m', value: 255 },
+  { label: '4hr30m', value: 270 },
+  { label: '4hr45m', value: 285 },
+  { label: '5hr', value: 300 }
 ]
 
 const GIG_TIME_OPTIONS = [
@@ -132,6 +140,7 @@ export function ArtistGigAbilityManager() {
   const [baseGigFee, setBaseGigFee] = useState(0)
   const [baseGigTimescale, setBaseGigTimescale] = useState(30)
   const [logisticsMode, setLogisticsMode] = useState<'fixed' | 'negotiated'>('fixed')
+  const [savingSection, setSavingSection] = useState<'set-lengths' | 'fees' | 'local-zone' | 'wider-zone' | null>(null)
 
   useEffect(() => {
     loadArtistProfile()
@@ -294,9 +303,10 @@ export function ArtistGigAbilityManager() {
     }, 5000)
   }
 
-  const saveGigAbility = async () => {
+  const saveGigAbility = async (section: 'set-lengths' | 'fees' | 'local-zone' | 'wider-zone') => {
     try {
       setSaving(true)
+      setSavingSection(section)
 
       const existingLocationDetails = (
         artistProfile?.location_details &&
@@ -327,24 +337,37 @@ export function ArtistGigAbilityManager() {
       }
       
       // All migrations have been run - enable saving all fields
-      const response = await fetch('/api/artist-profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      const payloadBySection = {
+        'set-lengths': {
           minimum_set_length: artistProfile?.minimum_set_length || 30,
-          maximum_set_length: artistProfile?.maximum_set_length || 120,
+          maximum_set_length: artistProfile?.maximum_set_length || 120
+        },
+        fees: {
           local_gig_fee: normalizedBaseFee,
           local_gig_timescale: baseGigTimescale,
           wider_gig_fee: normalizedBaseFee,
           wider_gig_timescale: baseGigTimescale,
           wider_fixed_logistics_fee: fixedLogisticsFee,
           wider_negotiated_logistics: logisticsMode === 'negotiated',
-          local_gig_area: localGigZone || null,
+          location_details: mergedLocationDetails
+        },
+        'local-zone': {
+          local_gig_area: localGigZone || null
+        },
+        'wider-zone': {
+          wider_fixed_logistics_fee: fixedLogisticsFee,
+          wider_negotiated_logistics: logisticsMode === 'negotiated',
           wider_gig_area: widerGigZone || null,
           location_details: mergedLocationDetails
-        })
+        }
+      } satisfies Record<'set-lengths' | 'fees' | 'local-zone' | 'wider-zone', Record<string, unknown>>
+
+      const response = await fetch('/api/artist-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payloadBySection[section])
       })
 
       if (!response.ok) {
@@ -356,28 +379,60 @@ export function ArtistGigAbilityManager() {
       // Preserve all gig ability values since API might not return them all
       setArtistProfile(prev => ({
         ...result.data,
-        // Preserve set lengths
-        minimum_set_length: prev?.minimum_set_length || 30,
-        maximum_set_length: prev?.maximum_set_length || 120,
-        // Preserve gig fees and settings
-        local_gig_fee: normalizedBaseFee,
-        local_gig_timescale: baseGigTimescale,
-        wider_gig_fee: normalizedBaseFee,
-        wider_gig_timescale: baseGigTimescale,
-        wider_fixed_logistics_fee: fixedLogisticsFee,
-        wider_negotiated_logistics: logisticsMode === 'negotiated',
-        // Preserve map zones
-        local_gig_area: localGigZone || null,
-        wider_gig_area: widerGigZone || null,
-        location_details: mergedLocationDetails
+        minimum_set_length: section === 'set-lengths'
+          ? artistProfile?.minimum_set_length || 30
+          : (prev?.minimum_set_length || result.data?.minimum_set_length || 30),
+        maximum_set_length: section === 'set-lengths'
+          ? artistProfile?.maximum_set_length || 120
+          : (prev?.maximum_set_length || result.data?.maximum_set_length || 120),
+        local_gig_fee: section === 'fees'
+          ? normalizedBaseFee
+          : (prev?.local_gig_fee ?? result.data?.local_gig_fee ?? 0),
+        local_gig_timescale: section === 'fees'
+          ? baseGigTimescale
+          : (prev?.local_gig_timescale ?? result.data?.local_gig_timescale ?? 30),
+        wider_gig_fee: section === 'fees'
+          ? normalizedBaseFee
+          : (prev?.wider_gig_fee ?? result.data?.wider_gig_fee ?? 0),
+        wider_gig_timescale: section === 'fees'
+          ? baseGigTimescale
+          : (prev?.wider_gig_timescale ?? result.data?.wider_gig_timescale ?? 30),
+        wider_fixed_logistics_fee: section === 'fees' || section === 'wider-zone'
+          ? fixedLogisticsFee
+          : (prev?.wider_fixed_logistics_fee ?? result.data?.wider_fixed_logistics_fee ?? 0),
+        wider_negotiated_logistics: section === 'fees' || section === 'wider-zone'
+          ? logisticsMode === 'negotiated'
+          : (prev?.wider_negotiated_logistics ?? result.data?.wider_negotiated_logistics ?? false),
+        local_gig_area: section === 'local-zone'
+          ? (localGigZone || null)
+          : (prev?.local_gig_area ?? result.data?.local_gig_area ?? null),
+        wider_gig_area: section === 'wider-zone'
+          ? (widerGigZone || null)
+          : (prev?.wider_gig_area ?? result.data?.wider_gig_area ?? null),
+        location_details: section === 'fees' || section === 'wider-zone'
+          ? mergedLocationDetails
+          : (prev?.location_details ?? result.data?.location_details ?? null)
       }))
-      showNotification('success', 'Gig ability settings saved successfully!')
+      const successMessages = {
+        'set-lengths': 'Set length settings saved successfully!',
+        fees: 'Gig fee settings saved successfully!',
+        'local-zone': 'Local gig area saved successfully!',
+        'wider-zone': 'Wider gig area saved successfully!'
+      } satisfies Record<'set-lengths' | 'fees' | 'local-zone' | 'wider-zone', string>
+      showNotification('success', successMessages[section])
       window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source: 'gigability' } }))
     } catch (error) {
       console.error('Error saving gig ability:', error)
-      showNotification('error', 'Failed to save gig ability settings. Please try again.')
+      const errorMessages = {
+        'set-lengths': 'Failed to save set lengths. Please try again.',
+        fees: 'Failed to save gig fee settings. Please try again.',
+        'local-zone': 'Failed to save local gig area. Please try again.',
+        'wider-zone': 'Failed to save wider gig area. Please try again.'
+      } satisfies Record<'set-lengths' | 'fees' | 'local-zone' | 'wider-zone', string>
+      showNotification('error', errorMessages[section])
     } finally {
       setSaving(false)
+      setSavingSection(null)
     }
   }
 
@@ -585,11 +640,11 @@ export function ArtistGigAbilityManager() {
             {/* Save Button */}
             <div className="pt-4">
               <Button
-                onClick={saveGigAbility}
+                onClick={() => saveGigAbility('set-lengths')}
                 disabled={saving}
                 className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
               >
-                {saving ? 'Saving...' : 'Save Set Length Settings'}
+                {savingSection === 'set-lengths' ? 'Saving...' : 'Save Set Length Settings'}
               </Button>
             </div>
           </div>
@@ -661,6 +716,16 @@ export function ArtistGigAbilityManager() {
             <p className="text-sm text-gray-600">
               Base Fee Preview: {getCurrencySymbol(baseGigCurrency)}{baseGigFee.toFixed(2)} per {GIG_TIME_OPTIONS.find(opt => opt.value === baseGigTimescale)?.label} set.
             </p>
+
+            <div className="pt-2">
+              <Button
+                onClick={() => saveGigAbility('fees')}
+                disabled={saving}
+                className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                {savingSection === 'fees' ? 'Saving...' : 'Save Gig Fee Settings'}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -695,6 +760,16 @@ export function ArtistGigAbilityManager() {
               onChange={setLocalGigZone}
               baseLocation={baseLocationCoords || undefined}
             />
+
+            <div className="pt-2">
+              <Button
+                onClick={() => saveGigAbility('local-zone')}
+                disabled={saving}
+                className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                {savingSection === 'local-zone' ? 'Saving...' : 'Save Local Gig Area'}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -804,38 +879,16 @@ export function ArtistGigAbilityManager() {
               onChange={setWiderGigZone}
               baseLocation={baseLocationCoords || undefined}
             />
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Master Save Button */}
-      <Card className="border-2 border-purple-200 bg-purple-50">
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-purple-900">Save All Gig Ability Settings</h3>
-              <p className="text-sm text-purple-700 mt-1">
-                Save your set lengths, fees, and gig area zones to your artist profile
-              </p>
+            <div className="pt-2">
+              <Button
+                onClick={() => saveGigAbility('wider-zone')}
+                disabled={saving}
+                className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                {savingSection === 'wider-zone' ? 'Saving...' : 'Save Wider Gig Area'}
+              </Button>
             </div>
-            <Button
-              onClick={saveGigAbility}
-              disabled={saving}
-              size="lg"
-              className="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold"
-            >
-              {saving ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="w-5 h-5 mr-2" />
-                  Save All Settings
-                </>
-              )}
-            </Button>
           </div>
         </CardContent>
       </Card>

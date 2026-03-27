@@ -16,8 +16,18 @@ interface ArtistPhoto {
   url: string
   caption: string
   type: 'logo' | 'header' | 'photo'
+  focus_x?: number | null
+  focus_y?: number | null
   created_at: string
 }
+
+const clampFocusValue = (value?: number | null) => {
+  if (typeof value !== 'number' || Number.isNaN(value)) return 50
+  return Math.min(100, Math.max(0, value))
+}
+
+const getPhotoObjectPosition = (photo?: Pick<ArtistPhoto, 'focus_x' | 'focus_y'> | null) =>
+  `${clampFocusValue(photo?.focus_x)}% ${clampFocusValue(photo?.focus_y)}%`
 
 interface ArtistPhotosManagerProps {
   onPhotosUpdate?: (photos: ArtistPhoto[]) => void
@@ -38,6 +48,10 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
   const [headerCaption, setHeaderCaption] = useState('')
   const [photoCaption, setPhotoCaption] = useState('')
   const [uploadingType, setUploadingType] = useState<'logo' | 'header' | 'photo' | null>(null)
+  const [dragOverType, setDragOverType] = useState<'logo' | 'header' | 'photo' | null>(null)
+  const [headerFocusDraft, setHeaderFocusDraft] = useState({ x: 50, y: 50 })
+  const [headerFocusDirty, setHeaderFocusDirty] = useState(false)
+  const [isDraggingHeaderFocus, setIsDraggingHeaderFocus] = useState(false)
 
   const fileInputRefs = {
     logo: useRef<HTMLInputElement>(null),
@@ -53,6 +67,20 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
     loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
+
+  useEffect(() => {
+    if (!headerImage) {
+      setHeaderFocusDraft({ x: 50, y: 50 })
+      setHeaderFocusDirty(false)
+      return
+    }
+
+    setHeaderFocusDraft({
+      x: clampFocusValue(headerImage.focus_x),
+      y: clampFocusValue(headerImage.focus_y)
+    })
+    setHeaderFocusDirty(false)
+  }, [headerImage?.id, headerImage?.focus_x, headerImage?.focus_y])
 
   const loadPhotos = async () => {
     if (!user) return
@@ -100,6 +128,12 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
     const file = event.target.files?.[0]
     if (!file) return
 
+    await handleSelectedFile(file, type)
+  }
+
+  const handleSelectedFile = async (file: File, type: 'logo' | 'header' | 'photo') => {
+    if (!file) return
+
     const validTypes = ['image/jpeg', 'image/png', 'image/webp']
     if (!validTypes.includes(file.type)) {
       showNotification('error', 'Please upload a .jpg, .png, or .webp file')
@@ -115,6 +149,41 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
     await uploadPhoto(file, type)
   }
 
+  const handleDrop = async (
+    event: React.DragEvent<HTMLDivElement>,
+    type: 'logo' | 'header' | 'photo'
+  ) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setDragOverType((current) => (current === type ? null : current))
+
+    const file = event.dataTransfer.files?.[0]
+    if (!file) return
+
+    await handleSelectedFile(file, type)
+  }
+
+  const handleDragOver = (
+    event: React.DragEvent<HTMLDivElement>,
+    type: 'logo' | 'header' | 'photo'
+  ) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy'
+    }
+    setDragOverType(type)
+  }
+
+  const handleDragLeave = (
+    event: React.DragEvent<HTMLDivElement>,
+    type: 'logo' | 'header' | 'photo'
+  ) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setDragOverType((current) => (current === type ? null : current))
+  }
+
   const uploadPhoto = async (file: File, type: 'logo' | 'header' | 'photo') => {
     try {
       setSaving(true)
@@ -127,6 +196,11 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
       const caption = type === 'logo' ? logoCaption : type === 'header' ? headerCaption : photoCaption
       if (caption.trim()) {
         formData.append('caption', caption.trim())
+      }
+
+      if (type === 'header') {
+        formData.append('focus_x', String(headerFocusDraft.x))
+        formData.append('focus_y', String(headerFocusDraft.y))
       }
 
       const response = await fetch('/api/artist-photos', {
@@ -251,6 +325,70 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
     }
   }
 
+  const updateHeaderFocusFromPointer = (
+    event: React.PointerEvent<HTMLDivElement>
+  ) => {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const nextX = ((event.clientX - bounds.left) / bounds.width) * 100
+    const nextY = ((event.clientY - bounds.top) / bounds.height) * 100
+
+    setHeaderFocusDraft({
+      x: clampFocusValue(nextX),
+      y: clampFocusValue(nextY)
+    })
+    setHeaderFocusDirty(true)
+  }
+
+  const saveHeaderFocus = async () => {
+    if (!headerImage || !headerFocusDirty) return
+
+    try {
+      setSaving(true)
+      const response = await fetch(`/api/artist-photos/${headerImage.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          focus_x: headerFocusDraft.x,
+          focus_y: headerFocusDraft.y
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update header framing')
+      }
+
+      const result = await response.json()
+      const updatedPhoto = result.data as ArtistPhoto
+
+      setHeaderImage(updatedPhoto)
+
+      let nextPhotos: ArtistPhoto[] = []
+      setPhotos(prev => {
+        nextPhotos = prev.map(photo => photo.id === updatedPhoto.id ? updatedPhoto : photo)
+        return nextPhotos
+      })
+      onPhotosUpdate?.(nextPhotos)
+      notifyProfileUpdated()
+      setHeaderFocusDirty(false)
+      showNotification('success', 'Header framing updated successfully')
+    } catch (error) {
+      console.error('Error updating header framing:', error)
+      showNotification('error', 'Failed to update header framing')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const resetHeaderFocus = () => {
+    setHeaderFocusDraft({ x: 50, y: 50 })
+    setHeaderFocusDirty(
+      clampFocusValue(headerImage?.focus_x) !== 50 ||
+      clampFocusValue(headerImage?.focus_y) !== 50
+    )
+  }
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -298,13 +436,25 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                 <p>• This is your Artist Profile Picture across Gigrilla</p>
                 <p>• Logo must be .jpg, .png, or .webp</p>
                 <p>• Minimum 400x400 pixels, maximum 5MB file size</p>
+                <p>• Keep the main logo mark centred so it reads clearly in square and circular profile placements.</p>
+                <p>• Avoid placing important text or details too close to the outer edges.</p>
               </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
                 {!logo ? (
                   <div className="space-y-4">
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-400 transition-colors">
+                    <div
+                      onDrop={(e) => handleDrop(e, 'logo')}
+                      onDragOver={(e) => handleDragOver(e, 'logo')}
+                      onDragLeave={(e) => handleDragLeave(e, 'logo')}
+                      className={cn(
+                        "border-2 border-dashed rounded-lg p-6 text-center transition-colors",
+                        dragOverType === 'logo'
+                          ? "border-purple-500 bg-purple-50"
+                          : "border-gray-300 hover:border-purple-400"
+                      )}
+                    >
                       <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                       <p className="text-sm text-gray-600 mb-4">Drag & drop your logo here or click to browse</p>
                       <Input
@@ -342,43 +492,87 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="flex items-center gap-6 p-4 bg-gray-50 rounded-lg">
-                      <div className="relative">
-                        <NextImage
-                          src={logo.url}
-                          alt="Artist Logo"
-                          width={96}
-                          height={96}
-                          className="w-24 h-24 object-cover rounded-lg border-2 border-gray-200"
-                        />
+                    <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-6">
+                        <div className="relative">
+                          <NextImage
+                            src={logo.url}
+                            alt="Artist Logo"
+                            width={96}
+                            height={96}
+                            className="w-24 h-24 object-cover rounded-lg border-2 border-gray-200"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">{logo.caption || 'Artist Logo'}</p>
+                          <p className="text-sm text-gray-500">
+                            Uploaded {formatDateDDMMMyyyy(logo.created_at)}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const newCaption = prompt('Edit caption:', logo.caption)
+                              if (newCaption !== null) {
+                                updatePhotoCaption(logo.id, newCaption)
+                              }
+                            }}
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => deletePhoto(logo.id)}
+                            disabled={saving}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900">{logo.caption || 'Artist Logo'}</p>
-                        <p className="text-sm text-gray-500">
-                          Uploaded {formatDateDDMMMyyyy(logo.created_at)}
+
+                      <div className="rounded-lg border border-purple-100 bg-white p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-purple-700 mb-2">
+                          Public Profile Logo Preview
                         </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const newCaption = prompt('Edit caption:', logo.caption)
-                            if (newCaption !== null) {
-                              updatePhotoCaption(logo.id, newCaption)
-                            }
-                          }}
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => deletePhoto(logo.id)}
-                          disabled={saving}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                          <div className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-[#fbf8ff] px-4 py-4">
+                            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-white shadow-sm">
+                              <NextImage
+                                src={logo.url}
+                                alt="Artist Logo public profile preview"
+                                width={160}
+                                height={160}
+                                className="h-full w-full object-cover object-center"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-900">Artist public profile</p>
+                              <p className="text-xs text-gray-500">Circular profile icon treatment</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white px-4 py-4">
+                            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                              <NextImage
+                                src={logo.url}
+                                alt="Artist Logo square preview"
+                                width={160}
+                                height={160}
+                                className="h-full w-full object-cover object-center"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-900">Square logo placement</p>
+                              <p className="text-xs text-gray-500">Used in admin and tile surfaces</p>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-3">
+                          This preview now matches the actual logo-style placements more closely than the old wide crop.
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -398,13 +592,25 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                 <p>• This is the image across the top of your Artist Profile</p>
                 <p>• Image must be .jpg, .png, or .webp</p>
                 <p>• Minimum 1200x400 pixels, maximum 5MB file size</p>
+                <p>• The public header is displayed at a 3:1 ratio. Design for a true 1200x400 safe area.</p>
+                <p>• Keep faces, logos, and key text inside the central band so they stay visible across layouts.</p>
               </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
                 {!headerImage ? (
                   <div className="space-y-4">
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-400 transition-colors">
+                    <div
+                      onDrop={(e) => handleDrop(e, 'header')}
+                      onDragOver={(e) => handleDragOver(e, 'header')}
+                      onDragLeave={(e) => handleDragLeave(e, 'header')}
+                      className={cn(
+                        "border-2 border-dashed rounded-lg p-6 text-center transition-colors",
+                        dragOverType === 'header'
+                          ? "border-purple-500 bg-purple-50"
+                          : "border-gray-300 hover:border-purple-400"
+                      )}
+                    >
                       <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                       <p className="text-sm text-gray-600 mb-4">Drag & drop your header image here or click to browse</p>
                       <Input
@@ -443,23 +649,80 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                 ) : (
                   <div className="space-y-4">
                     <div className="p-4 bg-gray-50 rounded-lg">
-                      <div className="relative mb-4">
-                        <NextImage
-                          src={headerImage.url}
-                          alt="Artist Header"
-                          width={800}
-                          height={192}
-                          className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
-                        />
-                      </div>
+                        <div className="relative mb-4">
+                          <div
+                            className={cn(
+                              "group relative overflow-hidden rounded-lg border-2 border-gray-200 bg-[#120818]",
+                              isDraggingHeaderFocus && "cursor-grabbing",
+                              !isDraggingHeaderFocus && "cursor-grab"
+                            )}
+                            onPointerDown={(event) => {
+                              event.currentTarget.setPointerCapture(event.pointerId)
+                              setIsDraggingHeaderFocus(true)
+                              updateHeaderFocusFromPointer(event)
+                            }}
+                            onPointerMove={(event) => {
+                              if (!isDraggingHeaderFocus) return
+                              updateHeaderFocusFromPointer(event)
+                            }}
+                            onPointerUp={(event) => {
+                              if (!isDraggingHeaderFocus) return
+                              updateHeaderFocusFromPointer(event)
+                              setIsDraggingHeaderFocus(false)
+                              event.currentTarget.releasePointerCapture(event.pointerId)
+                            }}
+                            onPointerCancel={(event) => {
+                              setIsDraggingHeaderFocus(false)
+                              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                                event.currentTarget.releasePointerCapture(event.pointerId)
+                              }
+                            }}
+                          >
+                            <NextImage
+                              src={headerImage.url}
+                              alt="Artist Header"
+                              width={1200}
+                              height={400}
+                              className="w-full aspect-[3/1] object-cover rounded-lg"
+                              style={{ objectPosition: `${headerFocusDraft.x}% ${headerFocusDraft.y}%` }}
+                            />
+                            <div className="pointer-events-none absolute inset-[12%_0] rounded-md border-2 border-yellow-300/90 shadow-[0_0_0_1px_rgba(255,255,255,0.5)]" />
+                            <div
+                              className="pointer-events-none absolute h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-purple-600/90 shadow-lg"
+                              style={{ left: `${headerFocusDraft.x}%`, top: `${headerFocusDraft.y}%` }}
+                            />
+                          </div>
+                        </div>
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-medium text-gray-900">{headerImage.caption || 'Header Image'}</p>
                           <p className="text-sm text-gray-500">
                             Uploaded {formatDateDDMMMyyyy(headerImage.created_at)}
                           </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Yellow guide shows the central safe band that stays most visible across profile layouts.
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Drag the image preview to choose which part of the header stays centred on profile screens.
+                          </p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={resetHeaderFocus}
+                            disabled={saving}
+                          >
+                            Reset framing
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={saveHeaderFocus}
+                            disabled={saving || !headerFocusDirty}
+                            className="bg-green-600 hover:bg-green-700 text-white disabled:bg-gray-200 disabled:text-gray-500"
+                          >
+                            Save framing
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
@@ -508,7 +771,17 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-400 transition-colors">
+              <div
+                onDrop={(e) => handleDrop(e, 'photo')}
+                onDragOver={(e) => handleDragOver(e, 'photo')}
+                onDragLeave={(e) => handleDragLeave(e, 'photo')}
+                className={cn(
+                  "border-2 border-dashed rounded-lg p-6 text-center transition-colors",
+                  dragOverType === 'photo'
+                    ? "border-purple-500 bg-purple-50"
+                    : "border-gray-300 hover:border-purple-400"
+                )}
+              >
                 <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-sm text-gray-600 mb-4">Drag & drop your photos here or click to browse</p>
                 <Input

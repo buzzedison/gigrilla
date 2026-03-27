@@ -31,6 +31,7 @@ import { formatDateDDMMMyyyy, formatDateTimeDDMMMyyyy } from '@/lib/date-format'
 
 interface ArtistGigCalendarManagerProps {
   defaultView?: 'create' | 'upcoming' | 'past'
+  onNavigateToView?: (view: 'create' | 'upcoming' | 'past') => void
 }
 
 interface FanCommsFormState {
@@ -81,6 +82,41 @@ function formatTime(value: string | null) {
     minute: '2-digit',
     hour12: false,
   })
+}
+
+function getLivestreamPlatformLabel(url: string | null) {
+  if (!url) return 'Live Stream'
+
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname.replace(/^www\./, '')
+
+    if (host.includes('youtube')) return 'YouTube'
+    if (host.includes('youtu.be')) return 'YouTube'
+    if (host.includes('twitch')) return 'Twitch'
+    if (host.includes('vimeo')) return 'Vimeo'
+    if (host.includes('facebook')) return 'Facebook Live'
+    if (host.includes('instagram')) return 'Instagram Live'
+    if (host.includes('tiktok')) return 'TikTok Live'
+    if (host.includes('restream')) return 'Restream'
+    if (host.includes('zoom')) return 'Zoom'
+
+    const root = host.split('.').at(0) || host
+    return root.charAt(0).toUpperCase() + root.slice(1)
+  } catch {
+    return 'Live Stream'
+  }
+}
+
+function getLivestreamDisplayLink(url: string | null) {
+  if (!url) return 'Stream link to be confirmed'
+
+  try {
+    const parsed = new URL(url)
+    return parsed.hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
 }
 
 function statusVariant(status: string) {
@@ -188,9 +224,20 @@ function toGigFormInitialData(gig: ArtistGigRecord): CreateGigFormInitialData {
     ticketMode: readMetadataString(metadata, 'ticket_mode') === 'known' ? 'known' : 'unknown',
     freeTicketOptions: readMetadataStringArray(metadata, 'free_ticket_options'),
     paidTicketOptions: readMetadataStringArray(metadata, 'paid_ticket_options'),
-    thirdPartyTicketLink: readMetadataString(metadata, 'third_party_ticket_link'),
+    freeThirdPartyTicketLink:
+      readMetadataString(metadata, 'free_third_party_ticket_link') ||
+      (readMetadataStringArray(metadata, 'free_ticket_options').includes('free_3rd_party')
+        ? readMetadataString(metadata, 'third_party_ticket_link')
+        : ''),
+    paidThirdPartyTicketLink:
+      readMetadataString(metadata, 'paid_third_party_ticket_link') ||
+      (readMetadataStringArray(metadata, 'paid_ticket_options').includes('paid_3rd_party')
+        ? readMetadataString(metadata, 'third_party_ticket_link')
+        : ''),
     ticketPriceVenue: readMetadataNumberLike(metadata, 'ticket_price_venue'),
     ticketPriceOnline: readMetadataNumberLike(metadata, 'ticket_price_online'),
+    ticketPriceGigrillaDigital: readMetadataNumberLike(metadata, 'ticket_price_gigrilla_digital'),
+    ticketPriceThirdPartyDigital: readMetadataNumberLike(metadata, 'ticket_price_third_party_digital'),
     ticketCurrency: readMetadataString(metadata, 'ticket_currency') || gig.currency || 'GBP',
     customTickets: Array.isArray(metadata?.custom_tickets) ? (metadata.custom_tickets as CreateGigFormInitialData['customTickets']) || [] : [],
     ticketAvailability,
@@ -260,7 +307,7 @@ function getFanCommsSummary(metadata: Record<string, unknown> | null | undefined
   }
 }
 
-export function ArtistGigCalendarManager({ defaultView = 'create' }: ArtistGigCalendarManagerProps) {
+export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToView }: ArtistGigCalendarManagerProps) {
   const [gigs, setGigs] = useState<ArtistGigRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -689,18 +736,30 @@ export function ArtistGigCalendarManager({ defaultView = 'create' }: ArtistGigCa
             {!error && !showForm && (
               <div className="space-y-6">
                 <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="rounded-lg border border-gray-200 p-3">
+                  <button
+                    type="button"
+                    onClick={() => onNavigateToView?.('upcoming')}
+                    className="rounded-lg border border-gray-200 p-3 text-left transition hover:border-purple-300 hover:bg-purple-50/40"
+                  >
                     <p className="text-xs uppercase tracking-wide text-gray-500">Total Bookings</p>
                     <p className="text-xl font-semibold text-gray-900 mt-1">{gigs.length}</p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 p-3">
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onNavigateToView?.('upcoming')}
+                    className="rounded-lg border border-gray-200 p-3 text-left transition hover:border-purple-300 hover:bg-purple-50/40"
+                  >
                     <p className="text-xs uppercase tracking-wide text-gray-500">Upcoming</p>
                     <p className="text-xl font-semibold text-gray-900 mt-1">{upcoming.length}</p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 p-3">
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onNavigateToView?.('past')}
+                    className="rounded-lg border border-gray-200 p-3 text-left transition hover:border-purple-300 hover:bg-purple-50/40"
+                  >
                     <p className="text-xs uppercase tracking-wide text-gray-500">Past</p>
                     <p className="text-xl font-semibold text-gray-900 mt-1">{past.length}</p>
-                  </div>
+                  </button>
                 </div>
 
                 <div className="rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50 p-6 space-y-3">
@@ -710,7 +769,6 @@ export function ArtistGigCalendarManager({ defaultView = 'create' }: ArtistGigCa
                   <ul className="text-sm text-gray-700 list-disc ml-4 space-y-1">
                     <li>We&apos;ll add it to your Artist Profile Upcoming Gig List</li>
                     <li>We&apos;ll add it to Gigrilla GigFinder</li>
-                    <li>Public listing follows your publish timing and venue source-of-truth rules</li>
                     <li>Fan communications are controlled by you in &quot;Promote to Fans&quot; after public launch</li>
                   </ul>
                   <p className="text-sm text-gray-600">
@@ -832,8 +890,17 @@ export function ArtistGigCalendarManager({ defaultView = 'create' }: ArtistGigCa
                     const canPublishNow = gig.gigStatus !== 'published'
                     const performanceStart = gig.artistTile?.performanceStartDatetime || gig.startDatetime
                     const performanceEnd = gig.artistTile?.performanceEndDatetime || gig.endDatetime
+                    const metadata = gig.metadata && typeof gig.metadata === 'object' ? gig.metadata : null
+                    const isLivestream = (gig.eventType || '').toLowerCase() === 'livestream'
+                    const livestreamUrl = readMetadataString(metadata, 'live_stream_url') || null
+                    const displayVenueName = isLivestream
+                      ? getLivestreamPlatformLabel(livestreamUrl)
+                      : gig.venueName
+                    const displayVenueAddress = isLivestream
+                      ? getLivestreamDisplayLink(livestreamUrl)
+                      : gig.venueAddress
                     const sourceOfTruth = gig.sourceOfTruth || gig.publicDisplay?.sourceOfTruth || 'artist'
-                    const gigArtworkUrl = gig.publicDisplay?.artworkUrl || readMetadataString(gig.metadata || null, 'artwork_url') || ''
+                    const gigArtworkUrl = gig.publicDisplay?.artworkUrl || readMetadataString(metadata, 'artwork_url') || ''
                     const showGigArtwork = Boolean(gigArtworkUrl) && !brokenGigArtwork[gig.id]
                     const fanCommsSummary = getFanCommsSummary(gig.metadata || null)
                     const fanCommsLabel = fanCommsSummary.total > 0
@@ -863,8 +930,8 @@ export function ArtistGigCalendarManager({ defaultView = 'create' }: ArtistGigCa
 
                         <div className="p-4 space-y-2">
                           <h3 className="font-bold text-gray-900 text-lg leading-tight">{gig.gigTitle}</h3>
-                          <p className="text-sm text-gray-600">@ {gig.venueName}</p>
-                          <p className="text-sm text-gray-500 italic">{gig.venueAddress}</p>
+                          <p className="text-sm text-gray-600">@ {displayVenueName}</p>
+                          <p className="text-sm text-gray-500 italic break-all">{displayVenueAddress}</p>
 
                           <div className="space-y-1 text-sm">
                             <p className="font-semibold text-purple-700">
@@ -1434,21 +1501,41 @@ export function ArtistGigCalendarManager({ defaultView = 'create' }: ArtistGigCa
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
-              {past.map((gig) => (
-                <div key={gig.id} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-                  <div className="h-32 bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center">
-                    <CalendarDays className="w-10 h-10 text-white/50" />
+              {past.map((gig) => {
+                const metadata = gig.metadata && typeof gig.metadata === 'object' ? gig.metadata : null
+                const gigArtworkUrl = gig.publicDisplay?.artworkUrl || readMetadataString(metadata, 'artwork_url') || ''
+                const showGigArtwork = Boolean(gigArtworkUrl) && !brokenGigArtwork[gig.id]
+
+                return (
+                  <div key={gig.id} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                    {showGigArtwork ? (
+                      <div className="relative h-32 w-full overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={gigArtworkUrl}
+                          alt={`${gig.gigTitle} artwork`}
+                          className="absolute inset-0 block h-full w-full scale-[1.2] object-cover object-center"
+                          onError={() => {
+                            setBrokenGigArtwork((prev) => ({ ...prev, [gig.id]: true }))
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="h-32 bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center">
+                        <CalendarDays className="w-10 h-10 text-white/50" />
+                      </div>
+                    )}
+                    <div className="p-4 space-y-2">
+                      <h3 className="font-bold text-gray-900">{gig.gigTitle}</h3>
+                      <p className="text-sm text-gray-600">@ {gig.venueName}</p>
+                      <p className="text-sm text-gray-500">{formatDateOnly(gig.startDatetime)}</p>
+                      <Badge variant={statusVariant(gig.bookingStatus)}>
+                        {gig.bookingStatus.replace('_', ' ')}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="p-4 space-y-2">
-                    <h3 className="font-bold text-gray-900">{gig.gigTitle}</h3>
-                    <p className="text-sm text-gray-600">@ {gig.venueName}</p>
-                    <p className="text-sm text-gray-500">{formatDateOnly(gig.startDatetime)}</p>
-                    <Badge variant={statusVariant(gig.bookingStatus)}>
-                      {gig.bookingStatus.replace('_', ' ')}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </CardContent>
