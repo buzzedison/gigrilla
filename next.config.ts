@@ -4,6 +4,9 @@ import path from "node:path";
 const tailwindPackagePath = path.join(__dirname, "node_modules", "tailwindcss");
 
 const nextConfig: NextConfig = {
+  experimental: {
+    proxyClientMaxBodySize: '2200mb',
+  },
   turbopack: {
     resolveAlias: {
       tailwindcss: tailwindPackagePath,

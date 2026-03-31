@@ -911,19 +911,32 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
                     return (
                       <div key={gig.id} className="rounded-xl border border-gray-200 bg-white overflow-hidden hover:shadow-md transition-shadow">
                         {showGigArtwork ? (
-                          <div className="relative h-40 w-full overflow-hidden">
+                          <div className="relative h-56 w-full overflow-hidden bg-[linear-gradient(135deg,_#faf6ff_0%,_#eef5ff_100%)] sm:h-64">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={gigArtworkUrl}
-                              alt={`${gig.gigTitle} artwork`}
-                              className="absolute inset-0 block h-full w-full scale-[1.3] object-cover object-center"
+                              alt=""
+                              aria-hidden="true"
+                              className="absolute inset-0 block h-full w-full scale-110 object-cover object-center opacity-25 blur-xl"
                               onError={() => {
                                 setBrokenGigArtwork((prev) => ({ ...prev, [gig.id]: true }))
                               }}
                             />
+                            <div className="absolute inset-0 bg-white/20" />
+                            <div className="relative z-10 flex h-full items-center justify-center p-2">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={gigArtworkUrl}
+                                alt={`${gig.gigTitle} artwork`}
+                                className="block h-full w-auto max-w-[78%] rounded-md object-contain shadow-[0_12px_28px_rgba(15,10,30,0.22)]"
+                                onError={() => {
+                                  setBrokenGigArtwork((prev) => ({ ...prev, [gig.id]: true }))
+                                }}
+                              />
+                            </div>
                           </div>
                         ) : (
-                          <div className="h-40 bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
+                          <div className="flex h-56 items-center justify-center bg-gradient-to-br from-purple-500 to-indigo-600 sm:h-64">
                             <CalendarDays className="w-12 h-12 text-white/60" />
                           </div>
                         )}
@@ -1509,19 +1522,32 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
                 return (
                   <div key={gig.id} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
                     {showGigArtwork ? (
-                      <div className="relative h-32 w-full overflow-hidden">
+                      <div className="relative h-52 w-full overflow-hidden bg-[linear-gradient(135deg,_#faf6ff_0%,_#eef5ff_100%)] sm:h-56">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={gigArtworkUrl}
-                          alt={`${gig.gigTitle} artwork`}
-                          className="absolute inset-0 block h-full w-full scale-[1.2] object-cover object-center"
+                          alt=""
+                          aria-hidden="true"
+                          className="absolute inset-0 block h-full w-full scale-110 object-cover object-center opacity-25 blur-xl"
                           onError={() => {
                             setBrokenGigArtwork((prev) => ({ ...prev, [gig.id]: true }))
                           }}
                         />
+                        <div className="absolute inset-0 bg-white/20" />
+                        <div className="relative z-10 flex h-full items-center justify-center p-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={gigArtworkUrl}
+                            alt={`${gig.gigTitle} artwork`}
+                            className="block h-full w-auto max-w-[78%] rounded-md object-contain shadow-[0_12px_28px_rgba(15,10,30,0.22)]"
+                            onError={() => {
+                              setBrokenGigArtwork((prev) => ({ ...prev, [gig.id]: true }))
+                            }}
+                          />
+                        </div>
                       </div>
                     ) : (
-                      <div className="h-32 bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center">
+                      <div className="flex h-52 items-center justify-center bg-gradient-to-br from-gray-400 to-gray-500 sm:h-56">
                         <CalendarDays className="w-10 h-10 text-white/50" />
                       </div>
                     )}

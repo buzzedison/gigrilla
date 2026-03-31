@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Save, ArrowRight, ArrowLeft, Loader2, CheckCircle, Plus, ChevronDown, ChevronUp } from 'lucide-react'
+import { Save, ArrowRight, ArrowLeft, Loader2, CheckCircle, Plus, ChevronDown, ChevronUp, Disc3, CalendarDays, Music2, PencilLine } from 'lucide-react'
+import Image from 'next/image'
 import { Button } from '../../../components/ui/button'
 import { formatDateDDMMMyyyy } from '@/lib/date-format'
 import { ReleaseData, TrackData, initialReleaseData } from './types'
@@ -338,7 +339,7 @@ export function ArtistMusicManager({
   const [isSaving, setIsSaving] = useState(false)
   const [isSavingAndProceeding, setIsSavingAndProceeding] = useState(false)
   const [editingReleaseId, setEditingReleaseId] = useState<string | null>(null)
-  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error' | 'warning', text: string } | null>(null)
   const [isIntroCollapsed, setIsIntroCollapsed] = useState(false)
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'idle'>('idle')
   const [approvalMode, setApprovalMode] = useState<'auto' | 'manual'>('auto')
@@ -618,6 +619,12 @@ export function ArtistMusicManager({
           type: data.type as 'label' | 'publisher' | 'distributor' | 'pro' | 'mcs'
         })
         setSuccessModalOpen(true)
+        if (result.warning) {
+          setSaveMessage({ type: 'warning', text: result.warning })
+          setTimeout(() => setSaveMessage(null), 6000)
+        } else {
+          setSaveMessage(null)
+        }
       } else {
         setSaveMessage({ type: 'error', text: result.error || 'Failed to send invitation' })
         setTimeout(() => setSaveMessage(null), 5000)
@@ -912,9 +919,9 @@ export function ArtistMusicManager({
           type: 'success',
           text:
             isPublished
-              ? 'Release published successfully. Preview it as a fan.'
+              ? 'Release published successfully. It is now live in your music catalogue.'
               : isPending
-                ? 'Release submitted for review. It will appear in fan preview after approval.'
+                ? 'Release submitted for review. It will appear in your music catalogue after approval.'
                 : 'Release saved successfully.'
         })
         // Could redirect to a releases list or show success state
@@ -960,6 +967,9 @@ export function ArtistMusicManager({
     setCurrentStep(nextStep)
     setReleaseData({ ...initialReleaseData, ...dbToReleaseData(release) })
     setMusicView('upload')
+    if (isEmbeddedDashboardSubPage && forcedSubSection === 'library') {
+      navigateMusicSubSection('workflow')
+    }
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
@@ -993,6 +1003,140 @@ export function ArtistMusicManager({
   const formatDate = (value: string | null | undefined) => {
     if (!value) return 'Not published yet'
     return formatDateDDMMMyyyy(value, 'Not published yet')
+  }
+
+  const renderLibraryCard = (
+    release: DbRelease,
+    options: {
+      tone: 'published' | 'pending'
+      dateLabel: string
+      dateValue: string | null | undefined
+      metaLabel: string
+    }
+  ) => {
+    const isOpening = editingReleaseId === release.id
+    const artworkUrl = release.cover_artwork_url || null
+    const typeLabel = (release.release_type || 'release').toUpperCase()
+    const trackLabel = `${release.track_count || 0} track${release.track_count === 1 ? '' : 's'}`
+    const toneClasses =
+      options.tone === 'published'
+        ? 'border-emerald-200/80 bg-gradient-to-br from-white via-emerald-50/30 to-sky-50/40'
+        : 'border-amber-200/80 bg-gradient-to-br from-white via-amber-50/30 to-rose-50/30'
+    const badgeClasses =
+      options.tone === 'published'
+        ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200/80'
+        : 'bg-amber-100 text-amber-800 ring-1 ring-amber-200/80'
+
+    return (
+      <div
+        key={release.id}
+        role="button"
+        tabIndex={0}
+        onClick={() => {
+          if (!isOpening) {
+            void handleEditRelease(release)
+          }
+        }}
+        onKeyDown={(event) => {
+          if ((event.key === 'Enter' || event.key === ' ') && !isOpening) {
+            event.preventDefault()
+            void handleEditRelease(release)
+          }
+        }}
+        className={`group cursor-pointer overflow-hidden rounded-3xl border shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg ${toneClasses}`}
+      >
+        <div className="relative border-b border-white/70">
+          <div className="relative h-52 overflow-hidden bg-slate-100">
+            {artworkUrl ? (
+              <>
+                <div
+                  className="absolute inset-0 scale-110 bg-cover bg-center opacity-40 blur-2xl"
+                  style={{ backgroundImage: `url(${artworkUrl})` }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/20 via-transparent to-white/20" />
+                <div className="relative flex h-full items-center justify-center p-5">
+                  <div className="relative h-40 w-40 overflow-hidden rounded-2xl border border-white/80 bg-white/70 shadow-xl shadow-slate-900/10">
+                    <Image
+                      src={artworkUrl}
+                      alt={`${release.release_title} artwork`}
+                      fill
+                      className="object-cover"
+                      sizes="160px"
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-slate-100 via-white to-slate-100 text-slate-500">
+                <Disc3 className="h-12 w-12 text-slate-400" />
+                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">No Artwork Yet</p>
+              </div>
+            )}
+          </div>
+
+          <div className="absolute inset-x-4 top-4 flex items-start justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold tracking-wide text-slate-700 shadow-sm backdrop-blur">
+                {typeLabel}
+              </span>
+              <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold tracking-wide text-slate-700 shadow-sm backdrop-blur">
+                {trackLabel}
+              </span>
+              <span className={`rounded-full px-3 py-1 text-[11px] font-semibold tracking-wide shadow-sm backdrop-blur ${badgeClasses}`}>
+                {options.metaLabel}
+              </span>
+            </div>
+            <span className="shrink-0 rounded-full bg-slate-950/60 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
+              {isOpening ? 'Opening...' : 'Open'}
+            </span>
+          </div>
+        </div>
+
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xl font-semibold text-gray-950 line-clamp-2">{release.release_title}</p>
+              <p className="mt-2 text-sm text-gray-500">Open this release to continue editing, review assets, and manage submission status.</p>
+            </div>
+            <div className="hidden rounded-2xl border border-white/80 bg-white/80 px-4 py-3 text-right shadow-sm sm:block">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-gray-500">Status</p>
+              <p className="mt-1 text-sm font-semibold capitalize text-gray-900">{release.status.replace(/_/g, ' ')}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-white/80 bg-white/80 p-4 shadow-sm">
+              <div className="flex items-center gap-2 text-gray-500">
+                <CalendarDays className="h-4 w-4" />
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em]">{options.dateLabel}</p>
+              </div>
+              <p className="mt-2 text-sm font-semibold text-gray-950">{formatDate(options.dateValue)}</p>
+            </div>
+            <div className="rounded-2xl border border-white/80 bg-white/80 p-4 shadow-sm">
+              <div className="flex items-center gap-2 text-gray-500">
+                <Music2 className="h-4 w-4" />
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em]">Release Version</p>
+              </div>
+              <p className="mt-2 text-sm font-semibold text-gray-950 line-clamp-2">{release.release_version || 'Original version'}</p>
+            </div>
+            <div className="rounded-2xl border border-white/80 bg-white/80 p-4 shadow-sm">
+              <div className="flex items-center gap-2 text-gray-500">
+                <PencilLine className="h-4 w-4" />
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em]">Current Step</p>
+              </div>
+              <p className="mt-2 text-sm font-semibold capitalize text-gray-950">{release.current_step.replace(/-/g, ' ')}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 flex items-center justify-between border-t border-white/80 pt-4">
+            <p className="text-xs font-medium text-gray-500">Click anywhere on this tile to open the release in the upload workflow.</p>
+            <span className="inline-flex items-center gap-2 text-sm font-semibold text-purple-700 group-hover:text-purple-800">
+              Open in Upload Flow <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+            </span>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // Render current step content
@@ -1093,7 +1237,9 @@ export function ArtistMusicManager({
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg ${
           saveMessage.type === 'success' 
             ? 'bg-emerald-500 text-white' 
-            : 'bg-red-500 text-white'
+            : saveMessage.type === 'warning'
+              ? 'bg-amber-500 text-white'
+              : 'bg-red-500 text-white'
         }`}>
           {saveMessage.text}
         </div>
@@ -1275,34 +1421,14 @@ export function ArtistMusicManager({
                   These are submitted and waiting for admin approval before they appear in fan preview.
                 </p>
                 <div className="mt-3 grid gap-2 md:grid-cols-2">
-                  {(musicView === 'manage' ? pendingReleases : pendingReleases.slice(0, 6)).map((release) => (
-                    <div key={release.id} className="rounded-lg border border-amber-200 bg-white p-3">
-                      <p className="text-sm font-medium text-gray-900 line-clamp-1">{release.release_title}</p>
-                      <p className="text-xs text-gray-600 mt-1">
-                        {(release.release_type || 'release').toUpperCase()} • {release.track_count || 0} track{release.track_count === 1 ? '' : 's'}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Submitted {formatDate(release.submitted_at || release.created_at)}
-                      </p>
-                      {musicView === 'manage' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEditRelease(release)}
-                          disabled={editingReleaseId === release.id}
-                          className="mt-2 border-amber-300 text-amber-800 hover:bg-amber-100"
-                        >
-                          {editingReleaseId === release.id ? (
-                            <>
-                              <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Opening...
-                            </>
-                          ) : (
-                            'Edit Release'
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  ))}
+                  {(musicView === 'manage' ? pendingReleases : pendingReleases.slice(0, 6)).map((release) =>
+                    renderLibraryCard(release, {
+                      tone: 'pending',
+                      dateLabel: 'Submitted',
+                      dateValue: release.submitted_at || release.created_at,
+                      metaLabel: 'Pending Review'
+                    })
+                  )}
                 </div>
               </div>
             )}
@@ -1315,34 +1441,14 @@ export function ArtistMusicManager({
               <div>
                 <p className="text-sm font-semibold text-gray-900 mb-3">Published Music ({publishedReleases.length})</p>
                 <div className="grid gap-3 md:grid-cols-2">
-                  {(musicView === 'manage' ? publishedReleases : publishedReleases.slice(0, 6)).map((release) => (
-                    <div key={release.id} className="rounded-xl border border-gray-200 p-4 bg-gray-50">
-                      <p className="text-sm font-semibold text-gray-900 line-clamp-1">{release.release_title}</p>
-                      <p className="text-xs text-gray-600 mt-1">
-                        {(release.release_type || 'release').toUpperCase()} • {release.track_count || 0} track{release.track_count === 1 ? '' : 's'}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Published {formatDate(release.published_at || release.created_at)}
-                      </p>
-                      {musicView === 'manage' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEditRelease(release)}
-                          disabled={editingReleaseId === release.id}
-                          className="mt-2 border-gray-300 text-gray-700 hover:bg-gray-100"
-                        >
-                          {editingReleaseId === release.id ? (
-                            <>
-                              <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Opening...
-                            </>
-                          ) : (
-                            'Edit Release'
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  ))}
+                  {(musicView === 'manage' ? publishedReleases : publishedReleases.slice(0, 6)).map((release) =>
+                    renderLibraryCard(release, {
+                      tone: 'published',
+                      dateLabel: 'Published',
+                      dateValue: release.published_at || release.created_at,
+                      metaLabel: 'Live'
+                    })
+                  )}
                 </div>
               </div>
             )}

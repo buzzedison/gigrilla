@@ -2,6 +2,61 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
+const TRACK_SCHEMA_FALLBACK_COLUMNS = [
+  'no_lyrics',
+  'lyrics_input_mode',
+  'no_video'
+] as const
+
+function shouldRetryTrackWriteWithoutFallbackColumns(error: { message?: string } | null | undefined) {
+  const message = error?.message || ''
+  return TRACK_SCHEMA_FALLBACK_COLUMNS.some((column) => message.includes(column))
+}
+
+function stripTrackFallbackColumns(data: Record<string, unknown>) {
+  const next = { ...data }
+  TRACK_SCHEMA_FALLBACK_COLUMNS.forEach((column) => {
+    delete next[column]
+  })
+  return next
+}
+
+async function writeMusicTrack(
+  supabase: any,
+  params: {
+    existingTrackId?: string
+    trackData: Record<string, unknown>
+  }
+) {
+  const { existingTrackId, trackData } = params
+
+  const execute = async (payload: Record<string, unknown>) => {
+    if (existingTrackId) {
+      return supabase
+        .from('music_tracks')
+        .update(payload)
+        .eq('id', existingTrackId)
+        .select()
+        .single()
+    }
+
+    return supabase
+      .from('music_tracks')
+      .insert(payload)
+      .select()
+      .single()
+  }
+
+  let result = await execute(trackData)
+
+  if (result.error && shouldRetryTrackWriteWithoutFallbackColumns(result.error)) {
+    console.warn('API: Retrying music track write without post-050 columns', result.error.message)
+    result = await execute(stripTrackFallbackColumns(trackData))
+  }
+
+  return result
+}
+
 export async function GET(request: NextRequest) {
   try {
     const cookieStore = await cookies()
@@ -222,13 +277,10 @@ export async function POST(request: NextRequest) {
 
     let result
     if (existingTrack) {
-      // Update existing track
-      const { data, error } = await supabase
-        .from('music_tracks')
-        .update(trackData)
-        .eq('id', existingTrack.id)
-        .select()
-        .single()
+      const { data, error } = await writeMusicTrack(supabase, {
+        existingTrackId: existingTrack.id,
+        trackData
+      })
 
       if (error) {
         console.error('Error updating track:', error)
@@ -237,12 +289,9 @@ export async function POST(request: NextRequest) {
 
       result = data
     } else {
-      // Create new track
-      const { data, error } = await supabase
-        .from('music_tracks')
-        .insert(trackData)
-        .select()
-        .single()
+      const { data, error } = await writeMusicTrack(supabase, {
+        trackData
+      })
 
       if (error) {
         console.error('Error creating track:', error)

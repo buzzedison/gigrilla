@@ -1754,7 +1754,7 @@ export function CreateGigForm({
                     >
                         <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                         <p className="text-sm font-medium text-gray-700">
-                            {isArtworkDragActive ? 'Drop image to upload' : 'Drag &amp; Drop or Upload From Device'}
+                            {isArtworkDragActive ? 'Drop image to upload' : 'Drag and Drop or Upload From Device'}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">.jpg or .png, square (3000×3000 to 6000×6000), max 10MB</p>
                     </div>

@@ -121,21 +121,27 @@ export function IPIHelperModal({ trigger, initialTab = 'get' }: IPIHelperModalPr
                     {expandedRegion === region && (
                       <div className="divide-y divide-border">
                         {pros.map(pro => (
-                          <div key={pro.name} className="px-4 py-3 flex items-start justify-between gap-3">
+                          <div key={`${pro.country}-${pro.name}`} className="px-4 py-3 flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-foreground">{pro.name}</p>
                               {pro.note && (
                                 <p className="text-xs text-foreground/60 mt-0.5">{pro.note}</p>
                               )}
                             </div>
-                            <a
-                              href={pro.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs text-purple-600 hover:underline font-medium whitespace-nowrap shrink-0"
-                            >
-                              Join <ExternalLink className="w-3 h-3" />
-                            </a>
+                            {pro.url ? (
+                              <a
+                                href={pro.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-purple-600 hover:underline font-medium whitespace-nowrap shrink-0"
+                              >
+                                Join <ExternalLink className="w-3 h-3" />
+                              </a>
+                            ) : (
+                              <span className="text-xs text-foreground/50 font-medium whitespace-nowrap shrink-0">
+                                Physical application only
+                              </span>
+                            )}
                           </div>
                         ))}
                       </div>

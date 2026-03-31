@@ -20,6 +20,7 @@ import { ArtistGigAbilityManager } from "./components/ArtistGigAbilityManager"
 import { ArtistGigCalendarManager } from "./components/ArtistGigCalendarManager"
 import { ArtistGigInvitesManager } from "./components/ArtistGigInvitesManager"
 import { ArtistGigRequestsManager } from "./components/ArtistGigRequestsManager"
+import { ArtistGigStatisticsManager } from "./components/ArtistGigStatisticsManager"
 import { ArtistBookNewGigManager } from "./components/ArtistBookNewGigManager"
 import { ArtistMusicManager } from "./components/ArtistMusicManager"
 import { ArtistContractStatusManager } from "./components/ArtistContractStatusManager"
@@ -980,10 +981,7 @@ export default function ArtistDashboard() {
         ))
       case 'gig-statistics':
         return renderGuardedSection('gig-statistics', (
-          renderScaffoldSection(
-            'Gig Statistics',
-            'This branch is reserved for performance totals, geographic gig insights, venue counts, and earnings reporting. The navigation is now ready for those statistic screens.'
-          )
+          renderWithCompletion(<ArtistGigStatisticsManager />)
         ))
       case 'gig-calendar':
       case 'gig-create':
@@ -1044,6 +1042,13 @@ export default function ArtistDashboard() {
             <ArtistMusicManager
               defaultView="manage"
               forcedSubSection="library"
+              onSubSectionNavigate={(subSection) => {
+                if (subSection === 'workflow' || subSection === 'guide' || subSection === 'intro') {
+                  handleSubSectionChange('music-upload', subSection)
+                  return
+                }
+                handleSubSectionChange('music-catalogue', 'library')
+              }}
             />
           )
         ))
@@ -1070,7 +1075,19 @@ export default function ArtistDashboard() {
         ))
       case 'music-manage':
         return renderGuardedSection('music-manage', (
-          renderWithCompletion(<ArtistMusicManager defaultView="manage" forcedSubSection="library" />)
+          renderWithCompletion(
+            <ArtistMusicManager
+              defaultView="manage"
+              forcedSubSection="library"
+              onSubSectionNavigate={(subSection) => {
+                if (subSection === 'workflow' || subSection === 'guide' || subSection === 'intro') {
+                  handleSubSectionChange('music-upload', subSection)
+                  return
+                }
+                handleSubSectionChange('music-manage', 'library')
+              }}
+            />
+          )
         ))
       case 'messages': {
         const selectedMessageFolder = currentSubSection || deepLinkedMessageFolder || null

@@ -195,10 +195,18 @@ export async function POST(request: NextRequest) {
         .update({ status: 'pending' })
         .eq('id', savedInvitation.id)
 
-      return NextResponse.json(
-        { error: 'Invitation created but email failed to send. Please try resending.' },
-        { status: 500 }
-      )
+      return NextResponse.json({
+        success: true,
+        data: {
+          id: savedInvitation.id,
+          invitation_type: savedInvitation.invitation_type,
+          organization_name: savedInvitation.organization_name,
+          contact_email: savedInvitation.contact_email,
+          status: 'pending',
+          invited_at: savedInvitation.invited_at
+        },
+        warning: 'Invitation saved, but we could not send the email right now. Please resend it later.'
+      })
     }
 
     return NextResponse.json({

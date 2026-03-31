@@ -3,6 +3,11 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/service-client'
 
+const RELEASE_SCHEMA_FALLBACK_COLUMNS = [
+  'available_worldwide_with_exclusions',
+  'excluded_territories'
+] as const
+
 // Helper to create Supabase client
 async function createSupabaseClient() {
   const cookieStore = await cookies()
@@ -93,6 +98,57 @@ async function getApprovalMode(supabase: any): Promise<'auto' | 'manual'> {
 
   // Default to auto for beta.
   return 'auto'
+}
+
+function shouldRetryReleaseWriteWithoutFallbackColumns(error: { message?: string } | null | undefined) {
+  const message = error?.message || ''
+  return RELEASE_SCHEMA_FALLBACK_COLUMNS.some((column) => message.includes(column))
+}
+
+function stripReleaseFallbackColumns(data: Record<string, unknown>) {
+  const next = { ...data }
+  RELEASE_SCHEMA_FALLBACK_COLUMNS.forEach((column) => {
+    delete next[column]
+  })
+  return next
+}
+
+async function writeMusicRelease(
+  supabase: any,
+  params: {
+    id?: string
+    userId: string
+    releaseData: Record<string, unknown>
+  }
+) {
+  const { id, userId, releaseData } = params
+
+  const execute = async (payload: Record<string, unknown>) => {
+    if (id) {
+      return supabase
+        .from('music_releases')
+        .update(payload)
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single()
+    }
+
+    return supabase
+      .from('music_releases')
+      .insert(payload)
+      .select()
+      .single()
+  }
+
+  let result = await execute(releaseData)
+
+  if (result.error && shouldRetryReleaseWriteWithoutFallbackColumns(result.error)) {
+    console.warn('API: Retrying music release write without post-049 columns', result.error.message)
+    result = await execute(stripReleaseFallbackColumns(releaseData))
+  }
+
+  return result
 }
 
 // GET - Fetch user's music releases
@@ -449,14 +505,11 @@ export async function POST(request: NextRequest) {
 
     let result
     if (id) {
-      // Update existing release
-      const { data, error } = await supabase
-        .from('music_releases')
-        .update(releaseData)
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .select()
-        .single()
+      const { data, error } = await writeMusicRelease(supabase, {
+        id,
+        userId: user.id,
+        releaseData
+      })
 
       if (error) {
         console.error('API: Error updating music release:', error)
@@ -467,17 +520,15 @@ export async function POST(request: NextRequest) {
       }
       result = data
     } else {
-      // Create new release
       releaseData.created_at = new Date().toISOString()
       if (!releaseData.release_title) {
         releaseData.release_title = 'Untitled Release'
       }
 
-      const { data, error } = await supabase
-        .from('music_releases')
-        .insert(releaseData)
-        .select()
-        .single()
+      const { data, error } = await writeMusicRelease(supabase, {
+        userId: user.id,
+        releaseData
+      })
 
       if (error) {
         console.error('API: Error creating music release:', error)

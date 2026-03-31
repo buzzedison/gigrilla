@@ -3,8 +3,11 @@
 import { DollarSign, Building2, Plus } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
 import { Input } from '../../../components/ui/input'
+import { AutocompleteInput } from '../../../components/ui/autocomplete-input'
 import { SectionWrapper, InfoBox } from './shared'
 import { ReleaseData } from './types'
+import { MUSIC_DISTRIBUTOR_NAMES } from '../../../../data/music-distributors'
+import { PRO_CMO_NAMES } from '../../../../data/pro-cmo-list'
 
 interface ReleaseRoyaltiesSectionProps {
   releaseData: ReleaseData
@@ -21,12 +24,41 @@ export function ReleaseRoyaltiesSection({
   onInvitePro,
   onInviteMcs
 }: ReleaseRoyaltiesSectionProps) {
+  const isSelfDistributed = releaseData.distributorName.trim().toLowerCase() === 'self-distributed'
+  const blockers: string[] = []
+
+  if (!releaseData.distributorName.trim()) {
+    blockers.push('Choose an external distributor or tick self-distributed.')
+  }
+
+  if (!releaseData.distributorConfirmed) {
+    blockers.push('Confirm the distributor section.')
+  }
+
+  if (releaseData.wroteComposition && !releaseData.proName.trim()) {
+    blockers.push('Select your Performing Rights Organisation (PRO).')
+  }
+
+  if (releaseData.wroteComposition && !releaseData.proConfirmed) {
+    blockers.push('Confirm that your works are registered with your PRO.')
+  }
+
   return (
     <SectionWrapper
       title="Release Royalties"
       subtitle="Gigrilla will only pay your Royalties to the organisations you confirm below."
     >
       <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
+        {blockers.length > 0 && (
+          <InfoBox title="Next is still locked" variant="warning">
+            <ul className="list-disc list-inside space-y-1">
+              {blockers.map((blocker) => (
+                <li key={blocker}>{blocker}</li>
+              ))}
+            </ul>
+          </InfoBox>
+        )}
+
         <InfoBox title="Why this matters" variant="info">
           <p>
             This ensures that all relevant Rights Holders get paid properly and that all laws are complied with. It is important that you are fully registered to avoid missing out on money owed to you, globally.
@@ -45,12 +77,32 @@ export function ReleaseRoyaltiesSection({
           </div>
 
           <label className="text-sm font-medium text-gray-800">Distributor Name</label>
-          <Input
-            type="text"
+          <AutocompleteInput
             value={releaseData.distributorName}
-            onChange={(e) => onUpdate('distributorName', e.target.value)}
+            onChange={(value) => onUpdate('distributorName', value)}
+            suggestions={MUSIC_DISTRIBUTOR_NAMES}
             placeholder="Distributor Name (if pulled through) // Start Typing Distributor Name..."
+            className={isSelfDistributed ? 'bg-slate-50 text-slate-500' : undefined}
           />
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={isSelfDistributed}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  onUpdate('distributorName', 'Self-distributed')
+                  onUpdate('distributorConfirmed', true)
+                  onUpdate('distributorContactName', '')
+                  onUpdate('distributorContactEmail', '')
+                } else if (isSelfDistributed) {
+                  onUpdate('distributorName', '')
+                  onUpdate('distributorConfirmed', false)
+                }
+              }}
+              className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+            />
+            I am self-distributing this release and do not need to name an external distributor.
+          </label>
           <label className="flex items-center gap-2 text-sm text-gray-700">
             <input
               type="checkbox"
@@ -65,31 +117,35 @@ export function ReleaseRoyaltiesSection({
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Distributor’s Contact Name (if known)</label>
               <Input
-                type="text"
-                value={releaseData.distributorContactName}
-                onChange={(e) => onUpdate('distributorContactName', e.target.value)}
-                placeholder="Distributor contact name"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Distributor’s Email</label>
-              <Input
-                type="email"
-                value={releaseData.distributorContactEmail}
-                onChange={(e) => onUpdate('distributorContactEmail', e.target.value)}
-                placeholder="contact@distributor.com"
-              />
-            </div>
-          </div>
+                      type="text"
+                      value={releaseData.distributorContactName}
+                      onChange={(e) => onUpdate('distributorContactName', e.target.value)}
+                      placeholder="Distributor contact name"
+                      disabled={isSelfDistributed}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Distributor’s Email</label>
+                    <Input
+                      type="email"
+                      value={releaseData.distributorContactEmail}
+                      onChange={(e) => onUpdate('distributorContactEmail', e.target.value)}
+                      placeholder="contact@distributor.com"
+                      disabled={isSelfDistributed}
+                    />
+                  </div>
+                </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onInviteDistributor}
-            className="text-green-600 border-green-200"
-          >
-            <Plus className="w-4 h-4 mr-1" /> Send Gigrilla Invite
-          </Button>
+          {!isSelfDistributed && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onInviteDistributor}
+              className="text-green-600 border-green-200"
+            >
+              <Plus className="w-4 h-4 mr-1" /> Send Gigrilla Invite
+            </Button>
+          )}
         </div>
 
         <div className="border rounded-2xl p-5 space-y-4">
@@ -130,13 +186,13 @@ export function ReleaseRoyaltiesSection({
             <div className="space-y-6">
               <div className="border rounded-2xl p-4 space-y-3">
                 <div>
-                  <p className="font-semibold text-gray-900">Your Performing Rights Organisation</p>
+                  <p className="font-semibold text-gray-900">Your Performing Rights Organisation <span className="text-red-500">*</span></p>
                   <p className="text-xs text-gray-600">ℹ️ This is PRS for Music (UK); BMI/ASCAP/SESAC (USA); whoever collects your Performance Royalties.</p>
                 </div>
-                <Input
-                  type="text"
+                <AutocompleteInput
                   value={releaseData.proName}
-                  onChange={(e) => onUpdate('proName', e.target.value)}
+                  onChange={(value) => onUpdate('proName', value)}
+                  suggestions={PRO_CMO_NAMES}
                   placeholder="Performing Rights Organisation (if pulled through) // Start Typing PRO Name..."
                 />
                 <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -184,10 +240,10 @@ export function ReleaseRoyaltiesSection({
                   <p className="font-semibold text-gray-900">Your Mechanical Collection Society</p>
                   <p className="text-xs text-gray-600">ℹ️ This is MCPS in the UK; The MLC in the USA; whoever collects your Mechanical Royalties.</p>
                 </div>
-                <Input
-                  type="text"
+                <AutocompleteInput
                   value={releaseData.mcsName}
-                  onChange={(e) => onUpdate('mcsName', e.target.value)}
+                  onChange={(value) => onUpdate('mcsName', value)}
+                  suggestions={PRO_CMO_NAMES}
                   placeholder="Mechanical Collection Society (if pulled through) // Start Typing MCS Name..."
                 />
                 <label className="flex items-center gap-2 text-sm text-gray-700">

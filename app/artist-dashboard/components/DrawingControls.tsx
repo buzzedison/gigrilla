@@ -115,14 +115,20 @@ function DrawingControlsInner({ mode, baseLocation, value, onZoneCreated }: Draw
         const cleanupFns: Array<() => void> = []
 
         const keepCircleInView = (circle: L.Circle) => {
-          const circleBounds = circle.getBounds()
-          const currentBounds = map.getBounds().pad(-0.08)
+          if (!map || !circle) return
 
-          if (!currentBounds.contains(circleBounds)) {
-            map.fitBounds(circleBounds, {
-              padding: [50, 50],
-              animate: false
-            })
+          try {
+            const circleBounds = circle.getBounds()
+            const currentBounds = map.getBounds().pad(-0.08)
+
+            if (!currentBounds.contains(circleBounds)) {
+              map.fitBounds(circleBounds, {
+                padding: [50, 50],
+                animate: false
+              })
+            }
+          } catch (error) {
+            console.warn('Skipping circle auto-fit while map projection is unavailable', error)
           }
         }
 
@@ -253,7 +259,8 @@ function DrawingControlsInner({ mode, baseLocation, value, onZoneCreated }: Draw
             keepCircleInView(activeCircle)
           }
 
-          const updateRadiusCircle = (latlng: L.LatLng) => {
+          const updateRadiusCircle = (latlng?: L.LatLng | null) => {
+            if (!latlng) return
             const nextRadius = Math.max(initialCenter.distanceTo(latlng), 1)
 
             if (!activeCircle) {
@@ -283,15 +290,23 @@ function DrawingControlsInner({ mode, baseLocation, value, onZoneCreated }: Draw
             updateRadiusCircle(e.latlng)
           }
 
+          const handleRadiusMouseOut = () => {
+            finishRadiusDraw()
+          }
+
           const finishRadiusDraw = (e?: L.LeafletMouseEvent) => {
             if (!isRadiusDrawing) return
             isRadiusDrawing = false
             map.dragging.enable()
 
-            if (e) updateRadiusCircle(e.latlng)
+            if (e?.latlng) updateRadiusCircle(e.latlng)
             if (!activeCircle) return
 
-            map.fitBounds(activeCircle.getBounds(), { padding: [50, 50] })
+            try {
+              map.fitBounds(activeCircle.getBounds(), { padding: [50, 50] })
+            } catch (error) {
+              console.warn('Skipping radius final fit while map projection is unavailable', error)
+            }
             syncRadiusZone(activeCircle)
           }
 
@@ -316,7 +331,7 @@ function DrawingControlsInner({ mode, baseLocation, value, onZoneCreated }: Draw
           map.on('mousedown', startRadiusDraw)
           map.on('mousemove', moveRadiusDraw)
           map.on('mouseup', finishRadiusDraw)
-          map.on('mouseout', finishRadiusDraw)
+          map.on('mouseout', handleRadiusMouseOut)
           map.on('draw:edited', handleEdited)
           map.on('draw:editstart', handleEditStart)
           map.on('draw:deleted', handleDrawDeleted)
@@ -326,7 +341,7 @@ function DrawingControlsInner({ mode, baseLocation, value, onZoneCreated }: Draw
             map.off('mousedown', startRadiusDraw)
             map.off('mousemove', moveRadiusDraw)
             map.off('mouseup', finishRadiusDraw)
-            map.off('mouseout', finishRadiusDraw)
+            map.off('mouseout', handleRadiusMouseOut)
             map.off('draw:edited', handleEdited)
             map.off('draw:editstart', handleEditStart)
             map.off('draw:deleted', handleDrawDeleted)

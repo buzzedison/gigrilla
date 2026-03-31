@@ -4,6 +4,8 @@ import { X, Send, Building2, Users, Truck, Music2, Shield, CheckCircle } from 'l
 import { Button } from '../../../components/ui/button'
 import { Input } from '../../../components/ui/input'
 import { Textarea } from '../../../components/ui/textarea'
+import { MUSIC_DISTRIBUTOR_NAMES } from '../../../../data/music-distributors'
+import { PRO_CMO_NAMES } from '../../../../data/pro-cmo-list'
 
 interface InvitationModalProps {
   isOpen: boolean
@@ -60,6 +62,12 @@ const modalConfig = {
 export function InvitationModal({ isOpen, onClose, type, onSubmit, initialData }: InvitationModalProps) {
   const config = modalConfig[type]
   const Icon = config.icon
+  const suggestions = type === 'distributor'
+    ? MUSIC_DISTRIBUTOR_NAMES
+    : (type === 'pro' || type === 'mcs')
+      ? PRO_CMO_NAMES
+      : []
+  const datalistId = `invite-${type}-name-suggestions`
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -115,8 +123,16 @@ export function InvitationModal({ isOpen, onClose, type, onSubmit, initialData }
               type="text"
               required
               defaultValue={initialData?.name || ''}
+              list={suggestions.length > 0 ? datalistId : undefined}
               placeholder={`Enter ${type} name`}
             />
+            {suggestions.length > 0 && (
+              <datalist id={datalistId}>
+                {suggestions.map(name => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+            )}
           </div>
 
           <div>

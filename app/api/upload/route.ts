@@ -155,7 +155,26 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
 
-    const formData = await request.formData()
+    let formData: FormData
+    try {
+      formData = await request.formData()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown form parsing error'
+      const exceededBodyLimit =
+        /formdata/i.test(message) ||
+        /request body exceeded/i.test(message) ||
+        /body.*10mb/i.test(message) ||
+        /too large/i.test(message)
+
+      if (exceededBodyLimit) {
+        return NextResponse.json({
+          error: 'Upload request too large',
+          details: 'The file did not reach Gigrilla in full. Restart the dev server after the body-size config change, then try the upload again.'
+        }, { status: 413 })
+      }
+
+      throw error
+    }
     const file = formData.get('file') as File
     const type = formData.get('type') as string
     const entityId = formData.get('entityId') as string | null // For release/venue specific uploads

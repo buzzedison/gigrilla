@@ -277,6 +277,11 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
   const [showISWCInfo, setShowISWCInfo] = useState(false)
   const fileInputRefs = useRef<Record<number | string, HTMLInputElement | null>>({})
   const lyricsFileInputRefs = useRef<Record<number | string, HTMLInputElement | null>>({})
+  const onTracksUpdateRef = useRef(onTracksUpdate)
+
+  useEffect(() => {
+    onTracksUpdateRef.current = onTracksUpdate
+  }, [onTracksUpdate])
 
   useEffect(() => {
     let cancelled = false
@@ -435,7 +440,6 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
 
               if (!isMounted) return
               setTracks(mergedTracks)
-              onTracksUpdate?.(mergedTracks)
               console.log('TrackUploadSection: Loaded existing tracks successfully')
               return // Exit early if we loaded tracks
             } else {
@@ -461,12 +465,10 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
           console.log('TrackUploadSection: Created tracks:', newTracks.length)
           if (!isMounted) return
           setTracks(newTracks)
-          onTracksUpdate?.(newTracks)
         } else {
           console.log('TrackUploadSection: No tracks to create (trackCount = 0)')
           if (!isMounted) return
           setTracks([])
-          onTracksUpdate?.([])
         }
       } catch (error) {
         console.error('TrackUploadSection: Fatal error during initialization:', error)
@@ -483,7 +485,7 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
     return () => {
       isMounted = false
     }
-  }, [onTracksUpdate, releaseData.trackCount, releaseId])
+  }, [defaultCreators, defaultPrimaryArtists, releaseData.trackCount, releaseId])
 
   useEffect(() => {
     if (defaultPrimaryArtists.length === 0 && defaultCreators.length === 0) return
@@ -496,10 +498,14 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
         primaryArtists: track.primaryArtists?.length ? track.primaryArtists : defaultPrimaryArtists,
         creators: track.creators?.length ? track.creators : defaultCreators
       }))
-      onTracksUpdate?.(updated)
       return updated
     })
-  }, [defaultCreators, defaultPrimaryArtists, onTracksUpdate])
+  }, [defaultCreators, defaultPrimaryArtists])
+
+  useEffect(() => {
+    if (isLoadingTracks) return
+    onTracksUpdateRef.current?.(tracks)
+  }, [tracks, isLoadingTracks])
 
 
   const updateTrack = (index: number, field: keyof TrackData, value: unknown) => {
@@ -520,7 +526,6 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
       }
 
       updated[index] = nextTrack
-      onTracksUpdate?.(updated)
       return updated
     })
   }
