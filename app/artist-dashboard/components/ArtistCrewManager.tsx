@@ -7,6 +7,7 @@ import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { Badge } from '../../components/ui/badge'
 import { Switch } from '../../components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
 // Separator import removed - not used
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../components/ui/collapsible'
 import { ChevronDown, ChevronUp, Plus, User, Users2, Music, Mic, Guitar, Briefcase, Settings, ExternalLink, CheckCircle2, XCircle, AlertCircle, Loader2, Info } from 'lucide-react'
@@ -31,6 +32,12 @@ import {
   serializeInstruments3Tier,
   type SelectedInstrument,
 } from '../../components/ui/instrument-picker-3tier'
+import {
+  COUNTRY_DIAL_CODE_CHOICES,
+  DEFAULT_COUNTRY_DIAL_CODE,
+  getDialCodeChoiceValue,
+  getDialCodeFromChoiceValue,
+} from '../../../lib/country-dial-codes'
 
 // ── Instrument ↔ role-string helpers ──────────────────────────────────────────
 // Instruments are stored inside the roles[] array with an "instrument:" prefix
@@ -87,8 +94,13 @@ interface CrewMember {
   status?: 'joined' | 'invited' | 'invite'
   firstName?: string
   lastName?: string
+  phoneCountryCode?: string
   performerIsni?: string
+  performerIpn?: string
   creatorIpiCae?: string
+  isShareholder?: boolean
+  isMainContact?: boolean
+  memberSince?: string
 }
 
 interface InvitationData {
@@ -185,6 +197,25 @@ function splitLocation(value?: string | null) {
 
 function buildPublicLocation(parts: Array<string | null | undefined>) {
   return parts.map(part => sanitizeLocationPart(part)).filter(Boolean).join(', ')
+}
+
+function getStringDetail(record: Record<string, unknown>, key: string, fallback = '') {
+  const value = record[key]
+  return typeof value === 'string' ? value.trim() : fallback
+}
+
+function getBooleanDetail(record: Record<string, unknown>, key: string, fallback = false) {
+  const value = record[key]
+  return typeof value === 'boolean' ? value : fallback
+}
+
+function splitDisplayName(value: string) {
+  const parts = value.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return { firstName: '', lastName: '' }
+  return {
+    firstName: parts[0] || '',
+    lastName: parts.slice(1).join(' ')
+  }
 }
 
 
@@ -524,7 +555,14 @@ export function ArtistCrewManager() {
             sanitizeLocationPart(profileData?.hometown_country) || fallbackLocation.country || sanitizeLocationPart(fanProfileData?.location_details?.country)
           ])
           const legalName = `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim()
+          const fallbackNameParts = splitDisplayName(legalName)
           const artistName = typeof profileData?.company_name === 'string' ? profileData.company_name.trim() : ''
+          const fanContactDetails =
+            fanProfileData?.contact_details &&
+            typeof fanProfileData.contact_details === 'object' &&
+            !Array.isArray(fanProfileData.contact_details)
+              ? fanProfileData.contact_details as Record<string, unknown>
+              : {}
           const storedOwnerNickname = typeof existingLocationDetails.artist_owner_nickname === 'string'
             ? existingLocationDetails.artist_owner_nickname.trim()
             : ''
@@ -558,7 +596,16 @@ export function ArtistCrewManager() {
             management: [],
             isPublic: false,
             isProfileOwner: true,
+            firstName: getStringDetail(existingLocationDetails, 'artist_owner_first_name', user.user_metadata?.first_name || fallbackNameParts.firstName),
+            lastName: getStringDetail(existingLocationDetails, 'artist_owner_last_name', user.user_metadata?.last_name || fallbackNameParts.lastName),
+            email: getStringDetail(existingLocationDetails, 'artist_owner_email', user.email || getStringDetail(fanContactDetails, 'email')),
+            phoneCountryCode: getStringDetail(existingLocationDetails, 'artist_owner_phone_country_code', getStringDetail(fanContactDetails, 'phone_country_code', DEFAULT_COUNTRY_DIAL_CODE)),
+            phone: getStringDetail(existingLocationDetails, 'artist_owner_phone', getStringDetail(fanContactDetails, 'phone')),
+            isShareholder: getBooleanDetail(existingLocationDetails, 'artist_owner_is_shareholder', false),
+            isMainContact: getBooleanDetail(existingLocationDetails, 'artist_owner_is_main_contact', false),
+            memberSince: getStringDetail(existingLocationDetails, 'artist_owner_member_since'),
             performerIsni: profileData?.performer_isni || '',
+            performerIpn: getStringDetail(existingLocationDetails, 'artist_owner_performer_ipn'),
             creatorIpiCae: profileData?.creator_ipi_cae || ''
           }
 
@@ -620,7 +667,16 @@ export function ArtistCrewManager() {
             instruments: [],
             management: [],
             isPublic: false,
-            isProfileOwner: true
+            isProfileOwner: true,
+            firstName: user.user_metadata?.first_name || '',
+            lastName: user.user_metadata?.last_name || '',
+            email: user.email || '',
+            phoneCountryCode: DEFAULT_COUNTRY_DIAL_CODE,
+            phone: '',
+            isShareholder: false,
+            isMainContact: false,
+            memberSince: '',
+            performerIpn: ''
           }
           setProfileOwnerLocationDetails({})
           setProfileOwner(owner)
@@ -654,13 +710,43 @@ export function ArtistCrewManager() {
     ))
   }
 
+  const ownerHasPerformerOrWriterRole = () => {
+    if (!profileOwner) return false
+    const ownerRoles = nonInstrumentRoles(profileOwner.roles)
+    const hasWriterRole = ownerRoles.some(role =>
+      role.includes('Songwriter') || role.includes('Lyricist') || role.includes('Composer')
+    )
+    const hasPerformerRole =
+      ownerRoles.some(role => role.includes('Vocals')) ||
+      ownerInstruments3tier.length > 0
+
+    return hasWriterRole || hasPerformerRole
+  }
+
   const saveProfileOwner = async () => {
     if (!profileOwner) return
 
     const nickname = profileOwner.nickname?.trim() || ''
-    if (!nickname) {
-      setOwnerNicknameError('Nickname / Stagename is required.')
-      showNotification('error', 'Please add your Nickname / Stagename before saving.')
+    const firstName = profileOwner.firstName?.trim() || ''
+    const lastName = profileOwner.lastName?.trim() || ''
+    if (!firstName || !lastName) {
+      showNotification('error', 'Please add your given name and family name before saving.')
+      return
+    }
+
+    if (profileOwner.isShareholder && !ownerHasPerformerOrWriterRole()) {
+      showNotification('error', 'A shareholder must have at least one performer or writer role selected.')
+      return
+    }
+
+    const hasAtLeastOneProfessionalId = [
+      profileOwner.performerIsni,
+      profileOwner.performerIpn,
+      profileOwner.creatorIpiCae
+    ].some(value => typeof value === 'string' && value.trim().length > 0)
+
+    if (!hasAtLeastOneProfessionalId) {
+      showNotification('error', 'Please add at least one professional ID: Individual ISNI, Performer IPN, or Writer IPI.')
       return
     }
 
@@ -679,7 +765,18 @@ export function ArtistCrewManager() {
         body: JSON.stringify({
           location_details: {
             ...profileOwnerLocationDetails,
-            artist_owner_nickname: nickname
+            artist_owner_first_name: firstName,
+            artist_owner_last_name: lastName,
+            artist_owner_nickname: nickname,
+            artist_owner_email: profileOwner.email?.trim() || null,
+            artist_owner_phone_country_code: profileOwner.phoneCountryCode || DEFAULT_COUNTRY_DIAL_CODE,
+            artist_owner_phone: profileOwner.phone?.trim() || null,
+            artist_owner_is_shareholder: Boolean(profileOwner.isShareholder),
+            artist_owner_is_main_contact: Boolean(profileOwner.isMainContact && profileOwner.isShareholder),
+            artist_owner_performer_ipn: profileOwner.performerIpn?.trim() || null,
+            artist_owner_member_since: profileOwner.memberSince || null,
+            artist_owner_status: 'current',
+            artist_owner_is_admin: true
           },
           artist_primary_roles: [
             ...nonInstrumentRoles(profileOwner.roles),
@@ -1056,6 +1153,59 @@ export function ArtistCrewManager() {
     })
   }
 
+  const performerRoleCategories = ROLE_CATEGORIES.filter(category =>
+    ['songwriting', 'vocals'].includes(category.id)
+  )
+  const supportRoleCategories = ROLE_CATEGORIES.filter(category =>
+    category.id.startsWith('management')
+  )
+  const renderRoleCategory = (category: RoleCategory) => (
+    <Collapsible
+      key={category.id}
+      open={expandedCategories.has(category.id)}
+      onOpenChange={() => toggleCategory(category.id)}
+    >
+      <CollapsibleTrigger className="w-full">
+        <div className="flex items-center justify-between p-3 rounded-lg bg-white border border-purple-200 hover:bg-purple-50 transition-colors">
+          <div className="flex items-center gap-2">
+            {category.icon}
+            <span className="font-semibold text-base text-gray-900">{category.name}</span>
+          </div>
+          {expandedCategories.has(category.id) ? (
+            <ChevronUp className="w-4 h-4 text-purple-600" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-purple-600" />
+          )}
+        </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-2 mt-2">
+        <div className="p-3 rounded-lg bg-purple-50 border border-purple-200">
+          {(() => {
+            const allItem = category.items[0]?.startsWith('All ') ? category.items[0] : null
+            const allActive = allItem ? isRoleSelected(allItem) : false
+            return category.items.map((item) => {
+              const isAllItem = item === allItem
+              const isDisabled = !isAllItem && allActive
+              return (
+                <div key={item} className={`flex items-center gap-2 py-1 ${isDisabled ? 'opacity-40' : ''}`}>
+                  <Switch
+                    id={`owner-${category.id}-${item}`}
+                    checked={isRoleSelected(item)}
+                    onCheckedChange={() => !isDisabled && toggleRole(item, category)}
+                    disabled={isDisabled}
+                  />
+                  <label htmlFor={`owner-${category.id}-${item}`} className={`text-sm font-medium text-gray-900 ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                    {item}
+                  </label>
+                </div>
+              )
+            })
+          })()}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+
   return (
     <div className="space-y-6">
       {/* Notification */}
@@ -1117,16 +1267,43 @@ export function ArtistCrewManager() {
         <CardContent className="pt-6 space-y-6">
           {profileOwner && (
             <>
-              {/* Personal Information */}
-              <div className="space-y-4 p-4 rounded-lg bg-white/70 border border-purple-200">
-                <h4 className="font-semibold text-sm text-purple-900">Personal Information</h4>
+              {/* Profile Owner Identity */}
+              <div className="space-y-5 p-4 rounded-lg bg-white/70 border border-purple-200">
+                <div>
+                  <h4 className="font-semibold text-sm text-purple-900">Your Roles & Info</h4>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Role + minimum 1 of 3 IDs: Artist Person ISNI, Performer IPN, or Writer IPI.
+                  </p>
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold text-gray-700">Artist Real Name</Label>
-                    <div className="p-3 rounded-lg bg-white border border-purple-200">
-                      <p className="font-medium text-purple-900">{profileOwner.name}</p>
-                      <p className="text-xs text-gray-500 mt-1">From Guest Fan Details</p>
+                    <Label className="text-sm font-semibold text-gray-700">Your Real Name</Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <Input
+                        value={profileOwner.firstName || ''}
+                        onChange={(e) => {
+                          const firstName = e.target.value
+                          updateProfileOwner({
+                            firstName,
+                            name: `${firstName} ${profileOwner.lastName || ''}`.trim()
+                          })
+                        }}
+                        placeholder="First/Given Name"
+                        className="border-purple-200 focus:border-purple-400"
+                      />
+                      <Input
+                        value={profileOwner.lastName || ''}
+                        onChange={(e) => {
+                          const lastName = e.target.value
+                          updateProfileOwner({
+                            lastName,
+                            name: `${profileOwner.firstName || ''} ${lastName}`.trim()
+                          })
+                        }}
+                        placeholder="Last/Family Name"
+                        className="border-purple-200 focus:border-purple-400"
+                      />
                     </div>
                     <div className="flex items-center gap-4 text-xs">
                       <div className="flex items-center gap-2">
@@ -1150,7 +1327,7 @@ export function ArtistCrewManager() {
 
                   <div className="space-y-2">
                     <Label htmlFor="artistNickname" className="text-sm font-semibold text-gray-700">
-                      Artist Nickname / Stagename <span className="text-red-500">*</span>
+                      Nickname? <span className="text-xs font-normal text-gray-500">(optional)</span>
                     </Label>
                     <Input
                       id="artistNickname"
@@ -1159,71 +1336,130 @@ export function ArtistCrewManager() {
                         updateProfileOwner({ nickname: e.target.value })
                         setOwnerNicknameError(null)
                       }}
-                      placeholder="Enter Nickname / Stagename (if you have one)"
+                      placeholder="Optional Nickname / Stage Name"
                       className={cn(
                         "border-purple-200 focus:border-purple-400",
                         ownerNicknameError && "border-red-400 focus:border-red-500"
                       )}
                     />
                     {ownerNicknameError && <p className="text-xs text-red-600">{ownerNicknameError}</p>}
-                    <p className="text-xs text-gray-500 italic">
-                      is always public & searchable.
-                    </p>
+                    <p className="text-xs text-gray-500 italic">Always public and searchable.</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="artistDateOfBirth" className="text-sm font-semibold text-gray-700">
-                      Artist Date-of-Birth
-                    </Label>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold text-gray-700">Contact Details</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,280px)_minmax(0,1fr)] gap-2">
                     <Input
-                      id="artistDateOfBirth"
-                      type="date"
-                      value={profileOwner.dateOfBirth || ''}
-                      onChange={(e) => updateProfileOwner({ dateOfBirth: e.target.value })}
-                      placeholder="dd/mm/yyyy"
+                      type="email"
+                      value={profileOwner.email || ''}
+                      onChange={(e) => updateProfileOwner({ email: e.target.value })}
+                      placeholder="Email Address"
                       className="border-purple-200 focus:border-purple-400"
                     />
-                    <p className="text-xs text-gray-500">
-                      {profileOwner.dateOfBirth ? '(PrePopulated - you can edit if needed)' : '(Enter your date of birth)'}
-                    </p>
-                    <div className="flex items-center gap-4 text-xs">
-                      <div className="flex items-center gap-2">
-                        <Switch id="dobPublic" />
-                        <label htmlFor="dobPublic" className="text-purple-700">is public</label>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Switch id="dobPrivate" defaultChecked />
-                        <label htmlFor="dobPrivate" className="text-purple-700">is private, except contracts</label>
-                      </div>
+                    <Select
+                      value={getDialCodeChoiceValue(profileOwner.phoneCountryCode)}
+                      onValueChange={(value) => updateProfileOwner({ phoneCountryCode: getDialCodeFromChoiceValue(value) })}
+                    >
+                      <SelectTrigger className="border-purple-200 focus:border-purple-400">
+                        <SelectValue placeholder="Country Code" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-64 min-w-[320px]">
+                        {COUNTRY_DIAL_CODE_CHOICES.map(option => (
+                          <SelectItem key={`owner-phone-${option.value}`} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="tel"
+                      value={profileOwner.phone || ''}
+                      onChange={(e) => updateProfileOwner({ phone: e.target.value })}
+                      placeholder="Phone Number"
+                      className="border-purple-200 focus:border-purple-400"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">Private. Used for contracts, profile ownership, and account verification.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2 rounded-lg border border-purple-200 bg-white p-3">
+                    <Label className="text-sm font-semibold text-gray-700">Shareholder of Artist Entity?</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={profileOwner.isShareholder ? 'default' : 'outline'}
+                        className={profileOwner.isShareholder ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                        onClick={() => updateProfileOwner({ isShareholder: true })}
+                      >
+                        Yes
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={!profileOwner.isShareholder ? 'default' : 'outline'}
+                        className={!profileOwner.isShareholder ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                        onClick={() => updateProfileOwner({ isShareholder: false, isMainContact: false })}
+                      >
+                        No
+                      </Button>
                     </div>
+                    <p className="text-xs text-gray-500">Must be a performer and/or writer.</p>
                   </div>
 
+                  <div className="space-y-2 rounded-lg border border-purple-200 bg-white p-3">
+                    <Label className="text-sm font-semibold text-gray-700">Main Contact for Artist Entity?</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={profileOwner.isMainContact ? 'default' : 'outline'}
+                        className={profileOwner.isMainContact ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                        onClick={() => updateProfileOwner({ isMainContact: true, isShareholder: true })}
+                      >
+                        Yes
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={!profileOwner.isMainContact ? 'default' : 'outline'}
+                        className={!profileOwner.isMainContact ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                        onClick={() => updateProfileOwner({ isMainContact: false })}
+                      >
+                        No
+                      </Button>
+                    </div>
+                    <p className="text-xs text-gray-500">Only one main contact. Must be a shareholder.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="artistHometown" className="text-sm font-semibold text-gray-700">
-                      Artist Hometown
-                    </Label>
+                    <Label htmlFor="artistMemberSince" className="text-sm font-semibold text-gray-700">Member of Artist Since?</Label>
                     <Input
-                      id="artistHometown"
-                      value={profileOwner.hometown || ''}
-                      onChange={(e) => updateProfileOwner({ hometown: e.target.value })}
-                      placeholder="Town/City, Country/State, Country"
+                      id="artistMemberSince"
+                      type="month"
+                      value={profileOwner.memberSince || ''}
+                      onChange={(e) => updateProfileOwner({ memberSince: e.target.value })}
                       className="border-purple-200 focus:border-purple-400"
                     />
-                    <p className="text-xs text-gray-500">
-                      {profileOwner.hometown ? '(PrePopulated - you can edit if needed)' : '(Enter your hometown)'}
-                    </p>
-                    <div className="flex items-center gap-4 text-xs">
-                      <div className="flex items-center gap-2">
-                        <Switch id="hometownPublic" />
-                        <label htmlFor="hometownPublic" className="text-purple-700">is public</label>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Switch id="hometownPrivate" defaultChecked />
-                        <label htmlFor="hometownPrivate" className="text-purple-700">is private, except contracts</label>
-                      </div>
+                    <p className="text-xs text-gray-500">Date joined, month/year.</p>
+                  </div>
+
+                  <div className="space-y-2 rounded-lg border border-green-200 bg-green-50 p-3">
+                    <Label className="text-sm font-semibold text-green-900">Status: Current</Label>
+                    <div className="flex items-center gap-2 text-sm font-medium text-green-800">
+                      <CheckCircle2 className="w-4 h-4" />
+                      Is Current Member
                     </div>
+                    <p className="text-xs text-green-700">Set to current for the profile owner.</p>
+                  </div>
+
+                  <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                    <Label className="text-sm font-semibold text-blue-900">Admin: Artist Profile Rights?</Label>
+                    <div className="flex items-center gap-2 text-sm font-medium text-blue-800">
+                      <CheckCircle2 className="w-4 h-4" />
+                      Yes
+                    </div>
+                    <p className="text-xs text-blue-700">Admin is fixed for the profile owner.</p>
                   </div>
                 </div>
               </div>
@@ -1233,7 +1469,7 @@ export function ArtistCrewManager() {
                 <div className="flex items-start gap-2">
                   <Info className="w-5 h-5 text-blue-600 mt-0.5" />
                   <div>
-                    <h4 className="font-semibold text-sm text-blue-900">Professional Identification</h4>
+                    <h4 className="font-semibold text-sm text-blue-900">Performer Registrations?</h4>
                     <p className="text-xs text-blue-700 mt-1">
                       Each Artist Member and the Artist Entity can have individual ISNIs. Your unique digital ID prevents name confusion, ensures correct crediting, tracks all your work across platforms, and guarantees you get paid accurately.
                     </p>
@@ -1245,7 +1481,7 @@ export function ArtistCrewManager() {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <Label className="text-sm font-semibold text-blue-900 flex items-center gap-2">
-                        Artist Performer ISNI
+                        Individual ISNI
                         {isniValidation.status === 'valid' && (
                           <CheckCircle2 className="w-4 h-4 text-green-500" />
                         )}
@@ -1254,7 +1490,7 @@ export function ArtistCrewManager() {
                         )}
                       </Label>
                       <p className="text-xs text-blue-700 mt-1">
-                        International Standard Name Identifier (16 digits) for Creators.
+                        This is your Natural Person ISNI, not your Artist Entity ISNI, unless all members operate under one Artist Entity ISNI.
                       </p>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
@@ -1367,10 +1603,25 @@ export function ArtistCrewManager() {
                   )}
                 </div>
 
-                {/* IPI/CAE Field - shown when Songwriter/Lyricist/Composer is selected */}
-                {(profileOwner.roles.some(r =>
-                  r.includes('Songwriter') || r.includes('Lyricist') || r.includes('Composer')
-                ) || profileOwner.creatorIpiCae) && (
+                {/* IPN Field */}
+                <div className="bg-white/60 rounded-lg p-4 space-y-3">
+                  <div>
+                    <Label className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                      Performer IPN
+                    </Label>
+                    <p className="text-xs text-blue-700 mt-1">
+                      Performer identifier used for neighbouring rights and performer royalty registrations.
+                    </p>
+                  </div>
+                  <Input
+                    value={profileOwner.performerIpn || ''}
+                    onChange={(e) => updateProfileOwner({ performerIpn: e.target.value })}
+                    placeholder="Start Typing Performer IPN..."
+                    className="bg-white font-mono border-blue-200"
+                  />
+                </div>
+
+                {/* IPI/CAE Field */}
                     <div className="bg-white/60 rounded-lg p-4 space-y-3">
                       <div className="flex items-start justify-between gap-2">
                         <div>
@@ -1440,66 +1691,24 @@ export function ArtistCrewManager() {
                         <a href={PROFESSIONAL_ID_URLS.ipi.prs} target="_blank" rel="noopener noreferrer" className="hover:underline">PRS</a>
                       </div>
                     </div>
-                  )}
               </div>
 
               {/* Roles Section */}
               <div className="space-y-4">
                 <div>
-                  <h4 className="font-bold text-xl text-blue-100">Roles & Skills</h4>
+                  <h4 className="font-bold text-xl text-blue-100">Performer Roles & Support Roles</h4>
                 </div>
 
-                <div className="space-y-3">
-                  {ROLE_CATEGORIES.map((category) => (
-                    <Collapsible
-                      key={category.id}
-                      open={expandedCategories.has(category.id)}
-                      onOpenChange={() => toggleCategory(category.id)}
-                    >
-                      <CollapsibleTrigger className="w-full">
-                        <div className="flex items-center justify-between p-3 rounded-lg bg-white border border-purple-200 hover:bg-purple-50 transition-colors">
-                          <div className="flex items-center gap-2">
-                            {category.icon}
-                            <span className="font-semibold text-base text-gray-900">{category.name}</span>
-                          </div>
-                          {expandedCategories.has(category.id) ? (
-                            <ChevronUp className="w-4 h-4 text-purple-600" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4 text-purple-600" />
-                          )}
-                        </div>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="space-y-2 mt-2">
-                        <div className="p-3 rounded-lg bg-purple-50 border border-purple-200">
-                          {(() => {
-                            const allItem = category.items[0]?.startsWith('All ') ? category.items[0] : null
-                            const allActive = allItem ? isRoleSelected(allItem) : false
-                            return category.items.map((item) => {
-                              const isAllItem = item === allItem
-                              const isDisabled = !isAllItem && allActive
-                              return (
-                                <div key={item} className={`flex items-center gap-2 py-1 ${isDisabled ? 'opacity-40' : ''}`}>
-                                  <Switch
-                                    id={item}
-                                    checked={isRoleSelected(item)}
-                                    onCheckedChange={() => !isDisabled && toggleRole(item, category)}
-                                    disabled={isDisabled}
-                                  />
-                                  <label htmlFor={item} className={`text-sm font-medium text-gray-900 ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-                                    {item}
-                                  </label>
-                                </div>
-                              )
-                            })
-                          })()}
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  ))}
+                <div className="space-y-3 rounded-lg border border-purple-200 bg-white/40 p-3">
+                  <h5 className="font-semibold text-base text-blue-100 flex items-center gap-2">
+                    <Mic className="w-4 h-4 text-blue-100" />
+                    Performer Roles?
+                  </h5>
+                  {performerRoleCategories.map(renderRoleCategory)}
                 </div>
 
                 {/* Instruments (3-tier multi-select) */}
-                <div className="space-y-3 pt-2 border-t border-purple-200">
+                <div className="space-y-3 rounded-lg border border-purple-200 bg-white/40 p-3">
                   <h5 className="font-semibold text-base text-blue-100 flex items-center gap-2 pt-1">
                     <Guitar className="w-4 h-4 text-blue-100" />
                     Instruments
@@ -1514,6 +1723,14 @@ export function ArtistCrewManager() {
                     allowedGroups={['strings', 'wind', 'percussion', 'keyboard', 'electronic']}
                     startCollapsed={ownerInstrumentPickerStartCollapsed}
                   />
+                </div>
+
+                <div className="space-y-3 rounded-lg border border-purple-200 bg-white/40 p-3">
+                  <h5 className="font-semibold text-base text-blue-100 flex items-center gap-2">
+                    <Briefcase className="w-4 h-4 text-blue-100" />
+                    Support Roles?
+                  </h5>
+                  {supportRoleCategories.map(renderRoleCategory)}
                 </div>
               </div>
 

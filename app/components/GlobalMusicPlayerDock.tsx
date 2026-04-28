@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { ChevronDown, ChevronUp, Music2, Pause, Play, SkipBack, SkipForward, Volume2, X } from "lucide-react"
 import { useAuth } from "../../lib/auth-context"
 import { Button } from "./ui/button"
+import { usePathname } from "next/navigation"
 
 type PublishedTrack = {
   id: string
@@ -30,6 +31,7 @@ function formatTime(seconds: number) {
 
 export function GlobalMusicPlayerDock() {
   const { user, loading } = useAuth()
+  const pathname = usePathname()
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [isExpanded, setIsExpanded] = useState(false)
   const [tracks, setTracks] = useState<PublishedTrack[]>([])
@@ -51,6 +53,14 @@ export function GlobalMusicPlayerDock() {
     }
   }, [])
 
+  const shouldHideDock = pathname === "/" || pathname === "/login" || pathname === "/signup"
+
+  useEffect(() => {
+    if ((!user || shouldHideDock) && isExpanded) {
+      setIsExpanded(false)
+    }
+  }, [user, shouldHideDock, isExpanded])
+
   useEffect(() => {
     try {
       window.localStorage.setItem(PLAYER_EXPANDED_KEY, String(isExpanded))
@@ -70,7 +80,7 @@ export function GlobalMusicPlayerDock() {
   }, [currentTrackId])
 
   useEffect(() => {
-    if (loading || !user) return
+    if (loading || !user || shouldHideDock) return
 
     let isMounted = true
     const loadTracks = async () => {
@@ -102,7 +112,7 @@ export function GlobalMusicPlayerDock() {
     return () => {
       isMounted = false
     }
-  }, [loading, user, currentTrackId])
+  }, [loading, user, currentTrackId, shouldHideDock])
 
   const currentIndex = useMemo(
     () => tracks.findIndex((track) => track.id === currentTrackId),
@@ -176,6 +186,10 @@ export function GlobalMusicPlayerDock() {
   }
 
   const progress = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0
+
+  if (shouldHideDock) {
+    return null
+  }
 
   return (
     <>

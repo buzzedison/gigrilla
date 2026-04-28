@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "../../../lib/auth-context"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { LocationAutocompleteInput, type LocationSuggestion } from "../../components/ui/location-autocomplete"
-import { Save, Rocket, Loader2, Users, MapPin, Globe } from "lucide-react"
+import { ChevronDown, ChevronUp, Plus, RefreshCw, Save, Rocket, Loader2, Users, MapPin, Globe } from "lucide-react"
 import { getArtistSubTypeLabels } from "../../../lib/artist-subtype-utils"
 import { getArtistTypeConfig } from "../../../data/artist-types"
 
@@ -125,6 +126,7 @@ const sanitizeDisplayPart = (value?: string | null) => {
 
 export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
   const { user } = useAuth()
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null)
@@ -424,21 +426,58 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
       <div className="p-6">
         {artistTypeId && (
           <div className="mb-4 rounded-lg px-4 py-3 bg-purple-50 border border-purple-200">
-            <div className="text-sm font-semibold text-purple-900">
-              Your Artist Type: {artistTypeNames[artistTypeId] || `Type ${artistTypeId}`}
-            </div>
-            {artistSubTypeLabels.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {artistSubTypeLabels.map(label => (
-                  <span
-                    key={label}
-                    className="inline-block text-xs px-2 py-0.5 rounded-full bg-purple-200 text-purple-900 font-medium"
-                  >
-                    {label}
-                  </span>
-                ))}
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-purple-900">
+                  Your Artist Type: {artistTypeNames[artistTypeId] || `Type ${artistTypeId}`}
+                </div>
+                {artistSubTypeLabels.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {artistSubTypeLabels.map(label => (
+                      <span
+                        key={label}
+                        className="inline-block text-xs px-2 py-0.5 rounded-full bg-purple-200 text-purple-900 font-medium"
+                      >
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => router.push('/artist-dashboard?section=type')}
+                  className="bg-[#13b8c7] text-white hover:bg-[#0f9dac]"
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Change Artist Type
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => router.push('/profile-setup')}
+                  className="border-[#13b8c7] text-[#087f8c] hover:bg-cyan-50"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Another Profile
+                </Button>
+                {selectedTypeNarrative.length > 0 && (
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setShowTypeDescription(prev => !prev)}
+                    aria-label={showTypeDescription ? 'Collapse artist type description' : 'Expand artist type description'}
+                    className="h-9 w-9 text-purple-700 hover:bg-purple-100 hover:text-purple-900"
+                  >
+                    {showTypeDescription ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </Button>
+                )}
+              </div>
+            </div>
             {selectedTypeNarrative.length > 0 && (
               <div className="mt-2 rounded-md border border-purple-200 bg-white/70 px-3 py-2">
                 {showTypeDescription && (
@@ -448,13 +487,6 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                     ))}
                   </ul>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setShowTypeDescription(prev => !prev)}
-                  className="text-xs font-medium text-purple-700 underline underline-offset-2 hover:text-purple-900"
-                >
-                  {showTypeDescription ? 'Collapse description' : 'Expand description'}
-                </button>
               </div>
             )}
           </div>

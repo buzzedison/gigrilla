@@ -83,16 +83,26 @@ export function ISNIHelperModal({ trigger, initialTab = 'get' }: ISNIHelperModal
                 <div className="flex gap-3">
                   <div className="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">1</div>
                   <div>
-                    <p className="text-sm font-medium text-foreground">Visit the ISNI Request page</p>
-                    <p className="text-xs text-foreground/60 mb-1">Go to the official ISNI registration portal and click "Request an ISNI".</p>
-                    <a
-                      href="https://isni.org/page/get-an-isni/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-purple-600 hover:underline font-medium"
-                    >
-                      isni.org/page/get-an-isni/ <ExternalLink className="w-3 h-3" />
-                    </a>
+                    <p className="text-sm font-medium text-foreground">Visit the ISNI website or the Sound Credit website</p>
+                    <p className="text-xs text-foreground/60 mb-1">The ISNI website lists ISNI issuing partners; Sound Credit issues an ISNI as part of their very useful free membership.</p>
+                    <div className="flex flex-col gap-1">
+                      <a
+                        href="https://isni.org/page/get-an-isni/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-purple-600 hover:underline font-medium"
+                      >
+                        isni.org/page/get-an-isni/ <ExternalLink className="w-3 h-3" />
+                      </a>
+                      <a
+                        href="https://www.soundcredit.com/isni-registration"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-purple-600 hover:underline font-medium"
+                      >
+                        soundcredit.com/isni-registration <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
                   </div>
                 </div>
 
@@ -102,8 +112,8 @@ export function ISNIHelperModal({ trigger, initialTab = 'get' }: ISNIHelperModal
                     <p className="text-sm font-medium text-foreground">Complete the registration form</p>
                     <p className="text-xs text-foreground/60">
                       Provide your full name, date of birth, nationality, and examples of your
-                      publicly released work (albums, songs, recordings, or compositions) so the
-                      ISNI agency can verify your identity.
+                      publicly released work (albums, songs, recordings, or compositions) so your
+                      identity and credits can be verified for ISNI registration.
                     </p>
                   </div>
                 </div>
@@ -114,7 +124,7 @@ export function ISNIHelperModal({ trigger, initialTab = 'get' }: ISNIHelperModal
                     <p className="text-sm font-medium text-foreground">Wait for approval</p>
                     <div className="flex items-center gap-1 text-xs text-amber-700 mt-0.5">
                       <Clock className="w-3 h-3" />
-                      Typically 2–6 weeks for new registrations
+                      Sound Credit is quick (within 24 hours); others can take up to 6 weeks.
                     </div>
                   </div>
                 </div>
@@ -147,7 +157,7 @@ export function ISNIHelperModal({ trigger, initialTab = 'get' }: ISNIHelperModal
               <div className="flex gap-2">
                 <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
                 <p className="text-xs text-green-800">
-                  ISNI registration is <span className="font-semibold">free</span>. You do not need to pay to obtain an ISNI.
+                  Sound Credit offers <span className="font-semibold">free</span> ISNI registration. You do not need to pay to obtain an ISNI.
                 </p>
               </div>
             </div>
@@ -157,8 +167,8 @@ export function ISNIHelperModal({ trigger, initialTab = 'get' }: ISNIHelperModal
               className="w-full bg-purple-600 hover:bg-purple-700 text-white"
               size="sm"
             >
-              <a href="https://isni.org/page/get-an-isni/" target="_blank" rel="noopener noreferrer">
-                Go to ISNI Registration <ExternalLink className="w-3.5 h-3.5 ml-1" />
+              <a href="https://www.soundcredit.com/isni-registration" target="_blank" rel="noopener noreferrer">
+                Go to Sound Credit ISNI Registration <ExternalLink className="w-3.5 h-3.5 ml-1" />
               </a>
             </Button>
           </div>

@@ -6675,7 +6675,7 @@ export function SignUpWizard() {
                 Artist Performer ISNI <span className="text-red-500">*</span>
               </Label>
               <p className="text-xs text-foreground/60 mb-1">
-                ℹ️ Your unique digital ID prevents name confusion, ensures correct crediting, and tracks all your work across platforms.
+                ℹ️ This is your Natural Person ISNI, not your Artist Entity ISNI, unless all members operate under one Artist Entity ISNI. Your unique digital ID prevents name confusion, ensures correct crediting, and tracks all your work across platforms.
               </p>
               <div className="flex items-center gap-2 mb-2">
                 <ISNIHelperModal
@@ -6810,15 +6810,7 @@ export function SignUpWizard() {
               {ipiFormat === 'valid' && (
                 <p className="text-xs text-green-600 flex items-center gap-1 font-medium">
                   <CheckCircle2 className="w-3 h-3" />
-                  Valid IPI/CAE format —{' '}
-                  <a
-                    href={`https://ipisearch.cisac.org/`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:text-green-700"
-                  >
-                    verify on CISAC
-                  </a>
+                  Valid IPI/CAE format
                 </p>
               )}
               {ipiFormat === 'invalid' && (

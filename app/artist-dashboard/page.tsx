@@ -32,6 +32,8 @@ import { Music, Info, Menu, AlertCircle, ArrowRight, CalendarDays, Disc3, Folder
 import { getArtistTypeConfig, ArtistTypeCapabilities } from "../../data/artist-types"
 import { normalizeArtistSubTypeSelections } from "../../lib/artist-subtype-utils"
 
+const DESKTOP_SIDEBAR_COLLAPSED_KEY = 'gigrilla-artist-dashboard-sidebar-collapsed:v1'
+
 interface ArtistProfileResponse {
   data: {
     artist_type_id?: number | null
@@ -168,6 +170,10 @@ export default function ArtistDashboard() {
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [missingArtistSubtype, setMissingArtistSubtype] = useState(false)
   const [isHomeOnboardingOpen, setIsHomeOnboardingOpen] = useState(true)
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem(DESKTOP_SIDEBAR_COLLAPSED_KEY) === 'true'
+  })
   const [nextGigSnapshot, setNextGigSnapshot] = useState<HomeGigSnapshot | null>(null)
   const [featuredTrack, setFeaturedTrack] = useState<HomeTrackSnapshot | null>(null)
   const [artistHomeName, setArtistHomeName] = useState<string>('Artist')
@@ -178,6 +184,11 @@ export default function ArtistDashboard() {
     venues: 'venue_updates',
     system: 'system',
   }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(DESKTOP_SIDEBAR_COLLAPSED_KEY, String(isDesktopSidebarCollapsed))
+  }, [isDesktopSidebarCollapsed])
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _selectedTypeConfig = useMemo(() => {
@@ -625,254 +636,411 @@ export default function ArtistDashboard() {
         const completedItems = completionState.filter((item) => item.completed).length
         const totalItems = completionState.length || 18
         const completionPercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0
+        const dashboardMenuColumns: Array<{
+          key: string
+          eyebrow: string
+          title: string
+          section: DashboardSection
+          subSection?: string
+          items: Array<{ label: string; section: DashboardSection; subSection?: string }>
+        }> = [
+          {
+            key: 'A',
+            eyebrow: 'PROFILE',
+            title: 'Fundamentals',
+            section: 'profile',
+            subSection: 'details',
+            items: [
+              { label: 'Basics', section: 'profile', subSection: 'details' },
+              { label: 'Crew', section: 'crew', subSection: 'owner' },
+              { label: 'Banking', section: 'payments', subSection: 'out' },
+              { label: 'Media', section: 'logo', subSection: 'logo' },
+            ],
+          },
+          {
+            key: 'B',
+            eyebrow: 'GIGS',
+            title: 'Performing',
+            section: 'gigability',
+            subSection: 'base',
+            items: [
+              { label: 'Gig-Ability', section: 'gigability', subSection: 'base' },
+              { label: 'Bookings', section: 'gig-bookings', subSection: 'upcoming' },
+              { label: 'Negotiations', section: 'gig-negotiations', subSection: 'gig_invites' },
+              { label: 'Planner', section: 'gig-planner', subSection: 'calendar' },
+            ],
+          },
+          {
+            key: 'C',
+            eyebrow: 'MUSIC',
+            title: 'Catalogue',
+            section: 'music-catalogue',
+            subSection: 'published',
+            items: [
+              { label: 'New Upload', section: 'music-upload', subSection: 'workflow' },
+              { label: 'Draft Uploads', section: 'music-uploads', subSection: 'drafts' },
+              { label: 'Published', section: 'music-catalogue', subSection: 'published' },
+              { label: 'Scheduled', section: 'music-catalogue', subSection: 'scheduled' },
+            ],
+          },
+          {
+            key: 'D',
+            eyebrow: 'MESSAGES',
+            title: 'Connections',
+            section: 'messages',
+            subSection: 'gig_invites',
+            items: [
+              { label: 'Gig Messages', section: 'messages', subSection: 'gig_invites' },
+              { label: 'Colleagues', section: 'messages', subSection: 'colleagues' },
+              { label: 'Fan Messages', section: 'messages', subSection: 'fans' },
+              { label: 'Other Members', section: 'messages', subSection: 'artists' },
+            ],
+          },
+        ]
+        const openDashboardDestination = (section: DashboardSection, subSection?: string) => {
+          if (subSection) {
+            handleSubSectionChange(section, subSection)
+            return
+          }
+          handleSectionChange(section)
+        }
+
+        const daysUntilNextGig = (() => {
+          if (!nextGigSnapshot?.startDatetime) return null
+          const parsed = new Date(nextGigSnapshot.startDatetime)
+          if (Number.isNaN(parsed.getTime())) return null
+          const diff = parsed.getTime() - Date.now()
+          return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
+        })()
+        const nextGigHeading = daysUntilNextGig !== null ? `Next Gig in ${daysUntilNextGig} days` : 'Next Gig'
+        const headlineIncomeStats = [
+          { label: 'Gigs', value: '$200K' },
+          { label: 'Streams', value: '$800K' },
+          { label: 'Downloads', value: '$950K' },
+          { label: 'Merchandise', value: '$50K' },
+        ]
+        const fanbaseStats = [
+          { channel: 'Gigrilla', value: '1,234 fans', delta: '+250', trend: 'up' },
+          { channel: 'YouTube', value: '134k subscribers', delta: '+2,950', trend: 'up' },
+          { channel: 'YouTube', value: '123k video views', delta: '-835', trend: 'down' },
+          { channel: 'Facebook', value: '12k followers', delta: '+2,950', trend: 'up' },
+          { channel: 'X', value: '1.4k followers', delta: '-35', trend: 'down' },
+        ]
+        const chartRows = [
+          { label: 'Overall Downloads', value: '1,123,456' },
+          { label: 'Overall Streams', value: '123,456' },
+        ]
+        const chartPositions = [
+          { label: 'All Genres', value: '#01' },
+          { label: 'Rap / Hip-Hop', value: '#02' },
+          { label: "Rhythm 'n' Blues", value: '#12' },
+        ]
 
         return (
-          <div className="space-y-6">
+          <div className="space-y-7">
             <div className="hidden">
               <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
-            <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
-              <div className="space-y-6">
-                <div className="rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(251,113,133,0.16),_transparent_22%),radial-gradient(circle_at_top_right,_rgba(34,211,238,0.12),_transparent_24%),linear-gradient(180deg,_rgba(64,30,78,0.98),_rgba(55,27,68,0.98))] p-6 text-white shadow-[0_30px_80px_rgba(28,10,46,0.35)]">
-                  <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="space-y-2">
-                      <div className="text-4xl font-black tracking-tight text-white">
-                        Welcome, {artistHomeName}
-                      </div>
-                      <p className="text-base text-purple-100/80">
-                        Here&apos;s what&apos;s happening in your account today.
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-3 sm:flex-row xl:w-[30rem] xl:flex-col 2xl:w-[32rem] 2xl:flex-row">
-                      <div className="flex min-w-0 flex-1 items-center gap-3 rounded-full bg-black/60 px-5 py-3 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-                        <Search className="h-5 w-5 text-white/60" />
-                        <span className="truncate text-sm text-white/65">Search gigs, releases, messages, or settings</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <button type="button" className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-black/60 text-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:text-white">
-                          <Bell className="h-5 w-5" />
-                        </button>
-                        <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#7c3aed] to-[#ec4899] text-sm font-bold text-white shadow-lg">
-                          {(user?.email?.[0] || 'A').toUpperCase()}
-                        </div>
-                      </div>
-                    </div>
+
+            <div className="grid gap-7 2xl:grid-cols-[minmax(0,1fr)_28rem]">
+              <div className="space-y-7">
+                <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="space-y-2 text-white">
+                    <h1 className="text-4xl font-black leading-tight tracking-tight sm:text-5xl">
+                      Welcome, {artistHomeName}
+                    </h1>
+                    <p className="text-lg text-purple-100/72">Here&apos;s what&apos;s happening in your account today.</p>
                   </div>
-
-                  <div className="mt-6 grid gap-4 lg:grid-cols-[1.05fr_1fr]">
-                    <div className="rounded-[1.75rem] border border-white/10 bg-white/6 p-5">
-                      <div className="text-xs font-semibold uppercase tracking-[0.25em] text-purple-100/60">Next Gig</div>
-                      <div className="mt-3 text-3xl font-black text-white">
-                        {nextGigSnapshot?.startDatetime ? formatHomeDate(nextGigSnapshot.startDatetime) : 'No confirmed date yet'}
-                      </div>
-                      <div className="mt-1 text-sm text-purple-100/80">
-                        {nextGigSnapshot?.title || 'Your next confirmed performance will appear here.'}
-                      </div>
-                      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                          <CalendarDays className="mb-2 h-5 w-5 text-white/70" />
-                          <div className="text-xs uppercase tracking-[0.18em] text-white/45">Date</div>
-                          <div className="mt-1 text-lg font-bold text-white">{formatHomeDate(nextGigSnapshot?.startDatetime)}</div>
-                        </div>
-                        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                          <Clock3 className="mb-2 h-5 w-5 text-white/70" />
-                          <div className="text-xs uppercase tracking-[0.18em] text-white/45">Time</div>
-                          <div className="mt-1 text-lg font-bold text-white">{formatHomeTime(nextGigSnapshot?.startDatetime)}</div>
-                        </div>
-                        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                          <MapPin className="mb-2 h-5 w-5 text-white/70" />
-                          <div className="text-xs uppercase tracking-[0.18em] text-white/45">Venue</div>
-                          <div className="mt-1 line-clamp-2 text-sm font-semibold text-white">{nextGigSnapshot?.venueName || 'Venue TBC'}</div>
-                        </div>
-                      </div>
-                      <div className="mt-4 flex flex-wrap gap-3">
-                        <button
-                          type="button"
-                          onClick={() => handleSubSectionChange('gig-bookings', 'upcoming')}
-                          className="rounded-full bg-black/50 px-4 py-2 text-sm font-semibold text-white transition hover:bg-black/65"
-                        >
-                          Open Upcoming Gigs
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleSectionChange('messages')}
-                          className="rounded-full border border-white/15 bg-white/8 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/12"
-                        >
-                          Open Messages
-                        </button>
-                      </div>
+                  <div className="flex w-full flex-col gap-3 sm:flex-row xl:w-[34rem]">
+                    <div className="flex min-w-0 flex-1 items-center gap-3 rounded-full bg-[#09070d] px-5 py-3.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_40px_rgba(0,0,0,0.25)]">
+                      <Search className="h-6 w-6 text-white/65" />
+                      <span className="truncate text-lg font-semibold text-white/60">Search</span>
                     </div>
-
-                    <div className="rounded-[1.75rem] border border-white/10 bg-white/6 p-5">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-2xl font-black text-white">Chart Highlights</div>
-                        <div className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-purple-100/80">
-                          Last 7 Days
-                        </div>
-                      </div>
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                          <div className="text-xs uppercase tracking-[0.18em] text-white/45">Profile Completion</div>
-                          <div className="mt-3 text-4xl font-black text-white">{completionPercent}%</div>
-                          <div className="mt-2 h-2 rounded-full bg-white/10">
-                            <div className="h-full rounded-full bg-gradient-to-r from-[#ff8fab] via-[#60a5fa] to-[#34d399]" style={{ width: `${completionPercent}%` }} />
-                          </div>
-                        </div>
-                        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                          <div className="text-xs uppercase tracking-[0.18em] text-white/45">Unread Messages</div>
-                          <div className="mt-3 text-4xl font-black text-white">{unreadMessages}</div>
-                          <div className="mt-2 text-sm text-purple-100/80">Inbox activity across negotiations and system notices</div>
-                        </div>
-                        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                          <div className="text-xs uppercase tracking-[0.18em] text-white/45">Published Releases</div>
-                          <div className="mt-3 text-4xl font-black text-white">{featuredTrack ? '1+' : '0'}</div>
-                          <div className="mt-2 text-sm text-purple-100/80">Latest published track is ready in the player panel</div>
-                        </div>
-                        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                          <div className="text-xs uppercase tracking-[0.18em] text-white/45">Workspace</div>
-                          <div className="mt-3 text-xl font-black text-white">
-                            {artistTypeSelection ? `Artist Type ${artistTypeSelection.artistTypeId}` : 'Setup in progress'}
-                          </div>
-                          <div className="mt-2 text-sm text-purple-100/80">Profile, gig, music, banking, and message tools grouped in one shell</div>
-                        </div>
-                      </div>
+                    <button
+                      type="button"
+                      className="inline-flex h-[3.4rem] w-[3.4rem] items-center justify-center rounded-2xl bg-[#09070d] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_40px_rgba(0,0,0,0.2)] transition hover:text-[#f472b6]"
+                      aria-label="Open notifications"
+                    >
+                      <Bell className="h-6 w-6" />
+                    </button>
+                    <div className="inline-flex h-[3.4rem] w-[3.4rem] items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-[#7c3aed] to-[#ec4899] text-lg font-black text-white shadow-lg">
+                      {(user?.email?.[0] || artistHomeName?.[0] || 'A').toUpperCase()}
                     </div>
                   </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <button type="button" onClick={() => handleSectionChange('profile')} className="rounded-[1.5rem] border border-[#f2d7ea]/35 bg-[linear-gradient(180deg,_rgba(251,245,252,0.96),_rgba(247,237,250,0.92))] p-5 text-left shadow-[0_16px_40px_rgba(28,10,46,0.16)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_48px_rgba(28,10,46,0.22)]">
-                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7690]">Artist Profile</div>
-                    <div className="mt-2 text-2xl font-black tracking-tight text-[#171d34]">Fundamentals</div>
-                    <p className="mt-2 text-sm leading-6 text-[#495773]">Artist basics, web links, contract status, and your long-form bio.</p>
-                  </button>
-                  <button type="button" onClick={() => handleSectionChange('gig-bookings')} className="rounded-[1.5rem] border border-[#f2d7ea]/35 bg-[linear-gradient(180deg,_rgba(251,245,252,0.96),_rgba(247,237,250,0.92))] p-5 text-left shadow-[0_16px_40px_rgba(28,10,46,0.16)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_48px_rgba(28,10,46,0.22)]">
-                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7690]">Gig Menu</div>
-                    <div className="mt-2 text-2xl font-black tracking-tight text-[#171d34]">Bookings</div>
-                    <p className="mt-2 text-sm leading-6 text-[#495773]">Move between upcoming gigs, manual additions, historic gigs, and planner routes.</p>
-                  </button>
-                  <button type="button" onClick={() => handleSectionChange('music-uploads')} className="rounded-[1.5rem] border border-[#f2d7ea]/35 bg-[linear-gradient(180deg,_rgba(251,245,252,0.96),_rgba(247,237,250,0.92))] p-5 text-left shadow-[0_16px_40px_rgba(28,10,46,0.16)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_48px_rgba(28,10,46,0.22)]">
-                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7690]">Music Menu</div>
-                    <div className="mt-2 text-2xl font-black tracking-tight text-[#171d34]">Uploads</div>
-                    <p className="mt-2 text-sm leading-6 text-[#495773]">Go from intro to guide to workflow, and then into your catalogue and statistics branches.</p>
-                  </button>
-                  <button type="button" onClick={() => handleSectionChange('messages')} className="rounded-[1.5rem] border border-[#f2d7ea]/35 bg-[linear-gradient(180deg,_rgba(251,245,252,0.96),_rgba(247,237,250,0.92))] p-5 text-left shadow-[0_16px_40px_rgba(28,10,46,0.16)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_48px_rgba(28,10,46,0.22)]">
-                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7690]">Message Menu</div>
-                    <div className="mt-2 text-2xl font-black tracking-tight text-[#171d34]">Inbox</div>
-                    <p className="mt-2 text-sm leading-6 text-[#495773]">Gig negotiations, colleague responses, system notices, and future folder-specific screens.</p>
-                  </button>
+                <div className="grid gap-7 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1fr)]">
+                  <section className="space-y-4">
+                    <h2 className="text-2xl font-black tracking-tight text-white">{nextGigHeading}</h2>
+                    <div className="rounded-[1.35rem] border border-white/15 bg-[#6f376d]/82 p-5 text-white shadow-[0_22px_50px_rgba(24,8,36,0.24)]">
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <div className="flex flex-col items-center rounded-2xl bg-white/5 p-4 text-center">
+                          <CalendarDays className="h-12 w-12 text-white" />
+                          <span className="mt-3 text-sm font-bold text-white/85">{formatHomeDate(nextGigSnapshot?.startDatetime)}</span>
+                        </div>
+                        <div className="flex flex-col items-center rounded-2xl bg-white/5 p-4 text-center">
+                          <Clock3 className="h-12 w-12 text-white" />
+                          <span className="mt-3 text-sm font-bold text-white/85">{formatHomeTime(nextGigSnapshot?.startDatetime)}</span>
+                        </div>
+                        <div className="flex flex-col items-center rounded-2xl bg-white/5 p-4 text-center">
+                          <Radio className="h-12 w-12 text-white" />
+                          <span className="mt-3 text-sm font-bold text-white/85">2hrs 30mins</span>
+                        </div>
+                      </div>
+                      <div className="mt-5 flex items-center gap-4 rounded-2xl bg-white/5 p-4">
+                        <MapPin className="h-12 w-12 shrink-0 text-white" />
+                        <div className="min-w-0">
+                          <div className="truncate text-base font-black text-white">{nextGigSnapshot?.venueName || 'Venue TBC'}</div>
+                          <div className="truncate text-sm font-semibold text-white/70">{nextGigSnapshot?.displayAddress || 'Location details will appear here.'}</div>
+                        </div>
+                      </div>
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        <button type="button" className="rounded-lg bg-[#341d3d] px-3 py-2 text-sm font-black text-white shadow-md transition hover:bg-[#2a1732]">
+                          Send Email Invites
+                        </button>
+                        <button type="button" className="rounded-lg bg-[#341d3d] px-3 py-2 text-sm font-black text-white shadow-md transition hover:bg-[#2a1732]">
+                          Invite Gigrilla Fans
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSectionChange('messages')}
+                        className="mt-5 flex w-full items-center justify-between rounded-lg border-2 border-white/75 px-4 py-3 text-left text-sm font-bold text-white transition hover:bg-white/10"
+                      >
+                        Post a message to your feed
+                        <ArrowRight className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </section>
+
+                  <section className="space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <h2 className="text-2xl font-black tracking-tight text-white">Chart Highlights</h2>
+                      <button type="button" className="rounded-lg bg-[#8b4b84] px-3 py-2 text-xs font-black text-white shadow-md transition hover:bg-[#9a5593]">
+                        Last 7 Days
+                      </button>
+                    </div>
+                    <div className="rounded-[1.35rem] border border-white/15 bg-[#6f376d]/82 p-6 text-white shadow-[0_22px_50px_rgba(24,8,36,0.24)]">
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-[#7c3aed] to-[#ec4899] text-xl font-black">
+                          {(featuredTrack?.artist_name?.[0] || artistHomeName?.[0] || 'A').toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-xl font-black">{featuredTrack?.artist_name || artistHomeName}</div>
+                          <div className="truncate text-sm italic text-white/72">Rap/Hip-Hop Rhythm &apos;n&apos; Blues</div>
+                        </div>
+                      </div>
+                      <div className="mt-7 space-y-4">
+                        {chartRows.map((row) => (
+                          <div key={row.label} className="flex items-center justify-between gap-4">
+                            <span className="max-w-[8rem] text-sm font-black leading-4 text-white/86">{row.label}</span>
+                            <span className="rounded-lg bg-[#3d2044] px-4 py-2 text-sm font-black text-white shadow-md">{row.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-8 space-y-2">
+                        {chartPositions.map((position) => (
+                          <div key={position.label} className="flex items-center gap-3 text-sm font-black text-white/90">
+                            <span>{position.value}</span>
+                            <span>{position.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
                 </div>
 
-                <div className="rounded-[1.75rem] border border-[#f0cade]/35 bg-[linear-gradient(180deg,_rgba(246,232,250,0.96),_rgba(242,223,247,0.93))] p-5 shadow-[0_18px_44px_rgba(28,10,46,0.18)]">
-                  <button
-                    type="button"
-                    onClick={() => setIsHomeOnboardingOpen((prev) => !prev)}
-                    className="flex w-full items-center justify-between gap-4 text-left"
-                  >
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7690]">Onboarding & Setup</div>
-                      <div className="mt-1 text-2xl font-black tracking-tight text-[#171d34]">Profile progress and next actions</div>
-                      <p className="mt-2 text-sm leading-6 text-[#4c5971]">
-                        Keep this open while you are still completing setup, then collapse it when you want a cleaner dashboard landing screen.
-                      </p>
-                    </div>
-                    <div className="inline-flex items-center gap-2 rounded-full border border-white/45 bg-white/40 px-4 py-2 text-sm font-semibold text-[#3d4f6a] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
-                      {isHomeOnboardingOpen ? 'Collapse' : 'Expand'}
-                      {isHomeOnboardingOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </div>
-                  </button>
+                <section className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-2xl font-black tracking-tight text-white">Headline Income</h2>
+                    <button type="button" className="rounded-lg bg-[#8b4b84] px-3 py-2 text-xs font-black text-white shadow-md transition hover:bg-[#9a5593]">
+                      Last 7 Days
+                    </button>
+                  </div>
+                  <div className="grid overflow-hidden rounded-2xl border border-white/15 bg-[#6f376d]/82 text-white shadow-[0_22px_50px_rgba(24,8,36,0.2)] sm:grid-cols-2 xl:grid-cols-4">
+                    {headlineIncomeStats.map((stat) => (
+                      <div key={stat.label} className="border-white/15 p-5 sm:border-r last:border-r-0">
+                        <div className="text-center text-base font-semibold text-white/76">{stat.label}</div>
+                        <div className="mt-2 text-center text-4xl font-black tracking-wide text-white">{stat.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-right text-4xl font-black text-white/42">Total Income: $950K</div>
+                </section>
 
-                  {isHomeOnboardingOpen && (
-                    <div className="mt-5 rounded-[1.5rem] border border-white/45 bg-[linear-gradient(180deg,_rgba(253,249,254,0.82),_rgba(248,241,251,0.78))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
-                      <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="grid gap-7 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)]">
+                  <section className="space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <h2 className="text-2xl font-black tracking-tight text-white">Your Fanbase</h2>
+                      <button type="button" className="rounded-lg bg-[#8b4b84] px-3 py-2 text-xs font-black text-white shadow-md transition hover:bg-[#9a5593]">
+                        Last 7 Days
+                      </button>
+                    </div>
+                    <div className="space-y-3 rounded-[1.35rem] border border-white/10 bg-[#3a1d45]/50 p-5 text-white">
+                      {fanbaseStats.map((stat) => (
+                        <div key={`${stat.channel}-${stat.value}`} className="grid grid-cols-[2rem_1fr_auto_auto] items-center gap-3 text-sm">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#120a17] text-xs font-black text-[#f472b6]">{stat.channel[0]}</span>
+                          <span className="font-semibold text-white/85">{stat.value}</span>
+                          <span className={stat.trend === 'up' ? 'text-emerald-400' : 'text-rose-400'}>{stat.delta}</span>
+                          <span className={stat.trend === 'up' ? 'flex h-6 w-6 items-center justify-center rounded-full bg-emerald-950 text-emerald-300' : 'flex h-6 w-6 items-center justify-center rounded-full bg-rose-950 text-rose-300'}>
+                            {stat.trend === 'up' ? '↗' : '↘'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="space-y-4">
+                    <h2 className="text-2xl font-black tracking-tight text-white">Latest Review</h2>
+                    <div className="rounded-[1.35rem] border border-white/10 bg-[#0b0b0d] p-5 text-white shadow-[0_22px_50px_rgba(0,0,0,0.25)]">
+                      <div className="flex items-center gap-4">
+                        <div className="h-20 w-24 rounded-xl bg-gradient-to-br from-[#7c3aed] via-[#ec4899] to-[#f59e0b]" />
                         <div>
-                          <div className="text-sm font-semibold text-[#171d34]">Your profile is {completionPercent}% complete</div>
-                          <div className="mt-1 text-sm text-[#55627a]">{completedItems} of {totalItems} setup items completed</div>
+                          <div className="font-black">The Funkey Monkey,</div>
+                          <div className="text-sm text-white/72">London, UK</div>
+                          <div className="mt-2 space-y-1 text-sm text-amber-300">
+                            <div>Attitude ★★★★★</div>
+                            <div>Timeliness ★★★★★</div>
+                            <div>Performance ★★★★★</div>
+                          </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleSectionChange('profile')}
-                          className="rounded-full bg-[#3b1b4d] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#30163f]"
-                        >
-                          Continue setup
-                        </button>
-                      </div>
-                      <div className="mt-4 h-3 rounded-full bg-[#d6dceb]">
-                        <div className="h-full rounded-full bg-gradient-to-r from-[#7c3aed] via-[#ec4899] to-[#34d399]" style={{ width: `${completionPercent}%` }} />
                       </div>
                     </div>
-                  )}
+                  </section>
                 </div>
               </div>
 
-              <div className="rounded-[2rem] border border-white/10 bg-[#101014] p-5 text-white shadow-[0_30px_80px_rgba(4,4,8,0.45)]">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/45">Top Track</div>
-                    <div className="mt-1 text-sm text-white/65">Latest published music in your always-available player context</div>
-                  </div>
-                  <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-white/70">
+              <aside className="rounded-[1.5rem] bg-[#08080b] p-7 text-white shadow-[0_30px_80px_rgba(0,0,0,0.42)]">
+                <div className="flex items-start justify-between gap-4">
+                  <h2 className="text-2xl font-black tracking-tight">Top Track</h2>
+                  <button type="button" className="rounded-lg bg-[#8b4b84] px-3 py-2 text-xs font-black text-white shadow-md transition hover:bg-[#9a5593]">
                     Last 7 Days
-                  </div>
+                  </button>
                 </div>
-
-                <div className="mt-5 overflow-hidden rounded-[1.75rem] bg-[#0f0f14]">
+                <div className="mt-6 overflow-hidden rounded-2xl bg-[#121217]">
                   {featuredTrack?.cover_artwork_url ? (
                     <img
                       src={featuredTrack.cover_artwork_url}
                       alt={`${featuredTrack.track_title} artwork`}
-                      className="aspect-[4/5] w-full object-cover"
+                      className="aspect-square w-full object-cover"
                     />
                   ) : (
-                    <div className="flex aspect-[4/5] w-full items-center justify-center bg-gradient-to-br from-[#5b0b16] via-[#23131f] to-black">
-                      <Disc3 className="h-14 w-14 text-white/70" />
+                    <div className="flex aspect-square w-full items-center justify-center bg-gradient-to-br from-[#5b0b16] via-[#241221] to-black">
+                      <Disc3 className="h-16 w-16 text-white/70" />
                     </div>
                   )}
                 </div>
-
-                <div className="mt-5">
-                  <div className="text-3xl font-black leading-tight text-white">
-                    {featuredTrack?.track_title || 'No published track yet'}
+                <div className="mt-5 flex items-end justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="truncate text-3xl font-black">{featuredTrack?.track_title || 'Love'}</div>
+                    <div className="mt-1 truncate text-sm italic text-white/60">{featuredTrack ? featuredTrack.artist_name : 'Kendrick Lamar, Zacari'}</div>
                   </div>
-                  <div className="mt-2 text-sm text-white/65">
-                    {featuredTrack ? `${featuredTrack.artist_name} • ${featuredTrack.release_title}` : 'Publish music to surface a featured track here.'}
+                  <button type="button" className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-full bg-[#111116] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition hover:bg-[#1b1b22]" aria-label="Play top track">
+                    <PlayCircle className="h-6 w-6" />
+                    <span className="mt-1 text-[0.6rem] font-black">{formatTrackDuration(featuredTrack?.duration_seconds || 213)}</span>
+                  </button>
+                </div>
+                <div className="mt-6 flex flex-wrap gap-3 text-sm font-black">
+                  <span className="rounded-lg bg-[#8b4b84] px-3 py-2">123,456</span>
+                  <span>Streams</span>
+                  <span className="rounded-lg bg-[#8b4b84] px-3 py-2">1,234</span>
+                  <span>Downloads</span>
+                </div>
+                <div className="mt-7 text-xs font-black uppercase tracking-[0.22em] text-white/70">Chart Positions</div>
+                <div className="mt-3 grid grid-cols-2 gap-4">
+                  <div className="rounded-xl bg-[#6f376d] p-4">
+                    <div className="text-sm text-white/70">Rap &amp; Hip Hop</div>
+                    <div className="mt-2 text-4xl font-black">#64</div>
+                  </div>
+                  <div className="rounded-xl bg-[#6f376d] p-4">
+                    <div className="text-sm text-white/70">All Genres</div>
+                    <div className="mt-2 text-4xl font-black">#114</div>
                   </div>
                 </div>
-
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/40">Duration</div>
-                    <div className="mt-2 text-2xl font-black text-white">{formatTrackDuration(featuredTrack?.duration_seconds)}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/40">Published</div>
-                    <div className="mt-2 text-xl font-black text-white">{formatHomeDate(featuredTrack?.published_at)}</div>
-                  </div>
+                <div className="mt-7 flex items-center justify-between rounded-xl bg-[#8b4b84] px-5 py-4 text-xl font-black">
+                  <span>Track Income:</span>
+                  <span>£8,636.32</span>
                 </div>
+              </aside>
+            </div>
 
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-white/10 bg-[#251232] p-4">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/45">Music Uploads</div>
-                    <div className="mt-2 text-3xl font-black text-white">{featuredTrack ? 'Ready' : 'Build'}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-[#251232] p-4">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/45">Player</div>
-                    <div className="mt-2 inline-flex items-center gap-2 text-lg font-black text-white">
-                      <PlayCircle className="h-5 w-5 text-[#f472b6]" />
-                      Expand anytime
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleSectionChange('music-catalogue')}
-                  className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#33204a] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#41265d]"
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {dashboardMenuColumns.map((column) => (
+                <div
+                  key={column.key}
+                  className="rounded-[1.5rem] border border-[#f2d7ea]/35 bg-[linear-gradient(180deg,_rgba(251,245,252,0.96),_rgba(247,237,250,0.92))] p-5 text-left shadow-[0_16px_40px_rgba(28,10,46,0.16)]"
                 >
-                  Open Music Catalogue
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-              </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7690]">{column.eyebrow}</div>
+                      <button
+                        type="button"
+                        onClick={() => openDashboardDestination(column.section, column.subSection)}
+                        className="mt-2 text-left text-2xl font-black tracking-tight text-[#171d34] transition hover:text-[#7c2d88]"
+                      >
+                        {column.title}
+                      </button>
+                    </div>
+                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#ebd4e8] bg-white/70 text-xs font-black text-[#7c2d88]">
+                      {column.key}
+                    </span>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {column.items.map((item) => (
+                      <button
+                        key={`${column.key}-${item.label}`}
+                        type="button"
+                        onClick={() => openDashboardDestination(item.section, item.subSection)}
+                        className="flex w-full items-center justify-between rounded-xl border border-transparent bg-white/45 px-3 py-2 text-left text-sm font-semibold text-[#495773] transition hover:border-[#e7c6e7] hover:bg-white/75 hover:text-[#171d34]"
+                      >
+                        <span>{item.label}</span>
+                        <ArrowRight className="h-3.5 w-3.5 text-[#9f7faa]" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-[1.75rem] border border-[#f0cade]/35 bg-[linear-gradient(180deg,_rgba(246,232,250,0.96),_rgba(242,223,247,0.93))] p-5 shadow-[0_18px_44px_rgba(28,10,46,0.18)]">
+              <button
+                type="button"
+                onClick={() => setIsHomeOnboardingOpen((prev) => !prev)}
+                className="flex w-full items-center justify-between gap-4 text-left"
+              >
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7690]">Onboarding & Setup</div>
+                  <div className="mt-1 text-2xl font-black tracking-tight text-[#171d34]">Profile progress and next actions</div>
+                  <p className="mt-2 text-sm leading-6 text-[#4c5971]">
+                    Keep this open while you are still completing setup, then collapse it when you want a cleaner dashboard landing screen.
+                  </p>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/45 bg-white/40 px-4 py-2 text-sm font-semibold text-[#3d4f6a] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
+                  {isHomeOnboardingOpen ? 'Collapse' : 'Expand'}
+                  {isHomeOnboardingOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </div>
+              </button>
+
+              {isHomeOnboardingOpen && (
+                <div className="mt-5 rounded-[1.5rem] border border-white/45 bg-[linear-gradient(180deg,_rgba(253,249,254,0.82),_rgba(248,241,251,0.78))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-semibold text-[#171d34]">Your profile is {completionPercent}% complete</div>
+                      <div className="mt-1 text-sm text-[#55627a]">{completedItems} of {totalItems} setup items completed</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleSectionChange('profile')}
+                      className="rounded-full bg-[#3b1b4d] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#30163f]"
+                    >
+                      Continue setup
+                    </button>
+                  </div>
+                  <div className="mt-4 h-3 rounded-full bg-[#d6dceb]">
+                    <div className="h-full rounded-full bg-gradient-to-r from-[#7c3aed] via-[#ec4899] to-[#34d399]" style={{ width: `${completionPercent}%` }} />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )
@@ -1218,12 +1386,14 @@ export default function ArtistDashboard() {
         </SheetContent>
 
         <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,143,163,0.14),_transparent_18%),radial-gradient(circle_at_top_right,_rgba(96,165,250,0.10),_transparent_20%),linear-gradient(180deg,_#3d214d_0%,_#331c42_100%)] lg:flex">
-          <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:block lg:w-64">
+          <div className={`hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:block ${isDesktopSidebarCollapsed ? 'lg:w-20' : 'lg:w-80'}`}>
             <ArtistSidebar
               activeSection={activeSection}
               activeSubSectionKey={activeSubSectionKey}
               onSectionChange={handleSectionChange}
               onSubSectionChange={handleSubSectionChange}
+              isCollapsed={isDesktopSidebarCollapsed}
+              onCollapsedChange={setIsDesktopSidebarCollapsed}
               capabilities={capabilities}
               unreadMessages={unreadMessages}
               completedSections={completedSectionsForSidebar}
@@ -1231,7 +1401,7 @@ export default function ArtistDashboard() {
             />
           </div>
 
-          <div className="flex-1 overflow-y-auto lg:pl-64">
+          <div className={`flex-1 overflow-y-auto ${isDesktopSidebarCollapsed ? 'lg:pl-20' : 'lg:pl-80'}`}>
             <div className="p-4 sm:p-6">
               <div className="mx-auto max-w-7xl">
                 {activeSection !== 'home' && (

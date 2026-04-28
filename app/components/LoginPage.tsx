@@ -1,12 +1,21 @@
 import { useState, useEffect } from "react";
+import Image from "next/image";
+import { ChevronDown } from "lucide-react";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
 import { useAuth } from "../../lib/auth-context";
-import Image from "next/image";
 
 interface LoginPageProps {
-  onNavigate: (page: "login" | "signup" | "genres" | "dashboard" | "fan-dashboard" | "artist-dashboard") => void;
+  onNavigate: (
+    page:
+      | "login"
+      | "signup"
+      | "genres"
+      | "dashboard"
+      | "fan-dashboard"
+      | "artist-dashboard",
+  ) => void;
 }
 
 export function LoginPage({ onNavigate }: LoginPageProps) {
@@ -14,17 +23,14 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    rememberMe: false
+    rememberMe: false,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [postLoginRedirecting, setPostLoginRedirecting] = useState(false);
   const [hasAttemptedLogin, setHasAttemptedLogin] = useState(false);
 
-  // Navigate to appropriate page after login
   useEffect(() => {
-    // Only redirect if user exists AND we've actually attempted a login
-    // This prevents redirects when landing on the page after logout
     if (!user || !user.id || !hasAttemptedLogin) return;
 
     let cancelled = false;
@@ -33,48 +39,41 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
     const checkOnboardingStatus = async () => {
       const onboardingMemberType = user.user_metadata?.onboarding_member_type;
 
-      // Check artist profile first
       try {
-        const artistResponse = await fetch('/api/artist-profile');
+        const artistResponse = await fetch("/api/artist-profile");
         if (artistResponse.ok) {
           const artistResult = await artistResponse.json();
           if (artistResult.data?.onboarding_completed) {
-            console.log("Login component: Artist onboarding complete, sending to artist dashboard...");
             onNavigate("artist-dashboard");
             return;
-          } else if (onboardingMemberType === 'artist') {
-            // Artist profile exists but onboarding not complete
-            console.log("Login component: Artist needs to complete onboarding, redirecting to signup...");
+          } else if (onboardingMemberType === "artist") {
             window.location.href = `/signup?onboarding=artist`;
             return;
           }
         }
-      } catch (error) {
-        console.error("Login component: Error checking artist onboarding status", error);
+      } catch (fetchError) {
+        console.error(
+          "Login component: Error checking artist onboarding status",
+          fetchError,
+        );
       }
 
-      // Check fan profile
       try {
-        const response = await fetch('/api/fan-profile');
+        const response = await fetch("/api/fan-profile");
         const result = await response.json();
-
         const dbOnboardingCompleted = result.data?.onboarding_completed;
 
-        console.log("Login component: Fan onboarding check", {
-          dbOnboardingCompleted,
-          hasProfile: !!result.data
-        });
-
-        // If fan onboarding is incomplete and they have the onboarding flag, redirect to onboarding
-        if (!dbOnboardingCompleted && onboardingMemberType === 'fan') {
-          console.log("Login component: Fan needs to complete onboarding, redirecting to signup...");
+        if (!dbOnboardingCompleted && onboardingMemberType === "fan") {
           window.location.href = `/signup?onboarding=fan`;
           return;
         }
 
         onNavigate("fan-dashboard");
-      } catch (error) {
-        console.error("Login component: Error checking fan onboarding status", error);
+      } catch (fetchError) {
+        console.error(
+          "Login component: Error checking fan onboarding status",
+          fetchError,
+        );
         onNavigate("fan-dashboard");
       } finally {
         if (!cancelled) {
@@ -88,8 +87,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
     return () => {
       cancelled = true;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, onNavigate]);
+  }, [user, hasAttemptedLogin, onNavigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,143 +100,210 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
       return;
     }
 
-    console.log("Login: Starting sign in process...");
-    const { error } = await signIn(formData.email, formData.password);
+    const { error: signInError } = await signIn(
+      formData.email,
+      formData.password,
+    );
 
-    if (error) {
-      console.error("Login error:", error);
-      setError(error);
+    if (signInError) {
+      setError(signInError);
       setHasAttemptedLogin(false);
     } else {
-      console.log("Login successful");
       setHasAttemptedLogin(true);
     }
+
     setLoading(false);
   };
 
-  const handleInputChange = (field: keyof typeof formData) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (field === 'rememberMe') {
-      setFormData(prev => ({ ...prev, [field]: e.target.checked }));
-    } else {
-      setFormData(prev => ({ ...prev, [field]: e.target.value }));
-    }
-  };
+  const handleInputChange =
+    (field: keyof typeof formData) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (field === "rememberMe") {
+        setFormData((prev) => ({ ...prev, [field]: e.target.checked }));
+        return;
+      }
+
+      setFormData((prev) => ({ ...prev, [field]: e.target.value }));
+    };
 
   if (authLoading || postLoginRedirecting) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--g-purple-5)]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-[var(--g-cerise)]" />
+          <p className="text-[var(--g-purple-1)]">Loading...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left Side - Login Form */}
-      <div className="flex-1 flex flex-col justify-center px-8 bg-white">
-        {/* Logo */}
-        <div className="mb-8">
-          <Image
-            src="/logos/Gigrilla Logo-Word alongside Logo-Head Dark Pruple Cerise Clear-PNG 3556 x 1086.png"
-            alt="Gigrilla Logo"
-            width={200}
-            height={60}
-            className="h-12 w-auto"
-            priority
-          />
-        </div>
+    <div className="relative h-screen overflow-hidden bg-white">
+      <div
+        className="absolute inset-y-0 right-0 hidden bg-[var(--g-purple-1)] lg:block"
+        style={{
+          width: "50%",
+          clipPath: "polygon(18% 0, 100% 0, 100% 100%, 0 100%)",
+        }}
+      />
 
-        {/* Form */}
-        <div className="max-w-md w-full">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
-          <p className="text-gray-600 mb-8">Sign in to your Gigrilla account</p>
-
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600">{error}</p>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm text-gray-700 mb-2">Email Address</label>
-              <Input
-                type="email"
-                placeholder="Enter your email"
-                value={formData.email}
-                onChange={handleInputChange('email')}
-                className="w-full bg-gray-100 border-none"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm text-gray-700 mb-2">Password</label>
-              <Input
-                type="password"
-                placeholder="Enter your password"
-                value={formData.password}
-                onChange={handleInputChange('password')}
-                className="w-full bg-gray-100 border-none"
-                required
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <Checkbox
-                  id="rememberMe"
-                  checked={formData.rememberMe}
-                  onCheckedChange={(checked) => 
-                    setFormData(prev => ({ ...prev, rememberMe: Boolean(checked) }))
-                  }
-                />
-                <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-600">
-                  Remember me
-                </label>
-              </div>
-              <button
-                type="button"
-                className="text-sm text-purple-600 hover:text-purple-500"
-              >
-                Forgot password?
-              </button>
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3"
-              disabled={loading}
-            >
-              {loading ? "Signing In..." : "SIGN IN"}
-            </Button>
-          </form>
-
-          {/* Info */}
-          <div className="mt-8">
-            <p className="text-xs text-gray-500">
-              New to Gigrilla? Create an account to discover live music, connect with artists, and build your music community.
-            </p>
-          </div>
-        </div>
+      <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 hidden -translate-x-1/2 -translate-y-1/2 lg:block">
+        <img
+          src="/logos/Gigrilla Gorilla Transparent Cutout.png"
+          alt="Gigrilla Gorilla"
+          className="h-auto w-[280px] max-w-none xl:w-[320px] 2xl:w-[360px]"
+        />
       </div>
 
-      {/* Right Side - Purple Section */}
-      <div className="flex-1 bg-gradient-to-br from-purple-800 to-purple-600 flex flex-col justify-center items-center text-white px-8">
-        <div className="text-center max-w-md">
-          <h2 className="text-3xl mb-4">New to Gigrilla?</h2>
-          <p className="text-purple-200 mb-8">
-            Join thousands of music lovers discovering live performances, connecting with artists, and building their music community
-          </p>
-          <Button
-            onClick={() => onNavigate("signup")}
-            className="bg-white text-purple-600 hover:bg-gray-100 px-8 py-3"
-          >
-            CREATE ACCOUNT
-          </Button>
+      <div className="relative z-10 flex h-full flex-col lg:flex-row">
+        <div className="w-full overflow-y-auto px-6 pb-8 pt-7 sm:px-10 md:px-12 lg:w-1/2 lg:px-12 lg:pb-8 lg:pt-8 xl:px-16 xl:pt-10">
+          <div className="w-full max-w-[480px]">
+            <Image
+              src="/logos/Gigrilla Logo-Word alongside Logo-Head Dark Pruple Cerise Clear-PNG 3556 x 1086.png"
+              alt="Gigrilla Logo"
+              width={430}
+              height={132}
+              className="h-auto w-[160px] sm:w-[180px] xl:w-[200px]"
+              priority
+            />
+
+            <div className="mt-6 xl:mt-8">
+              <h1 className="font-heading text-2xl font-bold leading-tight tracking-[0.01em] text-[var(--g-purple-2)] xl:text-3xl">
+                Log in to your Account
+              </h1>
+              <p className="mt-2 font-ui text-base text-[var(--g-cerise)] xl:text-lg">
+                you are the music industry
+              </p>
+            </div>
+
+            {error && (
+              <div className="mt-4 rounded-xl border border-[var(--g-orange)]/25 bg-[var(--g-orange)]/8 px-4 py-3">
+                <p className="text-sm text-[var(--g-orange)]">{error}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="mt-6 space-y-4 xl:mt-7 xl:space-y-5">
+              <div className="space-y-1.5">
+                <label className="block font-ui text-sm font-medium lowercase text-[var(--g-purple-2)] xl:text-base">
+                  email address
+                </label>
+                <div className="relative">
+                  <Input
+                    type="email"
+                    placeholder="admin@company.com"
+                    value={formData.email}
+                    onChange={handleInputChange("email")}
+                    className="h-11 rounded-xl border-0 bg-[#f5f6fb] px-4 pr-10 text-sm text-[var(--g-purple-1)] placeholder:text-[#c1c6d0] xl:h-12 xl:text-base"
+                    required
+                  />
+                  <ChevronDown className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--g-purple-2)]/65" />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block font-ui text-sm font-medium lowercase text-[var(--g-purple-2)] xl:text-base">
+                  password
+                </label>
+                <div className="relative">
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={formData.password}
+                    onChange={handleInputChange("password")}
+                    className="h-11 rounded-xl border-0 bg-[#f5f6fb] px-4 pr-10 text-sm text-[var(--g-purple-1)] placeholder:text-[#c1c6d0] xl:h-12 xl:text-base"
+                    required
+                  />
+                  <ChevronDown className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--g-purple-2)]/65" />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 pt-0.5">
+                <label className="flex items-center gap-2 font-ui text-sm text-[var(--g-purple-2)] xl:text-base">
+                  <Checkbox
+                    id="rememberMe"
+                    checked={formData.rememberMe}
+                    onCheckedChange={(checked) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        rememberMe: Boolean(checked),
+                      }))
+                    }
+                    className="h-4 w-4 rounded-[0.3rem] border-[var(--g-purple-2)]/15 data-[state=checked]:border-[var(--g-cerise)] data-[state=checked]:bg-[var(--g-cerise)]"
+                  />
+                  remember me
+                </label>
+                <button
+                  type="button"
+                  className="font-ui text-sm text-[var(--g-cerise)] hover:opacity-80 xl:text-base"
+                >
+                  forgot password
+                </button>
+              </div>
+
+              <Button
+                type="submit"
+                className="h-11 w-full rounded-xl bg-[var(--g-cerise)] text-sm font-bold tracking-[0.12em] text-white hover:bg-[var(--g-cerise)]/90 xl:h-12 xl:text-base"
+                disabled={loading}
+              >
+                {loading ? "LOGGING IN" : "LOG IN"}
+              </Button>
+
+              <div className="hidden pt-1 md:block">
+                <p className="text-center font-ui text-sm text-[var(--g-purple-2)]/65">
+                  or log in using
+                </p>
+                <div className="mt-3 grid grid-cols-3 gap-3">
+                  {["G+", "Tw", "Fb"].map((label) => (
+                    <button
+                      key={label}
+                      type="button"
+                      className="h-10 rounded-xl border border-[var(--g-purple-2)]/12 bg-white font-ui text-sm font-semibold text-[var(--g-purple-2)]/85 xl:h-11"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </form>
+
+            <div className="mt-8 rounded-2xl bg-[var(--g-purple-1)] px-5 py-5 text-white lg:hidden">
+              <p className="font-heading text-xl font-bold leading-tight text-white">
+                Create your Account
+              </p>
+              <p className="mt-1.5 font-ui text-sm text-[var(--g-cerise)]">
+                you are the music industry
+              </p>
+              <p className="mt-3 max-w-sm font-ui text-sm leading-relaxed text-white/82">
+                Register and set-up your new account in a few easy steps
+              </p>
+              <Button
+                onClick={() => onNavigate("signup")}
+                className="mt-4 h-10 w-full rounded-xl bg-[var(--g-cerise)] px-6 text-sm font-bold tracking-[0.08em] text-white hover:bg-[var(--g-cerise)]/90 sm:w-auto sm:min-w-[160px]"
+              >
+                SIGN UP
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative hidden w-1/2 lg:flex lg:items-center lg:justify-center">
+          <div className="relative z-10 w-[260px] xl:w-[290px] 2xl:w-[310px]">
+            <h2 className="whitespace-nowrap font-heading text-2xl font-bold leading-tight text-white xl:text-3xl">
+              Create your Account
+            </h2>
+            <p className="mt-2 font-ui text-base text-[var(--g-cerise)]">
+              you are the music industry
+            </p>
+            <p className="mt-3 font-ui text-sm leading-relaxed text-white/78">
+              Register and set-up your new account in a few easy steps
+            </p>
+            <Button
+              onClick={() => onNavigate("signup")}
+              className="mt-5 h-11 min-w-[160px] rounded-xl bg-[var(--g-cerise)] px-6 text-sm font-bold tracking-[0.1em] text-white hover:bg-[var(--g-cerise)]/90 xl:h-12 xl:min-w-[180px] xl:text-base"
+            >
+              SIGN UP
+            </Button>
+          </div>
         </div>
       </div>
     </div>

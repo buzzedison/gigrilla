@@ -251,7 +251,7 @@ export function formatIPI(ipi: string): string {
 export const PROFESSIONAL_ID_URLS = {
     isni: {
         search: 'https://isni.org/page/search-database/',
-        register: 'https://isni.org/page/get-an-isni/',
+        register: 'https://www.soundcredit.com/isni-registration',
         info: 'https://isni.org/'
     },
     ipi: {

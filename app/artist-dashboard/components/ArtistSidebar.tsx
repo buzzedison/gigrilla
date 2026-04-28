@@ -1,7 +1,7 @@
-"use client";
+"use client"
 
-import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
+import { useEffect, useMemo, useState } from "react"
+import Image from "next/image"
 import {
   User,
   Users2,
@@ -12,8 +12,6 @@ import {
   Image as ImageIcon,
   Video,
   Settings,
-  Eye,
-  Edit3,
   CreditCard,
   RefreshCw,
   LogOut,
@@ -29,15 +27,35 @@ import {
   FileCheck,
   CalendarDays,
   Mail,
-  Inbox,
   Plus,
-  Edit,
-  MessageSquare
-} from "lucide-react";
-import { useRouter, usePathname } from "next/navigation";
-import Link from "next/link";
-import { useAuth } from "../../../lib/auth-context";
-import { ArtistTypeCapabilities } from "../../../data/artist-types";
+  MessageSquare,
+  LayoutDashboard,
+  SunMoon,
+  Globe,
+  MonitorUp,
+  MapPinned,
+  Building2,
+  Wallet,
+  BookMarked,
+  Radio,
+  Inbox,
+  UserRoundCog,
+  Landmark,
+  Guitar,
+  BadgeCheck,
+  CalendarRange,
+  AudioWaveform,
+  Disc3,
+  CircleDollarSign,
+  Gauge,
+  FolderKanban,
+  ListChecks,
+  Users,
+  Bell,
+} from "lucide-react"
+import { useRouter, usePathname } from "next/navigation"
+import { useAuth } from "../../../lib/auth-context"
+import { ArtistTypeCapabilities } from "../../../data/artist-types"
 
 export type ArtistDashboardSection =
   | 'home'
@@ -78,6 +96,8 @@ interface ArtistSidebarProps {
   activeSubSectionKey?: string | null
   onSectionChange?: (section: ArtistDashboardSection) => void
   onSubSectionChange?: (section: ArtistDashboardSection, subSection: string) => void
+  isCollapsed?: boolean
+  onCollapsedChange?: (collapsed: boolean) => void
   capabilities?: ArtistTypeCapabilities | null
   unreadMessages?: number
   completedSections?: string[]
@@ -88,12 +108,10 @@ interface ArtistSidebarProps {
 function isSectionEnabled(section: ArtistDashboardSection, capabilities: ArtistTypeCapabilities | null | undefined, hideTypeSection?: boolean) {
   if (hideTypeSection && section === 'type') return false
 
-  // Always allow type section (users can change their artist type anytime)
   if (section === 'type') return true
 
   if (!capabilities) {
-    // Keep core navigation accessible before capabilities load.
-    return section === 'home' || section === 'profile' || section === 'messages'
+    return section === 'home' || section === 'profile' || section === 'messages' || section === 'settings'
   }
 
   switch (section) {
@@ -121,153 +139,62 @@ function isSectionEnabled(section: ArtistDashboardSection, capabilities: ArtistT
   }
 }
 
-type SidebarSubSection = {
+type SidebarChild = {
   id: string
   label: string
+  icon?: React.ComponentType<{ className?: string }>
+  section?: ArtistDashboardSection
+  subSection?: string
+  path?: string
+  action?: 'toggleAll' | 'profileView' | 'theme' | 'logout'
+  badge?: string | number | null
 }
 
-const sectionSubSections: Partial<Record<ArtistDashboardSection, SidebarSubSection[]>> = {
-  home: [
-    { id: 'overview', label: 'Overview' }
-  ],
-  profile: [
-    { id: 'details', label: 'Artist Basics' },
-    { id: 'social', label: 'Artist Web Links' }
-  ],
-  payments: [
-    { id: 'out', label: 'Money Out' },
-    { id: 'in', label: 'Money In' }
-  ],
-  crew: [
-    { id: 'owner', label: 'Your Roles & Info' },
-    { id: 'add-members', label: 'Add Crew Member' },
-    { id: 'manage-team', label: 'View Crew & Admins' }
-  ],
-  auditions: [
-    { id: 'add', label: '+Create an Ad' },
-    { id: 'manage', label: 'Published & Historic Ads' }
-  ],
-  contract: [
-    { id: 'label', label: 'Record Label' },
-    { id: 'publisher', label: 'Music Publisher' },
-    { id: 'manager', label: 'Artist Manager' },
-    { id: 'booking', label: 'Booking Agent' }
-  ],
-  royalty: [
-    { id: 'overview', label: 'Overview' },
-    { id: 'splits', label: 'Team Splits' }
-  ],
-  gigability: [
-    { id: 'base', label: 'Base Location' },
-    { id: 'sets', label: 'Set Lengths' },
-    { id: 'fees', label: 'Gig Fees' },
-    { id: 'local', label: 'Local Area' },
-    { id: 'wider', label: 'Wider Area' }
-  ],
-  'gig-bookings': [
-    { id: 'book-new', label: '+Book a New Gig' },
-    { id: 'add-manually', label: '+Add Gig Manually' },
-    { id: 'drafts', label: 'Draft Gigs' },
-    { id: 'upcoming', label: 'Upcoming Gigs' },
-    { id: 'scheduled-hidden', label: 'Scheduled / Hidden' },
-    { id: 'historic', label: 'Historic Gigs' }
-  ],
-  'gig-reporting': [
-    { id: 'confirm-gig', label: 'Confirm a Gig' },
-    { id: 'report-venue', label: 'Report a Venue' }
-  ],
-  'gig-negotiations': [
-    { id: 'gig_invites', label: 'Gig Invites' },
-    { id: 'gig_requests', label: 'Gig Requests' },
-    { id: 'confirmations', label: 'Confirmations' }
-  ],
-  'gig-planner': [
-    { id: 'calendar', label: 'View Calendar' },
-    { id: 'unavailability', label: '+Unavailability' }
-  ],
-  'gig-statistics': [
-    { id: 'performed', label: 'Gigs Performed' },
-    { id: 'locations', label: 'Gig Locations' },
-    { id: 'venues', label: 'Gig Venues' },
-    { id: 'earnings', label: 'Gig Earnings' }
-  ],
-  'gig-calendar': [
-    { id: 'add', label: '+Book a New Gig' },
-    { id: 'upcoming', label: '+Add Gig Manually' },
-    { id: 'past', label: 'View Calendar' }
-  ],
-  'gig-invites': [
-    { id: 'overview', label: 'Overview' },
-    { id: 'pending', label: 'Pending Invites' },
-    { id: 'history', label: 'Invite History' }
-  ],
-  'gig-requests': [
-    { id: 'overview', label: 'Overview' },
-    { id: 'pending', label: 'Pending Requests' },
-    { id: 'history', label: 'Request History' }
-  ],
-  bio: [
-    { id: 'editor', label: 'Artist Bio' }
-  ],
-  genres: [
-    { id: 'selector', label: 'Artist Genres' }
-  ],
-  logo: [
-    { id: 'logo', label: 'Logo' },
-    { id: 'header', label: 'Header' }
-  ],
-  photos: [
-    { id: 'gallery', label: 'Photos' }
-  ],
-  videos: [
-    { id: 'upload', label: 'Videos' },
-    { id: 'manage', label: 'Manage Video Links' }
-  ],
-  'music-upload': [
-    { id: 'intro', label: 'Upload Intro' },
-    { id: 'guide', label: 'Upload Guide' },
-    { id: 'workflow', label: '+Upload Music' }
-  ],
-  'music-uploads': [
-    { id: 'guide', label: 'Upload Guide' },
-    { id: 'workflow', label: '+Upload Music' },
-    { id: 'drafts', label: 'Draft Uploads' }
-  ],
-  'music-catalogue': [
-    { id: 'published', label: 'Published Music' },
-    { id: 'published-tracks', label: 'All Tracks' },
-    { id: 'published-singles', label: 'Singles' },
-    { id: 'published-eps', label: 'EPs' },
-    { id: 'published-albums', label: 'Albums' },
-    { id: 'scheduled', label: 'Scheduled Music' },
-    { id: 'scheduled-tracks', label: 'All Tracks' },
-    { id: 'scheduled-singles', label: 'Singles' },
-    { id: 'scheduled-eps', label: 'EPs' },
-    { id: 'scheduled-albums', label: 'Albums' }
-  ],
-  'music-statistics': [
-    { id: 'streams', label: 'All Streams' },
-    { id: 'downloads', label: 'All Downloads' },
-    { id: 'earnings', label: 'Music Earnings' }
-  ],
-  'music-manage': [
-    { id: 'library', label: 'Music Catalogue' }
-  ],
-  messages: [
-    { id: 'gig_invites', label: 'Gig Invites' },
-    { id: 'gig_requests', label: 'Gig Requests' },
-    { id: 'colleagues', label: 'Colleague Messages' },
-    { id: 'auditions', label: 'Audition / Collab Msgs' },
-    { id: 'fans', label: 'Fan Messages' },
-    { id: 'artists', label: 'Artist Messages' },
-    { id: 'venues', label: 'Venue Messages' },
-    { id: 'services', label: 'Service Messages' },
-    { id: 'pros', label: 'MusicPro Messages' },
-    { id: 'system', label: 'System Messages' }
-  ],
-  type: [
-    { id: 'selector', label: 'Artist Type' }
-  ]
+type SidebarNode = SidebarChild & {
+  children?: SidebarChild[]
+}
+
+type SidebarGroup = {
+  id: string
+  label: string
+  items: SidebarNode[]
+}
+
+const GROUP_IDS = ['controlPanel', 'artistProfile', 'gigMenu', 'musicMenu', 'messageMenu'] as const
+const ITEM_IDS = [
+  'artist-basics',
+  'artist-crew',
+  'artist-banking',
+  'artist-media',
+  'auditions-collabs',
+  'gig-ability',
+  'gig-bookings',
+  'gig-reporting',
+  'gig-negotiations',
+  'gig-planner',
+  'gig-statistics',
+  'music-uploads',
+  'music-catalogue',
+  'music-statistics',
+  'message-negotiations',
+  'user-messages',
+] as const
+
+function buildDefaultGroupState(isDesktop: boolean) {
+  return {
+    controlPanel: isDesktop,
+    artistProfile: isDesktop,
+    gigMenu: false,
+    musicMenu: false,
+    messageMenu: false,
+  }
+}
+
+function buildDefaultItemState() {
+  return ITEM_IDS.reduce<Record<string, boolean>>((acc, id) => {
+    acc[id] = false
+    return acc
+  }, {})
 }
 
 export function ArtistSidebar({
@@ -275,481 +202,599 @@ export function ArtistSidebar({
   activeSubSectionKey = null,
   onSectionChange,
   onSubSectionChange,
+  isCollapsed = false,
+  onCollapsedChange,
   capabilities,
   unreadMessages = 0,
   completedSections = [],
   hideTypeSection,
   className
 }: ArtistSidebarProps) {
-  const SIDEBAR_STATE_KEY = 'artist-dashboard-sidebar-expanded-v2'
-  const router = useRouter();
-  const pathname = usePathname();
-  const { signOut } = useAuth();
-  const defaultExpandedSections = useMemo<Record<string, boolean>>(() => ({
-    basics: false,
-    media: false,
-    crew: false,
-    auditions: false,
-    banking: false,
-    gigManager: false,
-    musicManager: false,
-    messages: false,
-    administration: false
-  }), [])
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
-    if (typeof window === 'undefined') {
-      return defaultExpandedSections
-    }
+  const GROUP_STATE_KEY = 'artist-dashboard-sidebar-groups-v3'
+  const ITEM_STATE_KEY = 'artist-dashboard-sidebar-items-v3'
+  const COLOR_MODE_KEY = 'gigrilla-dashboard-colour-mode'
+  const router = useRouter()
+  const pathname = usePathname()
+  const { signOut } = useAuth()
+
+  const getIsDesktop = () => (typeof window !== 'undefined' ? window.innerWidth >= 768 : true)
+
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
+    const defaults = buildDefaultGroupState(getIsDesktop())
+    if (typeof window === 'undefined') return defaults
     try {
-      const raw = window.localStorage.getItem(SIDEBAR_STATE_KEY)
-      if (!raw) return defaultExpandedSections
-      const parsed = JSON.parse(raw)
-      if (!parsed || typeof parsed !== 'object') return defaultExpandedSections
-      return {
-        ...defaultExpandedSections,
-        ...(parsed as Record<string, boolean>)
-      }
+      const raw = window.localStorage.getItem(GROUP_STATE_KEY)
+      if (!raw) return defaults
+      return { ...defaults, ...(JSON.parse(raw) as Record<string, boolean>) }
     } catch {
-      return defaultExpandedSections
+      return defaults
     }
+  })
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>(() => {
+    const defaults = buildDefaultItemState()
+    if (typeof window === 'undefined') return defaults
+    try {
+      const raw = window.localStorage.getItem(ITEM_STATE_KEY)
+      if (!raw) return defaults
+      return { ...defaults, ...(JSON.parse(raw) as Record<string, boolean>) }
+    } catch {
+      return defaults
+    }
+  })
+  const [colourMode, setColourMode] = useState<'dark' | 'light'>(() => {
+    if (typeof window === 'undefined') return 'dark'
+    const saved = window.localStorage.getItem(COLOR_MODE_KEY)
+    return saved === 'light' ? 'light' : 'dark'
   })
 
   const handleSignOut = async () => {
-    const nav = () => router.replace('/login');
-    const timeout = setTimeout(nav, 500);
+    const nav = () => router.replace('/login')
+    const timeout = setTimeout(nav, 500)
     try {
-      await signOut();
+      await signOut()
     } finally {
-      clearTimeout(timeout);
-      nav();
+      clearTimeout(timeout)
+      nav()
     }
-  };
-
-  const toggleSection = (section: string) => {
-    setExpandedSections((prev) => ({
-      ...prev,
-      [section]: !prev[section]
-    }));
-  };
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    try {
-      window.localStorage.setItem(SIDEBAR_STATE_KEY, JSON.stringify(expandedSections))
-    } catch {
-      // Ignore storage errors
-    }
-  }, [expandedSections])
+    window.localStorage.setItem(GROUP_STATE_KEY, JSON.stringify(expandedGroups))
+  }, [expandedGroups])
 
   useEffect(() => {
-    const groupBySection: Partial<Record<ArtistDashboardSection, keyof typeof defaultExpandedSections>> = {
-      home: 'basics',
-      profile: 'basics',
-      contract: 'basics',
-      royalty: 'basics',
-      bio: 'basics',
-      genres: 'basics',
-      type: 'basics',
-      logo: 'media',
-      photos: 'media',
-      videos: 'media',
-      crew: 'crew',
-      auditions: 'auditions',
-      payments: 'banking',
-      'gig-bookings': 'gigManager',
-      'gig-reporting': 'gigManager',
-      'gig-negotiations': 'gigManager',
-      'gig-planner': 'gigManager',
-      'gig-statistics': 'gigManager',
-      'music-uploads': 'musicManager',
-      'music-catalogue': 'musicManager',
-      'music-statistics': 'musicManager',
-      'music-upload': 'musicManager',
-      'music-manage': 'musicManager',
-      gigability: 'gigManager',
-      'gig-calendar': 'gigManager',
-      'gig-create': 'gigManager',
-      'gig-upcoming': 'gigManager',
-      'gig-past': 'gigManager',
-      'gig-invites': 'gigManager',
-      'gig-requests': 'gigManager',
-      messages: 'messages',
-      settings: 'administration',
-    }
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(ITEM_STATE_KEY, JSON.stringify(expandedItems))
+  }, [expandedItems])
 
-    const targetGroup = groupBySection[activeSection]
-    if (!targetGroup) return
-    setExpandedSections((prev) => prev[targetGroup] ? prev : { ...prev, [targetGroup]: true })
-  }, [activeSection, defaultExpandedSections])
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    document.documentElement.dataset.gigrillaColourMode = colourMode
+    window.localStorage.setItem(COLOR_MODE_KEY, colourMode)
+  }, [colourMode])
 
-  const handleSectionChange = (section: string) => {
-    if (!isSectionEnabled(section as ArtistDashboardSection, capabilities)) return;
-    onSectionChange?.(section as ArtistDashboardSection);
-  };
+  const activeSubSection = activeSubSectionKey?.split(':')[1] || null
 
-  const handleSubSectionChange = (section: ArtistDashboardSection, subSection: string) => {
-    if (!isSectionEnabled(section, capabilities, hideTypeSection)) return
-    onSectionChange?.(section)
-    onSubSectionChange?.(section, subSection)
+  const groups = useMemo<SidebarGroup[]>(() => {
+    const messageBadge = unreadMessages > 0 ? (unreadMessages > 99 ? '99+' : unreadMessages) : null
+
+    const controlPanelItems: SidebarNode[] = [
+      { id: 'artist-home', label: 'Artist HOME', icon: Music, section: 'home' },
+      { id: 'expand-hide', label: 'Expand<>Hide Menus', icon: LayoutDashboard, action: 'toggleAll' },
+      { id: 'profile-view', label: 'Ctrl Panel/Profile View', icon: Globe, action: 'profileView', path: '/artist-profile' },
+      { id: 'theme-mode', label: colourMode === 'dark' ? 'Light Mode' : 'Dark Mode', icon: SunMoon, action: 'theme' },
+      { id: 'switch-profile', label: 'Switch/Add Profile', icon: RefreshCw, path: '/profile-setup' },
+      { id: 'account-settings', label: 'Account Settings', icon: Settings, section: 'settings' },
+      { id: 'billing-payments', label: 'Billing & Payments', icon: CreditCard, section: 'payments', subSection: 'out' },
+      { id: 'logout', label: 'Log Out of Gigrilla', icon: LogOut, action: 'logout', path: '/login' },
+    ]
+
+    const artistProfileItems: SidebarNode[] = [
+      {
+        id: 'artist-basics',
+        label: 'Artist Basics',
+        icon: UserRoundCog,
+        section: 'profile',
+        subSection: 'details',
+        children: [
+          { id: 'artist-type', label: 'Artist Type', section: 'type', subSection: 'selector' },
+          { id: 'artist-stage-name', label: 'Artist Entity Stage Name', section: 'profile', subSection: 'details' },
+          { id: 'artist-entity-isni', label: 'Artist Entity ISNI', section: 'profile', subSection: 'details' },
+          { id: 'artist-formed', label: 'Artist Formed', section: 'profile', subSection: 'details' },
+          { id: 'artist-performers-count', label: 'Number of Performers', section: 'profile', subSection: 'details' },
+          { id: 'artist-hometown', label: 'Artist Hometown', section: 'profile', subSection: 'details' },
+          { id: 'artist-contract-status', label: 'Artist Contract Status', section: 'contract', subSection: 'label' },
+          { id: 'artist-genres', label: 'Artist Genres', section: 'genres', subSection: 'selector' },
+          { id: 'artist-bio', label: 'Artist Bio', section: 'bio', subSection: 'editor' },
+          { id: 'artist-gig-counter', label: 'Artist Gig Counter', section: 'gig-statistics', subSection: 'performed' },
+          { id: 'artist-web-links', label: 'Artist Web Links', section: 'profile', subSection: 'social' },
+        ]
+      },
+      {
+        id: 'artist-crew',
+        label: 'Artist Crew',
+        icon: Users2,
+        section: 'crew',
+        subSection: 'owner',
+        children: [
+          { id: 'your-roles-info', label: 'Your Roles & Info', section: 'crew', subSection: 'owner' },
+          { id: 'add-performer', label: '+Add Performer', section: 'crew', subSection: 'add-members' },
+          { id: 'add-support-crew', label: '+Add Support Crew', section: 'crew', subSection: 'add-members' },
+          { id: 'view-performers', label: 'View Performers', section: 'crew', subSection: 'manage-team' },
+          { id: 'view-support-crew', label: 'View Support Crew', section: 'crew', subSection: 'manage-team' },
+          { id: 'manage-admins', label: 'Manage Admins', section: 'crew', subSection: 'manage-team' },
+          { id: 'historic-members', label: 'Historic Members', section: 'crew', subSection: 'manage-team' },
+        ]
+      },
+      { id: 'artist-gig-money-splits', label: 'Gig Money Splits', icon: CircleDollarSign, section: 'royalty', subSection: 'splits' },
+      {
+        id: 'artist-banking',
+        label: 'Artist Banking',
+        icon: Landmark,
+        section: 'payments',
+        subSection: 'out',
+        children: [
+          { id: 'artist-legal-entity', label: 'Artist Legal Entity', section: 'payments', subSection: 'out' },
+          { id: 'artist-legal-members', label: 'Artist Legal Members', section: 'payments', subSection: 'out' },
+          { id: 'artist-money-in', label: 'Money In', section: 'payments', subSection: 'in' },
+          { id: 'artist-money-out', label: 'Money Out', section: 'payments', subSection: 'out' },
+        ]
+      },
+      {
+        id: 'artist-media',
+        label: 'Artist Media',
+        icon: ImageIcon,
+        section: 'logo',
+        subSection: 'logo',
+        children: [
+          { id: 'artist-logo', label: 'Logo', section: 'logo', subSection: 'logo' },
+          { id: 'artist-header', label: 'Header', section: 'logo', subSection: 'header' },
+          { id: 'artist-photos', label: 'Photos', section: 'photos', subSection: 'gallery' },
+          { id: 'artist-videos', label: 'Videos', section: 'videos', subSection: 'upload' },
+        ]
+      },
+      {
+        id: 'auditions-collabs',
+        label: 'Auditions & Collabs',
+        icon: Megaphone,
+        section: 'auditions',
+        subSection: 'add',
+        children: [
+          { id: 'create-ad', label: '+Create an Ad', section: 'auditions', subSection: 'add' },
+          { id: 'draft-ads', label: 'Draft Ads', section: 'auditions', subSection: 'manage' },
+          { id: 'published-ads', label: 'Published Ads', section: 'auditions', subSection: 'manage' },
+          { id: 'unpublished-ads', label: 'Unpublished Ads', section: 'auditions', subSection: 'manage' },
+          { id: 'historic-ads', label: 'Historic Ads', section: 'auditions', subSection: 'manage' },
+          { id: 'my-advert-messages', label: 'My Advert Messages', section: 'messages', subSection: 'auditions', badge: 3 },
+        ]
+      },
+    ]
+
+    const gigItems: SidebarNode[] = [
+      {
+        id: 'gig-ability',
+        label: 'Gig-Ability',
+        icon: Gauge,
+        section: 'gigability',
+        subSection: 'base',
+        children: [
+          { id: 'gig-splits', label: 'Gig Money Splits', section: 'royalty', subSection: 'splits' },
+          { id: 'gig-base-location', label: 'Base Location', section: 'gigability', subSection: 'base' },
+          { id: 'gig-set-lengths', label: 'Set Lengths', section: 'gigability', subSection: 'sets' },
+          { id: 'gig-fees', label: 'Gig Fees', section: 'gigability', subSection: 'fees' },
+          { id: 'gig-local-area', label: 'Local Gig Area', section: 'gigability', subSection: 'local' },
+          { id: 'gig-wider-area', label: 'Wider Gig Area', section: 'gigability', subSection: 'wider' },
+        ]
+      },
+      {
+        id: 'gig-bookings',
+        label: 'Gig Bookings',
+        icon: CalendarDays,
+        section: 'gig-bookings',
+        subSection: 'book-new',
+        children: [
+          { id: 'book-new-gig', label: '+Book a New Gig', section: 'gig-bookings', subSection: 'book-new' },
+          { id: 'add-gig-manually', label: '+Add Gig Manually', section: 'gig-bookings', subSection: 'add-manually' },
+          { id: 'draft-gigs', label: 'Draft Gigs', section: 'gig-bookings', subSection: 'drafts' },
+          { id: 'upcoming-gigs', label: 'Upcoming Gigs', section: 'gig-bookings', subSection: 'upcoming' },
+          { id: 'scheduled-hidden-gigs', label: 'Scheduled/Hidden', section: 'gig-bookings', subSection: 'scheduled-hidden' },
+          { id: 'historic-gigs', label: 'Historic Gigs', section: 'gig-bookings', subSection: 'historic' },
+        ]
+      },
+      {
+        id: 'gig-reporting',
+        label: 'Gig Reporting',
+        icon: ListChecks,
+        section: 'gig-reporting',
+        subSection: 'confirm-gig',
+        children: [
+          { id: 'confirm-a-gig', label: 'Confirm a Gig', section: 'gig-reporting', subSection: 'confirm-gig' },
+          { id: 'report-a-gig', label: 'Report a Gig', section: 'gig-reporting', subSection: 'report-venue' },
+        ]
+      },
+      {
+        id: 'gig-negotiations',
+        label: 'Gig Negotiations',
+        icon: Mail,
+        section: 'gig-negotiations',
+        subSection: 'gig_invites',
+        children: [
+          { id: 'gig-invites', label: 'Gig Invites', section: 'gig-negotiations', subSection: 'gig_invites', badge: 16 },
+          { id: 'gig-requests', label: 'Gig Requests', section: 'gig-negotiations', subSection: 'gig_requests', badge: 12 },
+          { id: 'gig-confirmations', label: 'Confirmations', section: 'gig-negotiations', subSection: 'confirmations', badge: 3 },
+        ]
+      },
+      {
+        id: 'gig-planner',
+        label: 'Gig Planner',
+        icon: CalendarRange,
+        section: 'gig-planner',
+        subSection: 'calendar',
+        children: [
+          { id: 'view-calendar', label: 'View Calendar', section: 'gig-planner', subSection: 'calendar' },
+          { id: 'unavailability', label: '+Unavailability', section: 'gig-planner', subSection: 'unavailability' },
+        ]
+      },
+      {
+        id: 'gig-statistics',
+        label: 'Gig Statistics',
+        icon: BarChart3,
+        section: 'gig-statistics',
+        subSection: 'performed',
+        children: [
+          { id: 'gigs-performed', label: 'Gigs Performed', section: 'gig-statistics', subSection: 'performed' },
+          { id: 'gig-locations', label: 'Gig Locations', section: 'gig-statistics', subSection: 'locations' },
+          { id: 'gig-venues', label: 'Gig Venues', section: 'gig-statistics', subSection: 'venues' },
+          { id: 'gig-earnings', label: 'Gig Earnings', section: 'gig-statistics', subSection: 'earnings' },
+        ]
+      },
+    ]
+
+    const musicItems: SidebarNode[] = [
+      {
+        id: 'music-uploads',
+        label: 'Music Uploads',
+        icon: AudioWaveform,
+        section: 'music-uploads',
+        subSection: 'guide',
+        children: [
+          { id: 'upload-guide', label: 'Upload Guide', section: 'music-uploads', subSection: 'guide' },
+          { id: 'upload-music', label: '+Upload Music', section: 'music-upload', subSection: 'workflow' },
+          { id: 'draft-uploads', label: 'Draft Uploads', section: 'music-uploads', subSection: 'drafts' },
+        ]
+      },
+      {
+        id: 'music-catalogue',
+        label: 'Music Catalogue',
+        icon: Disc3,
+        section: 'music-catalogue',
+        subSection: 'published',
+        children: [
+          { id: 'published-music', label: 'Published Music', section: 'music-catalogue', subSection: 'published' },
+          { id: 'published-all-tracks', label: 'All Tracks', section: 'music-catalogue', subSection: 'published-tracks' },
+          { id: 'published-singles', label: 'Singles', section: 'music-catalogue', subSection: 'published-singles' },
+          { id: 'published-eps', label: 'EPs', section: 'music-catalogue', subSection: 'published-eps' },
+          { id: 'published-albums', label: 'Albums', section: 'music-catalogue', subSection: 'published-albums' },
+          { id: 'scheduled-music', label: 'Scheduled Music', section: 'music-catalogue', subSection: 'scheduled' },
+          { id: 'scheduled-all-tracks', label: 'All Tracks', section: 'music-catalogue', subSection: 'scheduled-tracks' },
+          { id: 'scheduled-singles', label: 'Singles', section: 'music-catalogue', subSection: 'scheduled-singles' },
+          { id: 'scheduled-eps', label: 'EPs', section: 'music-catalogue', subSection: 'scheduled-eps' },
+          { id: 'scheduled-albums', label: 'Albums', section: 'music-catalogue', subSection: 'scheduled-albums' },
+        ]
+      },
+      {
+        id: 'music-statistics',
+        label: 'Music Statistics',
+        icon: FolderKanban,
+        section: 'music-statistics',
+        subSection: 'streams',
+        children: [
+          { id: 'music-all-streams', label: 'All Streams', section: 'music-statistics', subSection: 'streams' },
+          { id: 'music-all-downloads', label: 'All Downloads', section: 'music-statistics', subSection: 'downloads' },
+          { id: 'music-earnings', label: 'Music Earnings', section: 'music-statistics', subSection: 'earnings' },
+        ]
+      },
+    ]
+
+    const messageItems: SidebarNode[] = [
+      {
+        id: 'message-negotiations',
+        label: 'Gig Negotiations',
+        icon: Mail,
+        section: 'messages',
+        subSection: 'gig_invites',
+        children: [
+          { id: 'messages-gig-invites', label: 'Gig Invites', section: 'messages', subSection: 'gig_invites', badge: 16 },
+          { id: 'messages-gig-requests', label: 'Gig Requests', section: 'messages', subSection: 'gig_requests', badge: 12 },
+          { id: 'messages-confirmations', label: 'Confirmations', section: 'gig-negotiations', subSection: 'confirmations', badge: 3 },
+        ]
+      },
+      {
+        id: 'user-messages',
+        label: 'User Messages',
+        icon: Users,
+        section: 'messages',
+        subSection: 'colleagues',
+        children: [
+          { id: 'colleague-messages', label: 'Colleague Messages', section: 'messages', subSection: 'colleagues', badge: 3 },
+          { id: 'advert-messages', label: 'My Advert Messages', section: 'messages', subSection: 'auditions', badge: 3 },
+          { id: 'fan-messages', label: 'Fan Messages', section: 'messages', subSection: 'fans', badge: 16 },
+          { id: 'artist-messages', label: 'Artist Messages', section: 'messages', subSection: 'artists', badge: 3 },
+          { id: 'venue-messages', label: 'Venue Messages', section: 'messages', subSection: 'venues', badge: 12 },
+          { id: 'service-messages', label: 'Service Messages', section: 'messages', subSection: 'services', badge: 3 },
+          { id: 'musicpro-messages', label: 'MusicPro Messages', section: 'messages', subSection: 'pros', badge: 3 },
+        ]
+      },
+      {
+        id: 'system-messages',
+        label: 'System Messages',
+        icon: Bell,
+        section: 'messages',
+        subSection: 'system',
+        badge: messageBadge,
+      },
+    ]
+
+    return [
+      { id: 'controlPanel', label: 'Control Panel Menu', items: controlPanelItems },
+      { id: 'artistProfile', label: 'Artist Profile Menu', items: artistProfileItems },
+      { id: 'gigMenu', label: 'Gig Menu', items: gigItems },
+      { id: 'musicMenu', label: 'Music Menu', items: musicItems },
+      { id: 'messageMenu', label: 'Message Menu', items: messageItems },
+    ]
+  }, [colourMode, unreadMessages])
+
+  const isChildActive = (child: SidebarChild) => {
+    if (child.path) return pathname === child.path
+    if (child.section && child.subSection) return activeSection === child.section && activeSubSection === child.subSection
+    if (child.section) return activeSection === child.section
+    return false
   }
 
-  const mainMenuItems: { icon: typeof FileText; label: string; section: ArtistDashboardSection }[] = [
-    { icon: FileText, label: "Artist Home", section: "home" }
-  ]
+  const isNodeActive = (node: SidebarNode) => {
+    if (isChildActive(node)) return true
+    return node.children?.some(isChildActive) || false
+  }
 
-  const artistBasicsItems = [
-    { icon: User, label: "Artist Basics", section: "profile" as ArtistDashboardSection },
-    { icon: Settings, label: "Artist Type", section: "type" as ArtistDashboardSection },
-    { icon: Music, label: "Artist Genres", section: "genres" as ArtistDashboardSection },
-    { icon: BookOpen, label: "Artist Bio", section: "bio" as ArtistDashboardSection },
-    { icon: FileCheck, label: "Contract Status", section: "contract" as ArtistDashboardSection },
-    { icon: DollarSign, label: "Default Gig Royalty Splits", section: "royalty" as ArtistDashboardSection },
-  ].filter(item => !(hideTypeSection && item.section === 'type'))
+  useEffect(() => {
+    const sectionGroupMap: Partial<Record<ArtistDashboardSection, string>> = {
+      home: 'controlPanel',
+      settings: 'controlPanel',
+      profile: 'artistProfile',
+      type: 'artistProfile',
+      contract: 'artistProfile',
+      genres: 'artistProfile',
+      bio: 'artistProfile',
+      crew: 'artistProfile',
+      royalty: 'artistProfile',
+      payments: 'artistProfile',
+      logo: 'artistProfile',
+      photos: 'artistProfile',
+      videos: 'artistProfile',
+      auditions: 'artistProfile',
+      gigability: 'gigMenu',
+      'gig-bookings': 'gigMenu',
+      'gig-reporting': 'gigMenu',
+      'gig-negotiations': 'gigMenu',
+      'gig-planner': 'gigMenu',
+      'gig-statistics': 'gigMenu',
+      'gig-calendar': 'gigMenu',
+      'gig-create': 'gigMenu',
+      'gig-upcoming': 'gigMenu',
+      'gig-past': 'gigMenu',
+      'gig-invites': 'gigMenu',
+      'gig-requests': 'gigMenu',
+      'music-uploads': 'musicMenu',
+      'music-catalogue': 'musicMenu',
+      'music-statistics': 'musicMenu',
+      'music-upload': 'musicMenu',
+      'music-manage': 'musicMenu',
+      messages: 'messageMenu',
+    }
 
-  const artistMediaItems = [
-    { icon: Palette, label: "Logo & Header", section: "logo" as ArtistDashboardSection },
-    { icon: ImageIcon, label: "Photos", section: "photos" as ArtistDashboardSection },
-    { icon: Video, label: "Videos", section: "videos" as ArtistDashboardSection }
-  ]
+    const targetGroup = sectionGroupMap[activeSection]
+    if (targetGroup) {
+      setExpandedGroups((prev) => (prev[targetGroup] ? prev : { ...prev, [targetGroup]: true }))
+    }
 
-  const artistCrewItems = [
-    { icon: Users2, label: "Artist Crew", section: "crew" as ArtistDashboardSection }
-  ]
+    const matchedNode = groups.flatMap((group) => group.items).find((node) => isNodeActive(node))
+    if (matchedNode?.children?.length) {
+      setExpandedItems((prev) => (prev[matchedNode.id] ? prev : { ...prev, [matchedNode.id]: true }))
+    }
+  }, [activeSection, activeSubSection, groups, pathname])
 
-  const auditionsItems = [
-    { icon: Megaphone, label: "Auditions & Collabs", section: "auditions" as ArtistDashboardSection }
-  ]
+  const navigateEntry = (entry: SidebarChild) => {
+    if (entry.action === 'logout') {
+      handleSignOut()
+      return
+    }
+    if (entry.action === 'theme') {
+      setColourMode((prev) => (prev === 'dark' ? 'light' : 'dark'))
+      return
+    }
+    if (entry.action === 'toggleAll') {
+      const shouldOpenEverything = Object.values(expandedGroups).some((value) => !value) || Object.values(expandedItems).some((value) => !value)
+      setExpandedGroups(Object.fromEntries(GROUP_IDS.map((id) => [id, shouldOpenEverything])))
+      setExpandedItems(Object.fromEntries(ITEM_IDS.map((id) => [id, shouldOpenEverything])))
+      return
+    }
+    if (entry.action === 'profileView') {
+      router.push(pathname === '/artist-profile' ? '/artist-dashboard?section=home' : '/artist-profile')
+      return
+    }
+    if (entry.path) {
+      router.push(entry.path)
+      return
+    }
+    if (entry.section) {
+      if (!isSectionEnabled(entry.section, capabilities, hideTypeSection)) return
+      onSectionChange?.(entry.section)
+      if (entry.subSection) onSubSectionChange?.(entry.section, entry.subSection)
+    }
+  }
 
-  const artistBankingItems = [
-    { icon: Banknote, label: "Artist Banking", section: "payments" as ArtistDashboardSection }
-  ]
+  const renderBadge = (badge?: string | number | null) => {
+    if (badge === null || badge === undefined || badge === 0) return null
+    return (
+      <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/85">
+        {badge}
+      </span>
+    )
+  }
 
-  const musicManagerItems = [
-    { icon: Music2, label: "Music Uploads", section: "music-upload" as ArtistDashboardSection },
-    { icon: Music, label: "Music Catalogue", section: "music-manage" as ArtistDashboardSection }
-  ]
+  const renderLeafButton = (entry: SidebarChild, indent = false) => {
+    const active = isChildActive(entry)
+    const disabled = entry.section ? !isSectionEnabled(entry.section, capabilities, hideTypeSection) : false
+    const baseClass = active
+      ? 'bg-[#ff8fa31f] text-white shadow-[inset_0_0_0_1px_rgba(255,143,163,0.24)]'
+      : 'text-[#b7a8c2] hover:text-white hover:bg-white/5'
 
-  const gigManagerItems = [
-    { icon: Clock, label: "Gig-Ability", section: "gigability" as ArtistDashboardSection },
-    { icon: CalendarDays, label: "Gig Bookings", section: "gig-bookings" as ArtistDashboardSection },
-    { icon: FileCheck, label: "Gig Reporting", section: "gig-reporting" as ArtistDashboardSection },
-    { icon: Mail, label: "Gig Negotiations", section: "gig-negotiations" as ArtistDashboardSection },
-    { icon: CalendarDays, label: "Gig Planner", section: "gig-planner" as ArtistDashboardSection },
-    { icon: BarChart3, label: "Gig Statistics", section: "gig-statistics" as ArtistDashboardSection }
-  ]
+    if (isCollapsed) {
+      const Icon = entry.icon
+      return (
+        <button
+          key={entry.id}
+          type="button"
+          onClick={() => navigateEntry(entry)}
+          disabled={disabled}
+          title={entry.label}
+          aria-label={entry.label}
+          className={`relative flex h-11 w-11 items-center justify-center rounded-xl transition-colors ${disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'} ${baseClass}`}
+        >
+          {Icon ? <Icon className="h-5 w-5" /> : <span className="text-xs font-bold">{entry.label.charAt(0)}</span>}
+          {entry.badge ? <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[#ff8fa3]" /> : null}
+          {!disabled && entry.section && completedSections.includes(entry.section) && !indent ? (
+            <CheckCircle2 className="absolute bottom-1 right-1 h-3 w-3 text-green-400" />
+          ) : null}
+        </button>
+      )
+    }
 
-  const messageItems = [
-    { icon: MessageSquare, label: "Messages", section: "messages" as ArtistDashboardSection }
-  ]
+    return (
+      <button
+        key={entry.id}
+        type="button"
+        onClick={() => navigateEntry(entry)}
+        disabled={disabled}
+        className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition-colors ${indent ? 'pl-4 text-[13px]' : 'text-sm'} ${disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'} ${baseClass}`}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          {entry.icon ? <entry.icon className="h-4 w-4 shrink-0" /> : null}
+          <span className="truncate">{entry.label}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {renderBadge(entry.badge)}
+          {!disabled && entry.section && completedSections.includes(entry.section) && !indent ? (
+            <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />
+          ) : null}
+        </div>
+      </button>
+    )
+  }
 
-  const renderSectionItems = (items: { icon: typeof FileText; label: string; section: ArtistDashboardSection }[]) => (
-    <div className="space-y-1">
-      {items.map((item, index) => {
-        const disabled = !isSectionEnabled(item.section as ArtistDashboardSection, capabilities, hideTypeSection)
-        const subSections = sectionSubSections[item.section] || []
-        const isActive = activeSection === item.section && !disabled
-        return (
-          <div key={index}>
-            <button
-              onClick={() => handleSectionChange(item.section)}
-              disabled={disabled}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
-                } ${isActive
-                  ? "bg-[#ff8fa31f] text-white shadow-[inset_0_0_0_1px_rgba(255,143,163,0.24)]"
-                  : "text-[#b7a8c2] hover:text-white hover:bg-white/5"
-                }`}
-            >
-              <div className="flex items-center space-x-2">
-                <item.icon className="w-4 h-4" />
-                <span className="text-sm">{item.label}</span>
-              </div>
-              {!disabled && completedSections.includes(item.section) && (
-                <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
-              )}
-            </button>
-            {!disabled && isActive && subSections.length > 1 && (
-              <div className="ml-6 mt-1 space-y-1 border-l border-purple-400/30 pl-3">
-                {subSections.map((subSection) => {
-                  const subKey = `${item.section}:${subSection.id}`
-                  const isSubActive = activeSubSectionKey === subKey
-                  return (
-                    <button
-                      key={subKey}
-                      onClick={() => handleSubSectionChange(item.section, subSection.id)}
-                      className={`w-full text-left text-xs px-2 py-1 rounded transition-colors ${isSubActive
-                        ? 'bg-white/10 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]'
-                        : 'text-[#c7bbd0] hover:text-white hover:bg-white/5'
-                        }`}
-                    >
-                      {subSection.label}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
+  const renderNode = (node: SidebarNode) => {
+    const disabled = node.section ? !isSectionEnabled(node.section, capabilities, hideTypeSection) : false
+    const active = isNodeActive(node)
+    const hasChildren = Boolean(node.children?.length)
+    const isExpanded = expandedItems[node.id]
+    const baseClass = active
+      ? 'bg-[#ff8fa31f] text-white shadow-[inset_0_0_0_1px_rgba(255,143,163,0.24)]'
+      : 'text-[#b7a8c2] hover:text-white hover:bg-white/5'
 
-  const renderMainMenuItems = (items: { icon: typeof FileText; label: string; section: ArtistDashboardSection }[]) => (
-    <div className="space-y-1">
-      {items.map((item, index) => {
-        const disabled = !isSectionEnabled(item.section as ArtistDashboardSection, capabilities, hideTypeSection)
-        const hasUnreadMessages = item.section === 'messages' && unreadMessages > 0
-        const isActive = activeSection === item.section && !disabled
-        const itemClass = isActive
-          ? "bg-[#ff8fa31f] text-white shadow-[inset_0_0_0_1px_rgba(255,143,163,0.24)]"
-          : hasUnreadMessages
-            ? "bg-emerald-700/20 text-emerald-200 hover:bg-emerald-700/30"
-            : "text-[#b7a8c2] hover:text-white hover:bg-white/5"
-        return (
+    if (isCollapsed) {
+      const Icon = node.icon
+      return (
+        <button
+          key={node.id}
+          type="button"
+          onClick={() => navigateEntry(node)}
+          disabled={disabled}
+          title={node.label}
+          aria-label={node.label}
+          className={`relative flex h-11 w-11 items-center justify-center rounded-xl transition-colors ${disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'} ${baseClass}`}
+        >
+          {Icon ? <Icon className="h-5 w-5" /> : <span className="text-xs font-bold">{node.label.charAt(0)}</span>}
+          {node.badge ? <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[#ff8fa3]" /> : null}
+          {!disabled && node.section && completedSections.includes(node.section) ? <CheckCircle2 className="absolute bottom-1 right-1 h-3 w-3 text-green-400" /> : null}
+        </button>
+      )
+    }
+
+    if (!hasChildren) return renderLeafButton(node)
+
+    return (
+      <div key={node.id} className="space-y-1">
+        <div className="flex items-center gap-1">
           <button
-            key={index}
-            onClick={() => handleSectionChange(item.section)}
+            type="button"
+            onClick={() => navigateEntry(node)}
             disabled={disabled}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors text-left ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
-              } ${itemClass}`}
+            className={`flex min-w-0 flex-1 items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors ${disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'} ${baseClass}`}
           >
-            <div className="flex items-center space-x-2">
-              <item.icon className="w-4 h-4" />
-              <span className="text-sm">{item.label}</span>
+            <div className="flex min-w-0 items-center gap-2">
+              {node.icon ? <node.icon className="h-4 w-4 shrink-0" /> : null}
+              <span className="truncate">{node.label}</span>
             </div>
             <div className="flex items-center gap-2">
-              {hasUnreadMessages && (
-                <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-white">
-                  {unreadMessages > 99 ? '99+' : unreadMessages}
-                </span>
-              )}
-              {!disabled && completedSections.includes(item.section) && (
-                <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
-              )}
+              {renderBadge(node.badge)}
+              {!disabled && node.section && completedSections.includes(node.section) ? <CheckCircle2 className="h-3.5 w-3.5 text-green-400" /> : null}
             </div>
           </button>
-        )
-      })}
-    </div>
-  )
-
-  type AdministrationItem =
-    | { icon: typeof FileText; label: string; section: ArtistDashboardSection; subSection?: string; path?: never; onClick?: never }
-    | { icon: typeof FileText; label: string; path: string; onClick?: () => void; section?: never; subSection?: never }
-
-  const administrationItems: AdministrationItem[] = [
-    { icon: Eye, label: "View Profile", path: "/artist-profile" },
-    { icon: Edit3, label: "Edit Profile", section: "profile", subSection: "details" },
-    { icon: User, label: "Manage Admins", section: "crew", subSection: "manage-team" },
-    { icon: CreditCard, label: "Billing & Payments", section: "payments", subSection: "out" },
-    { icon: Settings, label: "Settings", section: "settings" },
-    { icon: RefreshCw, label: "Switch Profile", path: "/profile-setup" },
-    { icon: LogOut, label: "Log Out", path: "/login", onClick: handleSignOut }
-  ]
+          <button
+            type="button"
+            onClick={() => setExpandedItems((prev) => ({ ...prev, [node.id]: !prev[node.id] }))}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[#b7a8c2] transition hover:bg-white/5 hover:text-white"
+            aria-label={isExpanded ? `Collapse ${node.label}` : `Expand ${node.label}`}
+          >
+            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </button>
+        </div>
+        {isExpanded ? (
+          <div className="ml-6 space-y-1 border-l border-white/8 pl-3">
+            {node.children?.map((child) => renderLeafButton(child, true))}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
 
   return (
-    <aside className={`h-full w-full max-w-[20rem] bg-[linear-gradient(180deg,_#26122f_0%,_#211028_100%)] p-6 text-left flex flex-col overflow-y-auto lg:w-64 ${className ?? ''}`}>
-      <div className="flex items-center mb-8">
+    <aside className={`h-full w-full overflow-y-auto bg-[linear-gradient(180deg,_#26122f_0%,_#211028_100%)] text-left text-white transition-[width,padding] duration-200 ${isCollapsed ? 'max-w-[5rem] p-3 lg:w-20' : 'max-w-[21rem] p-6 lg:w-80'} ${className ?? ''}`}>
+      <div className={`mb-8 flex items-center ${isCollapsed ? 'flex-col justify-center gap-3' : 'justify-between gap-3'}`}>
         <Image
-          src="/logos/Gigrilla Logo-Word alongside Logo-Head Dark Pruple Cerise Clear-PNG 3556 x 1086.png"
+          src={isCollapsed ? "/logos/Gigrilla Gorilla Transparent Cutout.png" : "/logos/Gigrilla Logo-Word alongside Logo-Head Dark Pruple Cerise Clear-PNG 3556 x 1086.png"}
           alt="Gigrilla Logo"
-          width={160}
+          width={isCollapsed ? 40 : 160}
           height={48}
-          className="h-8 w-auto"
+          className={isCollapsed ? "h-10 w-10 object-contain" : "h-8 w-auto"}
         />
+        {onCollapsedChange ? (
+          <button
+            type="button"
+            onClick={() => onCollapsedChange(!isCollapsed)}
+            className="hidden h-9 w-9 items-center justify-center rounded-xl text-[#b7a8c2] transition hover:bg-white/5 hover:text-white lg:inline-flex"
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronDown className="h-5 w-5 rotate-90" />}
+          </button>
+        ) : null}
       </div>
 
-      <div className="mb-6">
-        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-[0.32em] text-[#9d8baa]">ARTIST WORKSPACE</h3>
-        {!capabilities && (
-          <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-[#f0e9f5]">
-            Select your official Artist Type to unlock the rest of the dashboard.
-          </div>
-        )}
-      </div>
-
-      <div className="mb-6">
-        <h3 className="mb-3 text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d]">Overview</h3>
-        {renderMainMenuItems(mainMenuItems)}
-      </div>
-
-      <div className="mb-6">
-        <button
-          onClick={() => toggleSection('basics')}
-          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
-        >
-          <span>ARTIST PROFILE MENU</span>
-          {expandedSections.basics ? (
-            <ChevronDown className="w-4 h-4" />
-          ) : (
-            <ChevronRight className="w-4 h-4" />
-          )}
-        </button>
-        {expandedSections.basics && renderSectionItems(artistBasicsItems)}
-      </div>
-
-      <div className="mb-6">
-        <button
-          onClick={() => toggleSection('media')}
-          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
-        >
-          <span>ARTIST MEDIA</span>
-          {expandedSections.media ? (
-            <ChevronDown className="w-4 h-4" />
-          ) : (
-            <ChevronRight className="w-4 h-4" />
-          )}
-        </button>
-        {expandedSections.media && renderSectionItems(artistMediaItems)}
-      </div>
-
-      <div className="mb-6">
-        <button
-          onClick={() => toggleSection('crew')}
-          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
-        >
-          <span>ARTIST CREW</span>
-          {expandedSections.crew ? (
-            <ChevronDown className="w-4 h-4" />
-          ) : (
-            <ChevronRight className="w-4 h-4" />
-          )}
-        </button>
-        {expandedSections.crew && renderSectionItems(artistCrewItems)}
-      </div>
-
-      <div className="mb-6">
-        <button
-          onClick={() => toggleSection('auditions')}
-          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
-        >
-          <span>AUDITIONS & COLLABS</span>
-          {expandedSections.auditions ? (
-            <ChevronDown className="w-4 h-4" />
-          ) : (
-            <ChevronRight className="w-4 h-4" />
-          )}
-        </button>
-        {expandedSections.auditions && renderSectionItems(auditionsItems)}
-      </div>
-
-      <div className="mb-6">
-        <button
-          onClick={() => toggleSection('banking')}
-          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
-        >
-          <span>ARTIST BANKING</span>
-          {expandedSections.banking ? (
-            <ChevronDown className="w-4 h-4" />
-          ) : (
-            <ChevronRight className="w-4 h-4" />
-          )}
-        </button>
-        {expandedSections.banking && renderSectionItems(artistBankingItems)}
-      </div>
-
-      <div className="mb-6">
-        <button
-          onClick={() => toggleSection('gigManager')}
-          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
-        >
-          <span>GIG MENU</span>
-          {expandedSections.gigManager ? (
-            <ChevronDown className="w-4 h-4" />
-          ) : (
-            <ChevronRight className="w-4 h-4" />
-          )}
-        </button>
-        {expandedSections.gigManager && renderSectionItems(gigManagerItems)}
-      </div>
-
-      <div className="mb-6">
-        <button
-          onClick={() => toggleSection('musicManager')}
-          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
-        >
-          <span>MUSIC MENU</span>
-          {expandedSections.musicManager ? (
-            <ChevronDown className="w-4 h-4" />
-          ) : (
-            <ChevronRight className="w-4 h-4" />
-          )}
-        </button>
-        {expandedSections.musicManager && renderSectionItems(musicManagerItems)}
-      </div>
-
-      <div className="mb-6 border-t border-white/8 pt-4">
-        <button
-          onClick={() => toggleSection('messages')}
-          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
-        >
-          <span>MESSAGE MENU</span>
-          {expandedSections.messages ? (
-            <ChevronDown className="w-4 h-4" />
-          ) : (
-            <ChevronRight className="w-4 h-4" />
-          )}
-        </button>
-        {expandedSections.messages && renderSectionItems(messageItems)}
-      </div>
-
-      <div className="flex-1">
-        <button
-          onClick={() => toggleSection('administration')}
-          className="mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] hover:text-white"
-        >
-          <span>ADMINISTRATION</span>
-          {expandedSections.administration ? (
-            <ChevronDown className="w-4 h-4" />
-          ) : (
-            <ChevronRight className="w-4 h-4" />
-          )}
-        </button>
-        {expandedSections.administration && (
-          <div className="space-y-1">
-            {administrationItems.map((item, index) => (
-              'section' in item ? (
-                (() => {
-                  const targetSection = item.section as ArtistDashboardSection
-                  return (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => {
-                    handleSectionChange(targetSection)
-                    if (item.subSection) {
-                      handleSubSectionChange(targetSection, item.subSection)
-                    }
-                  }}
-                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-left ${
-                    activeSection === targetSection
-                      ? "bg-[#ff8fa31f] text-white shadow-[inset_0_0_0_1px_rgba(255,143,163,0.24)]"
-                      : "text-[#b7a8c2] hover:text-white hover:bg-white/5"
-                  }`}
-                >
-                  <item.icon className="w-4 h-4" />
-                  <span className="text-sm">{item.label}</span>
-                </button>
-                  )
-                })()
-              ) : (
-                <Link
-                  key={index}
-                  href={item.path}
-                  onClick={item.onClick}
-                  className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
-                    pathname === item.path
-                      ? "bg-[#ff8fa31f] text-white shadow-[inset_0_0_0_1px_rgba(255,143,163,0.24)]"
-                      : "text-[#b7a8c2] hover:text-white hover:bg-white/5"
-                  }`}
-                >
-                  <item.icon className="w-4 h-4" />
-                  <span className="text-sm">{item.label}</span>
-                </Link>
-              )
-            ))}
-          </div>
-        )}
-      </div>
+      {groups.map((group) => (
+        <div key={group.id} className={isCollapsed ? "mb-3 last:mb-0" : "mb-6 last:mb-0"}>
+          <button
+            type="button"
+            onClick={() => setExpandedGroups((prev) => ({ ...prev, [group.id]: !prev[group.id] }))}
+            className={isCollapsed ? "sr-only" : "mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] transition hover:text-white"}
+          >
+            <span>{group.label}</span>
+            {expandedGroups[group.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </button>
+          {isCollapsed || expandedGroups[group.id] ? <div className={isCollapsed ? "flex flex-col items-center gap-2" : "space-y-1"}>{group.items.map(renderNode)}</div> : null}
+        </div>
+      ))}
     </aside>
-  );
+  )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ExternalLink, Search, ChevronDown, ChevronRight } from 'lucide-react'
+import { ExternalLink, ChevronDown, ChevronRight } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -166,7 +166,8 @@ export function IPIHelperModal({ trigger, initialTab = 'get' }: IPIHelperModalPr
               <p className="text-sm text-blue-900 font-medium mb-1">Already a PRO member?</p>
               <p className="text-xs text-blue-800">
                 If you have already joined a Performance Rights Organisation, your IPI/CAE number
-                will be in your membership account. You can also search the global CISAC database.
+                will be in your membership account. You can also search recognised PRO databases
+                such as SOCAN, BMI, or ASCAP.
               </p>
             </div>
 
@@ -178,42 +179,44 @@ export function IPIHelperModal({ trigger, initialTab = 'get' }: IPIHelperModalPr
                 <div className="flex gap-2">
                   <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">1</div>
                   <div>
-                    <p className="text-sm font-medium text-foreground">Log in to your PRO account</p>
+                    <p className="text-sm font-medium text-foreground">Search the SOCAN, BMI, or ASCAP databases to find your IPI number</p>
                     <p className="text-xs text-foreground/60 mt-0.5">
-                      Your IPI/CAE number is displayed in your member dashboard on your PRO's website
-                      (e.g. PRS Online, ASCAP Portal, BMI.com). Look for "IPI", "CAE", or "Member Number".
+                      Use one of these public or member-facing databases to identify your IPI/CAE number.
                     </p>
+                    <div className="mt-2 flex flex-col gap-1">
+                      <a
+                        href="https://www.socan.com/jsp/en/mem/pubRepertoireSearch.jsp"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium"
+                      >
+                        SOCAN database <ExternalLink className="w-3 h-3" />
+                      </a>
+                      <a
+                        href="https://www.bmi.com/faq/entry/what_is_an_ipi_cae_number"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium"
+                      >
+                        BMI IPI/CAE guidance <ExternalLink className="w-3 h-3" />
+                      </a>
+                      <a
+                        href="https://www.ascap.com/repertory#/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium"
+                      >
+                        ASCAP repertory search <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Method 2 */}
-              <div className="rounded-lg border border-border p-4 space-y-2">
-                <div className="flex gap-2">
-                  <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0">
-                    <Search className="w-3.5 h-3.5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Search the CISAC IPI database</p>
-                    <p className="text-xs text-foreground/60 mb-2 mt-0.5">
-                      CISAC maintains a global search tool. Search by your name to find your IPI number.
-                    </p>
-                    <a
-                      href="https://ipisearch.cisac.org/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium"
-                    >
-                      ipisearch.cisac.org <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </div>
-                </div>
-              </div>
-
-              {/* Method 3 */}
               <div className="rounded-lg border border-border p-4">
                 <div className="flex gap-2">
-                  <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">3</div>
+                  <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">2</div>
                   <div>
                     <p className="text-sm font-medium text-foreground">Contact your PRO directly</p>
                     <p className="text-xs text-foreground/60 mt-0.5">
@@ -233,15 +236,35 @@ export function IPIHelperModal({ trigger, initialTab = 'get' }: IPIHelperModalPr
               </p>
             </div>
 
-            <Button
-              asChild
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-              size="sm"
-            >
-              <a href="https://ipisearch.cisac.org/" target="_blank" rel="noopener noreferrer">
-                Search CISAC IPI Database <ExternalLink className="w-3.5 h-3.5 ml-1" />
-              </a>
-            </Button>
+            <div className="flex flex-col gap-2">
+              <Button
+                asChild
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                size="sm"
+              >
+                <a href="https://www.socan.com/jsp/en/mem/pubRepertoireSearch.jsp" target="_blank" rel="noopener noreferrer">
+                  Search SOCAN Database <ExternalLink className="w-3.5 h-3.5 ml-1" />
+                </a>
+              </Button>
+              <Button
+                asChild
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                size="sm"
+              >
+                <a href="https://www.bmi.com/faq/entry/what_is_an_ipi_cae_number" target="_blank" rel="noopener noreferrer">
+                  Open BMI IPI/CAE Guidance <ExternalLink className="w-3.5 h-3.5 ml-1" />
+                </a>
+              </Button>
+              <Button
+                asChild
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                size="sm"
+              >
+                <a href="https://www.ascap.com/repertory#/" target="_blank" rel="noopener noreferrer">
+                  Search ASCAP Repertory <ExternalLink className="w-3.5 h-3.5 ml-1" />
+                </a>
+              </Button>
+            </div>
           </div>
         )}
       </DialogContent>
