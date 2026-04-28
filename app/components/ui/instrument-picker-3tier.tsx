@@ -173,7 +173,6 @@ export function InstrumentPicker3Tier({
         s => !(
           s.groupId === group.id && (
             s.instrumentId === ALL_INSTRUMENT_ID ||
-            s.instrumentId === OTHER_INSTRUMENT_ID ||
             s.instrumentId === instrument.id
           )
         )
@@ -202,8 +201,7 @@ export function InstrumentPicker3Tier({
     const cleaned = value.filter(
       s => !(s.groupId === group.id && (
         s.instrumentId === instrument.id ||
-        s.instrumentId === ALL_INSTRUMENT_ID ||
-        s.instrumentId === OTHER_INSTRUMENT_ID
+        s.instrumentId === ALL_INSTRUMENT_ID
       ))
     )
 
@@ -233,8 +231,7 @@ export function InstrumentPicker3Tier({
       const cleaned = value.filter(
         s => !(s.groupId === group.id && (
           (s.instrumentId === instrument.id && (!s.variantId || s.variantId === ALL_FAMILY_VARIANT_ID)) ||
-          s.instrumentId === ALL_INSTRUMENT_ID ||
-          s.instrumentId === OTHER_INSTRUMENT_ID
+          s.instrumentId === ALL_INSTRUMENT_ID
         ))
       )
       onChange([...cleaned, {
@@ -255,7 +252,9 @@ export function InstrumentPicker3Tier({
       return
     }
 
-    const cleaned = value.filter(s => s.groupId !== group.id)
+    const cleaned = optionId === OTHER_INSTRUMENT_ID
+      ? value
+      : value.filter(s => !(s.groupId === group.id && s.instrumentId !== OTHER_INSTRUMENT_ID))
     onChange([...cleaned, {
       groupId: group.id,
       groupName: group.name,

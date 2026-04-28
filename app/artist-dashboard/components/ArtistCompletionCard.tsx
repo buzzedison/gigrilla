@@ -125,7 +125,7 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
   const [dismissConfirmOpen, setDismissConfirmOpen] = useState(false)
 
   const completionDefinitions = useMemo<CompletionItemDefinition[]>(() => ([
-    { id: 'stage_name', label: 'Artist Name', required: true, section: 'profile' },
+    { id: 'stage_name', label: 'Artist Stage Name', required: true, section: 'profile' },
     { id: 'artist_type', label: 'Artist Type', required: true, section: 'type' },
     { id: 'artist_sub_types', label: 'Artist Sub-Type', required: true, dependsOn: ['artist_type'], section: 'type' },
     { id: 'established_date', label: 'Artist Formed', required: true, section: 'profile' },

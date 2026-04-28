@@ -649,6 +649,7 @@ const DEFAULT_ARTIST_PROFILE = {
   publicGigsPerformed: 0,
   recordingSessionGigs: 0,
   songwritingCollaborations: 0,
+  artistEntityIsni: "",
   performerIsni: "",
   creatorIpiCae: "",
   website: "",
@@ -820,6 +821,7 @@ type ArtistProfileSnapshot = {
   gigs_performed?: number | null
   recording_session_gigs?: number | null
   songwriting_collaborations?: number | null
+  artist_entity_isni?: string | null
   performer_isni?: string | null
   creator_ipi_cae?: string | null
   website?: string | null
@@ -1802,6 +1804,7 @@ export function SignUpWizard() {
           publicGigsPerformed: preferDraftNumber(prev.publicGigsPerformed, DEFAULT_ARTIST_PROFILE.publicGigsPerformed, profile.gigs_performed),
           recordingSessionGigs: preferDraftNumber(prev.recordingSessionGigs, DEFAULT_ARTIST_PROFILE.recordingSessionGigs, profile.recording_session_gigs),
           songwritingCollaborations: preferDraftNumber(prev.songwritingCollaborations, DEFAULT_ARTIST_PROFILE.songwritingCollaborations, profile.songwriting_collaborations),
+          artistEntityIsni: prev.artistEntityIsni || toTrimmedString(profile.artist_entity_isni),
           performerIsni: prev.performerIsni || toTrimmedString(profile.performer_isni),
           creatorIpiCae: prev.creatorIpiCae || toTrimmedString(profile.creator_ipi_cae),
           website: prev.website || toTrimmedString(profile.website),
@@ -2719,6 +2722,7 @@ export function SignUpWizard() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 stage_name: artistProfile.stageName,
+                artist_entity_isni: artistProfile.artistEntityIsni || null,
                 established_date: artistProfile.formedDate ? `${artistProfile.formedDate}-01` : null,
                 performing_members: artistProfile.performingMembers,
                 base_location: artistProfile.baseLocation,
@@ -5928,10 +5932,10 @@ export function SignUpWizard() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="stageName" className="font-semibold">
-                  Artist Name <span className="text-red-500">*</span>
+                  Artist Stage Name <span className="text-red-500">*</span>
                 </Label>
-                <p className="min-h-[1rem] text-xs italic text-transparent select-none" aria-hidden="true">
-                  Select the month and year when you started performing together
+                <p className="min-h-[1rem] text-xs text-foreground/60">
+                  This is the name of your band/group/collective entity or your performing name if this Artist only has 1 member.
                 </p>
                 <Input
                   id="stageName"
@@ -5940,6 +5944,21 @@ export function SignUpWizard() {
                   onChange={(e) => setArtistProfile(prev => ({ ...prev, stageName: e.target.value }))}
                   className="font-ui h-11 border-2 focus:border-primary"
                   required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="artistEntityIsni" className="font-semibold">
+                  Artist Entity ISNI
+                </Label>
+                <p className="min-h-[1rem] text-xs text-foreground/60">
+                  This is the ISNI for your band/group/collective entity or your performing name if this Artist only has 1 member.
+                </p>
+                <Input
+                  id="artistEntityIsni"
+                  placeholder="e.g. 0000 0001 2103 2164"
+                  value={artistProfile.artistEntityIsni}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, artistEntityIsni: e.target.value }))}
+                  className="font-mono h-11 border-2 focus:border-primary"
                 />
               </div>
               <div className="space-y-2">
@@ -5955,7 +5974,7 @@ export function SignUpWizard() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="performingMembers" className="font-semibold">Number of Performing Members</Label>
+                <Label htmlFor="performingMembers" className="font-semibold">Number of Performers</Label>
                 <p className="min-h-[1rem] text-xs text-transparent select-none" aria-hidden="true">
                   It pays to be honest - used for gig stats
                 </p>
@@ -5975,7 +5994,7 @@ export function SignUpWizard() {
               </div>
               {artistCapabilities?.needsGigsPerformed && (
               <div className="space-y-2">
-                <Label htmlFor="publicGigsPerformed" className="font-semibold">Public Gigs Performed</Label>
+                <Label htmlFor="publicGigsPerformed" className="font-semibold">Public Gigs Performed Without Gigrilla (Adds to System Gig Count)</Label>
                 <p className="min-h-[1rem] text-xs text-foreground/60">It pays to be honest - used for gig stats</p>
                 <Input
                   id="publicGigsPerformed"
@@ -6020,7 +6039,7 @@ export function SignUpWizard() {
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="baseLocation" className="font-semibold">Artist Base Location</Label>
+              <Label htmlFor="baseLocation" className="font-semibold">Artist Hometown</Label>
               <LocationAutocompleteInput
                 value={artistProfile.baseLocation}
                 placeholder="Start typing town, city, or postcode…"
@@ -6062,14 +6081,14 @@ export function SignUpWizard() {
           </CardContent>
         </Card>
 
-        {/* Social Media */}
+        {/* Artist Web Links */}
         <Card className="border-2 border-border/40 shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="bg-gradient-to-r from-blue-500/5 to-transparent pb-4">
             <div className="flex items-center gap-2">
               <span className="text-xl">🌐</span>
-              <h4 className="text-lg font-bold text-foreground">Social Media Accounts</h4>
+              <h4 className="text-lg font-bold text-foreground">Artist Web Links</h4>
             </div>
-            <p className="text-xs text-foreground/60 mt-1">Connect your social profiles to build your online presence</p>
+            <p className="text-xs text-foreground/60 mt-1">Connect your website and social profiles.</p>
           </CardHeader>
           <CardContent className="space-y-5 pt-6">
             <div className="grid gap-4 md:grid-cols-2">
@@ -7321,6 +7340,7 @@ export function SignUpWizard() {
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
                         stage_name: artistProfile.stageName,
+                        artist_entity_isni: artistProfile.artistEntityIsni || null,
                         established_date: artistProfile.formedDate ? `${artistProfile.formedDate}-01` : null,
                         performing_members: artistProfile.performingMembers,
                         base_location: artistProfile.baseLocation,

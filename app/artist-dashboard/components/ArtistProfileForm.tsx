@@ -18,6 +18,7 @@ interface ArtistProfileData {
   artist_type_id?: number | null
   artist_sub_types?: string[] | Record<string, string[]> | null
   stage_name?: string | null
+  artist_entity_isni?: string | null
   established_date?: string | null
   performing_members?: number | null
   base_location?: string | null
@@ -42,6 +43,7 @@ interface ArtistProfileData {
 
 interface FormData {
   stage_name: string
+  artist_entity_isni: string
   established_month: string
   performing_members: string
   base_location: string
@@ -140,6 +142,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
   const [showTypeDescription, setShowTypeDescription] = useState(true)
   const [formData, setFormData] = useState<FormData>({
     stage_name: "",
+    artist_entity_isni: "",
     established_month: "",
     performing_members: "1",
     base_location: "",
@@ -202,6 +205,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
         })
         setFormData({
           stage_name: profile.stage_name ?? "",
+          artist_entity_isni: profile.artist_entity_isni ?? "",
           established_month: toMonthInput(profile.established_date),
           performing_members: profile.performing_members ? String(profile.performing_members) : "1",
           base_location: baseLocation,
@@ -296,6 +300,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
 
   const buildPayload = (isPublished: boolean) => ({
     stage_name: formData.stage_name.trim() || null,
+    artist_entity_isni: formData.artist_entity_isni.trim() || null,
     established_date: monthToDate(formData.established_month),
     performing_members: formData.performing_members.trim() || null,
     base_location: buildBaseLocation() || null,
@@ -511,12 +516,28 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Artist Name</label>
+              <label className="block text-sm font-medium text-gray-700">Artist Stage Name</label>
+              <p className="text-xs leading-5 text-gray-500">
+                This is the name of your band/group/collective entity or your performing name if this Artist only has 1 member.
+              </p>
               <Input
                 value={formData.stage_name}
                 onChange={(e) => handleInputChange('stage_name', e.target.value)}
                 placeholder="Type the name you go by…"
                 className="max-w-md"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Artist Entity ISNI</label>
+              <p className="text-xs leading-5 text-gray-500">
+                This is the ISNI for your band/group/collective entity or your performing name if this Artist only has 1 member.
+              </p>
+              <Input
+                value={formData.artist_entity_isni}
+                onChange={(e) => handleInputChange('artist_entity_isni', e.target.value)}
+                placeholder="e.g. 0000 0001 2103 2164"
+                className="max-w-md font-mono"
               />
             </div>
 
@@ -532,7 +553,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">Number of Performing Members</label>
+                <label className="block text-sm font-medium text-gray-700">Number of Performers</label>
                 <div className="relative max-w-xs">
                   <Users className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                   <Input
@@ -549,7 +570,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Artist Base Location</label>
+              <label className="block text-sm font-medium text-gray-700">Artist Hometown</label>
               <LocationAutocompleteInput
                 value={formData.base_location}
                 onInputChange={handleBaseLocationInputChange}
@@ -570,7 +591,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Public Gigs Performed Before Joining Gigrilla</label>
+              <label className="text-sm font-medium text-gray-700">Public Gigs Performed Without Gigrilla (Adds to System Gig Count)</label>
               <Input
                 type="number"
                 min="0"
@@ -584,7 +605,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
           </div>
 
           <div id="artist-profile-social" className="bg-gray-50 rounded-lg p-4 space-y-4 scroll-mt-28">
-            <h2 className="text-xl font-semibold text-gray-900">Artist Online Presence</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Artist Web Links</h2>
 
             {/* Website — full width */}
             <div className="space-y-2">

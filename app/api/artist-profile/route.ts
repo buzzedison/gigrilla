@@ -5,8 +5,10 @@ import { toStoredArtistSubTypes } from '../../../lib/artist-subtype-utils'
 
 const GEOAPIFY_API_KEY = process.env.GEOAPIFY_API_KEY
 
-const ARTIST_PROFILE_SELECT_FIELDS = 'id, user_id, profile_type, artist_type_id, artist_sub_types, artist_primary_roles, company_name, job_title, years_experience, hourly_rate, daily_rate, monthly_retainer, availability_status, preferred_genre_ids, location_details, contact_details, social_links, verification_documents, bio, stage_name, established_date, performing_members, base_location, base_location_lat, base_location_lon, hometown_city, hometown_state, hometown_country, gigs_performed, recording_session_gigs, performer_isni, creator_ipi_cae, record_label_status, record_label_name, record_label_contact_name, record_label_email, record_label_phone, music_publisher_status, music_publisher_name, music_publisher_contact_name, music_publisher_email, music_publisher_phone, artist_manager_status, artist_manager_name, artist_manager_contact_name, artist_manager_email, artist_manager_phone, booking_agent_status, booking_agent_name, booking_agent_contact_name, booking_agent_email, booking_agent_phone, facebook_url, instagram_url, threads_url, x_url, tiktok_url, youtube_url, snapchat_url, mastodon_url, bluesky_url, website, onboarding_completed, onboarding_completed_at, created_at, updated_at, minimum_set_length, maximum_set_length, local_gig_fee, local_gig_timescale, wider_gig_fee, wider_gig_timescale, wider_fixed_logistics_fee, wider_negotiated_logistics, local_gig_area, wider_gig_area, vocal_sound_types, vocal_genre_styles, availability, instrument_category, instrument, songwriter_option, songwriter_genres, lyricist_option, lyricist_genres, composer_option, composer_genres'
-const ARTIST_PROFILE_SELECT_FIELDS_LEGACY = ARTIST_PROFILE_SELECT_FIELDS.replace(', mastodon_url, bluesky_url', '')
+const ARTIST_PROFILE_SELECT_FIELDS = 'id, user_id, profile_type, artist_type_id, artist_sub_types, artist_primary_roles, company_name, job_title, years_experience, hourly_rate, daily_rate, monthly_retainer, availability_status, preferred_genre_ids, location_details, contact_details, social_links, verification_documents, bio, stage_name, artist_entity_isni, established_date, performing_members, base_location, base_location_lat, base_location_lon, hometown_city, hometown_state, hometown_country, gigs_performed, recording_session_gigs, performer_isni, creator_ipi_cae, record_label_status, record_label_name, record_label_contact_name, record_label_email, record_label_phone, music_publisher_status, music_publisher_name, music_publisher_contact_name, music_publisher_email, music_publisher_phone, artist_manager_status, artist_manager_name, artist_manager_contact_name, artist_manager_email, artist_manager_phone, booking_agent_status, booking_agent_name, booking_agent_contact_name, booking_agent_email, booking_agent_phone, facebook_url, instagram_url, threads_url, x_url, tiktok_url, youtube_url, snapchat_url, mastodon_url, bluesky_url, website, onboarding_completed, onboarding_completed_at, created_at, updated_at, minimum_set_length, maximum_set_length, local_gig_fee, local_gig_timescale, wider_gig_fee, wider_gig_timescale, wider_fixed_logistics_fee, wider_negotiated_logistics, local_gig_area, wider_gig_area, vocal_sound_types, vocal_genre_styles, availability, instrument_category, instrument, songwriter_option, songwriter_genres, lyricist_option, lyricist_genres, composer_option, composer_genres'
+const ARTIST_PROFILE_SELECT_FIELDS_LEGACY = ARTIST_PROFILE_SELECT_FIELDS
+  .replace(', artist_entity_isni', '')
+  .replace(', mastodon_url, bluesky_url', '')
 
 type DbErrorLike = {
   code?: string | null
@@ -15,12 +17,14 @@ type DbErrorLike = {
   hint?: string | null
 }
 
-const isMissingSocialColumnError = (error: DbErrorLike | null | undefined) => {
+const OPTIONAL_ARTIST_PROFILE_COLUMNS = ['mastodon_url', 'bluesky_url', 'artist_entity_isni']
+
+const isMissingOptionalProfileColumnError = (error: DbErrorLike | null | undefined) => {
   if (!error) return false
   if (error.code !== '42703') return false
 
   const details = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase()
-  return details.includes('mastodon_url') || details.includes('bluesky_url')
+  return OPTIONAL_ARTIST_PROFILE_COLUMNS.some((column) => details.includes(column))
 }
 
 const parseArtistTypeId = (value: unknown): number | null => {
@@ -286,8 +290,8 @@ export async function GET() {
     let profileData = initialProfileQuery.data as Record<string, unknown> | null
     let profileError = initialProfileQuery.error as DbErrorLike | null
 
-    if (profileError && isMissingSocialColumnError(profileError)) {
-      console.warn('API: mastodon/bluesky columns missing in user_profiles, falling back to legacy select')
+    if (profileError && isMissingOptionalProfileColumnError(profileError)) {
+      console.warn('API: optional profile columns missing in user_profiles, falling back to legacy select')
       const retry = await supabase
         .from('user_profiles')
         .select(ARTIST_PROFILE_SELECT_FIELDS_LEGACY)
@@ -442,6 +446,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const {
       stage_name,
+      artist_entity_isni,
       bio,
       established_date,
       base_location,
@@ -571,6 +576,10 @@ export async function POST(request: NextRequest) {
 
     if (stage_name !== undefined) {
       profileData.stage_name = stage_name || null
+    }
+
+    if (artist_entity_isni !== undefined) {
+      profileData.artist_entity_isni = artist_entity_isni || null
     }
 
     if (bio !== undefined) {
@@ -941,9 +950,10 @@ export async function POST(request: NextRequest) {
       .select()
       .single()
 
-    if (error && isMissingSocialColumnError(error)) {
-      console.warn('API: mastodon/bluesky columns missing in user_profiles, retrying upsert without those fields')
+    if (error && isMissingOptionalProfileColumnError(error)) {
+      console.warn('API: optional profile columns missing in user_profiles, retrying upsert without those fields')
       const legacyProfileData = { ...profileData }
+      delete legacyProfileData.artist_entity_isni
       delete legacyProfileData.mastodon_url
       delete legacyProfileData.bluesky_url
 

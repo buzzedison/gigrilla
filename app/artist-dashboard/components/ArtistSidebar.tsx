@@ -299,7 +299,7 @@ export function ArtistSidebar({
         subSection: 'details',
         children: [
           { id: 'artist-type', label: 'Artist Type', section: 'type', subSection: 'selector' },
-          { id: 'artist-stage-name', label: 'Artist Entity Stage Name', section: 'profile', subSection: 'details' },
+          { id: 'artist-stage-name', label: 'Artist Stage Name', section: 'profile', subSection: 'details' },
           { id: 'artist-entity-isni', label: 'Artist Entity ISNI', section: 'profile', subSection: 'details' },
           { id: 'artist-formed', label: 'Artist Formed', section: 'profile', subSection: 'details' },
           { id: 'artist-performers-count', label: 'Number of Performers', section: 'profile', subSection: 'details' },
@@ -307,7 +307,7 @@ export function ArtistSidebar({
           { id: 'artist-contract-status', label: 'Artist Contract Status', section: 'contract', subSection: 'label' },
           { id: 'artist-genres', label: 'Artist Genres', section: 'genres', subSection: 'selector' },
           { id: 'artist-bio', label: 'Artist Bio', section: 'bio', subSection: 'editor' },
-          { id: 'artist-gig-counter', label: 'Artist Gig Counter', section: 'gig-statistics', subSection: 'performed' },
+          { id: 'artist-gig-counter', label: 'Public Gigs Performed Without Gigrilla (Adds to System Gig Count)', section: 'profile', subSection: 'details' },
           { id: 'artist-web-links', label: 'Artist Web Links', section: 'profile', subSection: 'social' },
         ]
       },

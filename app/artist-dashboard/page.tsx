@@ -41,6 +41,11 @@ interface ArtistProfileResponse {
     preferred_genre_ids?: string[] | null
     onboarding_completed?: boolean | null
     stage_name?: string | null
+    gigs_performed?: number | null
+    facebook_url?: string | null
+    instagram_url?: string | null
+    x_url?: string | null
+    youtube_url?: string | null
   } | null
 }
 
@@ -60,6 +65,21 @@ type HomeTrackSnapshot = {
   duration_seconds: number
   track_number?: number
   published_at?: string
+}
+
+type HomeDashboardStats = {
+  upcomingGigs: number | null
+  confirmedGigs: number | null
+  completedGigs: number | null
+  publishedReleases: number | null
+  publishedTracks: number | null
+  manualGigsPerformed: number | null
+  socialLinks: {
+    facebook: boolean
+    instagram: boolean
+    x: boolean
+    youtube: boolean
+  }
 }
 
 type DashboardSection =
@@ -177,6 +197,20 @@ export default function ArtistDashboard() {
   const [nextGigSnapshot, setNextGigSnapshot] = useState<HomeGigSnapshot | null>(null)
   const [featuredTrack, setFeaturedTrack] = useState<HomeTrackSnapshot | null>(null)
   const [artistHomeName, setArtistHomeName] = useState<string>('Artist')
+  const [homeStats, setHomeStats] = useState<HomeDashboardStats>({
+    upcomingGigs: null,
+    confirmedGigs: null,
+    completedGigs: null,
+    publishedReleases: null,
+    publishedTracks: null,
+    manualGigsPerformed: null,
+    socialLinks: {
+      facebook: false,
+      instagram: false,
+      x: false,
+      youtube: false,
+    },
+  })
   const deepLinkedMessageFolder = searchParams?.get('folder') || null
   const supportedInboxFolders: Record<string, string> = {
     gig_invites: 'gig_invites',
@@ -217,6 +251,16 @@ export default function ArtistDashboard() {
         // Set onboarding completed status
         setOnboardingCompleted(result.data.onboarding_completed ?? false)
         setArtistHomeName(result.data.stage_name?.trim() || 'Artist')
+        setHomeStats((prev) => ({
+          ...prev,
+          manualGigsPerformed: typeof result.data?.gigs_performed === 'number' ? result.data.gigs_performed : null,
+          socialLinks: {
+            facebook: Boolean(result.data?.facebook_url?.trim()),
+            instagram: Boolean(result.data?.instagram_url?.trim()),
+            x: Boolean(result.data?.x_url?.trim()),
+            youtube: Boolean(result.data?.youtube_url?.trim()),
+          },
+        }))
 
         if (result.data.artist_type_id) {
           const subTypes = normalizeArtistSubTypeSelections(
@@ -374,9 +418,13 @@ export default function ArtistDashboard() {
 
     const loadHomeSnapshots = async () => {
       try {
-        const [gigsResponse, tracksResponse] = await Promise.all([
+        const now = new Date().toISOString()
+        const [gigsResponse, allGigsResponse, completedGigsResponse, releasesResponse, tracksResponse] = await Promise.all([
           fetch(`/api/artist-gigs?view=calendar&status=pending,confirmed&date_from=${encodeURIComponent(new Date().toISOString())}&limit=1`, { cache: 'no-store' }),
-          fetch('/api/music-releases/published-tracks?limit=1', { cache: 'no-store' })
+          fetch(`/api/artist-gigs?view=calendar&date_from=${encodeURIComponent(now)}&limit=1`, { cache: 'no-store' }),
+          fetch(`/api/artist-gigs?view=calendar&status=completed&date_to=${encodeURIComponent(now)}&limit=1`, { cache: 'no-store' }),
+          fetch('/api/music-releases/published?limit=100', { cache: 'no-store' }),
+          fetch('/api/music-releases/published-tracks?limit=300', { cache: 'no-store' })
         ])
 
         const gigsPayload = await gigsResponse.json().catch(() => null)
@@ -389,12 +437,31 @@ export default function ArtistDashboard() {
           eventType: nextGig.eventType || null,
         } : null)
 
+        const allGigsPayload = await allGigsResponse.json().catch(() => null)
+        const completedGigsPayload = await completedGigsResponse.json().catch(() => null)
+        const releasesPayload = await releasesResponse.json().catch(() => null)
         const tracksPayload = await tracksResponse.json().catch(() => null)
         const topTrack = Array.isArray(tracksPayload?.data) && tracksPayload.data.length > 0 ? tracksPayload.data[0] : null
         setFeaturedTrack(topTrack || null)
+        setHomeStats((prev) => ({
+          ...prev,
+          upcomingGigs: typeof allGigsPayload?.summary?.total === 'number' ? allGigsPayload.summary.total : null,
+          confirmedGigs: typeof allGigsPayload?.summary?.confirmed === 'number' ? allGigsPayload.summary.confirmed : null,
+          completedGigs: typeof completedGigsPayload?.summary?.completed === 'number' ? completedGigsPayload.summary.completed : null,
+          publishedReleases: typeof releasesPayload?.count === 'number' ? releasesPayload.count : null,
+          publishedTracks: typeof tracksPayload?.count === 'number' ? tracksPayload.count : null,
+        }))
       } catch {
         setNextGigSnapshot(null)
         setFeaturedTrack(null)
+        setHomeStats((prev) => ({
+          ...prev,
+          upcomingGigs: null,
+          confirmedGigs: null,
+          completedGigs: null,
+          publishedReleases: null,
+          publishedTracks: null,
+        }))
       }
     }
 
@@ -713,28 +780,83 @@ export default function ArtistDashboard() {
           return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
         })()
         const nextGigHeading = daysUntilNextGig !== null ? `Next Gig in ${daysUntilNextGig} days` : 'Next Gig'
+        const formatDashboardNumber = (value: number | null | undefined) => (
+          typeof value === 'number' ? new Intl.NumberFormat('en-GB').format(value) : 'Not connected'
+        )
+        const linkedSocialCount = Object.values(homeStats.socialLinks).filter(Boolean).length
         const headlineIncomeStats = [
-          { label: 'Gigs', value: '$200K' },
-          { label: 'Streams', value: '$800K' },
-          { label: 'Downloads', value: '$950K' },
-          { label: 'Merchandise', value: '$50K' },
+          {
+            label: 'Gigs',
+            value: 'Not connected',
+            detail: homeStats.completedGigs !== null
+              ? `${formatDashboardNumber(homeStats.completedGigs)} completed gigs counted`
+              : 'Connect gig earnings',
+          },
+          { label: 'Streams', value: 'Not connected', detail: 'Connect streaming analytics' },
+          { label: 'Downloads', value: 'Not connected', detail: 'Connect download analytics' },
+          { label: 'Merchandise', value: 'Not connected', detail: 'Connect merch sales' },
         ]
-        const fanbaseStats = [
-          { channel: 'Gigrilla', value: '1,234 fans', delta: '+250', trend: 'up' },
-          { channel: 'YouTube', value: '134k subscribers', delta: '+2,950', trend: 'up' },
-          { channel: 'YouTube', value: '123k video views', delta: '-835', trend: 'down' },
-          { channel: 'Facebook', value: '12k followers', delta: '+2,950', trend: 'up' },
-          { channel: 'X', value: '1.4k followers', delta: '-35', trend: 'down' },
+        const fanbaseStats: Array<{
+          channel: string
+          mark: string
+          value: string
+          delta: string
+          trend: 'up' | 'down' | 'neutral'
+          markClass: string
+        }> = [
+          {
+            channel: 'Gigrilla',
+            mark: 'G',
+            value: `${formatDashboardNumber(homeStats.upcomingGigs)} upcoming gigs`,
+            delta: homeStats.confirmedGigs !== null ? `${formatDashboardNumber(homeStats.confirmedGigs)} confirmed` : 'Awaiting gig data',
+            trend: 'neutral',
+            markClass: 'bg-[#120a17] text-[#f472b6]',
+          },
+          {
+            channel: 'YouTube',
+            mark: 'YT',
+            value: homeStats.socialLinks.youtube ? 'YouTube linked' : 'YouTube not linked',
+            delta: homeStats.socialLinks.youtube ? 'Stats pending' : 'Add link',
+            trend: 'neutral',
+            markClass: 'bg-[#ff0000] text-white',
+          },
+          {
+            channel: 'Instagram',
+            mark: 'IG',
+            value: homeStats.socialLinks.instagram ? 'Instagram linked' : 'Instagram not linked',
+            delta: homeStats.socialLinks.instagram ? 'Stats pending' : 'Add link',
+            trend: 'neutral',
+            markClass: 'bg-gradient-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] text-white',
+          },
+          {
+            channel: 'Facebook',
+            mark: 'f',
+            value: homeStats.socialLinks.facebook ? 'Facebook linked' : 'Facebook not linked',
+            delta: homeStats.socialLinks.facebook ? 'Stats pending' : 'Add link',
+            trend: 'neutral',
+            markClass: 'bg-[#1877f2] text-white',
+          },
+          {
+            channel: 'X',
+            mark: 'X',
+            value: homeStats.socialLinks.x ? 'X linked' : 'X not linked',
+            delta: homeStats.socialLinks.x ? 'Stats pending' : 'Add link',
+            trend: 'neutral',
+            markClass: 'bg-[#111827] text-white',
+          },
         ]
         const chartRows = [
-          { label: 'Overall Downloads', value: '1,123,456' },
-          { label: 'Overall Streams', value: '123,456' },
+          { label: 'Published Tracks', value: formatDashboardNumber(homeStats.publishedTracks) },
+          { label: 'Published Releases', value: formatDashboardNumber(homeStats.publishedReleases) },
         ]
         const chartPositions = [
-          { label: 'All Genres', value: '#01' },
-          { label: 'Rap / Hip-Hop', value: '#02' },
-          { label: "Rhythm 'n' Blues", value: '#12' },
+          { label: 'Upcoming Gigs', value: formatDashboardNumber(homeStats.upcomingGigs) },
+          { label: 'Confirmed Gigs', value: formatDashboardNumber(homeStats.confirmedGigs) },
+          { label: 'Completed Gigs', value: formatDashboardNumber(homeStats.completedGigs ?? homeStats.manualGigsPerformed) },
         ]
+        const nextGigTypeLabel = nextGigSnapshot?.eventType
+          ? nextGigSnapshot.eventType.replace(/[-_]/g, ' ')
+          : 'Gig type TBC'
 
         return (
           <div className="space-y-7">
@@ -742,7 +864,7 @@ export default function ArtistDashboard() {
               <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
 
-            <div className="grid gap-7 2xl:grid-cols-[minmax(0,1fr)_28rem]">
+            <div className="grid gap-7 2xl:grid-cols-[minmax(0,1fr)_29rem]">
               <div className="space-y-7">
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                   <div className="space-y-2 text-white">
@@ -769,22 +891,22 @@ export default function ArtistDashboard() {
                   </div>
                 </div>
 
-                <div className="grid gap-7 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1fr)]">
+	                <div className="grid gap-7 xl:grid-cols-[minmax(22rem,0.95fr)_minmax(24rem,1fr)]">
                   <section className="space-y-4">
                     <h2 className="text-2xl font-black tracking-tight text-white">{nextGigHeading}</h2>
-                    <div className="rounded-[1.35rem] border border-white/15 bg-[#6f376d]/82 p-5 text-white shadow-[0_22px_50px_rgba(24,8,36,0.24)]">
-                      <div className="grid gap-4 sm:grid-cols-3">
-                        <div className="flex flex-col items-center rounded-2xl bg-white/5 p-4 text-center">
-                          <CalendarDays className="h-12 w-12 text-white" />
-                          <span className="mt-3 text-sm font-bold text-white/85">{formatHomeDate(nextGigSnapshot?.startDatetime)}</span>
-                        </div>
+	                    <div className="min-h-[24rem] rounded-[1.35rem] border border-white/15 bg-[#6f376d]/82 p-5 text-white shadow-[0_22px_50px_rgba(24,8,36,0.24)]">
+	                      <div className="grid grid-cols-3 gap-4">
+	                        <div className="flex flex-col items-center rounded-2xl bg-white/5 p-4 text-center">
+	                          <CalendarDays className="h-12 w-12 text-white" />
+	                          <span className="mt-3 whitespace-nowrap text-sm font-bold text-white/85">{formatHomeDate(nextGigSnapshot?.startDatetime)}</span>
+	                        </div>
                         <div className="flex flex-col items-center rounded-2xl bg-white/5 p-4 text-center">
                           <Clock3 className="h-12 w-12 text-white" />
-                          <span className="mt-3 text-sm font-bold text-white/85">{formatHomeTime(nextGigSnapshot?.startDatetime)}</span>
+	                          <span className="mt-3 whitespace-nowrap text-sm font-bold text-white/85">{formatHomeTime(nextGigSnapshot?.startDatetime)}</span>
                         </div>
                         <div className="flex flex-col items-center rounded-2xl bg-white/5 p-4 text-center">
                           <Radio className="h-12 w-12 text-white" />
-                          <span className="mt-3 text-sm font-bold text-white/85">2hrs 30mins</span>
+	                          <span className="mt-3 whitespace-nowrap text-sm font-bold capitalize text-white/85">{nextGigTypeLabel}</span>
                         </div>
                       </div>
                       <div className="mt-5 flex items-center gap-4 rounded-2xl bg-white/5 p-4">
@@ -820,14 +942,14 @@ export default function ArtistDashboard() {
                         Last 7 Days
                       </button>
                     </div>
-                    <div className="rounded-[1.35rem] border border-white/15 bg-[#6f376d]/82 p-6 text-white shadow-[0_22px_50px_rgba(24,8,36,0.24)]">
+	                    <div className="min-h-[24rem] rounded-[1.35rem] border border-white/15 bg-[#6f376d]/82 p-6 text-white shadow-[0_22px_50px_rgba(24,8,36,0.24)]">
                       <div className="flex items-center gap-4">
                         <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-[#7c3aed] to-[#ec4899] text-xl font-black">
                           {(featuredTrack?.artist_name?.[0] || artistHomeName?.[0] || 'A').toUpperCase()}
                         </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-xl font-black">{featuredTrack?.artist_name || artistHomeName}</div>
-                          <div className="truncate text-sm italic text-white/72">Rap/Hip-Hop Rhythm &apos;n&apos; Blues</div>
+                          <div className="min-w-0">
+                            <div className="truncate text-xl font-black">{featuredTrack?.artist_name || artistHomeName}</div>
+                          <div className="truncate text-sm italic text-white/72">{featuredTrack?.release_title || 'Latest published track'}</div>
                         </div>
                       </div>
                       <div className="mt-7 space-y-4">
@@ -861,14 +983,15 @@ export default function ArtistDashboard() {
                     {headlineIncomeStats.map((stat) => (
                       <div key={stat.label} className="border-white/15 p-5 sm:border-r last:border-r-0">
                         <div className="text-center text-base font-semibold text-white/76">{stat.label}</div>
-                        <div className="mt-2 text-center text-4xl font-black tracking-wide text-white">{stat.value}</div>
+                        <div className="mt-2 text-center text-2xl font-black tracking-wide text-white xl:text-3xl">{stat.value}</div>
+                        <div className="mt-2 text-center text-[0.68rem] font-black uppercase tracking-[0.12em] text-white/45">{stat.detail}</div>
                       </div>
                     ))}
                   </div>
-                  <div className="text-right text-4xl font-black text-white/42">Total Income: $950K</div>
+                  <div className="text-right text-3xl font-black text-white/42">Total Income: Not connected</div>
                 </section>
 
-                <div className="grid gap-7 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)]">
+                <div className="grid gap-7 xl:grid-cols-[minmax(20rem,0.9fr)_minmax(26rem,1fr)]">
                   <section className="space-y-4">
                     <div className="flex items-center justify-between gap-3">
                       <h2 className="text-2xl font-black tracking-tight text-white">Your Fanbase</h2>
@@ -876,14 +999,17 @@ export default function ArtistDashboard() {
                         Last 7 Days
                       </button>
                     </div>
-                    <div className="space-y-3 rounded-[1.35rem] border border-white/10 bg-[#3a1d45]/50 p-5 text-white">
+                    <div className="space-y-3 p-1 text-white">
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">
+                        {linkedSocialCount} social link{linkedSocialCount === 1 ? '' : 's'} connected
+                      </div>
                       {fanbaseStats.map((stat) => (
-                        <div key={`${stat.channel}-${stat.value}`} className="grid grid-cols-[2rem_1fr_auto_auto] items-center gap-3 text-sm">
-                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#120a17] text-xs font-black text-[#f472b6]">{stat.channel[0]}</span>
+                        <div key={`${stat.channel}-${stat.value}`} className="grid grid-cols-[2.25rem_1fr_auto_auto] items-center gap-3 text-sm">
+                          <span className={`flex h-8 w-8 items-center justify-center rounded-md text-xs font-black ${stat.markClass}`}>{stat.mark}</span>
                           <span className="font-semibold text-white/85">{stat.value}</span>
-                          <span className={stat.trend === 'up' ? 'text-emerald-400' : 'text-rose-400'}>{stat.delta}</span>
-                          <span className={stat.trend === 'up' ? 'flex h-6 w-6 items-center justify-center rounded-full bg-emerald-950 text-emerald-300' : 'flex h-6 w-6 items-center justify-center rounded-full bg-rose-950 text-rose-300'}>
-                            {stat.trend === 'up' ? '↗' : '↘'}
+                          <span className={stat.trend === 'up' ? 'text-emerald-400' : stat.trend === 'down' ? 'text-rose-400' : 'text-white/48'}>{stat.delta}</span>
+                          <span className={stat.trend === 'up' ? 'flex h-6 w-6 items-center justify-center rounded-full bg-emerald-950 text-emerald-300' : stat.trend === 'down' ? 'flex h-6 w-6 items-center justify-center rounded-full bg-rose-950 text-rose-300' : 'flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-white/50'}>
+                            {stat.trend === 'up' ? '↗' : stat.trend === 'down' ? '↘' : '–'}
                           </span>
                         </div>
                       ))}
@@ -894,14 +1020,13 @@ export default function ArtistDashboard() {
                     <h2 className="text-2xl font-black tracking-tight text-white">Latest Review</h2>
                     <div className="rounded-[1.35rem] border border-white/10 bg-[#0b0b0d] p-5 text-white shadow-[0_22px_50px_rgba(0,0,0,0.25)]">
                       <div className="flex items-center gap-4">
-                        <div className="h-20 w-24 rounded-xl bg-gradient-to-br from-[#7c3aed] via-[#ec4899] to-[#f59e0b]" />
+                        <div className="flex h-20 w-24 shrink-0 items-center justify-center rounded-xl bg-white/8">
+                          <BarChart3 className="h-8 w-8 text-white/45" />
+                        </div>
                         <div>
-                          <div className="font-black">The Funkey Monkey,</div>
-                          <div className="text-sm text-white/72">London, UK</div>
-                          <div className="mt-2 space-y-1 text-sm text-amber-300">
-                            <div>Attitude ★★★★★</div>
-                            <div>Timeliness ★★★★★</div>
-                            <div>Performance ★★★★★</div>
+                          <div className="font-black">No reviews connected yet</div>
+                          <div className="mt-1 text-sm leading-6 text-white/62">
+                            Venue and fan reviews will appear here once the review data source is live.
                           </div>
                         </div>
                       </div>
@@ -932,34 +1057,34 @@ export default function ArtistDashboard() {
                 </div>
                 <div className="mt-5 flex items-end justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="truncate text-3xl font-black">{featuredTrack?.track_title || 'Love'}</div>
-                    <div className="mt-1 truncate text-sm italic text-white/60">{featuredTrack ? featuredTrack.artist_name : 'Kendrick Lamar, Zacari'}</div>
+                    <div className="truncate text-3xl font-black">{featuredTrack?.track_title || 'No published track yet'}</div>
+                    <div className="mt-1 truncate text-sm italic text-white/60">{featuredTrack ? featuredTrack.artist_name : 'Publish music to populate this panel'}</div>
                   </div>
                   <button type="button" className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-full bg-[#111116] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition hover:bg-[#1b1b22]" aria-label="Play top track">
                     <PlayCircle className="h-6 w-6" />
-                    <span className="mt-1 text-[0.6rem] font-black">{formatTrackDuration(featuredTrack?.duration_seconds || 213)}</span>
+                    <span className="mt-1 text-[0.6rem] font-black">{formatTrackDuration(featuredTrack?.duration_seconds)}</span>
                   </button>
                 </div>
                 <div className="mt-6 flex flex-wrap gap-3 text-sm font-black">
-                  <span className="rounded-lg bg-[#8b4b84] px-3 py-2">123,456</span>
+                  <span className="rounded-lg bg-[#8b4b84] px-3 py-2">Not connected</span>
                   <span>Streams</span>
-                  <span className="rounded-lg bg-[#8b4b84] px-3 py-2">1,234</span>
+                  <span className="rounded-lg bg-[#8b4b84] px-3 py-2">Not connected</span>
                   <span>Downloads</span>
                 </div>
                 <div className="mt-7 text-xs font-black uppercase tracking-[0.22em] text-white/70">Chart Positions</div>
                 <div className="mt-3 grid grid-cols-2 gap-4">
                   <div className="rounded-xl bg-[#6f376d] p-4">
-                    <div className="text-sm text-white/70">Rap &amp; Hip Hop</div>
-                    <div className="mt-2 text-4xl font-black">#64</div>
+                    <div className="text-sm text-white/70">Published Tracks</div>
+                    <div className="mt-2 text-4xl font-black">{formatDashboardNumber(homeStats.publishedTracks)}</div>
                   </div>
                   <div className="rounded-xl bg-[#6f376d] p-4">
-                    <div className="text-sm text-white/70">All Genres</div>
-                    <div className="mt-2 text-4xl font-black">#114</div>
+                    <div className="text-sm text-white/70">Published Releases</div>
+                    <div className="mt-2 text-4xl font-black">{formatDashboardNumber(homeStats.publishedReleases)}</div>
                   </div>
                 </div>
-                <div className="mt-7 flex items-center justify-between rounded-xl bg-[#8b4b84] px-5 py-4 text-xl font-black">
+                <div className="mt-7 flex items-center justify-between gap-4 rounded-xl bg-[#8b4b84] px-5 py-4 text-xl font-black">
                   <span>Track Income:</span>
-                  <span>£8,636.32</span>
+                  <span className="text-right">Not connected</span>
                 </div>
               </aside>
             </div>
