@@ -6,9 +6,61 @@ import { toStoredArtistSubTypes } from '../../../lib/artist-subtype-utils'
 const GEOAPIFY_API_KEY = process.env.GEOAPIFY_API_KEY
 
 const ARTIST_PROFILE_SELECT_FIELDS = 'id, user_id, profile_type, artist_type_id, artist_sub_types, artist_primary_roles, company_name, job_title, years_experience, hourly_rate, daily_rate, monthly_retainer, availability_status, preferred_genre_ids, location_details, contact_details, social_links, verification_documents, bio, stage_name, artist_entity_isni, established_date, performing_members, base_location, base_location_lat, base_location_lon, hometown_city, hometown_state, hometown_country, gigs_performed, recording_session_gigs, performer_isni, creator_ipi_cae, record_label_status, record_label_name, record_label_contact_name, record_label_email, record_label_phone, music_publisher_status, music_publisher_name, music_publisher_contact_name, music_publisher_email, music_publisher_phone, artist_manager_status, artist_manager_name, artist_manager_contact_name, artist_manager_email, artist_manager_phone, booking_agent_status, booking_agent_name, booking_agent_contact_name, booking_agent_email, booking_agent_phone, facebook_url, instagram_url, threads_url, x_url, tiktok_url, youtube_url, snapchat_url, mastodon_url, bluesky_url, website, onboarding_completed, onboarding_completed_at, created_at, updated_at, minimum_set_length, maximum_set_length, local_gig_fee, local_gig_timescale, wider_gig_fee, wider_gig_timescale, wider_fixed_logistics_fee, wider_negotiated_logistics, local_gig_area, wider_gig_area, vocal_sound_types, vocal_genre_styles, availability, instrument_category, instrument, songwriter_option, songwriter_genres, lyricist_option, lyricist_genres, composer_option, composer_genres'
-const ARTIST_PROFILE_SELECT_FIELDS_LEGACY = ARTIST_PROFILE_SELECT_FIELDS
-  .replace(', artist_entity_isni', '')
-  .replace(', mastodon_url, bluesky_url', '')
+
+const OPTIONAL_ARTIST_PROFILE_COLUMNS = [
+  'artist_entity_isni',
+  'threads_url',
+  'x_url',
+  'tiktok_url',
+  'snapchat_url',
+  'mastodon_url',
+  'bluesky_url',
+  'base_location_lat',
+  'base_location_lon',
+  'performing_members',
+  'onboarding_completed',
+  'onboarding_completed_at',
+  'recording_session_gigs',
+  'creator_ipi_cae',
+  'minimum_set_length',
+  'maximum_set_length',
+  'local_gig_fee',
+  'local_gig_timescale',
+  'wider_gig_fee',
+  'wider_gig_timescale',
+  'wider_fixed_logistics_fee',
+  'wider_negotiated_logistics',
+  'local_gig_area',
+  'wider_gig_area',
+  'vocal_sound_types',
+  'vocal_genre_styles',
+  'availability',
+  'instrument_category',
+  'instrument',
+  'songwriter_option',
+  'songwriter_genres',
+  'lyricist_option',
+  'lyricist_genres',
+  'composer_option',
+  'composer_genres',
+  'is_published'
+] as const
+
+const OPTIONAL_ARTIST_PROFILE_COLUMN_SET = new Set<string>(OPTIONAL_ARTIST_PROFILE_COLUMNS)
+
+const omitSelectColumns = (fields: string, columns: Iterable<string>) => {
+  const omitted = new Set(columns)
+  return fields
+    .split(',')
+    .map(field => field.trim())
+    .filter(field => !omitted.has(field))
+    .join(', ')
+}
+
+const ARTIST_PROFILE_SELECT_FIELDS_LEGACY = omitSelectColumns(
+  ARTIST_PROFILE_SELECT_FIELDS,
+  OPTIONAL_ARTIST_PROFILE_COLUMNS
+)
 
 type DbErrorLike = {
   code?: string | null
@@ -17,14 +69,25 @@ type DbErrorLike = {
   hint?: string | null
 }
 
-const OPTIONAL_ARTIST_PROFILE_COLUMNS = ['mastodon_url', 'bluesky_url', 'artist_entity_isni']
-
-const isMissingOptionalProfileColumnError = (error: DbErrorLike | null | undefined) => {
-  if (!error) return false
-  if (error.code !== '42703') return false
+const getMissingOptionalProfileColumn = (error: DbErrorLike | null | undefined) => {
+  if (!error) return null
 
   const details = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase()
-  return OPTIONAL_ARTIST_PROFILE_COLUMNS.some((column) => details.includes(column))
+  const quotedColumnMatch = details.match(/column ["']([^"']+)["']/)
+  if (quotedColumnMatch?.[1] && OPTIONAL_ARTIST_PROFILE_COLUMN_SET.has(quotedColumnMatch[1])) {
+    return quotedColumnMatch[1]
+  }
+
+  const schemaCacheMatch = details.match(/could not find the ["']([^"']+)["'] column/)
+  if (schemaCacheMatch?.[1] && OPTIONAL_ARTIST_PROFILE_COLUMN_SET.has(schemaCacheMatch[1])) {
+    return schemaCacheMatch[1]
+  }
+
+  return OPTIONAL_ARTIST_PROFILE_COLUMNS.find((column) => details.includes(column)) ?? null
+}
+
+const isMissingOptionalProfileColumnError = (error: DbErrorLike | null | undefined) => {
+  return Boolean(getMissingOptionalProfileColumn(error))
 }
 
 const parseArtistTypeId = (value: unknown): number | null => {
@@ -712,6 +775,7 @@ export async function POST(request: NextRequest) {
       const normalized = val.trim().toLowerCase()
       if (!normalized) return null
       if (['signed', 'signed to label', 'signed to publisher'].includes(normalized)) return 'signed'
+      if (['signed_admin', 'signed to admin publisher', 'admin publisher'].includes(normalized)) return 'signed_admin'
       if ([
         'unsigned',
         'seeking',
@@ -942,24 +1006,28 @@ export async function POST(request: NextRequest) {
       fieldCount: Object.keys(profileData).length
     })
 
+    let attemptedProfileData = { ...profileData }
     let { data, error } = await supabase
       .from('user_profiles')
-      .upsert(profileData, {
+      .upsert(attemptedProfileData, {
         onConflict: 'user_id,profile_type'
       })
       .select()
       .single()
 
-    if (error && isMissingOptionalProfileColumnError(error)) {
-      console.warn('API: optional profile columns missing in user_profiles, retrying upsert without those fields')
-      const legacyProfileData = { ...profileData }
-      delete legacyProfileData.artist_entity_isni
-      delete legacyProfileData.mastodon_url
-      delete legacyProfileData.bluesky_url
+    const removedOptionalColumns = new Set<string>()
+    while (error && isMissingOptionalProfileColumnError(error)) {
+      const missingColumn = getMissingOptionalProfileColumn(error)
+      if (!missingColumn || removedOptionalColumns.has(missingColumn)) break
+
+      console.warn(`API: optional profile column "${missingColumn}" missing in user_profiles, retrying upsert without it`)
+      removedOptionalColumns.add(missingColumn)
+      attemptedProfileData = { ...attemptedProfileData }
+      delete attemptedProfileData[missingColumn]
 
       const retry = await supabase
         .from('user_profiles')
-        .upsert(legacyProfileData, {
+        .upsert(attemptedProfileData, {
           onConflict: 'user_id,profile_type'
         })
         .select()
@@ -972,7 +1040,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('API: Error creating/updating artist profile:', error)
       console.error('API: Full error details:', JSON.stringify(error, null, 2))
-      console.error('API: Profile data that failed:', JSON.stringify(profileData, null, 2))
+      console.error('API: Profile data that failed:', JSON.stringify(attemptedProfileData, null, 2))
       return NextResponse.json({
         error: 'Database error',
         details: error.message,

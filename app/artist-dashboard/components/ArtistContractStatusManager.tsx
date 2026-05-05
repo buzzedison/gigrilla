@@ -24,9 +24,12 @@ const RECORD_LABEL_STATUS_OPTIONS = [
 
 const MUSIC_PUBLISHER_STATUS_OPTIONS = [
   { value: "signed", label: "Signed to Publisher" },
+  { value: "signed_admin", label: "Signed to Admin Publisher" },
   { value: "unsigned_seeking", label: "Unsigned - Seeking Publisher" },
   { value: "independent", label: "Self Publishing - Independent" }
 ]
+
+const SIGNED_PUBLISHER_STATUSES = ['signed', 'signed_admin']
 
 const MANAGER_STATUS_OPTIONS = [
   { value: "signed", label: "Signed to Manager" },
@@ -48,6 +51,10 @@ const normalizeLabelPublisherStatus = (value?: string | null) => {
     case 'signed to label':
     case 'signed to publisher':
       return 'signed'
+    case 'signed_admin':
+    case 'signed to admin publisher':
+    case 'admin publisher':
+      return 'signed_admin'
     case 'unsigned':
     case 'seeking':
     case 'unsigned - seeking label':
@@ -459,12 +466,12 @@ export function ArtistContractStatusManager() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Record Label Contact Phone</label>
-                    <div className="grid grid-cols-[minmax(0,280px)_minmax(0,1fr)] gap-2">
+                    <div className="flex gap-2">
                       <Select
                         value={getDialCodeChoiceValue(formData.record_label_phone_code)}
                         onValueChange={(value) => handleInputChange('record_label_phone_code', getDialCodeFromChoiceValue(value))}
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger className="w-[120px] shrink-0">
                           <SelectValue placeholder="Code" />
                         </SelectTrigger>
                         <SelectContent className="max-h-64 min-w-[320px]">
@@ -480,6 +487,7 @@ export function ArtistContractStatusManager() {
                         value={formData.record_label_phone_number}
                         onChange={(e) => handleInputChange('record_label_phone_number', e.target.value)}
                         placeholder="Phone number…"
+                        className="flex-1"
                       />
                     </div>
                   </div>
@@ -508,7 +516,7 @@ export function ArtistContractStatusManager() {
                 </Select>
               </div>
             </div>
-            {formData.music_publisher_status === 'signed' && (
+            {SIGNED_PUBLISHER_STATUSES.includes(formData.music_publisher_status) && (
               <>
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex gap-2">
                   <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
@@ -558,12 +566,12 @@ export function ArtistContractStatusManager() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Music Publisher Contact Phone</label>
-                    <div className="grid grid-cols-[minmax(0,280px)_minmax(0,1fr)] gap-2">
+                    <div className="flex gap-2">
                       <Select
                         value={getDialCodeChoiceValue(formData.music_publisher_phone_code)}
                         onValueChange={(value) => handleInputChange('music_publisher_phone_code', getDialCodeFromChoiceValue(value))}
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger className="w-[120px] shrink-0">
                           <SelectValue placeholder="Code" />
                         </SelectTrigger>
                         <SelectContent className="max-h-64 min-w-[320px]">
@@ -579,6 +587,7 @@ export function ArtistContractStatusManager() {
                         value={formData.music_publisher_phone_number}
                         onChange={(e) => handleInputChange('music_publisher_phone_number', e.target.value)}
                         placeholder="Phone number…"
+                        className="flex-1"
                       />
                     </div>
                   </div>
@@ -656,12 +665,12 @@ export function ArtistContractStatusManager() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Artist Manager Contact Phone</label>
-                    <div className="grid grid-cols-[minmax(0,280px)_minmax(0,1fr)] gap-2">
+                    <div className="flex gap-2">
                       <Select
                         value={getDialCodeChoiceValue(formData.artist_manager_phone_code)}
                         onValueChange={(value) => handleInputChange('artist_manager_phone_code', getDialCodeFromChoiceValue(value))}
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger className="w-[120px] shrink-0">
                           <SelectValue placeholder="Code" />
                         </SelectTrigger>
                         <SelectContent className="max-h-64 min-w-[320px]">
@@ -677,6 +686,7 @@ export function ArtistContractStatusManager() {
                         value={formData.artist_manager_phone_number}
                         onChange={(e) => handleInputChange('artist_manager_phone_number', e.target.value)}
                         placeholder="Phone number…"
+                        className="flex-1"
                       />
                     </div>
                   </div>
@@ -754,12 +764,12 @@ export function ArtistContractStatusManager() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Booking Agent Contact Phone</label>
-                    <div className="grid grid-cols-[minmax(0,280px)_minmax(0,1fr)] gap-2">
+                    <div className="flex gap-2">
                       <Select
                         value={getDialCodeChoiceValue(formData.booking_agent_phone_code)}
                         onValueChange={(value) => handleInputChange('booking_agent_phone_code', getDialCodeFromChoiceValue(value))}
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger className="w-[120px] shrink-0">
                           <SelectValue placeholder="Code" />
                         </SelectTrigger>
                         <SelectContent className="max-h-64 min-w-[320px]">
@@ -775,6 +785,7 @@ export function ArtistContractStatusManager() {
                         value={formData.booking_agent_phone_number}
                         onChange={(e) => handleInputChange('booking_agent_phone_number', e.target.value)}
                         placeholder="Phone number…"
+                        className="flex-1"
                       />
                     </div>
                   </div>

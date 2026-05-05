@@ -101,6 +101,9 @@ interface CrewMember {
   isShareholder?: boolean
   isMainContact?: boolean
   memberSince?: string
+  memberType?: 'performer' | 'support'
+  isCurrentMember?: boolean
+  dateLeft?: string
 }
 
 interface InvitationData {
@@ -119,6 +122,17 @@ interface InvitationData {
     management?: string[]
     isPublic?: boolean
     isAdmin?: boolean
+    phone?: string
+    phoneCountryCode?: string
+    performerIsni?: string
+    performerIpn?: string
+    creatorIpiCae?: string
+    memberType?: 'performer' | 'support'
+    isShareholder?: boolean
+    isMainContact?: boolean
+    memberSince?: string
+    isCurrentMember?: boolean
+    dateLeft?: string
   }
 }
 
@@ -137,6 +151,17 @@ interface MemberData {
     management?: string[]
     isPublic?: boolean
     isAdmin?: boolean
+    phone?: string
+    phoneCountryCode?: string
+    performerIsni?: string
+    performerIpn?: string
+    creatorIpiCae?: string
+    memberType?: 'performer' | 'support'
+    isShareholder?: boolean
+    isMainContact?: boolean
+    memberSince?: string
+    isCurrentMember?: boolean
+    dateLeft?: string
   }
 }
 
@@ -290,15 +315,41 @@ export function ArtistCrewManager() {
   const [ownerInstrumentPickerResetKey, setOwnerInstrumentPickerResetKey] = useState(0)
   const [ownerInstrumentPickerStartCollapsed, setOwnerInstrumentPickerStartCollapsed] = useState(false)
   const [showAddMember, setShowAddMember] = useState(false)
+  const [newMemberType, setNewMemberType] = useState<'performer' | 'support'>('performer')
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [editingMemberFields, setEditingMemberFields] = useState<{
     firstName: string
     lastName: string
     nickname: string
     phone: string
+    phoneCountryCode: string
+    performerIsni: string
+    performerIpn: string
+    creatorIpiCae: string
+    isShareholder: boolean
+    isMainContact: boolean
+    memberSince: string
+    isCurrentMember: boolean
+    dateLeft: string
     roles: string[]
     instruments3tier: SelectedInstrument[]
-  }>({ firstName: '', lastName: '', nickname: '', phone: '', roles: [], instruments3tier: [] })
+  }>({
+    firstName: '',
+    lastName: '',
+    nickname: '',
+    phone: '',
+    phoneCountryCode: DEFAULT_COUNTRY_DIAL_CODE,
+    performerIsni: '',
+    performerIpn: '',
+    creatorIpiCae: '',
+    isShareholder: false,
+    isMainContact: false,
+    memberSince: '',
+    isCurrentMember: true,
+    dateLeft: '',
+    roles: [],
+    instruments3tier: []
+  })
   const [ownerInstruments3tier, setOwnerInstruments3tier] = useState<SelectedInstrument[]>([])
   const [ownerNicknameError, setOwnerNicknameError] = useState<string | null>(null)
   const [newMemberInstruments, setNewMemberInstruments] = useState<SelectedInstrument[]>([])
@@ -308,12 +359,22 @@ export function ArtistCrewManager() {
     lastName: '',
     nickname: '',
     email: '',
+    phoneCountryCode: DEFAULT_COUNTRY_DIAL_CODE,
     phone: '',
     roles: [],
     isAdmin: false,
+    isShareholder: false,
+    isMainContact: false,
+    isCurrentMember: true,
+    memberSince: '',
+    dateLeft: '',
+    performerIsni: '',
+    performerIpn: '',
+    creatorIpiCae: '',
     status: 'invite'
   })
-  const [newMemberRolePickerOpen, setNewMemberRolePickerOpen] = useState(false)
+  const [newMemberPerformerRolePickerOpen, setNewMemberPerformerRolePickerOpen] = useState(false)
+  const [newMemberSupportRolePickerOpen, setNewMemberSupportRolePickerOpen] = useState(false)
   const [newMemberErrors, setNewMemberErrors] = useState<Partial<Record<'firstName' | 'lastName' | 'email' | 'phone', string>>>({})
   const [newMemberErrorSummary, setNewMemberErrorSummary] = useState<string | null>(null)
   const [notification, setNotification] = useState<{
@@ -618,9 +679,19 @@ export function ArtistCrewManager() {
             firstName: inv.metadata?.firstName || '',
             lastName: inv.metadata?.lastName || '',
             email: inv.email,
-            phone: '',
+            phone: inv.metadata?.phone || '',
+            phoneCountryCode: inv.metadata?.phoneCountryCode || DEFAULT_COUNTRY_DIAL_CODE,
             roles: inv.roles || [],
             isAdmin: inv.metadata?.isAdmin || false,
+            memberType: inv.metadata?.memberType || 'performer',
+            performerIsni: inv.metadata?.performerIsni || '',
+            performerIpn: inv.metadata?.performerIpn || '',
+            creatorIpiCae: inv.metadata?.creatorIpiCae || '',
+            isShareholder: inv.metadata?.isShareholder || false,
+            isMainContact: inv.metadata?.isMainContact || false,
+            memberSince: inv.metadata?.memberSince || '',
+            isCurrentMember: inv.metadata?.isCurrentMember !== false,
+            dateLeft: inv.metadata?.dateLeft || '',
             status: inv.status === 'pending' ? 'invited' : inv.status === 'accepted' ? 'joined' : 'invited',
             dateOfBirth: inv.metadata?.dateOfBirth || '',
             hometown: '',
@@ -638,9 +709,19 @@ export function ArtistCrewManager() {
             firstName: member.metadata?.firstName || '',
             lastName: member.metadata?.lastName || '',
             email: member.email,
-            phone: '',
+            phone: member.metadata?.phone || '',
+            phoneCountryCode: member.metadata?.phoneCountryCode || DEFAULT_COUNTRY_DIAL_CODE,
             roles: member.roles || [],
             isAdmin: member.metadata?.isAdmin || false,
+            memberType: member.metadata?.memberType || 'performer',
+            performerIsni: member.metadata?.performerIsni || '',
+            performerIpn: member.metadata?.performerIpn || '',
+            creatorIpiCae: member.metadata?.creatorIpiCae || '',
+            isShareholder: member.metadata?.isShareholder || false,
+            isMainContact: member.metadata?.isMainContact || false,
+            memberSince: member.metadata?.memberSince || '',
+            isCurrentMember: member.metadata?.isCurrentMember !== false,
+            dateLeft: member.metadata?.dateLeft || '',
             status: 'joined',
             dateOfBirth: member.metadata?.dateOfBirth || '',
             hometown: '',
@@ -721,6 +802,65 @@ export function ArtistCrewManager() {
       ownerInstruments3tier.length > 0
 
     return hasWriterRole || hasPerformerRole
+  }
+
+  const memberHasPerformerOrWriterRole = (roles: string[], instruments: SelectedInstrument[]) => {
+    const roleList = nonInstrumentRoles(roles)
+    const hasWriterRole = roleList.some(role =>
+      role.includes('Songwriter') || role.includes('Lyricist') || role.includes('Composer')
+    )
+    const hasPerformerRole =
+      roleList.some(role => role.includes('Vocals')) ||
+      instruments.length > 0
+
+    return hasWriterRole || hasPerformerRole
+  }
+
+  const resetEditingMemberFields = () => {
+    setEditingMemberFields({
+      firstName: '',
+      lastName: '',
+      nickname: '',
+      phone: '',
+      phoneCountryCode: DEFAULT_COUNTRY_DIAL_CODE,
+      performerIsni: '',
+      performerIpn: '',
+      creatorIpiCae: '',
+      isShareholder: false,
+      isMainContact: false,
+      memberSince: '',
+      isCurrentMember: true,
+      dateLeft: '',
+      roles: [],
+      instruments3tier: []
+    })
+  }
+
+  const resetNewMember = () => {
+    setNewMember({
+      firstName: '',
+      lastName: '',
+      nickname: '',
+      email: '',
+      phoneCountryCode: DEFAULT_COUNTRY_DIAL_CODE,
+      phone: '',
+      roles: [],
+      isAdmin: false,
+      isShareholder: false,
+      isMainContact: false,
+      isCurrentMember: true,
+      memberSince: '',
+      dateLeft: '',
+      performerIsni: '',
+      performerIpn: '',
+      creatorIpiCae: '',
+      status: 'invite'
+    })
+    setNewMemberInstruments([])
+    setNewMemberErrors({})
+    setNewMemberErrorSummary(null)
+    setNewMemberPerformerRolePickerOpen(false)
+    setNewMemberSupportRolePickerOpen(false)
   }
 
   const saveProfileOwner = async () => {
@@ -847,7 +987,7 @@ export function ArtistCrewManager() {
   const startEditingMember = (member: CrewMember) => {
     if (editingMemberId === member.id) {
       setEditingMemberId(null)
-      setEditingMemberFields({ firstName: '', lastName: '', nickname: '', phone: '', roles: [], instruments3tier: [] })
+      resetEditingMemberFields()
     } else {
       setEditingMemberId(member.id)
       setEditingMemberFields({
@@ -855,6 +995,15 @@ export function ArtistCrewManager() {
         lastName: member.lastName ?? '',
         nickname: member.nickname ?? '',
         phone: member.phone ?? '',
+        phoneCountryCode: member.phoneCountryCode ?? DEFAULT_COUNTRY_DIAL_CODE,
+        performerIsni: member.performerIsni ?? '',
+        performerIpn: member.performerIpn ?? '',
+        creatorIpiCae: member.creatorIpiCae ?? '',
+        isShareholder: Boolean(member.isShareholder),
+        isMainContact: Boolean(member.isMainContact),
+        memberSince: member.memberSince ?? '',
+        isCurrentMember: member.isCurrentMember !== false,
+        dateLeft: member.dateLeft ?? '',
         roles: nonInstrumentRoles(member.roles),
         instruments3tier: instrumentRolesFromStrings(member.roles),
       })
@@ -863,7 +1012,7 @@ export function ArtistCrewManager() {
 
   const closeEditingMember = () => {
     setEditingMemberId(null)
-    setEditingMemberFields({ firstName: '', lastName: '', nickname: '', phone: '', roles: [], instruments3tier: [] })
+    resetEditingMemberFields()
   }
 
   const toggleMemberRole = (role: string, category?: RoleCategory) => {
@@ -905,6 +1054,15 @@ export function ArtistCrewManager() {
           lastName: editingMemberFields.lastName.trim() || undefined,
           nickname: editingMemberFields.nickname.trim() || undefined,
           phone: editingMemberFields.phone.trim() || undefined,
+          phoneCountryCode: editingMemberFields.phoneCountryCode || DEFAULT_COUNTRY_DIAL_CODE,
+          performerIsni: editingMemberFields.performerIsni.trim() || undefined,
+          performerIpn: editingMemberFields.performerIpn.trim() || undefined,
+          creatorIpiCae: editingMemberFields.creatorIpiCae.trim() || undefined,
+          isShareholder: editingMemberFields.isShareholder,
+          isMainContact: editingMemberFields.isMainContact && editingMemberFields.isShareholder,
+          memberSince: editingMemberFields.memberSince || undefined,
+          isCurrentMember: editingMemberFields.isCurrentMember,
+          dateLeft: editingMemberFields.isCurrentMember ? undefined : editingMemberFields.dateLeft || undefined,
         })
       })
       const result = await response.json()
@@ -922,6 +1080,15 @@ export function ArtistCrewManager() {
           lastName: editingMemberFields.lastName.trim() || m.lastName,
           nickname: editingMemberFields.nickname.trim() || m.nickname,
           phone: editingMemberFields.phone.trim() || m.phone,
+          phoneCountryCode: editingMemberFields.phoneCountryCode || m.phoneCountryCode,
+          performerIsni: editingMemberFields.performerIsni.trim() || m.performerIsni,
+          performerIpn: editingMemberFields.performerIpn.trim() || m.performerIpn,
+          creatorIpiCae: editingMemberFields.creatorIpiCae.trim() || m.creatorIpiCae,
+          isShareholder: editingMemberFields.isShareholder,
+          isMainContact: editingMemberFields.isMainContact && editingMemberFields.isShareholder,
+          memberSince: editingMemberFields.memberSince || m.memberSince,
+          isCurrentMember: editingMemberFields.isCurrentMember,
+          dateLeft: editingMemberFields.isCurrentMember ? '' : editingMemberFields.dateLeft,
         } : m
       ))
       closeEditingMember()
@@ -934,11 +1101,10 @@ export function ArtistCrewManager() {
     }
   }
 
-  const addNewMember = () => {
+  const addNewMember = (type: 'performer' | 'support') => {
+    setNewMemberType(type)
     setShowAddMember(true)
-    setNewMemberErrorSummary(null)
-    setNewMemberErrors({})
-    setNewMemberRolePickerOpen(false)
+    resetNewMember()
   }
 
   const handleAddMember = async () => {
@@ -947,6 +1113,15 @@ export function ArtistCrewManager() {
     const email = (newMember.email || '').trim()
     const phone = (newMember.phone || '').trim()
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const professionalIds = [
+      newMember.performerIsni,
+      newMember.performerIpn,
+      newMember.creatorIpiCae
+    ].filter(value => typeof value === 'string' && value.trim().length > 0)
+    const combinedRoles = [
+      ...(newMember.roles || []),
+      ...instrumentsToRoleStrings(newMemberInstruments),
+    ]
 
     const nextErrors: Partial<Record<'firstName' | 'lastName' | 'email' | 'phone', string>> = {}
     if (!firstName) nextErrors.firstName = 'First name is required.'
@@ -959,6 +1134,26 @@ export function ArtistCrewManager() {
 
     if (Object.keys(nextErrors).length > 0) {
       setNewMemberErrorSummary('Please complete all required fields: First Name, Last Name, Email, and Phone.')
+      return
+    }
+
+    if (newMemberType === 'performer' && professionalIds.length === 0) {
+      setNewMemberErrorSummary('Please add at least one performer ID: Individual ISNI, Performer IPN, or Writer IPI.')
+      return
+    }
+
+    if (newMember.isShareholder && !memberHasPerformerOrWriterRole(combinedRoles, newMemberInstruments)) {
+      setNewMemberErrorSummary('A shareholder must have at least one performer or writer role selected.')
+      return
+    }
+
+    if (newMember.isMainContact && !newMember.isShareholder) {
+      setNewMemberErrorSummary('The main contact must also be marked as a shareholder.')
+      return
+    }
+
+    if (newMember.isCurrentMember === false && !newMember.dateLeft) {
+      setNewMemberErrorSummary('Please add the date left for a previous member.')
       return
     }
 
@@ -976,12 +1171,19 @@ export function ArtistCrewManager() {
           lastName,
           nickname: newMember.nickname || '',
           email,
+          phoneCountryCode: newMember.phoneCountryCode || DEFAULT_COUNTRY_DIAL_CODE,
           phone,
-          roles: [
-            ...(newMember.roles || []),
-            ...instrumentsToRoleStrings(newMemberInstruments),
-          ],
-          isAdmin: newMember.isAdmin || false
+          roles: combinedRoles,
+          isAdmin: newMember.isAdmin || false,
+          memberType: newMemberType,
+          performerIsni: newMember.performerIsni || '',
+          performerIpn: newMember.performerIpn || '',
+          creatorIpiCae: newMember.creatorIpiCae || '',
+          isShareholder: newMemberType === 'performer' ? Boolean(newMember.isShareholder) : false,
+          isMainContact: newMemberType === 'performer' ? Boolean(newMember.isMainContact && newMember.isShareholder) : false,
+          memberSince: newMember.memberSince || '',
+          isCurrentMember: newMember.isCurrentMember !== false,
+          dateLeft: newMember.isCurrentMember === false ? newMember.dateLeft || '' : ''
         })
       })
 
@@ -1001,12 +1203,19 @@ export function ArtistCrewManager() {
         firstName,
         lastName,
         email,
+        phoneCountryCode: newMember.phoneCountryCode || DEFAULT_COUNTRY_DIAL_CODE,
         phone,
-        roles: [
-          ...(newMember.roles || []),
-          ...instrumentsToRoleStrings(newMemberInstruments),
-        ],
+        roles: combinedRoles,
         isAdmin: newMember.isAdmin || false,
+        memberType: newMemberType,
+        performerIsni: newMember.performerIsni || '',
+        performerIpn: newMember.performerIpn || '',
+        creatorIpiCae: newMember.creatorIpiCae || '',
+        isShareholder: newMemberType === 'performer' ? Boolean(newMember.isShareholder) : false,
+        isMainContact: newMemberType === 'performer' ? Boolean(newMember.isMainContact && newMember.isShareholder) : false,
+        memberSince: newMember.memberSince || '',
+        isCurrentMember: newMember.isCurrentMember !== false,
+        dateLeft: newMember.isCurrentMember === false ? newMember.dateLeft || '' : '',
         status: 'invited',
         dateOfBirth: '',
         hometown: '',
@@ -1017,20 +1226,7 @@ export function ArtistCrewManager() {
       }
 
       setCrewMembers(prev => [...prev, member])
-      setNewMember({
-        firstName: '',
-        lastName: '',
-        nickname: '',
-        email: '',
-        phone: '',
-        roles: [],
-        isAdmin: false,
-        status: 'invite'
-      })
-      setNewMemberErrors({})
-      setNewMemberErrorSummary(null)
-      setNewMemberRolePickerOpen(false)
-      setNewMemberInstruments([])
+      resetNewMember()
       setShowAddMember(false)
 
       if (result.warning) {
@@ -1762,24 +1958,30 @@ export function ArtistCrewManager() {
         </CardContent>
       </Card>
 
-      {/* Add Members & Support Team Section */}
+      {/* Add Performer & Support Crew Section */}
       <Card id="artist-crew-add-members" className="scroll-mt-28">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Add Members & Support Team</span>
+            <span>Add Performer & Support Crew</span>
             {!showAddMember && (
-              <Button onClick={addNewMember} className="bg-purple-600 hover:bg-purple-700">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Member
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => addNewMember('performer')} className="bg-purple-600 hover:bg-purple-700">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Performer
+                </Button>
+                <Button onClick={() => addNewMember('support')} className="bg-blue-700 hover:bg-blue-800">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Support Crew
+                </Button>
+              </div>
             )}
           </CardTitle>
           <p className="text-sm text-gray-600">
-            Every Artist has a team around them, supporting and keeping them organised. This is where you add any &apos;band members&apos; or anyone else you consider part of your &apos;crew&apos;.
+            Add performers separately from support crew so registrations, rights, admin access, and legal member data stay clear.
           </p>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="text-xs text-blue-800">
-              ℹ️ You select whether an Artist Member or Support Team Member is an Admin for this Profile. If you don&apos;t select them as an Admin, they will still be displayed on your Artist Profile once they accept your Invite, but they won&apos;t be able to manage this Artist Profile.
+              ℹ️ Performer records are twinned with Artist Banking &gt; Artist Legal Members. Support crew registrations are optional. Admin rights control whether this person can manage the Artist Profile.
             </p>
           </div>
         </CardHeader>
@@ -1787,15 +1989,22 @@ export function ArtistCrewManager() {
           {showAddMember && (
             <div className="space-y-4 p-4 border-2 border-dashed border-purple-300 rounded-lg bg-purple-50/30">
               <div className="flex items-center justify-between">
-                <h4 className="font-medium text-purple-900">Add New Team Member</h4>
+                <div>
+                  <h4 className="font-medium text-purple-900">
+                    {newMemberType === 'performer' ? 'Add Performer' : 'Add Support Crew'}
+                  </h4>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {newMemberType === 'performer'
+                      ? 'Role + minimum 1 of 3 IDs: Artist Person ISNI, Performer IPN, or Writer IPI.'
+                      : 'Optional IDs: Artist Person ISNI, Performer IPN, or Writer IPI.'}
+                  </p>
+                </div>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => {
                     setShowAddMember(false)
-                    setNewMemberErrors({})
-                    setNewMemberErrorSummary(null)
-                    setNewMemberRolePickerOpen(false)
+                    resetNewMember()
                   }}
                   className="text-purple-700 border-purple-200"
                 >
@@ -1812,7 +2021,7 @@ export function ArtistCrewManager() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-gray-700">
-                    Given/First Name?
+                    {newMemberType === 'performer' ? 'Performer Real Name' : 'Crew Real Name'}
                   </Label>
                   <Input
                     value={newMember.firstName || ''}
@@ -1827,12 +2036,12 @@ export function ArtistCrewManager() {
                     )}
                   />
                   {newMemberErrors.firstName && <p className="text-xs text-red-600">{newMemberErrors.firstName}</p>}
-                  <p className="text-xs text-gray-500">is private by default; they can choose to make this public.</p>
+                  <p className="text-xs text-gray-500">First/Given Name. Private by default; they can choose to make this public.</p>
                 </div>
 
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-gray-700">
-                    Surname/Family Name?
+                    Last/Family Name
                   </Label>
                   <Input
                     value={newMember.lastName || ''}
@@ -1847,12 +2056,12 @@ export function ArtistCrewManager() {
                     )}
                   />
                   {newMemberErrors.lastName && <p className="text-xs text-red-600">{newMemberErrors.lastName}</p>}
-                  <p className="text-xs text-gray-500">is private by default; they can choose to make this public.</p>
+                  <p className="text-xs text-gray-500">Twinned - Public/Private.</p>
                 </div>
 
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-gray-700">
-                    Nickname / Stagename?
+                    Nickname?
                   </Label>
                   <Input
                     value={newMember.nickname || ''}
@@ -1860,12 +2069,12 @@ export function ArtistCrewManager() {
                     placeholder="Nickname / Stagename"
                     className="border-purple-200 focus:border-purple-400"
                   />
-                  <p className="text-xs text-gray-500 italic">is always public & searchable.</p>
+                  <p className="text-xs text-gray-500 italic">Optional. Always public and searchable.</p>
                 </div>
 
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-gray-700">
-                    Their Email?
+                    Contact Details - Email Address
                   </Label>
                   <Input
                     type="email"
@@ -1884,30 +2093,163 @@ export function ArtistCrewManager() {
                   <p className="text-xs text-gray-500">is private. Used to securely match members to Profiles and to invite non-members.</p>
                 </div>
 
+                <div className="space-y-2 md:col-span-2">
+                  <Label className="text-sm font-semibold text-gray-700">
+                    Contact Details - Phone
+                  </Label>
+                  <div className="grid grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)] gap-2">
+                    <Select
+                      value={getDialCodeChoiceValue(newMember.phoneCountryCode)}
+                      onValueChange={(value) => setNewMember(prev => ({ ...prev, phoneCountryCode: getDialCodeFromChoiceValue(value) }))}
+                    >
+                      <SelectTrigger className="border-purple-200 focus:border-purple-400">
+                        <SelectValue placeholder="Country Code" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-64 min-w-[320px]">
+                        {COUNTRY_DIAL_CODE_CHOICES.map(option => (
+                          <SelectItem key={`new-member-phone-${option.value}`} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="tel"
+                      value={newMember.phone || ''}
+                      onChange={(e) => {
+                        setNewMember(prev => ({ ...prev, phone: e.target.value }))
+                        setNewMemberErrors(prev => ({ ...prev, phone: undefined }))
+                      }}
+                      placeholder="Phone number"
+                      className={cn(
+                        "border-purple-200 focus:border-purple-400",
+                        newMemberErrors.phone && "border-red-400 focus:border-red-500"
+                      )}
+                    />
+                  </div>
+                  {newMemberErrors.phone && <p className="text-xs text-red-600">{newMemberErrors.phone}</p>}
+                  <p className="text-xs text-gray-500">Twinned - Private. Used to securely match members to Profiles and invite non-members.</p>
+                </div>
+
+                {newMemberType === 'performer' && (
+                  <>
+                    <div className="space-y-2 rounded-lg border border-purple-200 bg-white p-3">
+                      <Label className="text-sm font-semibold text-gray-700">Shareholder of Artist Entity?</Label>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant={newMember.isShareholder ? 'default' : 'outline'}
+                          className={newMember.isShareholder ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                          onClick={() => setNewMember(prev => ({ ...prev, isShareholder: true }))}
+                        >
+                          Yes
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={!newMember.isShareholder ? 'default' : 'outline'}
+                          className={!newMember.isShareholder ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                          onClick={() => setNewMember(prev => ({ ...prev, isShareholder: false, isMainContact: false }))}
+                        >
+                          No
+                        </Button>
+                      </div>
+                      <p className="text-xs text-gray-500">Must be a performer and/or writer. Twinned.</p>
+                    </div>
+
+                    <div className="space-y-2 rounded-lg border border-purple-200 bg-white p-3">
+                      <Label className="text-sm font-semibold text-gray-700">Main Contact for Artist Entity?</Label>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant={newMember.isMainContact ? 'default' : 'outline'}
+                          className={newMember.isMainContact ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                          onClick={() => setNewMember(prev => ({ ...prev, isMainContact: true, isShareholder: true }))}
+                        >
+                          Yes
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={!newMember.isMainContact ? 'default' : 'outline'}
+                          className={!newMember.isMainContact ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                          onClick={() => setNewMember(prev => ({ ...prev, isMainContact: false }))}
+                        >
+                          No
+                        </Button>
+                      </div>
+                      <p className="text-xs text-gray-500">Only one main contact. Must be a shareholder. Twinned.</p>
+                    </div>
+                  </>
+                )}
+
+                <div className="space-y-3 md:col-span-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                  <Label className="text-sm font-semibold text-blue-900">
+                    {newMemberType === 'performer' ? 'Performer Registrations?' : 'Optional Registrations?'}
+                  </Label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <Input
+                      value={newMember.performerIsni || ''}
+                      onChange={(e) => setNewMember(prev => ({ ...prev, performerIsni: e.target.value }))}
+                      placeholder="Individual ISNI"
+                      className="bg-white border-blue-200 font-mono"
+                    />
+                    <Input
+                      value={newMember.performerIpn || ''}
+                      onChange={(e) => setNewMember(prev => ({ ...prev, performerIpn: e.target.value }))}
+                      placeholder="Performer IPN"
+                      className="bg-white border-blue-200 font-mono"
+                    />
+                    <Input
+                      value={newMember.creatorIpiCae || ''}
+                      onChange={(e) => setNewMember(prev => ({ ...prev, creatorIpiCae: e.target.value }))}
+                      placeholder="Writer IPI"
+                      className="bg-white border-blue-200 font-mono"
+                    />
+                  </div>
+                  <p className="text-xs text-blue-700">
+                    {newMemberType === 'performer'
+                      ? 'At least one ID is required for performers.'
+                      : 'Optional for support crew, useful where they also perform or write.'}
+                  </p>
+                </div>
+
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-gray-700">
-                    Their Phone?
+                    {newMemberType === 'performer' ? 'Member of Artist Since?' : 'Crew Since?'}
                   </Label>
                   <Input
-                    type="tel"
-                    value={newMember.phone || ''}
-                    onChange={(e) => {
-                      setNewMember(prev => ({ ...prev, phone: e.target.value }))
-                      setNewMemberErrors(prev => ({ ...prev, phone: undefined }))
-                    }}
-                    placeholder="Phone number"
-                    className={cn(
-                      "border-purple-200 focus:border-purple-400",
-                      newMemberErrors.phone && "border-red-400 focus:border-red-500"
-                    )}
+                    type="month"
+                    value={newMember.memberSince || ''}
+                    onChange={(e) => setNewMember(prev => ({ ...prev, memberSince: e.target.value }))}
+                    className="border-purple-200 focus:border-purple-400"
                   />
-                  {newMemberErrors.phone && <p className="text-xs text-red-600">{newMemberErrors.phone}</p>}
-                  <p className="text-xs text-gray-500">is private. Used to securely match members to Profiles and to invite non-members.</p>
+                  <p className="text-xs text-gray-500">Date joined, month/year.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold text-gray-700">Status: Current/Previous?</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={newMember.isCurrentMember !== false ? 'default' : 'outline'}
+                      className={newMember.isCurrentMember !== false ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                      onClick={() => setNewMember(prev => ({ ...prev, isCurrentMember: true, dateLeft: '' }))}
+                    >
+                      Is Current {newMemberType === 'performer' ? 'Member' : 'Crew'}
+                    </Button>
+                    <Input
+                      type="month"
+                      value={newMember.dateLeft || ''}
+                      onChange={(e) => setNewMember(prev => ({ ...prev, isCurrentMember: false, dateLeft: e.target.value }))}
+                      className="border-purple-200 focus:border-purple-400"
+                      placeholder="Date left"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">Choose current or add Date Left for previous members.</p>
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
                   <Label className="text-sm font-semibold text-gray-700">
-                    Their Role(s)?
+                    {newMemberType === 'performer' ? 'Performer Roles?' : 'Support Roles?'}
                   </Label>
                   <div className="bg-white border border-purple-200 rounded-lg p-3">
                     <div className="flex flex-wrap gap-2 mb-3">
@@ -1934,11 +2276,12 @@ export function ArtistCrewManager() {
                         <span className="text-sm text-gray-500 italic">No roles selected yet</span>
                       )}
                     </div>
-                    <Collapsible open={newMemberRolePickerOpen} onOpenChange={setNewMemberRolePickerOpen}>
+                    {newMemberType === 'performer' && (
+                      <Collapsible open={newMemberPerformerRolePickerOpen} onOpenChange={setNewMemberPerformerRolePickerOpen}>
                       <CollapsibleTrigger className="w-full" type="button">
                         <div className="flex items-center justify-between p-2.5 rounded-lg bg-purple-50 border border-purple-200 hover:bg-purple-100 transition-colors">
-                          <span className="text-sm font-semibold text-purple-800">+ Add Roles</span>
-                          {newMemberRolePickerOpen ? (
+                          <span className="text-sm font-semibold text-purple-800">+ Add Performer Roles</span>
+                          {newMemberPerformerRolePickerOpen ? (
                             <ChevronUp className="w-4 h-4 text-purple-700" />
                           ) : (
                             <ChevronDown className="w-4 h-4 text-purple-700" />
@@ -1947,7 +2290,7 @@ export function ArtistCrewManager() {
                       </CollapsibleTrigger>
                       <CollapsibleContent className="mt-2">
                         <div className="space-y-2 p-2 bg-purple-50 rounded-lg">
-                          {ROLE_CATEGORIES.map((category) => (
+                          {performerRoleCategories.map((category) => (
                             <div key={category.id}>
                               <p className="text-sm font-semibold text-gray-800 mb-1.5">{category.name}</p>
                               <div className="flex flex-wrap gap-1">
@@ -1977,22 +2320,69 @@ export function ArtistCrewManager() {
                           ))}
                         </div>
                       </CollapsibleContent>
+                      </Collapsible>
+                    )}
+                    <Collapsible open={newMemberSupportRolePickerOpen} onOpenChange={setNewMemberSupportRolePickerOpen}>
+                      <CollapsibleTrigger className="w-full mt-2" type="button">
+                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors">
+                          <span className="text-sm font-semibold text-blue-800">+ Add Support Roles</span>
+                          {newMemberSupportRolePickerOpen ? (
+                            <ChevronUp className="w-4 h-4 text-blue-700" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-blue-700" />
+                          )}
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-2">
+                        <div className="space-y-2 p-2 bg-blue-50 rounded-lg">
+                          {supportRoleCategories.map((category) => (
+                            <div key={category.id}>
+                              <p className="text-sm font-semibold text-gray-800 mb-1.5">{category.name}</p>
+                              <div className="flex flex-wrap gap-1">
+                                {category.items.map((item) => (
+                                  <button
+                                    key={item}
+                                    onClick={() => toggleNewMemberRole(item, category)}
+                                    type="button"
+                                    disabled={(() => {
+                                      const allItem = category.items[0]?.startsWith('All ') ? category.items[0] : null
+                                      const allActive = allItem ? (newMember.roles || []).includes(allItem) : false
+                                      const isAllItem = item === allItem
+                                      return !isAllItem && allActive
+                                    })()}
+                                    className={cn(
+                                      "text-sm px-2.5 py-1 rounded font-medium transition-colors",
+                                      (newMember.roles || []).includes(item)
+                                        ? "bg-blue-700 text-white border border-blue-700"
+                                        : "bg-white border border-gray-300 text-gray-800 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-900"
+                                    )}
+                                  >
+                                    {item}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CollapsibleContent>
                     </Collapsible>
                   </div>
                 </div>
 
                 {/* Instruments (3-tier multi-select) */}
-                <div className="space-y-2 md:col-span-2">
-                  <Label className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
-                    <Guitar className="w-4 h-4 text-purple-600" />
-                    Their Instrument(s)?
-                  </Label>
-                  <InstrumentPicker3Tier
-                    value={newMemberInstruments}
-                    onChange={setNewMemberInstruments}
-                    allowedGroups={['strings', 'wind', 'percussion', 'keyboard', 'electronic']}
-                  />
-                </div>
+                {newMemberType === 'performer' && (
+                  <div className="space-y-2 md:col-span-2">
+                    <Label className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+                      <Guitar className="w-4 h-4 text-purple-600" />
+                      Performer Instruments?
+                    </Label>
+                    <InstrumentPicker3Tier
+                      value={newMemberInstruments}
+                      onChange={setNewMemberInstruments}
+                      allowedGroups={['strings', 'wind', 'percussion', 'keyboard', 'electronic']}
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-gray-700">
@@ -2024,6 +2414,32 @@ export function ArtistCrewManager() {
             {/* Manage Team Section */}
             <div className="space-y-4">
               <h4 className="font-semibold text-sm text-purple-900">Manage Team</h4>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                <div id="artist-crew-view-performers" className="scroll-mt-28 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-purple-800">View Performers</p>
+                  <p className="text-sm text-gray-700">
+                    {crewMembers.filter(member => !member.isProfileOwner && member.memberType !== 'support' && member.isCurrentMember !== false).length} current
+                  </p>
+                </div>
+                <div id="artist-crew-view-support-crew" className="scroll-mt-28 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-blue-800">View Support Crew</p>
+                  <p className="text-sm text-gray-700">
+                    {crewMembers.filter(member => !member.isProfileOwner && member.memberType === 'support' && member.isCurrentMember !== false).length} current
+                  </p>
+                </div>
+                <div id="artist-crew-manage-admins" className="scroll-mt-28 rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-green-800">Manage Admins</p>
+                  <p className="text-sm text-gray-700">
+                    {crewMembers.filter(member => !member.isProfileOwner && member.isAdmin).length} admins
+                  </p>
+                </div>
+                <div id="artist-crew-historic-members" className="scroll-mt-28 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-gray-800">Historic Members</p>
+                  <p className="text-sm text-gray-700">
+                    {crewMembers.filter(member => !member.isProfileOwner && member.isCurrentMember === false).length} previous
+                  </p>
+                </div>
+              </div>
               {crewMembers.filter(member => !member.isProfileOwner).length > 0 && (
                 <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
                   Existing team members and invitations have been loaded from this artist profile.
@@ -2039,6 +2455,30 @@ export function ArtistCrewManager() {
                           <h5 className="font-semibold text-gray-900">
                             {getDisplayName(member)}
                           </h5>
+                          <div className="mt-1 flex flex-wrap gap-2 text-xs">
+                            <Badge variant="secondary" className={member.memberType === 'support' ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-purple-100 text-purple-800 border-purple-200'}>
+                              {member.memberType === 'support' ? 'Support Crew' : 'Performer'}
+                            </Badge>
+                            {member.isCurrentMember === false ? (
+                              <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200">
+                                Previous{member.dateLeft ? ` - left ${member.dateLeft}` : ''}
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+                                Current
+                              </Badge>
+                            )}
+                            {member.isShareholder ? (
+                              <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-200">
+                                Shareholder
+                              </Badge>
+                            ) : null}
+                            {member.isMainContact ? (
+                              <Badge variant="secondary" className="bg-cyan-100 text-cyan-800 border-cyan-200">
+                                Main Contact
+                              </Badge>
+                            ) : null}
+                          </div>
                           <p className="text-sm text-gray-600 mt-1">
                             {member.roles.length > 0 ? member.roles.filter(r => !r.startsWith('instrument:')).join('; ') || 'No roles assigned' : 'No roles assigned'}
                           </p>
@@ -2117,11 +2557,103 @@ export function ArtistCrewManager() {
                               </div>
                               <div className="space-y-1">
                                 <Label className="text-sm font-semibold text-gray-700">Phone</Label>
+                                <div className="grid grid-cols-1 sm:grid-cols-[220px_minmax(0,1fr)] gap-2">
+                                  <Select
+                                    value={getDialCodeChoiceValue(editingMemberFields.phoneCountryCode)}
+                                    onValueChange={(value) => setEditingMemberFields(prev => ({ ...prev, phoneCountryCode: getDialCodeFromChoiceValue(value) }))}
+                                  >
+                                    <SelectTrigger className="border-purple-200 focus:border-purple-400 text-sm">
+                                      <SelectValue placeholder="Country Code" />
+                                    </SelectTrigger>
+                                    <SelectContent className="max-h-64 min-w-[320px]">
+                                      {COUNTRY_DIAL_CODE_CHOICES.map(option => (
+                                        <SelectItem key={`edit-member-phone-${option.value}`} value={option.value}>
+                                          {option.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <Input
+                                    value={editingMemberFields.phone}
+                                    onChange={(e) => setEditingMemberFields(prev => ({ ...prev, phone: e.target.value }))}
+                                    placeholder="Phone number"
+                                    className="border-purple-200 focus:border-purple-400 text-sm"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="space-y-1 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                              <Label className="text-sm font-semibold text-blue-900">Individual ISNI</Label>
+                              <Input
+                                value={editingMemberFields.performerIsni}
+                                onChange={(e) => setEditingMemberFields(prev => ({ ...prev, performerIsni: e.target.value }))}
+                                placeholder="Individual ISNI"
+                                className="bg-white border-blue-200 font-mono text-sm"
+                              />
+                            </div>
+                            <div className="space-y-1 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                              <Label className="text-sm font-semibold text-blue-900">Performer IPN</Label>
+                              <Input
+                                value={editingMemberFields.performerIpn}
+                                onChange={(e) => setEditingMemberFields(prev => ({ ...prev, performerIpn: e.target.value }))}
+                                placeholder="Performer IPN"
+                                className="bg-white border-blue-200 font-mono text-sm"
+                              />
+                            </div>
+                            <div className="space-y-1 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                              <Label className="text-sm font-semibold text-blue-900">Writer IPI</Label>
+                              <Input
+                                value={editingMemberFields.creatorIpiCae}
+                                onChange={(e) => setEditingMemberFields(prev => ({ ...prev, creatorIpiCae: e.target.value }))}
+                                placeholder="Writer IPI"
+                                className="bg-white border-blue-200 font-mono text-sm"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="space-y-2 rounded-lg border border-purple-200 bg-white p-3">
+                              <Label className="text-sm font-semibold text-gray-700">Shareholder?</Label>
+                              <Switch
+                                checked={editingMemberFields.isShareholder}
+                                onCheckedChange={(checked) => setEditingMemberFields(prev => ({
+                                  ...prev,
+                                  isShareholder: checked,
+                                  isMainContact: checked ? prev.isMainContact : false
+                                }))}
+                              />
+                            </div>
+                            <div className="space-y-2 rounded-lg border border-purple-200 bg-white p-3">
+                              <Label className="text-sm font-semibold text-gray-700">Main Contact?</Label>
+                              <Switch
+                                checked={editingMemberFields.isMainContact}
+                                onCheckedChange={(checked) => setEditingMemberFields(prev => ({
+                                  ...prev,
+                                  isMainContact: checked,
+                                  isShareholder: checked ? true : prev.isShareholder
+                                }))}
+                              />
+                            </div>
+                            <div className="space-y-2 rounded-lg border border-purple-200 bg-white p-3">
+                              <Label className="text-sm font-semibold text-gray-700">Status</Label>
+                              <div className="grid grid-cols-1 gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant={editingMemberFields.isCurrentMember ? 'default' : 'outline'}
+                                  className={editingMemberFields.isCurrentMember ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                                  onClick={() => setEditingMemberFields(prev => ({ ...prev, isCurrentMember: true, dateLeft: '' }))}
+                                >
+                                  Current
+                                </Button>
                                 <Input
-                                  value={editingMemberFields.phone}
-                                  onChange={(e) => setEditingMemberFields(prev => ({ ...prev, phone: e.target.value }))}
-                                  placeholder="Phone number"
-                                  className="border-purple-200 focus:border-purple-400 text-sm"
+                                  type="month"
+                                  value={editingMemberFields.dateLeft}
+                                  onChange={(e) => setEditingMemberFields(prev => ({ ...prev, isCurrentMember: false, dateLeft: e.target.value }))}
+                                  className="border-purple-200 text-sm"
                                 />
                               </div>
                             </div>
@@ -2210,11 +2742,11 @@ export function ArtistCrewManager() {
                 </div>
               ) : (
                 !showAddMember && (
-                  <div className="text-center py-8 text-gray-500">
-                    <Users2 className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                    <p>No team members added yet.</p>
-                    <p className="text-sm">Click &quot;Add Member&quot; to invite band members and support staff.</p>
-                  </div>
+	                  <div className="text-center py-8 text-gray-500">
+	                    <Users2 className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+	                    <p>No team members added yet.</p>
+	                    <p className="text-sm">Use &quot;Add Performer&quot; or &quot;Add Support Crew&quot; to invite people into this Artist Crew.</p>
+	                  </div>
                 )
               )}
             </div>

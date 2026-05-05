@@ -344,7 +344,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
       const result = await response.json()
 
       if (result.error) {
-        console.error('Error saving artist profile:', result.error)
+        console.error('Error saving artist profile:', result.error, '| details:', result.details, '| code:', result.code, '| hint:', result.hint)
         setFeedback({ type: 'error', message: isPublished ? 'Publishing failed. Please try again.' : 'Something went wrong while saving. Please try again.' })
         return
       }
@@ -429,74 +429,6 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100">
       <div className="p-6">
-        {artistTypeId && (
-          <div className="mb-4 rounded-lg px-4 py-3 bg-purple-50 border border-purple-200">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-purple-900">
-                  Your Artist Type: {artistTypeNames[artistTypeId] || `Type ${artistTypeId}`}
-                </div>
-                {artistSubTypeLabels.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {artistSubTypeLabels.map(label => (
-                      <span
-                        key={label}
-                        className="inline-block text-xs px-2 py-0.5 rounded-full bg-purple-200 text-purple-900 font-medium"
-                      >
-                        {label}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => router.push('/artist-dashboard?section=type')}
-                  className="bg-[#13b8c7] text-white hover:bg-[#0f9dac]"
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Change Artist Type
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => router.push('/profile-setup')}
-                  className="border-[#13b8c7] text-[#087f8c] hover:bg-cyan-50"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Another Profile
-                </Button>
-                {selectedTypeNarrative.length > 0 && (
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => setShowTypeDescription(prev => !prev)}
-                    aria-label={showTypeDescription ? 'Collapse artist type description' : 'Expand artist type description'}
-                    className="h-9 w-9 text-purple-700 hover:bg-purple-100 hover:text-purple-900"
-                  >
-                    {showTypeDescription ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </Button>
-                )}
-              </div>
-            </div>
-            {selectedTypeNarrative.length > 0 && (
-              <div className="mt-2 rounded-md border border-purple-200 bg-white/70 px-3 py-2">
-                {showTypeDescription && (
-                  <ul className="list-disc space-y-1 px-4 pb-1 text-xs text-purple-800">
-                    {selectedTypeNarrative.map((line) => (
-                      <li key={line}>{line}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
         {feedback && (
           <div
             className={`mb-4 rounded-lg px-4 py-3 text-sm ${feedback.type === 'success'
@@ -509,13 +441,96 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div id="artist-profile-details" className="bg-gray-50 rounded-lg p-4 space-y-4 scroll-mt-28">
-            <div className="mb-2">
-              <h2 className="text-xl font-semibold text-gray-900">Artist Details</h2>
-              <p className="text-sm text-gray-600">Populate and publish your Artist Profile so you can start making money.</p>
-            </div>
 
-            <div className="space-y-2">
+          {/* ── Artist Type ───────────────────────────────────────────── */}
+          <div id="artist-type" className="bg-gray-50 rounded-lg p-4 space-y-4 scroll-mt-28">
+            <h2 className="text-xl font-semibold text-gray-900">Artist Type</h2>
+            {artistTypeId ? (
+              <div className="rounded-lg px-4 py-3 bg-purple-50 border border-purple-200">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-purple-900">
+                      Your Artist Type: {artistTypeNames[artistTypeId] || `Type ${artistTypeId}`}
+                    </div>
+                    {artistSubTypeLabels.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {artistSubTypeLabels.map(label => (
+                          <span
+                            key={label}
+                            className="inline-block text-xs px-2 py-0.5 rounded-full bg-purple-200 text-purple-900 font-medium"
+                          >
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => router.push('/artist-dashboard?section=type')}
+                      className="bg-[#13b8c7] text-white hover:bg-[#0f9dac]"
+                    >
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Change Artist Type
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => router.push('/profile-setup')}
+                      className="border-[#13b8c7] text-[#087f8c] hover:bg-cyan-50"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Another Profile
+                    </Button>
+                    {selectedTypeNarrative.length > 0 && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setShowTypeDescription(prev => !prev)}
+                        aria-label={showTypeDescription ? 'Collapse artist type description' : 'Expand artist type description'}
+                        className="h-9 w-9 text-purple-700 hover:bg-purple-100 hover:text-purple-900"
+                      >
+                        {showTypeDescription ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {selectedTypeNarrative.length > 0 && (
+                  <div className="mt-2 rounded-md border border-purple-200 bg-white/70 px-3 py-2">
+                    {showTypeDescription && (
+                      <ul className="list-disc space-y-1 px-4 pb-1 text-xs text-purple-800">
+                        {selectedTypeNarrative.map((line) => (
+                          <li key={line}>{line}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">
+                No artist type selected.{' '}
+                <button
+                  type="button"
+                  onClick={() => router.push('/artist-dashboard?section=type')}
+                  className="text-purple-600 hover:underline"
+                >
+                  Select your artist type
+                </button>{' '}
+                to unlock more profile options.
+              </p>
+            )}
+          </div>
+
+          {/* ── Artist Basics ─────────────────────────────────────────── */}
+          <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+            <h2 className="text-xl font-semibold text-gray-900">Artist Basics</h2>
+
+            <div id="artist-stage-name" className="space-y-2 scroll-mt-28">
               <label className="block text-sm font-medium text-gray-700">Artist Stage Name</label>
               <p className="text-xs leading-5 text-gray-500">
                 This is the name of your band/group/collective entity or your performing name if this Artist only has 1 member.
@@ -528,7 +543,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
               />
             </div>
 
-            <div className="space-y-2">
+            <div id="artist-entity-isni" className="space-y-2 scroll-mt-28">
               <label className="block text-sm font-medium text-gray-700">Artist Entity ISNI</label>
               <p className="text-xs leading-5 text-gray-500">
                 This is the ISNI for your band/group/collective entity or your performing name if this Artist only has 1 member.
@@ -542,7 +557,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
+              <div id="artist-formed" className="space-y-2 scroll-mt-28">
                 <label className="block text-sm font-medium text-gray-700">Artist Formed (MM/YYYY)</label>
                 <Input
                   type="month"
@@ -552,7 +567,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                 />
               </div>
 
-              <div className="space-y-2">
+              <div id="artist-performers-count" className="space-y-2 scroll-mt-28">
                 <label className="block text-sm font-medium text-gray-700">Number of Performers</label>
                 <div className="relative max-w-xs">
                   <Users className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
@@ -569,7 +584,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div id="artist-hometown" className="space-y-2 scroll-mt-28">
               <label className="block text-sm font-medium text-gray-700">Artist Hometown</label>
               <LocationAutocompleteInput
                 value={formData.base_location}
@@ -589,9 +604,13 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                 </div>
               </div>
             </div>
+          </div>
 
+          {/* ── Optional: Public Gigs Performed ───────────────────────── */}
+          <div id="artist-gig-counter" className="bg-gray-50 rounded-lg p-4 space-y-4 scroll-mt-28">
+            <h2 className="text-xl font-semibold text-gray-900">Public Gigs Performed</h2>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Public Gigs Performed Without Gigrilla (Adds to System Gig Count)</label>
+              <label className="text-sm font-medium text-gray-700">Gigs Performed Without Gigrilla (Adds to System Gig Count)</label>
               <Input
                 type="number"
                 min="0"
@@ -604,7 +623,8 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
             </div>
           </div>
 
-          <div id="artist-profile-social" className="bg-gray-50 rounded-lg p-4 space-y-4 scroll-mt-28">
+          {/* ── Optional: Artist Web Links ────────────────────────────── */}
+          <div id="artist-web-links" className="bg-gray-50 rounded-lg p-4 space-y-4 scroll-mt-28">
             <h2 className="text-xl font-semibold text-gray-900">Artist Web Links</h2>
 
             {/* Website — full width */}

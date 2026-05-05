@@ -266,7 +266,7 @@ export function ArtistRoyaltySplitsManager() {
       {/* Header */}
       <Card id="artist-royalty-overview" className="scroll-mt-28">
         <CardHeader>
-          <CardTitle className="text-purple-900">Default Gig Royalty Splits</CardTitle>
+          <CardTitle className="text-purple-900">Gig Money Splits</CardTitle>
           <p className="text-sm text-gray-600">
             Gig royalties are paid directly to Rights Holders. Now you can set the default Gig Royalty Splits.
           </p>
@@ -275,7 +275,7 @@ export function ArtistRoyaltySplitsManager() {
           </p>
           <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
             <p className="text-sm text-purple-800">
-              <strong>Think of Default Gig Royalty Splits like this:</strong><br/>
+              <strong>Think of Gig Money Splits like this:</strong><br/>
               When you perform a Gig, which members of your Artist team get paid, and what share?
             </p>
           </div>

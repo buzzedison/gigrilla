@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
     nickname,
     email,
     phone,
+    phoneCountryCode,
     role,
     roles,
     dateOfBirth,
@@ -88,7 +89,16 @@ export async function POST(request: NextRequest) {
     displayAge,
     gigRoyaltyShare,
     musicRoyaltyShare,
-    isAdmin
+    isAdmin,
+    memberType,
+    performerIsni,
+    performerIpn,
+    creatorIpiCae,
+    isShareholder,
+    isMainContact,
+    memberSince,
+    isCurrentMember,
+    dateLeft
   } = body ?? {}
 
   if (!email || typeof email !== 'string') {
@@ -108,7 +118,17 @@ export async function POST(request: NextRequest) {
   if (trimmedLast) metadata.lastName = trimmedLast
   if (trimmedNickname) metadata.nickname = trimmedNickname
   if (typeof phone === 'string' && phone.trim().length > 0) metadata.phone = phone.trim()
+  if (typeof phoneCountryCode === 'string' && phoneCountryCode.trim().length > 0) metadata.phoneCountryCode = phoneCountryCode.trim()
   if (dateOfBirth) metadata.dateOfBirth = dateOfBirth
+  if (memberType === 'performer' || memberType === 'support') metadata.memberType = memberType
+  if (typeof performerIsni === 'string' && performerIsni.trim().length > 0) metadata.performerIsni = performerIsni.trim()
+  if (typeof performerIpn === 'string' && performerIpn.trim().length > 0) metadata.performerIpn = performerIpn.trim()
+  if (typeof creatorIpiCae === 'string' && creatorIpiCae.trim().length > 0) metadata.creatorIpiCae = creatorIpiCae.trim()
+  if (isShareholder !== undefined) metadata.isShareholder = !!isShareholder
+  if (isMainContact !== undefined) metadata.isMainContact = !!isMainContact
+  if (typeof memberSince === 'string' && memberSince.trim().length > 0) metadata.memberSince = memberSince.trim()
+  if (isCurrentMember !== undefined) metadata.isCurrentMember = !!isCurrentMember
+  if (typeof dateLeft === 'string' && dateLeft.trim().length > 0) metadata.dateLeft = dateLeft.trim()
   if (incomeShare !== undefined && incomeShare !== null && incomeShare !== '') {
     const numericShare = typeof incomeShare === 'number'
       ? incomeShare
@@ -363,7 +383,26 @@ export async function PUT(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { memberId, gigRoyaltyShare, musicRoyaltyShare, isAdmin, roles } = body ?? {}
+  const {
+    memberId,
+    gigRoyaltyShare,
+    musicRoyaltyShare,
+    isAdmin,
+    roles,
+    firstName,
+    lastName,
+    nickname,
+    phone,
+    phoneCountryCode,
+    performerIsni,
+    performerIpn,
+    creatorIpiCae,
+    isShareholder,
+    isMainContact,
+    memberSince,
+    isCurrentMember,
+    dateLeft
+  } = body ?? {}
 
   if (!memberId || typeof memberId !== 'string') {
     return NextResponse.json({ error: 'Member ID is required' }, { status: 400 })
@@ -404,6 +443,19 @@ export async function PUT(request: NextRequest) {
       if (isAdmin !== undefined) {
         updatedMetadata.isAdmin = !!isAdmin
       }
+      if (typeof firstName === 'string') updatedMetadata.firstName = firstName.trim()
+      if (typeof lastName === 'string') updatedMetadata.lastName = lastName.trim()
+      if (typeof nickname === 'string') updatedMetadata.nickname = nickname.trim()
+      if (typeof phone === 'string') updatedMetadata.phone = phone.trim()
+      if (typeof phoneCountryCode === 'string') updatedMetadata.phoneCountryCode = phoneCountryCode.trim()
+      if (typeof performerIsni === 'string') updatedMetadata.performerIsni = performerIsni.trim()
+      if (typeof performerIpn === 'string') updatedMetadata.performerIpn = performerIpn.trim()
+      if (typeof creatorIpiCae === 'string') updatedMetadata.creatorIpiCae = creatorIpiCae.trim()
+      if (isShareholder !== undefined) updatedMetadata.isShareholder = !!isShareholder
+      if (isMainContact !== undefined) updatedMetadata.isMainContact = !!isMainContact
+      if (typeof memberSince === 'string') updatedMetadata.memberSince = memberSince.trim()
+      if (isCurrentMember !== undefined) updatedMetadata.isCurrentMember = !!isCurrentMember
+      if (typeof dateLeft === 'string') updatedMetadata.dateLeft = dateLeft.trim()
 
       const invitationUpdate: Record<string, unknown> = { metadata: updatedMetadata }
       if (Array.isArray(roles)) {
@@ -460,6 +512,19 @@ export async function PUT(request: NextRequest) {
       if (isAdmin !== undefined) {
         updatedMetadata.isAdmin = !!isAdmin
       }
+      if (typeof firstName === 'string') updatedMetadata.firstName = firstName.trim()
+      if (typeof lastName === 'string') updatedMetadata.lastName = lastName.trim()
+      if (typeof nickname === 'string') updatedMetadata.nickname = nickname.trim()
+      if (typeof phone === 'string') updatedMetadata.phone = phone.trim()
+      if (typeof phoneCountryCode === 'string') updatedMetadata.phoneCountryCode = phoneCountryCode.trim()
+      if (typeof performerIsni === 'string') updatedMetadata.performerIsni = performerIsni.trim()
+      if (typeof performerIpn === 'string') updatedMetadata.performerIpn = performerIpn.trim()
+      if (typeof creatorIpiCae === 'string') updatedMetadata.creatorIpiCae = creatorIpiCae.trim()
+      if (isShareholder !== undefined) updatedMetadata.isShareholder = !!isShareholder
+      if (isMainContact !== undefined) updatedMetadata.isMainContact = !!isMainContact
+      if (typeof memberSince === 'string') updatedMetadata.memberSince = memberSince.trim()
+      if (isCurrentMember !== undefined) updatedMetadata.isCurrentMember = !!isCurrentMember
+      if (typeof dateLeft === 'string') updatedMetadata.dateLeft = dateLeft.trim()
 
       const activeUpdate: Record<string, unknown> = { metadata: updatedMetadata, updated_at: new Date().toISOString() }
       if (Array.isArray(roles)) {

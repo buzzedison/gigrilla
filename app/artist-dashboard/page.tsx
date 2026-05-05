@@ -28,11 +28,12 @@ import { ArtistInboxManager } from "./components/ArtistInboxManager"
 import { ArtistSettingsManager } from "./components/ArtistSettingsManager"
 import { Badge } from "../components/ui/badge"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/sheet"
-import { Music, Info, Menu, AlertCircle, ArrowRight, CalendarDays, Disc3, FolderKanban, Inbox, LayoutDashboard, BarChart3, Search, Bell, MapPin, Clock3, Radio, ChevronDown, ChevronUp, PlayCircle } from "lucide-react"
+import { Music, Info, Menu, AlertCircle, ArrowRight, CalendarDays, Disc3, FolderKanban, Inbox, LayoutDashboard, BarChart3, Search, Bell, MapPin, Clock3, Radio, ChevronDown, ChevronUp, PlayCircle, CheckCircle2 } from "lucide-react"
 import { getArtistTypeConfig, ArtistTypeCapabilities } from "../../data/artist-types"
 import { normalizeArtistSubTypeSelections } from "../../lib/artist-subtype-utils"
 
 const DESKTOP_SIDEBAR_COLLAPSED_KEY = 'gigrilla-artist-dashboard-sidebar-collapsed:v1'
+const ONBOARDING_DISMISSED_KEY = 'gigrilla-artist-onboarding-dismissed:v1'
 
 interface ArtistProfileResponse {
   data: {
@@ -41,12 +42,37 @@ interface ArtistProfileResponse {
     preferred_genre_ids?: string[] | null
     onboarding_completed?: boolean | null
     stage_name?: string | null
+    company_name?: string | null
+    location_details?: Record<string, unknown> | null
+    contact_details?: Record<string, unknown> | null
     gigs_performed?: number | null
     facebook_url?: string | null
     instagram_url?: string | null
     x_url?: string | null
     youtube_url?: string | null
   } | null
+}
+
+const getRecordString = (record: unknown, key: string) => {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) return ''
+  const value = (record as Record<string, unknown>)[key]
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+const resolveArtistDashboardName = (
+  profile: NonNullable<ArtistProfileResponse['data']>,
+  userMetadata?: Record<string, unknown>
+) => {
+  return (
+    profile.stage_name?.trim() ||
+    getRecordString(profile.location_details, 'artistStageName') ||
+    getRecordString(profile.location_details, 'artist_stage_name') ||
+    getRecordString(profile.location_details, 'stageName') ||
+    profile.company_name?.trim() ||
+    getRecordString(userMetadata, 'artistStageName') ||
+    getRecordString(userMetadata, 'stage_name') ||
+    'Artist'
+  )
 }
 
 type HomeGigSnapshot = {
@@ -190,6 +216,10 @@ export default function ArtistDashboard() {
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [missingArtistSubtype, setMissingArtistSubtype] = useState(false)
   const [isHomeOnboardingOpen, setIsHomeOnboardingOpen] = useState(true)
+  const [isOnboardingPermanentlyDismissed, setIsOnboardingPermanentlyDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem(ONBOARDING_DISMISSED_KEY) === 'true'
+  })
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.localStorage.getItem(DESKTOP_SIDEBAR_COLLAPSED_KEY) === 'true'
@@ -250,7 +280,7 @@ export default function ArtistDashboard() {
 
         // Set onboarding completed status
         setOnboardingCompleted(result.data.onboarding_completed ?? false)
-        setArtistHomeName(result.data.stage_name?.trim() || 'Artist')
+        setArtistHomeName(resolveArtistDashboardName(result.data, user.user_metadata))
         setHomeStats((prev) => ({
           ...prev,
           manualGigsPerformed: typeof result.data?.gigs_performed === 'number' ? result.data.gigs_performed : null,
@@ -507,6 +537,11 @@ export default function ArtistDashboard() {
       return
     }
     replaceDashboardQuery(section, { subSection })
+    // Scroll to matching element if it exists (used by profile field sub-links)
+    setTimeout(() => {
+      const el = document.getElementById(subSection)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 120)
   }
 
   const handleArtistTypeChange = async (selection: ArtistTypeSelection) => {
@@ -858,11 +893,72 @@ export default function ArtistDashboard() {
           ? nextGigSnapshot.eventType.replace(/[-_]/g, ' ')
           : 'Gig type TBC'
 
+        const handleOnboardingCollapse = () => {
+          if (completionPercent === 100) {
+            // Permanently dismiss when fully complete
+            localStorage.setItem(ONBOARDING_DISMISSED_KEY, 'true')
+            setIsOnboardingPermanentlyDismissed(true)
+          } else {
+            setIsHomeOnboardingOpen((prev) => !prev)
+          }
+        }
+
         return (
           <div className="space-y-7">
+            {/* Hidden data loader */}
             <div className="hidden">
               <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
             </div>
+
+            {/* Progress tracker — top of page, gone permanently once 100% + dismissed */}
+            {!isOnboardingPermanentlyDismissed && (
+              <div className="rounded-[1.75rem] border border-[#f0cade]/35 bg-[linear-gradient(180deg,_rgba(246,232,250,0.96),_rgba(242,223,247,0.93))] p-5 shadow-[0_18px_44px_rgba(28,10,46,0.18)]">
+                <button
+                  type="button"
+                  onClick={handleOnboardingCollapse}
+                  className="flex w-full items-center justify-between gap-4 text-left"
+                >
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7690]">Onboarding &amp; Setup</div>
+                    <div className="mt-1 text-2xl font-black tracking-tight text-[#171d34]">Profile progress and next actions</div>
+                    {completionPercent < 100 && (
+                      <p className="mt-2 text-sm leading-6 text-[#4c5971]">
+                        Keep this open while you are still completing setup, then collapse it when you want a cleaner dashboard.
+                      </p>
+                    )}
+                  </div>
+                  <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-white/45 bg-white/40 px-4 py-2 text-sm font-semibold text-[#3d4f6a] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
+                    {completionPercent === 100
+                      ? <>All done <CheckCircle2 className="h-4 w-4 text-green-500" /> Dismiss</>
+                      : isHomeOnboardingOpen
+                        ? <>Collapse <ChevronUp className="h-4 w-4" /></>
+                        : <>Expand <ChevronDown className="h-4 w-4" /></>
+                    }
+                  </div>
+                </button>
+
+                {isHomeOnboardingOpen && (
+                  <div className="mt-5 rounded-[1.5rem] border border-white/45 bg-[linear-gradient(180deg,_rgba(253,249,254,0.82),_rgba(248,241,251,0.78))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div>
+                        <div className="text-sm font-semibold text-[#171d34]">Your profile is {completionPercent}% complete</div>
+                        <div className="mt-1 text-sm text-[#55627a]">{completedItems} of {totalItems} setup items completed</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => router.push('/signup?onboarding=artist')}
+                        className="rounded-full bg-[#3b1b4d] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#30163f]"
+                      >
+                        Continue setup
+                      </button>
+                    </div>
+                    <div className="mt-4 h-3 rounded-full bg-[#d6dceb]">
+                      <div className="h-full rounded-full bg-gradient-to-r from-[#7c3aed] via-[#ec4899] to-[#34d399]" style={{ width: `${completionPercent}%` }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid gap-7 2xl:grid-cols-[minmax(0,1fr)_29rem]">
               <div className="space-y-7">
@@ -1127,46 +1223,6 @@ export default function ArtistDashboard() {
               ))}
             </div>
 
-            <div className="rounded-[1.75rem] border border-[#f0cade]/35 bg-[linear-gradient(180deg,_rgba(246,232,250,0.96),_rgba(242,223,247,0.93))] p-5 shadow-[0_18px_44px_rgba(28,10,46,0.18)]">
-              <button
-                type="button"
-                onClick={() => setIsHomeOnboardingOpen((prev) => !prev)}
-                className="flex w-full items-center justify-between gap-4 text-left"
-              >
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b7690]">Onboarding & Setup</div>
-                  <div className="mt-1 text-2xl font-black tracking-tight text-[#171d34]">Profile progress and next actions</div>
-                  <p className="mt-2 text-sm leading-6 text-[#4c5971]">
-                    Keep this open while you are still completing setup, then collapse it when you want a cleaner dashboard landing screen.
-                  </p>
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/45 bg-white/40 px-4 py-2 text-sm font-semibold text-[#3d4f6a] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
-                  {isHomeOnboardingOpen ? 'Collapse' : 'Expand'}
-                  {isHomeOnboardingOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </div>
-              </button>
-
-              {isHomeOnboardingOpen && (
-                <div className="mt-5 rounded-[1.5rem] border border-white/45 bg-[linear-gradient(180deg,_rgba(253,249,254,0.82),_rgba(248,241,251,0.78))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
-                  <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div>
-                      <div className="text-sm font-semibold text-[#171d34]">Your profile is {completionPercent}% complete</div>
-                      <div className="mt-1 text-sm text-[#55627a]">{completedItems} of {totalItems} setup items completed</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleSectionChange('profile')}
-                      className="rounded-full bg-[#3b1b4d] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#30163f]"
-                    >
-                      Continue setup
-                    </button>
-                  </div>
-                  <div className="mt-4 h-3 rounded-full bg-[#d6dceb]">
-                    <div className="h-full rounded-full bg-gradient-to-r from-[#7c3aed] via-[#ec4899] to-[#34d399]" style={{ width: `${completionPercent}%` }} />
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         )
       }
@@ -1410,14 +1466,19 @@ export default function ArtistDashboard() {
       }
       default:
         return renderWithCompletion(
-          <ArtistProfileForm onProfileSaved={() => setCompletionRefreshKey(prev => prev + 1)} />
+          <div className="space-y-6">
+            <ArtistProfileForm onProfileSaved={() => setCompletionRefreshKey(prev => prev + 1)} />
+            <ArtistGenresManager />
+            <ArtistContractStatusManager />
+            <ArtistBiographyManager />
+          </div>
         )
     }
   }
 
   const headerTitleMap: Record<DashboardSection, string> = {
     home: 'Artist Home',
-    profile: 'Artist Dashboard',
+    profile: 'Artist Basics',
     contract: 'Contract Status',
     payments: 'Artist Payments',
     crew: 'Artist Crew',
@@ -1426,7 +1487,7 @@ export default function ArtistDashboard() {
     photos: 'Artist Photos',
     videos: 'Artist Videos',
     type: 'Artist Type & Configuration',
-    royalty: 'Default Gig Royalty Splits',
+    royalty: 'Gig Money Splits',
     gigability: 'Artist Gig-Ability',
     'gig-bookings': 'Gig Bookings',
     'gig-reporting': 'Gig Reporting',

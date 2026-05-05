@@ -132,7 +132,7 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
     { id: 'genres', label: 'Artist Genre(s)', required: true, section: 'genres' },
     { id: 'payments', label: 'Artist Payments', section: 'payments' },
     { id: 'crew', label: 'Artist Crew', section: 'crew' },
-    { id: 'royalty_splits', label: 'Default Gig Royalty Splits', section: 'royalty' },
+    { id: 'royalty_splits', label: 'Gig Money Splits', section: 'royalty' },
     { id: 'gig_ability', label: 'Artist Gig-Ability', section: 'gigability' },
     { id: 'bio', label: 'Artist Biography', section: 'bio' },
     { id: 'record_label', label: 'Record Label', section: 'contract' },
@@ -192,9 +192,9 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
       )
     )
 
-    const isSignedStatus = (value?: string | null) => value === 'signed'
+    const isSignedStatus = (value?: string | null) => value === 'signed' || value === 'signed_admin'
     const isContractStatusSet = (value?: string | null) => {
-      return ['signed', 'unsigned_seeking', 'independent', 'seeking', 'self_managed'].includes(value ?? '')
+      return ['signed', 'signed_admin', 'unsigned_seeking', 'independent', 'seeking', 'self_managed'].includes(value ?? '')
     }
     const isContractItemComplete = (status?: string | null, name?: string | null) => {
       if (!isContractStatusSet(status)) return false

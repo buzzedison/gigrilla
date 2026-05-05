@@ -2776,8 +2776,8 @@ export function SignUpWizard() {
             stepCompleted = true;
           } catch (error) {
             console.error('Error saving artist profile:', error);
-            // Allow progression even if save fails
-            stepCompleted = true;
+            setRegistrationError('We had trouble saving your artist profile. Please try again.');
+            stepCompleted = false;
           }
           break;
         }
@@ -6352,13 +6352,14 @@ export function SignUpWizard() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="signed">Signed to Publisher</SelectItem>
+                    <SelectItem value="signed_admin">Signed to Admin Publisher</SelectItem>
                     <SelectItem value="independent">Self-Publishing: Independent</SelectItem>
                     <SelectItem value="seeking">Seeking Publisher</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               
-              {artistProfile.musicPublisherStatus === "signed" && (
+              {["signed", "signed_admin"].includes(artistProfile.musicPublisherStatus) && (
                 <div className="space-y-4 pl-4 border-l-2 border-border/40">
                   <p className="text-xs text-foreground/60 italic">
                     ℹ️ If your Music Publisher is already on Gigrilla they&apos;ll show-up as you start to type. If not, just finish typing their full Publisher company name below to help us invite and match them to you.
@@ -7415,12 +7416,14 @@ export function SignUpWizard() {
                     }
                   } catch (error) {
                     console.error('Error saving artist profile:', error);
-                    // Continue to redirect even if save fails
+                    setRegistrationError('We had trouble saving your artist profile. Please try again.');
+                    setIsProcessingStep(false);
+                    return;
                   }
                 }
-                
+
                 setIsProcessingStep(false);
-                
+
                 // Redirect to appropriate dashboard
                 let target = "/control-panel";
                 if (accountChoice === "guest") {

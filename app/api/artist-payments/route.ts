@@ -13,6 +13,30 @@ const toPaymentMethod = (value: unknown): 'direct_debit' | 'card' | null => {
   return null
 }
 
+const toEntityType = (value: unknown) => {
+  if (
+    value === 'Incorporated Company' ||
+    value === 'Incorporated Partnership' ||
+    value === 'Sole Trader' ||
+    value === 'Partnership'
+  ) {
+    return value
+  }
+  return null
+}
+
+const getRecordString = (record: unknown, key: string, fallback = '') => {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) return fallback
+  const value = (record as Record<string, unknown>)[key]
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback
+}
+
+const getRecordBoolean = (record: unknown, key: string, fallback = false) => {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) return fallback
+  const value = (record as Record<string, unknown>)[key]
+  return typeof value === 'boolean' ? value : fallback
+}
+
 async function ensureUserRecord(
   supabase: ReturnType<typeof createServerClient>,
   user: { id: string; email?: string | null; user_metadata?: Record<string, unknown> }
@@ -124,6 +148,18 @@ export async function GET() {
       })
     }
 
+    const { data: artistProfile } = await supabase
+      .from('user_profiles')
+      .select('id, stage_name, artist_entity_isni, artist_primary_roles, location_details, contact_details, performer_isni, creator_ipi_cae, created_at')
+      .eq('id', profileId)
+      .maybeSingle()
+
+    const { data: legalMembers } = await supabase
+      .from('artist_members_active')
+      .select('id, invitation_id, name, email, roles, metadata, joined_at')
+      .eq('artist_profile_id', profileId)
+      .order('joined_at', { ascending: true })
+
     const { data: paymentData, error: paymentError } = await supabase
       .from('artist_payment_details')
       .select('*')
@@ -138,8 +174,41 @@ export async function GET() {
       }, { status: 500 })
     }
 
+    const locationDetails = artistProfile?.location_details
+    const contactDetails = artistProfile?.contact_details
+    const ownerFirstName = getRecordString(locationDetails, 'artist_owner_first_name', (user.user_metadata?.first_name as string | undefined) ?? '')
+    const ownerLastName = getRecordString(locationDetails, 'artist_owner_last_name', (user.user_metadata?.last_name as string | undefined) ?? '')
+    const ownerNickname = getRecordString(locationDetails, 'artist_owner_nickname')
+    const ownerEmail = getRecordString(locationDetails, 'artist_owner_email', user.email || getRecordString(contactDetails, 'email'))
+
+    const ownerLegalMember = {
+      id: `${profileId}-profile-owner`,
+      invitation_id: null,
+      name: [ownerFirstName, ownerNickname ? `"${ownerNickname}"` : '', ownerLastName].filter(Boolean).join(' ').trim() || artistProfile?.stage_name || user.email || 'Profile Owner',
+      email: ownerEmail,
+      roles: Array.isArray(artistProfile?.artist_primary_roles) ? artistProfile.artist_primary_roles : [],
+      metadata: {
+        firstName: ownerFirstName,
+        lastName: ownerLastName,
+        nickname: ownerNickname,
+        memberType: 'performer',
+        performerIsni: artistProfile?.performer_isni || '',
+        performerIpn: getRecordString(locationDetails, 'artist_owner_performer_ipn'),
+        creatorIpiCae: artistProfile?.creator_ipi_cae || '',
+        isShareholder: getRecordBoolean(locationDetails, 'artist_owner_is_shareholder', false),
+        isMainContact: getRecordBoolean(locationDetails, 'artist_owner_is_main_contact', false),
+        memberSince: getRecordString(locationDetails, 'artist_owner_member_since'),
+        isCurrentMember: true,
+        dateLeft: '',
+        isAdmin: true
+      },
+      joined_at: artistProfile?.created_at ?? null
+    }
+
     return NextResponse.json({
-      data: paymentData || null
+      data: paymentData || null,
+      artistProfile: artistProfile || null,
+      legalMembers: [ownerLegalMember, ...(legalMembers || [])]
     })
 
   } catch (error) {
@@ -218,6 +287,24 @@ export async function POST(request: NextRequest) {
 
     const updateData = {
       artist_profile_id: profileId,
+      official_ids_acknowledged: !!body.official_ids_acknowledged,
+      payment_flows_acknowledged: !!body.payment_flows_acknowledged,
+      entity_type: toEntityType(body.entity_type),
+      artist_entity_legal_name: toNullableString(body.artist_entity_legal_name),
+      main_contact_first_name: toNullableString(body.main_contact_first_name),
+      main_contact_last_name: toNullableString(body.main_contact_last_name),
+      main_contact_phone_country_code: toNullableString(body.main_contact_phone_country_code),
+      main_contact_phone: toNullableString(body.main_contact_phone),
+      main_contact_email: toNullableString(body.main_contact_email),
+      country_of_incorporation: toNullableString(body.country_of_incorporation),
+      country_of_tax_residence: toNullableString(body.country_of_tax_residence),
+      generic_tax_id: toNullableString(body.generic_tax_id),
+      individual_tax_id: toNullableString(body.individual_tax_id),
+      business_tax_id: toNullableString(body.business_tax_id),
+      vat_gst_sst_id: toNullableString(body.vat_gst_sst_id),
+      company_registration_number: toNullableString(body.company_registration_number),
+      company_formation_date: toNullableString(body.company_formation_date),
+      legal_entity_date_of_birth: toNullableString(body.legal_entity_date_of_birth),
       use_fan_banking: useFanBanking,
       payment_out_method: paymentOutMethod,
       payment_out_bank_name: toNullableString(body.payment_out_bank_name),
