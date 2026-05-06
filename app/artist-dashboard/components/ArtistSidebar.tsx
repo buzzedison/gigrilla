@@ -52,6 +52,7 @@ import {
   ListChecks,
   Users,
   Bell,
+  ShoppingBag,
 } from "lucide-react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "../../../lib/auth-context"
@@ -160,10 +161,11 @@ type SidebarGroup = {
   items: SidebarNode[]
 }
 
-const GROUP_IDS = ['controlPanel', 'artistProfile', 'gigMenu', 'musicMenu', 'messageMenu'] as const
+const GROUP_IDS = ['controlPanel', 'artistProfile', 'gigMenu', 'musicMenu', 'merchMenu', 'messageMenu'] as const
 const ITEM_IDS = [
   'artist-basics',
   'artist-crew',
+  'artist-money-splits',
   'artist-banking',
   'artist-media',
   'auditions-collabs',
@@ -186,6 +188,7 @@ function buildDefaultGroupState(isDesktop: boolean) {
     artistProfile: isDesktop,
     gigMenu: false,
     musicMenu: false,
+    merchMenu: false,
     messageMenu: false,
   }
 }
@@ -327,7 +330,17 @@ export function ArtistSidebar({
           { id: 'historic-members', label: 'Historic Members', section: 'crew', subSection: 'historic-members' },
         ]
       },
-      { id: 'artist-gig-money-splits', label: 'Gig Money Splits', icon: CircleDollarSign, section: 'royalty', subSection: 'splits' },
+      {
+        id: 'artist-money-splits',
+        label: 'Money Splits',
+        icon: CircleDollarSign,
+        section: 'royalty',
+        subSection: 'splits',
+        children: [
+          { id: 'artist-gig-money-splits', label: 'Gig Money Splits', section: 'royalty', subSection: 'splits' },
+          { id: 'artist-merch-money-splits', label: 'Merch Money Splits', section: 'royalty', subSection: 'merch-splits' },
+        ]
+      },
       {
         id: 'artist-banking',
         label: 'Artist Banking',
@@ -497,6 +510,16 @@ export function ArtistSidebar({
       },
     ]
 
+    const merchItems: SidebarNode[] = [
+      {
+        id: 'merch-money-splits',
+        label: 'Merch Money Splits',
+        icon: ShoppingBag,
+        section: 'royalty',
+        subSection: 'merch-splits',
+      },
+    ]
+
     const messageItems: SidebarNode[] = [
       {
         id: 'message-negotiations',
@@ -541,7 +564,8 @@ export function ArtistSidebar({
       { id: 'artistProfile', label: 'Artist Profile Menu', items: artistProfileItems },
       { id: 'gigMenu', label: 'Gig Menu', items: gigItems },
       { id: 'musicMenu', label: 'Music Menu', items: musicItems },
-      { id: 'messageMenu', label: 'Message Menu', items: messageItems },
+      { id: 'merchMenu', label: 'Merch Menu', items: merchItems },
+      { id: 'messageMenu', label: 'Messages Menu', items: messageItems },
     ]
   }, [colourMode, unreadMessages])
 
@@ -593,7 +617,9 @@ export function ArtistSidebar({
       messages: 'messageMenu',
     }
 
-    const targetGroup = sectionGroupMap[activeSection]
+    const targetGroup = activeSection === 'royalty' && activeSubSection === 'merch-splits'
+      ? 'merchMenu'
+      : sectionGroupMap[activeSection]
     if (targetGroup) {
       setExpandedGroups((prev) => (prev[targetGroup] ? prev : { ...prev, [targetGroup]: true }))
     }

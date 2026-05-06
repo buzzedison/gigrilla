@@ -88,6 +88,7 @@ export async function POST(request: NextRequest) {
     incomeShare,
     displayAge,
     gigRoyaltyShare,
+    merchRoyaltyShare,
     musicRoyaltyShare,
     isAdmin,
     memberType,
@@ -146,6 +147,14 @@ export async function POST(request: NextRequest) {
       : parseFloat(String(gigRoyaltyShare))
     if (!Number.isNaN(numericGigShare)) {
       metadata.gigRoyaltyShare = numericGigShare
+    }
+  }
+  if (merchRoyaltyShare !== undefined && merchRoyaltyShare !== null && merchRoyaltyShare !== '') {
+    const numericMerchShare = typeof merchRoyaltyShare === 'number'
+      ? merchRoyaltyShare
+      : parseFloat(String(merchRoyaltyShare))
+    if (!Number.isNaN(numericMerchShare)) {
+      metadata.merchRoyaltyShare = numericMerchShare
     }
   }
   if (musicRoyaltyShare !== undefined && musicRoyaltyShare !== null && musicRoyaltyShare !== '') {
@@ -386,6 +395,7 @@ export async function PUT(request: NextRequest) {
   const {
     memberId,
     gigRoyaltyShare,
+    merchRoyaltyShare,
     musicRoyaltyShare,
     isAdmin,
     roles,
@@ -428,6 +438,15 @@ export async function PUT(request: NextRequest) {
           : parseFloat(String(gigRoyaltyShare))
         if (!Number.isNaN(numericGigShare)) {
           updatedMetadata.gigRoyaltyShare = numericGigShare
+        }
+      }
+
+      if (merchRoyaltyShare !== undefined) {
+        const numericMerchShare = typeof merchRoyaltyShare === 'number'
+          ? merchRoyaltyShare
+          : parseFloat(String(merchRoyaltyShare))
+        if (!Number.isNaN(numericMerchShare)) {
+          updatedMetadata.merchRoyaltyShare = numericMerchShare
         }
       }
       
@@ -497,6 +516,15 @@ export async function PUT(request: NextRequest) {
           : parseFloat(String(gigRoyaltyShare))
         if (!Number.isNaN(numericGigShare)) {
           updatedMetadata.gigRoyaltyShare = numericGigShare
+        }
+      }
+
+      if (merchRoyaltyShare !== undefined) {
+        const numericMerchShare = typeof merchRoyaltyShare === 'number'
+          ? merchRoyaltyShare
+          : parseFloat(String(merchRoyaltyShare))
+        if (!Number.isNaN(numericMerchShare)) {
+          updatedMetadata.merchRoyaltyShare = numericMerchShare
         }
       }
       

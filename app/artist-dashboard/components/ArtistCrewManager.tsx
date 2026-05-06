@@ -304,6 +304,103 @@ const ROLE_CATEGORIES: RoleCategory[] = [
   }
 ]
 
+interface RoleSelectionRule {
+  parentRole: string
+  dependentRoles: string[]
+  includeDependentsWithParent: boolean
+}
+
+function getRoleSelectionRule(category?: RoleCategory): RoleSelectionRule | null {
+  if (!category) return null
+
+  if (category.id === 'songwriting') {
+    const [parentRole, ...dependentRoles] = category.items
+    return {
+      parentRole,
+      dependentRoles,
+      includeDependentsWithParent: true
+    }
+  }
+
+  const allItem = category.items[0]?.startsWith('All ') ? category.items[0] : null
+  if (!allItem) return null
+
+  return {
+    parentRole: allItem,
+    dependentRoles: category.items.slice(1),
+    includeDependentsWithParent: false
+  }
+}
+
+function dedupeRoles(roles: string[]) {
+  return Array.from(new Set(roles))
+}
+
+function sortCategoryRoles(roles: string[], category: RoleCategory) {
+  const categoryRoles = category.items.filter(item => roles.includes(item))
+  const otherRoles = roles.filter(role => !category.items.includes(role))
+  return [...otherRoles, ...categoryRoles]
+}
+
+function toggleCategoryRole(roles: string[], role: string, category?: RoleCategory) {
+  const cat = category ?? ROLE_CATEGORIES.find(c => c.items.includes(role))
+  const rule = getRoleSelectionRule(cat)
+  const roleIsSelected = roles.includes(role)
+  let nextRoles = [...roles]
+
+  if (!rule) {
+    nextRoles = roleIsSelected
+      ? nextRoles.filter(currentRole => currentRole !== role)
+      : [...nextRoles, role]
+    return dedupeRoles(nextRoles)
+  }
+
+  const isParentRole = role === rule.parentRole
+  const isDependentRole = rule.dependentRoles.includes(role)
+
+  if (roleIsSelected) {
+    if (isParentRole) {
+      nextRoles = nextRoles.filter(currentRole =>
+        currentRole !== rule.parentRole &&
+        (!rule.includeDependentsWithParent || !rule.dependentRoles.includes(currentRole))
+      )
+    } else {
+      nextRoles = nextRoles.filter(currentRole => currentRole !== role)
+      if (isDependentRole && rule.includeDependentsWithParent) {
+        nextRoles = nextRoles.filter(currentRole => currentRole !== rule.parentRole)
+      }
+    }
+  } else if (isParentRole) {
+    nextRoles = nextRoles.filter(currentRole =>
+      currentRole !== rule.parentRole && !rule.dependentRoles.includes(currentRole)
+    )
+    nextRoles.push(rule.parentRole)
+    if (rule.includeDependentsWithParent) {
+      nextRoles.push(...rule.dependentRoles)
+    }
+  } else if (isDependentRole) {
+    nextRoles = nextRoles.filter(currentRole => currentRole !== rule.parentRole)
+    nextRoles.push(role)
+
+    if (
+      rule.includeDependentsWithParent &&
+      rule.dependentRoles.every(dependentRole => dependentRole === role || nextRoles.includes(dependentRole))
+    ) {
+      nextRoles.push(rule.parentRole)
+    }
+  } else {
+    nextRoles.push(role)
+  }
+
+  const dedupedRoles = dedupeRoles(nextRoles)
+  return cat ? sortCategoryRoles(dedupedRoles, cat) : dedupedRoles
+}
+
+function isDependentRoleDisabled(roles: string[], item: string, category: RoleCategory) {
+  const rule = getRoleSelectionRule(category)
+  return Boolean(rule && item !== rule.parentRole && rule.dependentRoles.includes(item) && roles.includes(rule.parentRole))
+}
+
 export function ArtistCrewManager() {
   const { user } = useAuth()
   const [crewMembers, setCrewMembers] = useState<CrewMember[]>([])
@@ -955,29 +1052,9 @@ export function ArtistCrewManager() {
   const toggleRole = (role: string, category?: RoleCategory) => {
     if (!profileOwner) return
 
-    const cat = category ?? ROLE_CATEGORIES.find(c => c.items.includes(role))
-    const allItem = cat?.items[0]?.startsWith('All ') ? cat.items[0] : null
-
-    let currentRoles = [...profileOwner.roles]
-    const index = currentRoles.indexOf(role)
-
-    if (index > -1) {
-      // Turning OFF
-      currentRoles.splice(index, 1)
-    } else {
-      // Turning ON
-      if (allItem && role === allItem) {
-        // "All X" turned on → remove all individual siblings so they can't co-exist
-        const siblings = cat!.items.slice(1)
-        currentRoles = currentRoles.filter(r => !siblings.includes(r))
-      } else if (allItem && currentRoles.includes(allItem)) {
-        // Individual item turned on while "All X" is active → deactivate "All X" first
-        currentRoles = currentRoles.filter(r => r !== allItem)
-      }
-      currentRoles.push(role)
-    }
-
-    updateProfileOwner({ roles: currentRoles })
+    updateProfileOwner({
+      roles: toggleCategoryRole(profileOwner.roles, role, category)
+    })
   }
 
   const isRoleSelected = (role: string) => {
@@ -1016,25 +1093,11 @@ export function ArtistCrewManager() {
   }
 
   const toggleMemberRole = (role: string, category?: RoleCategory) => {
-    const cat = category ?? ROLE_CATEGORIES.find(c => c.items.includes(role))
-    const allItem = cat?.items[0]?.startsWith('All ') ? cat.items[0] : null
-
     setEditingMemberFields(prev => {
-      let roles = [...prev.roles]
-      const index = roles.indexOf(role)
-
-      if (index > -1) {
-        roles.splice(index, 1)
-      } else {
-        if (allItem && role === allItem) {
-          const siblings = cat!.items.slice(1)
-          roles = roles.filter(r => !siblings.includes(r))
-        } else if (allItem && roles.includes(allItem)) {
-          roles = roles.filter(r => r !== allItem)
-        }
-        roles.push(role)
+      return {
+        ...prev,
+        roles: toggleCategoryRole(prev.roles, role, category)
       }
-      return { ...prev, roles }
     })
   }
 
@@ -1327,25 +1390,11 @@ export function ArtistCrewManager() {
   }
 
   const toggleNewMemberRole = (role: string, category: RoleCategory) => {
-    const allItem = category.items[0]?.startsWith('All ') ? category.items[0] : null
-
     setNewMember(prev => {
-      let roles = [...(prev.roles || [])]
-      const index = roles.indexOf(role)
-
-      if (index > -1) {
-        roles.splice(index, 1)
-      } else {
-        if (allItem && role === allItem) {
-          const siblings = category.items.slice(1)
-          roles = roles.filter(r => !siblings.includes(r))
-        } else if (allItem && roles.includes(allItem)) {
-          roles = roles.filter(r => r !== allItem)
-        }
-        roles.push(role)
+      return {
+        ...prev,
+        roles: toggleCategoryRole(prev.roles || [], role, category)
       }
-
-      return { ...prev, roles }
     })
   }
 
@@ -1377,11 +1426,8 @@ export function ArtistCrewManager() {
       <CollapsibleContent className="space-y-2 mt-2">
         <div className="p-3 rounded-lg bg-purple-50 border border-purple-200">
           {(() => {
-            const allItem = category.items[0]?.startsWith('All ') ? category.items[0] : null
-            const allActive = allItem ? isRoleSelected(allItem) : false
             return category.items.map((item) => {
-              const isAllItem = item === allItem
-              const isDisabled = !isAllItem && allActive
+              const isDisabled = profileOwner ? isDependentRoleDisabled(profileOwner.roles, item, category) : false
               return (
                 <div key={item} className={`flex items-center gap-2 py-1 ${isDisabled ? 'opacity-40' : ''}`}>
                   <Switch
@@ -1697,7 +1743,7 @@ export function ArtistCrewManager() {
                             type="button"
                             className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
                           >
-                            Get an ISNI
+                            Get an ISNI <ExternalLink className="w-3 h-3" />
                           </button>
                         }
                       />
@@ -1708,7 +1754,7 @@ export function ArtistCrewManager() {
                             type="button"
                             className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
                           >
-                            Find an ISNI
+                            Find an ISNI <ExternalLink className="w-3 h-3" />
                           </button>
                         }
                       />
@@ -1812,7 +1858,7 @@ export function ArtistCrewManager() {
                   <Input
                     value={profileOwner.performerIpn || ''}
                     onChange={(e) => updateProfileOwner({ performerIpn: e.target.value })}
-                    placeholder="Start Typing Performer IPN..."
+                    placeholder="Start Typing Performer IPN…"
                     className="bg-white font-mono border-blue-200"
                   />
                 </div>
@@ -1836,7 +1882,7 @@ export function ArtistCrewManager() {
                             )}
                           </Label>
                           <p className="text-xs text-blue-700 mt-1">
-                            <strong>For Songwriters, Lyricists, and Composers:</strong> Creator IPI/CAE is optional unless you write lyrics/composition.
+                            For Songwriters, Lyricists, and Composers: Creator IPI/CAE is optional unless you write lyrics/composition.
                           </p>
                         </div>
                         <div className="flex gap-2 flex-shrink-0">
@@ -2264,7 +2310,7 @@ export function ArtistCrewManager() {
                             <button
                               onClick={() => setNewMember(prev => ({
                                 ...prev,
-                                roles: (prev.roles || []).filter(r => r !== role)
+                                roles: toggleCategoryRole(prev.roles || [], role)
                               }))}
                               className="ml-1 hover:text-purple-900"
                             >
@@ -2299,14 +2345,9 @@ export function ArtistCrewManager() {
                                     key={item}
                                     onClick={() => toggleNewMemberRole(item, category)}
                                     type="button"
-                                    disabled={(() => {
-                                      const allItem = category.items[0]?.startsWith('All ') ? category.items[0] : null
-                                      const allActive = allItem ? (newMember.roles || []).includes(allItem) : false
-                                      const isAllItem = item === allItem
-                                      return !isAllItem && allActive
-                                    })()}
+                                    disabled={isDependentRoleDisabled(newMember.roles || [], item, category)}
                                     className={cn(
-                                      "text-sm px-2.5 py-1 rounded font-medium transition-colors",
+                                      "text-sm px-2.5 py-1 rounded font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
                                       (newMember.roles || []).includes(item)
                                         ? "bg-purple-600 text-white border border-purple-600"
                                         : "bg-white border border-gray-300 text-gray-800 hover:border-purple-400 hover:bg-purple-50 hover:text-purple-900"
@@ -2344,14 +2385,9 @@ export function ArtistCrewManager() {
                                     key={item}
                                     onClick={() => toggleNewMemberRole(item, category)}
                                     type="button"
-                                    disabled={(() => {
-                                      const allItem = category.items[0]?.startsWith('All ') ? category.items[0] : null
-                                      const allActive = allItem ? (newMember.roles || []).includes(allItem) : false
-                                      const isAllItem = item === allItem
-                                      return !isAllItem && allActive
-                                    })()}
+                                    disabled={isDependentRoleDisabled(newMember.roles || [], item, category)}
                                     className={cn(
-                                      "text-sm px-2.5 py-1 rounded font-medium transition-colors",
+                                      "text-sm px-2.5 py-1 rounded font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
                                       (newMember.roles || []).includes(item)
                                         ? "bg-blue-700 text-white border border-blue-700"
                                         : "bg-white border border-gray-300 text-gray-800 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-900"
@@ -2664,8 +2700,6 @@ export function ArtistCrewManager() {
                             <p className="text-base font-semibold text-gray-900 mb-2">Roles & Skills</p>
                             <div className="space-y-2">
                               {ROLE_CATEGORIES.map((category) => {
-                                const allItem = category.items[0]?.startsWith('All ') ? category.items[0] : null
-                                const allActive = allItem ? editingMemberFields.roles.includes(allItem) : false
                                 return (
                                   <Collapsible key={category.id}>
                                     <CollapsibleTrigger className="w-full">
@@ -2680,8 +2714,7 @@ export function ArtistCrewManager() {
                                     <CollapsibleContent>
                                       <div className="mt-1 p-3 rounded-lg bg-purple-50 border border-purple-100 space-y-1">
                                         {category.items.map((item) => {
-                                          const isAllItem = item === allItem
-                                          const isDisabled = !isAllItem && allActive
+                                          const isDisabled = isDependentRoleDisabled(editingMemberFields.roles, item, category)
                                           return (
                                             <div key={item} className={`flex items-center gap-2 py-0.5 ${isDisabled ? 'opacity-40' : ''}`}>
                                               <Switch

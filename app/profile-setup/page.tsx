@@ -7,54 +7,55 @@ import { Button } from "../components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../components/ui/card";
 import { ArrowLeft, Music, Building2, Briefcase, Users, Palette, ShoppingBag } from "lucide-react";
 import Link from "next/link";
+import { cn } from "../../lib/utils";
 
 const profileTypes = [
   {
     id: 'artist',
-    title: 'Artist Account',
-    description: 'Create and manage your music, gigs, and fanbase',
+    title: 'Music Artist Profile',
+    description: 'Unlock tools for releases, gigs, royalties, and crew collaboration.',
     icon: Music,
-    color: 'from-purple-600 to-pink-600',
+    accentClass: 'bg-primary/10 text-primary',
     path: '/artist-setup'
   },
   {
     id: 'venue',
-    title: 'Venue Account',
-    description: 'List your venue, manage bookings, and host events',
+    title: 'Music Venue Profile',
+    description: 'Manage bookings, publish availability, and sell tickets.',
     icon: Building2,
-    color: 'from-blue-600 to-cyan-600',
+    accentClass: 'bg-secondary/10 text-secondary',
     path: '/venue-setup'
   },
   {
     id: 'music-service',
-    title: 'Music Service',
-    description: 'Offer production, mixing, or music-related services',
+    title: 'Music Service Profile',
+    description: 'Promote services, accept bookings, and join new projects.',
     icon: Briefcase,
-    color: 'from-green-600 to-emerald-600',
+    accentClass: 'bg-emerald-100 text-emerald-700',
     path: '/music-service-setup'
   },
   {
     id: 'industry-pro',
-    title: 'Industry Professional',
-    description: 'Manager, agent, or music industry specialist',
+    title: 'Music Industry Pro Profile',
+    description: 'Host webinars, mentor talent, and grow your professional network.',
     icon: Users,
-    color: 'from-orange-600 to-red-600',
+    accentClass: 'bg-orange-100 text-orange-700',
     path: '/industry-pro-setup'
   },
   {
     id: 'creative',
-    title: 'Creative Professional',
-    description: 'Designer, photographer, or other creative services',
+    title: 'Creative Professional Profile',
+    description: 'Offer design, photography, media, or other creative services.',
     icon: Palette,
-    color: 'from-indigo-600 to-purple-600',
+    accentClass: 'bg-indigo-100 text-indigo-700',
     path: '/creative-setup'
   },
   {
     id: 'merchant',
-    title: 'Merchandise Seller',
-    description: 'Sell merchandise, tickets, or music-related products',
+    title: 'Merchandise Seller Profile',
+    description: 'Sell merchandise, tickets, and music-related products.',
     icon: ShoppingBag,
-    color: 'from-teal-600 to-green-600',
+    accentClass: 'bg-teal-100 text-teal-700',
     path: '/merchant-setup'
   }
 ];
@@ -63,7 +64,6 @@ export default function ProfileSetupPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [hasArtistProfile, setHasArtistProfile] = useState<boolean | null>(null);
-  const [creatingProfile, setCreatingProfile] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -104,124 +104,162 @@ export default function ProfileSetupPage() {
     checkArtistProfile();
   }, [user]);
 
+  const handleProfileAction = (profile: typeof profileTypes[number]) => {
+    console.log('ProfileSetup: Button clicked for profile:', profile.id);
+    console.log('ProfileSetup: hasArtistProfile state:', hasArtistProfile);
+
+    if (profile.id === 'artist') {
+      if (hasArtistProfile) {
+        console.log('ProfileSetup: User has artist profile, navigating to dashboard');
+        router.push('/artist-dashboard?section=home');
+      } else {
+        console.log('ProfileSetup: User has no artist profile, starting onboarding...');
+        router.push('/signup?onboarding=artist');
+      }
+      return;
+    }
+
+    if (profile.id === 'venue') {
+      console.log('ProfileSetup: Starting venue onboarding...');
+      router.push('/signup?onboarding=venue');
+      return;
+    }
+
+    if (profile.id === 'music-service') {
+      console.log('ProfileSetup: Starting service onboarding...');
+      router.push('/signup?onboarding=service');
+      return;
+    }
+
+    if (profile.id === 'industry-pro') {
+      console.log('ProfileSetup: Starting pro onboarding...');
+      router.push('/signup?onboarding=pro');
+      return;
+    }
+
+    console.log('ProfileSetup: Navigating to setup page for:', profile.id);
+    router.push(profile.path);
+  };
+
+  const getProfileCta = (profile: typeof profileTypes[number]) => {
+    if (profile.id === 'artist' && hasArtistProfile === null) return 'Checking...';
+    if (profile.id === 'artist' && hasArtistProfile === true) return 'Go to Artist Dashboard';
+    return `Create ${profile.title}`;
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#4a2c5a] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+      <div className="flex min-h-screen items-center justify-center bg-background px-6 py-16 text-center">
+        <div className="space-y-4">
+          <p className="uppercase tracking-[0.35em] text-[0.7rem] text-foreground-alt/70">
+            Loading Profile Options
+          </p>
+          <div className="flex flex-col items-center gap-3">
+            <div className="size-12 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-sm text-foreground/70">Preparing your profile switcher...</p>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#4a2c5a] p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <Link
-            href="/fan-dashboard"
-            className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Dashboard
-          </Link>
-          <h1 className="text-3xl font-bold text-white mb-2">Switch Profile</h1>
-          <p className="text-gray-300">
-            Create additional profiles for different roles in the music industry.
-            You can switch between your profiles at any time.
+    <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-10 bg-background px-6 py-12 sm:px-10 sm:py-16">
+      <header className="space-y-5 text-center sm:text-left">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="uppercase tracking-[0.35em] text-[0.7rem] text-foreground-alt/70">
+            Profile Switcher
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Link
+              href="/fan-dashboard"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-foreground transition hover:border-primary/50 hover:text-primary"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to FAN Dashboard
+            </Link>
+            <Link
+              href="/artist-dashboard?section=home"
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-foreground transition hover:border-primary/50 hover:text-primary"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to ARTIST Dashboard
+            </Link>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <h1 className="text-3xl font-bold text-foreground sm:text-4xl">Switch Profile</h1>
+          <p className="max-w-3xl text-sm text-foreground/75">
+            Create and manage your different Gigrilla profile types. Your fan profile stays active,
+            and artist users can jump straight back into the current Artist Dashboard.
           </p>
         </div>
+      </header>
 
-        {/* Profile Types Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <section className="space-y-6 rounded-3xl border border-border/50 bg-white/80 p-6 shadow-sm backdrop-blur">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">Choose a profile type</h2>
+            <p className="text-sm text-foreground/70">
+              Switch to an existing dashboard or start onboarding for another account type.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {profileTypes.map((profile) => {
             const IconComponent = profile.icon;
             return (
-              <Card key={profile.id} className="bg-white/10 border-purple-500/20 hover:bg-white/15 transition-all duration-200 cursor-pointer group">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-12 h-12 rounded-lg bg-gradient-to-r ${profile.color} flex items-center justify-center`}>
-                      <IconComponent className="w-6 h-6 text-white" />
+              <Card
+                key={profile.id}
+                className="group border border-border/60 bg-card transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg"
+              >
+                <CardHeader className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className={cn("flex size-11 shrink-0 items-center justify-center rounded-full", profile.accentClass)}>
+                      <IconComponent className="w-5 h-5" />
                     </div>
-                    <div>
-                      <CardTitle className="text-white text-lg group-hover:text-purple-200 transition-colors">
+                    <div className="min-w-0">
+                      <CardTitle className="text-lg text-foreground transition group-hover:text-primary">
                         {profile.title}
                       </CardTitle>
+                      <CardDescription className="mt-2 text-sm text-foreground/75">
+                        {profile.description}
+                      </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <CardDescription className="text-gray-300 mb-4">
-                    {profile.description}
-                  </CardDescription>
+                <CardContent className="pt-0">
                   <Button
-                    className={`w-full bg-gradient-to-r ${profile.color} hover:opacity-90 text-white`}
-                    disabled={(profile.id === 'artist' && hasArtistProfile === null) || creatingProfile === profile.id}
-                    onClick={async () => {
-                      console.log('ProfileSetup: Button clicked for profile:', profile.id);
-                      console.log('ProfileSetup: hasArtistProfile state:', hasArtistProfile);
-
-                      if (profile.id === 'artist') {
-                        if (hasArtistProfile) {
-                          console.log('ProfileSetup: User has artist profile, navigating to dashboard');
-                          // User has artist profile, go to dashboard
-                          router.push('/artist-dashboard');
-                        } else {
-                          console.log('ProfileSetup: User has no artist profile, starting onboarding...');
-                          // Redirect to signup wizard with artist onboarding
-                          router.push('/signup?onboarding=artist');
-                        }
-                      } else if (profile.id === 'venue') {
-                        console.log('ProfileSetup: Starting venue onboarding...');
-                        router.push('/signup?onboarding=venue');
-                      } else if (profile.id === 'music-service') {
-                        console.log('ProfileSetup: Starting service onboarding...');
-                        router.push('/signup?onboarding=service');
-                      } else if (profile.id === 'industry-pro') {
-                        console.log('ProfileSetup: Starting pro onboarding...');
-                        router.push('/signup?onboarding=pro');
-                      } else {
-                        console.log('ProfileSetup: Navigating to setup page for:', profile.id);
-                        // For other profile types not yet in onboarding, go to their setup page
-                        router.push(profile.path);
-                      }
-                    }}
+                    className="w-full rounded-full bg-primary px-5 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-primary-foreground hover:bg-primary/90 disabled:bg-primary/40 disabled:text-primary-foreground/60"
+                    disabled={profile.id === 'artist' && hasArtistProfile === null}
+                    onClick={() => handleProfileAction(profile)}
                   >
-                    {creatingProfile === profile.id
-                      ? 'Creating Profile...'
-                      : profile.id === 'artist' && hasArtistProfile === null
-                      ? 'Checking...'
-                      : profile.id === 'artist' && hasArtistProfile === true
-                      ? 'Go to Artist Dashboard'
-                      : `Create ${profile.title}`
-                    }
+                    {getProfileCta(profile)}
                   </Button>
                 </CardContent>
               </Card>
             );
           })}
         </div>
+      </section>
 
-        {/* Information */}
-        <div className="mt-12 bg-white/5 border border-purple-500/20 rounded-lg p-6">
-          <h3 className="text-white text-lg font-semibold mb-3">About Switching Profiles</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-gray-300">
-            <div>
-              <h4 className="text-purple-300 font-medium mb-2">Multiple Profiles</h4>
-              <p className="text-sm">
-                You can create and manage multiple profile types. Each profile has its own
-                dashboard, settings, and functionality tailored to that role.
-              </p>
-            </div>
-            <div>
-              <h4 className="text-purple-300 font-medium mb-2">Easy Switching</h4>
-              <p className="text-sm">
-                Use this page to switch between your different profiles or create new ones.
-                Your fan profile will always remain active.
-              </p>
-            </div>
+      <section className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+        <div className="grid gap-4 text-sm text-foreground/75 md:grid-cols-2">
+          <div>
+            <h3 className="mb-1 text-base font-bold text-foreground">Multiple Profiles</h3>
+            <p>
+              Each profile has its own dashboard, settings, and tools for that role.
+            </p>
+          </div>
+          <div>
+            <h3 className="mb-1 text-base font-bold text-foreground">Easy Switching</h3>
+            <p>
+              Use the dashboard buttons above to move directly between your fan and artist workspaces.
+            </p>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

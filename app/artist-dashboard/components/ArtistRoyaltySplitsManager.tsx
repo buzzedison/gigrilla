@@ -17,6 +17,7 @@ interface TeamMember {
   roles: string[]
   status: 'joined' | 'invited' | 'invite'
   gigRoyaltyShare?: number
+  merchRoyaltyShare?: number
   isProfileOwner?: boolean
 }
 
@@ -31,6 +32,7 @@ interface InvitationResponse {
     lastName?: string
     email?: string
     gigRoyaltyShare?: number
+    merchRoyaltyShare?: number
   }
   roles?: string[]
 }
@@ -45,9 +47,12 @@ interface MemberResponse {
     lastName?: string
     email?: string
     gigRoyaltyShare?: number
+    merchRoyaltyShare?: number
   }
   roles?: string[]
 }
+
+type SplitType = 'gig' | 'merch'
 
 export function ArtistRoyaltySplitsManager() {
   const { user } = useAuth()
@@ -80,10 +85,17 @@ export function ArtistRoyaltySplitsManager() {
         const pricing = locationDetails.gig_pricing && typeof locationDetails.gig_pricing === 'object' && !Array.isArray(locationDetails.gig_pricing)
           ? locationDetails.gig_pricing as Record<string, unknown>
           : {}
+        const merchPricing = locationDetails.merch_pricing && typeof locationDetails.merch_pricing === 'object' && !Array.isArray(locationDetails.merch_pricing)
+          ? locationDetails.merch_pricing as Record<string, unknown>
+          : {}
         const ownerShareRaw = pricing.owner_gig_royalty_share
         const ownerShare = typeof ownerShareRaw === 'number'
           ? ownerShareRaw
           : Number.parseFloat(String(ownerShareRaw ?? '0'))
+        const ownerMerchShareRaw = merchPricing.owner_merch_royalty_share
+        const ownerMerchShare = typeof ownerMerchShareRaw === 'number'
+          ? ownerMerchShareRaw
+          : Number.parseFloat(String(ownerMerchShareRaw ?? '0'))
 
         ownerMember = {
           id: `owner:${profileId || user?.id || 'self'}`,
@@ -95,6 +107,7 @@ export function ArtistRoyaltySplitsManager() {
           roles: ['Artist Profile Owner'],
           status: 'joined',
           gigRoyaltyShare: Number.isFinite(ownerShare) ? ownerShare : 0,
+          merchRoyaltyShare: Number.isFinite(ownerMerchShare) ? ownerMerchShare : 0,
           isProfileOwner: true
         }
       }
@@ -117,7 +130,8 @@ export function ArtistRoyaltySplitsManager() {
               email: inv.email || inv.metadata?.email || '',
               roles: inv.roles || [],
               status: inv.status === 'pending' ? 'invited' : inv.status === 'accepted' ? 'joined' : 'invited',
-              gigRoyaltyShare: inv.metadata?.gigRoyaltyShare || 0
+              gigRoyaltyShare: inv.metadata?.gigRoyaltyShare || 0,
+              merchRoyaltyShare: inv.metadata?.merchRoyaltyShare || 0
             })
           })
         }
@@ -134,7 +148,8 @@ export function ArtistRoyaltySplitsManager() {
               email: member.email || member.metadata?.email || '',
               roles: member.roles || [],
               status: 'joined',
-              gigRoyaltyShare: member.metadata?.gigRoyaltyShare || 0
+              gigRoyaltyShare: member.metadata?.gigRoyaltyShare || 0,
+              merchRoyaltyShare: member.metadata?.merchRoyaltyShare || 0
             })
           })
         }
@@ -154,9 +169,19 @@ export function ArtistRoyaltySplitsManager() {
     return teamMembers.reduce((total, member) => total + (member.gigRoyaltyShare || 0), 0)
   }
 
+  const calculateTotalMerchRoyalties = () => {
+    return teamMembers.reduce((total, member) => total + (member.merchRoyaltyShare || 0), 0)
+  }
+
   const updateMemberGigRoyalty = (id: string, share: number) => {
     setTeamMembers(prev => prev.map(member =>
       member.id === id ? { ...member, gigRoyaltyShare: share } : member
+    ))
+  }
+
+  const updateMemberMerchRoyalty = (id: string, share: number) => {
+    setTeamMembers(prev => prev.map(member =>
+      member.id === id ? { ...member, merchRoyaltyShare: share } : member
     ))
   }
 
@@ -172,11 +197,14 @@ export function ArtistRoyaltySplitsManager() {
     }
   }
 
-  const saveRoyaltySplits = async () => {
+  const saveMoneySplits = async (splitType: SplitType) => {
+    const isGig = splitType === 'gig'
+    const label = isGig ? 'Gig' : 'Merch'
+    const total = isGig ? calculateTotalGigRoyalties() : calculateTotalMerchRoyalties()
+
     try {
-      const total = calculateTotalGigRoyalties()
       if (Math.abs(total - 100) > 0.01) {
-        alert(`Gig royalty splits must add up to 100%. Current total is ${total.toFixed(2)}%.`)
+        alert(`${label} money splits must add up to 100%. Current total is ${total.toFixed(2)}%.`)
         return
       }
 
@@ -191,6 +219,9 @@ export function ArtistRoyaltySplitsManager() {
           const pricing = locationDetails.gig_pricing && typeof locationDetails.gig_pricing === 'object' && !Array.isArray(locationDetails.gig_pricing)
             ? locationDetails.gig_pricing as Record<string, unknown>
             : {}
+          const merchPricing = locationDetails.merch_pricing && typeof locationDetails.merch_pricing === 'object' && !Array.isArray(locationDetails.merch_pricing)
+            ? locationDetails.merch_pricing as Record<string, unknown>
+            : {}
 
           const ownerUpdate = await fetch('/api/artist-profile', {
             method: 'POST',
@@ -200,17 +231,26 @@ export function ArtistRoyaltySplitsManager() {
             body: JSON.stringify({
               location_details: {
                 ...locationDetails,
-                gig_pricing: {
-                  ...pricing,
-                  owner_gig_royalty_share: member.gigRoyaltyShare || 0
-                }
+                ...(isGig
+                  ? {
+                      gig_pricing: {
+                        ...pricing,
+                        owner_gig_royalty_share: member.gigRoyaltyShare || 0
+                      }
+                    }
+                  : {
+                      merch_pricing: {
+                        ...merchPricing,
+                        owner_merch_royalty_share: member.merchRoyaltyShare || 0
+                      }
+                    })
               }
             })
           })
 
           if (!ownerUpdate.ok) {
             const ownerError = await ownerUpdate.json().catch(() => ({}))
-            throw new Error(ownerError.error || 'Failed to save profile owner royalty share')
+            throw new Error(ownerError.error || `Failed to save profile owner ${label.toLowerCase()} money share`)
           }
 
           return { success: true }
@@ -223,24 +263,26 @@ export function ArtistRoyaltySplitsManager() {
           },
           body: JSON.stringify({
             memberId: member.id,
-            gigRoyaltyShare: member.gigRoyaltyShare || 0
+            ...(isGig
+              ? { gigRoyaltyShare: member.gigRoyaltyShare || 0 }
+              : { merchRoyaltyShare: member.merchRoyaltyShare || 0 })
           })
         })
 
         if (!response.ok) {
           const error = await response.json()
-          throw new Error(error.error || 'Failed to save gig royalty splits')
+          throw new Error(error.error || `Failed to save ${label.toLowerCase()} money splits`)
         }
 
         return response.json()
       })
 
       await Promise.all(savePromises)
-      window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source: 'royalty' } }))
-      alert('Gig royalty splits saved successfully!')
+      window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source: `royalty-${splitType}` } }))
+      alert(`${label} money splits saved successfully!`)
     } catch (error) {
-      console.error('Error saving gig royalty splits:', error)
-      alert('Failed to save gig royalty splits. Please try again.')
+      console.error(`Error saving ${splitType} money splits:`, error)
+      alert(`Failed to save ${label.toLowerCase()} money splits. Please try again.`)
     }
   }
 
@@ -266,47 +308,47 @@ export function ArtistRoyaltySplitsManager() {
       {/* Header */}
       <Card id="artist-royalty-overview" className="scroll-mt-28">
         <CardHeader>
-          <CardTitle className="text-purple-900">Gig Money Splits</CardTitle>
+          <CardTitle className="text-purple-900">Money Splits</CardTitle>
           <p className="text-sm text-gray-600">
-            Gig royalties are paid directly to Rights Holders. Now you can set the default Gig Royalty Splits.
+            Set the default split of Artist income for gigs and merch. These defaults can use different people and percentages.
           </p>
           <p className="text-sm text-gray-600">
-            Ignore other Rights Holders here - this is purely for the Artist-share of Gig Royalties, and how that is divided among Artist Members (and your Artist Support Team, if they get a share).
+            Ignore other Rights Holders here - this is purely for the Artist-share of income, and how that is divided among Artist Members (and your Artist Support Team, if they get a share).
           </p>
           <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
             <p className="text-sm text-purple-800">
-              <strong>Think of Gig Money Splits like this:</strong><br/>
-              When you perform a Gig, which members of your Artist team get paid, and what share?
+              <strong>Think of Money Splits like this:</strong><br/>
+              When Gigrilla pays Artist income out, which members of your Artist team get paid, and what share?
             </p>
           </div>
           <div className="mt-3 space-y-2">
             <div className="flex items-center gap-2 text-xs text-blue-700">
               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <span>ℹ️ Gig Royalty Splits can be adjusted on an individual gig basis from your Control Panel later.</span>
+              <span>ℹ️ Gig Money Splits can be adjusted on an individual gig basis from your Control Panel later.</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-blue-700">
               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <span>ℹ️ Individual Members will be paid their share of Gig Royalties directly via Gigrilla.</span>
+              <span>ℹ️ Merch Money Splits can use a different set of people and percentages from Gig Money Splits.</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-blue-700">
               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <span>ℹ️ All Gig Royalties owed to the Artist&apos;s members must add-up to 100%.</span>
+              <span>ℹ️ Each split section must add up to 100% before it can be saved.</span>
             </div>
           </div>
         </CardHeader>
       </Card>
 
-      {/* Gig Royalty Splits */}
+      {/* Gig Money Splits */}
       <Card id="artist-royalty-splits" className="scroll-mt-28">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <h4 className="font-semibold text-purple-900">Team Members Gig Royalty Splits</h4>
+            <h4 className="font-semibold text-purple-900">Gig Money Splits</h4>
             <div className="flex items-center gap-4 text-sm">
               <span className="text-green-700 font-medium">
-                [[{calculateTotalGigRoyalties().toFixed(2)}%]] = Total % Share of Default Artist Gig Royalty Splits Assigned
+                [[{calculateTotalGigRoyalties().toFixed(2)}%]] = Total % Share of Default Artist Gig Money Splits Assigned
               </span>
               <span className="text-orange-700 font-medium">
-                [{(100 - calculateTotalGigRoyalties()).toFixed(2)}%] = Total % Share of Default Artist Gig Royalty Splits Remaining
+                [{(100 - calculateTotalGigRoyalties()).toFixed(2)}%] = Total % Share of Default Artist Gig Money Splits Remaining
               </span>
             </div>
           </div>
@@ -333,7 +375,7 @@ export function ArtistRoyaltySplitsManager() {
                     </div>
                     <div className="flex items-center gap-3">
                       <Label className="text-sm font-medium text-purple-700">
-                        Default % Share of Royalties =
+                        Default % Share of Gig Money =
                       </Label>
                       <div className="flex items-center gap-1">
                         <Input
@@ -361,16 +403,102 @@ export function ArtistRoyaltySplitsManager() {
         </CardContent>
       </Card>
 
-      {/* Save Button */}
+      {/* Save Gig Button */}
       {teamMembers.length > 0 && (
         <Card id="artist-royalty-save" className="scroll-mt-28">
           <CardContent className="pt-6">
             <div className="flex justify-end">
               <button
-                onClick={saveRoyaltySplits}
+                onClick={() => saveMoneySplits('gig')}
                 className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
               >
-                Save Gig Royalty Splits
+                Save Gig Money Splits
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Merch Money Splits */}
+      <Card id="artist-royalty-merch-splits" className="scroll-mt-28">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-semibold text-purple-900">Merch Money Splits</h4>
+              <p className="mt-1 text-sm text-gray-600">
+                Use this when merch income should be distributed to a different set of people than gig income.
+              </p>
+            </div>
+            <div className="flex items-center gap-4 text-sm">
+              <span className="text-green-700 font-medium">
+                [[{calculateTotalMerchRoyalties().toFixed(2)}%]] = Total % Share of Default Artist Merch Money Splits Assigned
+              </span>
+              <span className="text-orange-700 font-medium">
+                [{(100 - calculateTotalMerchRoyalties()).toFixed(2)}%] = Total % Share of Default Artist Merch Money Splits Remaining
+              </span>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {teamMembers.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {teamMembers.map((member) => (
+                <div key={`merch-${member.id}`} className="p-4 border border-purple-200 rounded-lg bg-white">
+                  <div className="space-y-3">
+                    <div>
+                      <h5 className="font-medium text-purple-900">{getDisplayName(member)}</h5>
+                      <p className="text-sm text-purple-700">
+                        {member.roles.length > 0 ? member.roles.join('; ') : 'No roles assigned'}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={cn(
+                          "text-xs px-2 py-1 rounded",
+                          member.status === 'joined' ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+                        )}>
+                          {member.status === 'joined' ? 'Joined' : 'Invited'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Label className="text-sm font-medium text-purple-700">
+                        Default % Share of Merch Money =
+                      </Label>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          value={member.merchRoyaltyShare || 0}
+                          onChange={(e) => updateMemberMerchRoyalty(member.id, parseFloat(e.target.value) || 0)}
+                          className="w-20 border-purple-200 focus:border-purple-400"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                        />
+                        <span className="text-purple-700">%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <p>No team members added yet.</p>
+              <p className="text-sm">Add team members in the Artist Crew section first.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Save Merch Button */}
+      {teamMembers.length > 0 && (
+        <Card id="artist-royalty-merch-save" className="scroll-mt-28">
+          <CardContent className="pt-6">
+            <div className="flex justify-end">
+              <button
+                onClick={() => saveMoneySplits('merch')}
+                className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
+              >
+                Save Merch Money Splits
               </button>
             </div>
           </CardContent>

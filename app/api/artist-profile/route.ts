@@ -1038,6 +1038,63 @@ export async function POST(request: NextRequest) {
     }
 
     if (error) {
+      console.warn('API: Upsert failed, attempting manual update/insert fallback for artist profile:', error)
+
+      const existingProfileResult = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('profile_type', 'artist')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (!existingProfileResult.error) {
+        const existingProfileId =
+          typeof existingProfileResult.data?.id === 'string'
+            ? existingProfileResult.data.id
+            : null
+
+        const persistWithoutUpsert = async () => {
+          if (existingProfileId) {
+            return supabase
+              .from('user_profiles')
+              .update(attemptedProfileData)
+              .eq('id', existingProfileId)
+              .select()
+              .single()
+          }
+
+          return supabase
+            .from('user_profiles')
+            .insert(attemptedProfileData)
+            .select()
+            .single()
+        }
+
+        const fallbackSave = await persistWithoutUpsert()
+        data = fallbackSave.data
+        error = fallbackSave.error
+
+        while (error && isMissingOptionalProfileColumnError(error)) {
+          const missingColumn = getMissingOptionalProfileColumn(error)
+          if (!missingColumn || removedOptionalColumns.has(missingColumn)) break
+
+          console.warn(`API: optional profile column "${missingColumn}" missing during fallback save, retrying without it`)
+          removedOptionalColumns.add(missingColumn)
+          attemptedProfileData = { ...attemptedProfileData }
+          delete attemptedProfileData[missingColumn]
+
+          const retry = await persistWithoutUpsert()
+          data = retry.data
+          error = retry.error
+        }
+      } else {
+        console.warn('API: Could not check existing artist profile before fallback save:', existingProfileResult.error)
+      }
+    }
+
+    if (error) {
       console.error('API: Error creating/updating artist profile:', error)
       console.error('API: Full error details:', JSON.stringify(error, null, 2))
       console.error('API: Profile data that failed:', JSON.stringify(attemptedProfileData, null, 2))
