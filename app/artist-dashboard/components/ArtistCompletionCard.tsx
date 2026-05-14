@@ -92,6 +92,20 @@ interface CrewMemberData {
 }
 
 interface PaymentDetailsData {
+  entity_type?: string | null
+  artist_entity_legal_name?: string | null
+  main_contact_first_name?: string | null
+  main_contact_last_name?: string | null
+  main_contact_phone?: string | null
+  main_contact_email?: string | null
+  country_of_incorporation?: string | null
+  country_of_tax_residence?: string | null
+  generic_tax_id?: string | null
+  individual_tax_id?: string | null
+  business_tax_id?: string | null
+  vat_gst_sst_id?: string | null
+  company_formation_date?: string | null
+  legal_entity_date_of_birth?: string | null
   use_fan_banking?: boolean
   payment_out_method?: string
   payment_out_bank_name?: string
@@ -180,8 +194,30 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
     const hasRoyaltyParticipants = hasCrewMembers || ownerGigRoyaltyShare > 0
     const hasCompleteRoyaltySplits = hasRoyaltyParticipants && hasAnyRoyaltyShare && Math.abs(totalRoyaltyShare - 100) < 0.01
 
+    const isCorporateEntity = paymentDetails?.entity_type === 'Incorporated Company' || paymentDetails?.entity_type === 'Incorporated Partnership'
+    const hasTaxId = Boolean(
+      paymentDetails?.generic_tax_id ||
+      paymentDetails?.individual_tax_id ||
+      paymentDetails?.business_tax_id ||
+      paymentDetails?.vat_gst_sst_id
+    )
+    const hasLegalEntity = !!paymentDetails && Boolean(
+      paymentDetails.entity_type &&
+      paymentDetails.artist_entity_legal_name &&
+      paymentDetails.main_contact_first_name &&
+      paymentDetails.main_contact_last_name &&
+      paymentDetails.main_contact_phone &&
+      paymentDetails.main_contact_email &&
+      hasTaxId &&
+      (
+        isCorporateEntity
+          ? paymentDetails.country_of_incorporation && paymentDetails.company_formation_date
+          : paymentDetails.country_of_tax_residence && paymentDetails.legal_entity_date_of_birth
+      )
+    )
+
     // Check if payments are configured
-    const hasPayments = !!paymentDetails && (
+    const hasPayments = !!paymentDetails && hasLegalEntity && (
       paymentDetails.use_fan_banking === true ||
       (
         !!paymentDetails.payment_out_method &&

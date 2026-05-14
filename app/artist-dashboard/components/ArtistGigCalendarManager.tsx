@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CalendarDays, RefreshCw, AlertCircle, Plus, Edit, Check, Eye, Megaphone, Loader2 } from 'lucide-react'
+import { CalendarDays, RefreshCw, AlertCircle, Plus, Edit, Check, Eye, Megaphone, Loader2, Ticket } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
@@ -28,10 +28,12 @@ import {
 import { ArtistGigRecord } from './gig-manager/types'
 import { CreateGigForm, type CreateGigFormInitialData } from './gig-manager/CreateGigForm'
 import { formatDateDDMMMyyyy, formatDateTimeDDMMMyyyy } from '@/lib/date-format'
+import { getCurrencySymbol } from '@/lib/currency-options'
 
 interface ArtistGigCalendarManagerProps {
   defaultView?: 'create' | 'upcoming' | 'past'
   onNavigateToView?: (view: 'create' | 'upcoming' | 'past') => void
+  onNavigateToGigSubSection?: (subSection: 'book-new' | 'add-manually' | 'drafts') => void
 }
 
 interface FanCommsFormState {
@@ -73,6 +75,14 @@ function formatDateOnly(value: string | null) {
   return formatDateDDMMMyyyy(value, 'Date TBD')
 }
 
+function formatDateRange(start: string | null, end: string | null) {
+  const startLabel = formatDateOnly(start)
+  if (!end) return startLabel
+
+  const endLabel = formatDateOnly(end)
+  return startLabel === endLabel ? startLabel : `${startLabel} - ${endLabel}`
+}
+
 function formatTime(value: string | null) {
   if (!value) return null
   const date = new Date(value)
@@ -82,30 +92,6 @@ function formatTime(value: string | null) {
     minute: '2-digit',
     hour12: false,
   })
-}
-
-function getLivestreamPlatformLabel(url: string | null) {
-  if (!url) return 'Live Stream'
-
-  try {
-    const parsed = new URL(url)
-    const host = parsed.hostname.replace(/^www\./, '')
-
-    if (host.includes('youtube')) return 'YouTube'
-    if (host.includes('youtu.be')) return 'YouTube'
-    if (host.includes('twitch')) return 'Twitch'
-    if (host.includes('vimeo')) return 'Vimeo'
-    if (host.includes('facebook')) return 'Facebook Live'
-    if (host.includes('instagram')) return 'Instagram Live'
-    if (host.includes('tiktok')) return 'TikTok Live'
-    if (host.includes('restream')) return 'Restream'
-    if (host.includes('zoom')) return 'Zoom'
-
-    const root = host.split('.').at(0) || host
-    return root.charAt(0).toUpperCase() + root.slice(1)
-  } catch {
-    return 'Live Stream'
-  }
 }
 
 function getLivestreamDisplayLink(url: string | null) {
@@ -168,12 +154,88 @@ function readMetadataStringArray(metadata: Record<string, unknown> | null | unde
     .filter(Boolean)
 }
 
+function readMetadataBoolean(metadata: Record<string, unknown> | null | undefined, key: string) {
+  if (!metadata || typeof metadata !== 'object') return false
+  return metadata[key] === true
+}
+
 function readMetadataNumberLike(metadata: Record<string, unknown> | null | undefined, key: string) {
   if (!metadata || typeof metadata !== 'object') return ''
   const raw = metadata[key]
   if (typeof raw === 'number' && Number.isFinite(raw)) return String(raw)
   if (typeof raw === 'string' && raw.trim()) return raw.trim()
   return ''
+}
+
+function formatTicketPrice(metadata: Record<string, unknown> | null | undefined, key: string, currency: string) {
+  const value = readMetadataNumberLike(metadata, key)
+  if (!value) return ''
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return ''
+  return ` from ${getCurrencySymbol(currency)}${parsed.toFixed(2)}`
+}
+
+function buildTicketInfo(gig: ArtistGigRecord) {
+  const metadata = gig.metadata && typeof gig.metadata === 'object' ? gig.metadata : null
+  const currency = readMetadataString(metadata, 'ticket_currency') || gig.currency || 'GBP'
+  const freeOptions = readMetadataStringArray(metadata, 'free_ticket_options')
+  const paidOptions = readMetadataStringArray(metadata, 'paid_ticket_options')
+  const customTickets = Array.isArray(metadata?.custom_tickets) ? metadata.custom_tickets : []
+  const ticketAvailability = readMetadataString(metadata, 'ticket_availability')
+  const customTicketCount = readMetadataNumberLike(metadata, 'custom_ticket_count')
+  const ageDisplay = readMetadataString(metadata, 'age_display') || gig.publicDisplay?.entryRequirements || ''
+  const soldOut = readMetadataBoolean(metadata, 'ticket_sold_out')
+  const items: string[] = []
+
+  if (soldOut) {
+    items.push('Sold Out')
+  }
+
+  const freeLabels: Record<string, string> = {
+    free_entry_no_tickets: 'Free Entry Without Tickets',
+    free_entry_venue_tickets: 'Free Tickets At The Venue',
+    free_online_advance: 'Free Online Tickets In Advance',
+    free_gigrilla_digital: 'Free Digital Tickets From Gigrilla',
+    free_3rd_party: 'Free Digital Tickets From 3rd Party',
+  }
+  const paidLabels: Record<string, string> = {
+    paid_at_venue: `Tickets Sold At The Venue${formatTicketPrice(metadata, 'ticket_price_venue', currency)}`,
+    paid_online_advance: `Tickets Sold Online In Advance${formatTicketPrice(metadata, 'ticket_price_online', currency)}`,
+    paid_gigrilla_digital: `Digital Tickets From Gigrilla${formatTicketPrice(metadata, 'ticket_price_gigrilla_digital', currency)}`,
+    paid_3rd_party: `Digital Tickets From 3rd Party${formatTicketPrice(metadata, 'ticket_price_third_party_digital', currency)}`,
+  }
+
+  freeOptions.forEach((option) => {
+    items.push(freeLabels[option] || option.replace(/_/g, ' '))
+  })
+  paidOptions.forEach((option) => {
+    items.push(paidLabels[option] || option.replace(/_/g, ' '))
+  })
+
+  customTickets.forEach((ticket) => {
+    if (!ticket || typeof ticket !== 'object') return
+    const value = ticket as Record<string, unknown>
+    const name = readMetadataString(value, 'name')
+    const price = readMetadataString(value, 'price')
+    const ticketCurrency = readMetadataString(value, 'currency') || currency
+    if (!name) return
+    items.push(price ? `${name} from ${getCurrencySymbol(ticketCurrency)}${price}` : name)
+  })
+
+  if (ticketAvailability === 'full_venue_capacity') {
+    items.push('Total Tickets: Full Venue Capacity')
+  }
+  if (ticketAvailability === 'less_than_full_venue_capacity' && customTicketCount) {
+    items.push(`Total Tickets Available: ${customTicketCount}`)
+  }
+  if (ageDisplay) {
+    items.push(ageDisplay)
+  }
+
+  return {
+    soldOut,
+    items: items.length > 0 ? items : ['Ticket information not set'],
+  }
 }
 
 function toGigFormInitialData(gig: ArtistGigRecord): CreateGigFormInitialData {
@@ -307,7 +369,7 @@ function getFanCommsSummary(metadata: Record<string, unknown> | null | undefined
   }
 }
 
-export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToView }: ArtistGigCalendarManagerProps) {
+export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToView, onNavigateToGigSubSection }: ArtistGigCalendarManagerProps) {
   const [gigs, setGigs] = useState<ArtistGigRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -316,6 +378,7 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
   const [showForm, setShowForm] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
   const [actioningGigId, setActioningGigId] = useState<string | null>(null)
+  const [soldOutGigId, setSoldOutGigId] = useState<string | null>(null)
 
   const [editGig, setEditGig] = useState<ArtistGigRecord | null>(null)
   const [fanCommsGig, setFanCommsGig] = useState<ArtistGigRecord | null>(null)
@@ -670,6 +733,30 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
     }
   }
 
+  const handleMarkSoldOut = async (gig: ArtistGigRecord) => {
+    try {
+      setSoldOutGigId(gig.id)
+      setError(null)
+      await updateArtistGig(gig.id, 'mark_sold_out')
+      await load(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to mark gig sold out')
+    } finally {
+      setSoldOutGigId(null)
+    }
+  }
+
+  const navigateGigSubSection = (subSection: 'book-new' | 'add-manually' | 'drafts') => {
+    if (onNavigateToGigSubSection) {
+      onNavigateToGigSubSection(subSection)
+      return
+    }
+
+    if (typeof window !== 'undefined') {
+      window.location.href = `/artist-dashboard?section=gig-bookings&subSection=${subSection}`
+    }
+  }
+
   if (loading) {
     return (
       <Card>
@@ -812,7 +899,7 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
                 Amend Upcoming Gigs
               </CardTitle>
               <p className="text-sm text-gray-600 mt-1">
-                Amend your upcoming published and scheduled Gigs here. Changes will take up to 24 hours to take effect across Gigrilla, except for &quot;Publish Gig Now&quot; which is immediate.
+                Amend your upcoming public and scheduled Gigs here. Changes will take up to 24 hours to take effect across Gigrilla, except for &quot;Make Public Now&quot; which is immediate.
               </p>
             </div>
             <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing}>
@@ -894,7 +981,7 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
                     const isLivestream = (gig.eventType || '').toLowerCase() === 'livestream'
                     const livestreamUrl = readMetadataString(metadata, 'live_stream_url') || null
                     const displayVenueName = isLivestream
-                      ? getLivestreamPlatformLabel(livestreamUrl)
+                      ? 'Live Stream Gig'
                       : gig.venueName
                     const displayVenueAddress = isLivestream
                       ? getLivestreamDisplayLink(livestreamUrl)
@@ -907,6 +994,8 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
                       ? `Fan updates: ${fanCommsSummary.sent} sent, ${fanCommsSummary.scheduled} scheduled${fanCommsSummary.failed > 0 ? `, ${fanCommsSummary.failed} failed` : ''}`
                       : 'Fan updates: none sent yet'
                     const canPromote = gig.gigStatus === 'published'
+                    const ticketInfo = buildTicketInfo(gig)
+                    const isMarkingSoldOut = soldOutGigId === gig.id
 
                     return (
                       <div key={gig.id} className="rounded-xl border border-gray-200 bg-white overflow-hidden hover:shadow-md transition-shadow">
@@ -948,8 +1037,7 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
 
                           <div className="space-y-1 text-sm">
                             <p className="font-semibold text-purple-700">
-                              Gig Date: {formatDateOnly(performanceStart)}
-                              {performanceEnd && ` - ${formatDateOnly(performanceEnd)}`}
+                              Gig Date: {formatDateRange(performanceStart, performanceEnd)}
                             </p>
                             {formatTime(performanceStart) && (
                               <p className="text-gray-600 italic">
@@ -982,6 +1070,24 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
                             </p>
                           )}
 
+                          <div className="rounded-lg border border-purple-100 bg-purple-50/60 p-3 text-xs text-purple-950">
+                            <p className="mb-2 font-semibold uppercase tracking-wide text-purple-700">Ticket Information</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {ticketInfo.items.map((item) => (
+                                <span
+                                  key={item}
+                                  className={`rounded px-2 py-1 font-medium ${
+                                    item === 'Sold Out'
+                                      ? 'bg-red-100 text-red-800'
+                                      : 'bg-white text-purple-900 ring-1 ring-purple-100'
+                                  }`}
+                                >
+                                  {item}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
                           {gig.bookedAt && (
                             <p className="text-xs text-gray-400 pt-1">
                               (Published on {formatDateOnly(gig.bookedAt)})
@@ -1011,7 +1117,21 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
                               ) : (
                                 <Eye className="w-3 h-3 mr-1" />
                               )}
-                              {canPublishNow ? 'Publish Gig Now' : 'Already Published'}
+                              {canPublishNow ? 'Make Public Now' : 'Already Public'}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full border-red-200 text-red-700 hover:bg-red-50 disabled:text-red-500"
+                              onClick={() => handleMarkSoldOut(gig)}
+                              disabled={ticketInfo.soldOut || isMarkingSoldOut}
+                            >
+                              {isMarkingSoldOut ? (
+                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                              ) : (
+                                <Ticket className="w-3 h-3 mr-1" />
+                              )}
+                              {ticketInfo.soldOut ? 'Sold Out' : 'Mark as SOLD OUT'}
                             </Button>
                             <Button
                               variant="secondary"
@@ -1021,7 +1141,7 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
                               disabled={!canPromote}
                             >
                               <Megaphone className="w-3 h-3 mr-1" />
-                              {canPromote ? 'Promote to Fans' : 'Publish Gig First'}
+                              {canPromote ? 'Promote to Fans' : 'Make Public First'}
                             </Button>
                           </div>
                         </div>
@@ -1033,6 +1153,35 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
             ) : null}
           </CardContent>
         </Card>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Button
+            type="button"
+            className="h-12 bg-purple-600 text-white hover:bg-purple-700"
+            onClick={() => navigateGigSubSection('book-new')}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Book a New Gig
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 border-purple-200 bg-white text-purple-800 hover:bg-purple-50"
+            onClick={() => navigateGigSubSection('add-manually')}
+          >
+            <Edit className="mr-2 h-4 w-4" />
+            Add Gig Manually
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 border-purple-200 bg-white text-purple-800 hover:bg-purple-50"
+            onClick={() => navigateGigSubSection('drafts')}
+          >
+            <CalendarDays className="mr-2 h-4 w-4" />
+            Draft Gigs
+          </Button>
+        </div>
 
         <Dialog open={fanCommsOpen} onOpenChange={(open) => {
           setFanCommsOpen(open)

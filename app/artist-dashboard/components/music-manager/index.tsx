@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Save, ArrowRight, ArrowLeft, Loader2, CheckCircle, Plus, ChevronDown, ChevronUp, Disc3, CalendarDays, Music2, PencilLine } from 'lucide-react'
+import { Save, ArrowRight, ArrowLeft, Loader2, CheckCircle, Plus, ChevronDown, ChevronUp, Disc3, CalendarDays, Music2, PencilLine, AlertCircle, X, XCircle } from 'lucide-react'
 import Image from 'next/image'
 import { Button } from '../../../components/ui/button'
 import { formatDateDDMMMyyyy } from '@/lib/date-format'
@@ -35,6 +35,7 @@ interface DbRelease {
   go_live_date: string | null
   master_rights_type: 'independent' | 'label' | null
   record_labels: unknown[]
+  apply_record_label_to_all_tracks?: boolean
   master_rights_confirmed: boolean
   publishing_rights_type: 'independent' | 'publisher' | null
   publishers: unknown[]
@@ -108,15 +109,106 @@ const STEPS = [
 type StepId = typeof STEPS[number]['id']
 type MusicManagerView = 'guide' | 'upload' | 'manage'
 type MusicUploadSubSection = 'intro' | 'guide' | 'workflow'
-type MusicManageSubSection = 'library'
+type MusicManageSubSection =
+  | 'library'
+  | 'drafts'
+  | 'published'
+  | 'published-tracks'
+  | 'published-singles'
+  | 'published-eps'
+  | 'published-albums'
+  | 'scheduled'
+  | 'scheduled-tracks'
+  | 'scheduled-singles'
+  | 'scheduled-eps'
+  | 'scheduled-albums'
+export type MusicManagerForcedSubSection = MusicUploadSubSection | MusicManageSubSection
 
 interface ArtistMusicManagerProps {
   defaultView?: MusicManagerView
-  forcedSubSection?: MusicUploadSubSection | MusicManageSubSection | null
-  onSubSectionNavigate?: (subSection: MusicUploadSubSection | MusicManageSubSection) => void
+  forcedSubSection?: MusicManagerForcedSubSection | null
+  onSubSectionNavigate?: (subSection: MusicManagerForcedSubSection) => void
 }
 
 const MUSIC_MANAGER_INTRO_COLLAPSED_STORAGE_KEY = 'artist-music-manager:intro-collapsed:v1'
+
+function SaveStatusModal({
+  message,
+  onClose,
+}: {
+  message: { type: 'success' | 'error' | 'warning'; text: string } | null
+  onClose: () => void
+}) {
+  if (!message) return null
+
+  const config = message.type === 'success'
+    ? {
+        title: 'Success!',
+        Icon: CheckCircle,
+        border: 'border-emerald-200',
+        panel: 'bg-emerald-50',
+        icon: 'text-emerald-600',
+        iconBg: 'bg-emerald-100',
+        button: 'bg-emerald-600 hover:bg-emerald-700',
+      }
+    : message.type === 'warning'
+      ? {
+          title: 'Check This',
+          Icon: AlertCircle,
+          border: 'border-amber-200',
+          panel: 'bg-amber-50',
+          icon: 'text-amber-600',
+          iconBg: 'bg-amber-100',
+          button: 'bg-amber-600 hover:bg-amber-700',
+        }
+      : {
+          title: 'Save Failed',
+          Icon: XCircle,
+          border: 'border-red-200',
+          panel: 'bg-red-50',
+          icon: 'text-red-600',
+          iconBg: 'bg-red-100',
+          button: 'bg-red-600 hover:bg-red-700',
+        }
+  const Icon = config.Icon
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
+      <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
+        <div className={`h-2 ${message.type === 'success' ? 'bg-emerald-500' : message.type === 'warning' ? 'bg-amber-500' : 'bg-red-500'}`} />
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-4 top-4 rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+        >
+          <X className="h-5 w-5" />
+        </button>
+        <div className="p-8 pt-7 text-center">
+          <div className={`mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full ${config.iconBg} ${config.border} border-2`}>
+            <Icon className={`h-14 w-14 ${config.icon}`} />
+          </div>
+          <div className={`mb-6 rounded-2xl border ${config.border} ${config.panel} p-6`}>
+            <h3 className="mb-3 text-2xl font-bold text-gray-900">{config.title}</h3>
+            <p className="whitespace-pre-line text-base leading-relaxed text-gray-700">{message.text}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className={`w-full rounded-xl px-6 py-4 text-lg font-semibold text-white shadow-lg transition ${config.button}`}
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // Convert DB release to frontend ReleaseData
 function dbToReleaseData(db: DbRelease): Partial<ReleaseData> {
@@ -145,6 +237,7 @@ function dbToReleaseData(db: DbRelease): Partial<ReleaseData> {
     goLiveDate: db.go_live_date || '',
     masterRightsType: db.master_rights_type || '',
     recordLabels: db.record_labels as ReleaseData['recordLabels'],
+    applyRecordLabelToAllTracks: db.apply_record_label_to_all_tracks ?? false,
     masterRightsConfirmed: db.master_rights_confirmed,
     publishingRightsType: db.publishing_rights_type || '',
     publishers: db.publishers as ReleaseData['publishers'],
@@ -207,6 +300,7 @@ function releaseDataToDb(data: ReleaseData, uploadGuideConfirmed: boolean, curre
     go_live_date: data.goLiveDate || null,
     master_rights_type: data.masterRightsType || null,
     record_labels: data.recordLabels,
+    apply_record_label_to_all_tracks: data.applyRecordLabelToAllTracks,
     master_rights_confirmed: data.masterRightsConfirmed,
     publishing_rights_type: data.publishingRightsType || null,
     publishers: data.publishers,
@@ -343,6 +437,7 @@ export function ArtistMusicManager({
   const [isIntroCollapsed, setIsIntroCollapsed] = useState(false)
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'idle'>('idle')
   const [approvalMode, setApprovalMode] = useState<'auto' | 'manual'>('auto')
+  const [draftReleases, setDraftReleases] = useState<DbRelease[]>([])
   const [publishedReleases, setPublishedReleases] = useState<DbRelease[]>([])
   const [pendingReleases, setPendingReleases] = useState<DbRelease[]>([])
   const [isLoadingPublished, setIsLoadingPublished] = useState(true)
@@ -359,6 +454,8 @@ export function ArtistMusicManager({
         setApprovalMode(result.approval_mode)
       }
       
+      setDraftReleases(result.data || [])
+
       if (result.data && result.data.length > 0) {
         // Load the most recent draft
         const draft = result.data[0] as DbRelease
@@ -390,6 +487,7 @@ export function ArtistMusicManager({
       }
     } catch (error) {
       console.error('Error loading draft release:', error)
+      setDraftReleases([])
     } finally {
       setIsLoading(false)
     }
@@ -447,7 +545,15 @@ export function ArtistMusicManager({
     (musicView === 'upload' && forcedSubSection === 'guide')
   const showManageLibrary =
     musicView === 'manage' &&
-    (!isEmbeddedDashboardSubPage || forcedSubSection === 'library')
+    (!isEmbeddedDashboardSubPage || Boolean(forcedSubSection))
+
+  const isDraftLibrary = forcedSubSection === 'drafts'
+  const isCatalogueLibrary =
+    forcedSubSection === 'library' ||
+    forcedSubSection === 'published' ||
+    forcedSubSection?.startsWith('published-') ||
+    forcedSubSection === 'scheduled' ||
+    forcedSubSection?.startsWith('scheduled-')
 
   const navigateMusicSubSection = (subSection: MusicUploadSubSection | MusicManageSubSection) => {
     if (onSubSectionNavigate) {
@@ -871,7 +977,6 @@ export function ArtistMusicManager({
         }
         await persistTrackDrafts(activeReleaseId)
         setSaveMessage({ type: 'success', text: 'Progress saved successfully!' })
-        setTimeout(() => setSaveMessage(null), 3000)
       } else {
         setSaveMessage({ type: 'error', text: result.error || 'Failed to save' })
       }
@@ -1005,10 +1110,52 @@ export function ArtistMusicManager({
     return formatDateDDMMMyyyy(value, 'Not published yet')
   }
 
+  const todayIso = new Date().toISOString().slice(0, 10)
+
+  const isScheduledRelease = (release: DbRelease) => (
+    Boolean(release.go_live_date && release.go_live_date > todayIso)
+  )
+
+  const getReleaseTypeFromFilter = (filter: MusicManageSubSection | null) => {
+    if (!filter) return null
+    if (filter.endsWith('-singles')) return 'single'
+    if (filter.endsWith('-eps')) return 'ep'
+    if (filter.endsWith('-albums')) return 'album'
+    return null
+  }
+
+  const matchesReleaseTypeFilter = (release: DbRelease, filter: MusicManageSubSection | null) => {
+    const releaseType = getReleaseTypeFromFilter(filter)
+    return !releaseType || release.release_type === releaseType
+  }
+
+  const catalogueFilter = (forcedSubSection || 'published') as MusicManageSubSection
+  const showingScheduledCatalogue = catalogueFilter === 'scheduled' || catalogueFilter.startsWith('scheduled-')
+  const catalogueReleases = publishedReleases.filter((release) => {
+    const scheduled = isScheduledRelease(release)
+    return showingScheduledCatalogue
+      ? scheduled && matchesReleaseTypeFilter(release, catalogueFilter)
+      : !scheduled && matchesReleaseTypeFilter(release, catalogueFilter)
+  })
+  const catalogueTitle = showingScheduledCatalogue ? 'Scheduled Music' : 'Published Music'
+  const catalogueEmptyText = showingScheduledCatalogue
+    ? 'No scheduled releases yet. Completed releases with future go-live dates appear here.'
+    : 'No releases published yet. Published releases appear here once they go live.'
+  const manageTitle = isDraftLibrary
+    ? 'Draft Uploads'
+    : isCatalogueLibrary
+      ? 'Music Catalogue'
+      : 'Manage Music Library'
+  const manageDescription = isDraftLibrary
+    ? 'Resume in-progress upload drafts from Music Uploads.'
+    : isCatalogueLibrary
+      ? 'Completed uploads only, filtered by release status and type.'
+      : `Approval mode: ${approvalMode === 'auto' ? 'Auto Publish' : 'Manual Review'}`
+
   const renderLibraryCard = (
     release: DbRelease,
     options: {
-      tone: 'published' | 'pending'
+      tone: 'published' | 'pending' | 'draft'
       dateLabel: string
       dateValue: string | null | undefined
       metaLabel: string
@@ -1021,11 +1168,15 @@ export function ArtistMusicManager({
     const toneClasses =
       options.tone === 'published'
         ? 'border-emerald-200/80 bg-gradient-to-br from-white via-emerald-50/30 to-sky-50/40'
-        : 'border-amber-200/80 bg-gradient-to-br from-white via-amber-50/30 to-rose-50/30'
+        : options.tone === 'draft'
+          ? 'border-blue-200/80 bg-gradient-to-br from-white via-blue-50/40 to-indigo-50/30'
+          : 'border-amber-200/80 bg-gradient-to-br from-white via-amber-50/30 to-rose-50/30'
     const badgeClasses =
       options.tone === 'published'
         ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200/80'
-        : 'bg-amber-100 text-amber-800 ring-1 ring-amber-200/80'
+        : options.tone === 'draft'
+          ? 'bg-blue-100 text-blue-800 ring-1 ring-blue-200/80'
+          : 'bg-amber-100 text-amber-800 ring-1 ring-amber-200/80'
 
     return (
       <div
@@ -1232,18 +1383,7 @@ export function ArtistMusicManager({
 
   return (
     <div className="max-w-4xl mx-auto">
-      {/* Save Message Toast */}
-      {saveMessage && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg ${
-          saveMessage.type === 'success' 
-            ? 'bg-emerald-500 text-white' 
-            : saveMessage.type === 'warning'
-              ? 'bg-amber-500 text-white'
-              : 'bg-red-500 text-white'
-        }`}>
-          {saveMessage.text}
-        </div>
-      )}
+      <SaveStatusModal message={saveMessage} onClose={() => setSaveMessage(null)} />
 
       {showMusicIntro && (
       <div id="artist-music-upload-intro" className="bg-gradient-to-br from-purple-700 to-purple-900 rounded-3xl text-white p-6 md:p-8 mb-6 shadow-lg border border-purple-600/40 scroll-mt-28">
@@ -1374,18 +1514,16 @@ export function ArtistMusicManager({
         </div>
       )}
 
-      {/* Manage Music Library */}
+      {/* Music library views */}
       {showManageLibrary && (
         <div id="artist-music-manage-library" className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6 scroll-mt-28">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 font-ui">Manage Music Library</h2>
-            <p className="text-sm text-gray-500">
-              Approval mode: <span className="font-medium">{approvalMode === 'auto' ? 'Auto Publish' : 'Manual Review'}</span>
-            </p>
+            <h2 className="text-lg font-semibold text-gray-900 font-ui">{manageTitle}</h2>
+            <p className="text-sm text-gray-500">{manageDescription}</p>
           </div>
           <div className="flex items-center gap-2">
-            {musicView === 'manage' && (
+            {isDraftLibrary && (
               <Button
                 variant="outline"
                 onClick={() => setMusicView('upload')}
@@ -1398,10 +1536,32 @@ export function ArtistMusicManager({
         </div>
 
         {isLoadingPublished ? (
-          <p className="mt-4 text-sm text-gray-500">Loading published releases...</p>
+          <p className="mt-4 text-sm text-gray-500">Loading music releases...</p>
         ) : (
           <div className="mt-4 space-y-4">
-            {releaseId && (
+            {isDraftLibrary && (
+              draftReleases.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No draft uploads yet. Drafts appear here once an upload has been started and saved.
+                </p>
+              ) : (
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 mb-3">Draft Uploads ({draftReleases.length})</p>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {draftReleases.map((release) =>
+                      renderLibraryCard(release, {
+                        tone: 'draft',
+                        dateLabel: 'Last Updated',
+                        dateValue: release.updated_at || release.created_at,
+                        metaLabel: 'Draft'
+                      })
+                    )}
+                  </div>
+                </div>
+              )
+            )}
+
+            {!isDraftLibrary && !isCatalogueLibrary && releaseId && (
               <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
@@ -1414,7 +1574,7 @@ export function ArtistMusicManager({
               </div>
             )}
 
-            {approvalMode === 'manual' && pendingReleases.length > 0 && (
+            {!isDraftLibrary && !isCatalogueLibrary && approvalMode === 'manual' && pendingReleases.length > 0 && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm font-semibold text-amber-900">Pending Review ({pendingReleases.length})</p>
                 <p className="mt-1 text-xs text-amber-800">
@@ -1433,24 +1593,28 @@ export function ArtistMusicManager({
               </div>
             )}
 
-            {publishedReleases.length === 0 ? (
+            {!isDraftLibrary && (isCatalogueLibrary ? catalogueReleases : publishedReleases).length === 0 ? (
               <p className="text-sm text-gray-500">
-                No releases published yet. Published releases appear here once they go live.
+                {isCatalogueLibrary ? catalogueEmptyText : 'No releases published yet. Published releases appear here once they go live.'}
               </p>
             ) : (
-              <div>
-                <p className="text-sm font-semibold text-gray-900 mb-3">Published Music ({publishedReleases.length})</p>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {(musicView === 'manage' ? publishedReleases : publishedReleases.slice(0, 6)).map((release) =>
-                    renderLibraryCard(release, {
-                      tone: 'published',
-                      dateLabel: 'Published',
-                      dateValue: release.published_at || release.created_at,
-                      metaLabel: 'Live'
-                    })
-                  )}
+              !isDraftLibrary && (
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 mb-3">
+                    {isCatalogueLibrary ? catalogueTitle : 'Published Music'} ({(isCatalogueLibrary ? catalogueReleases : publishedReleases).length})
+                  </p>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {(isCatalogueLibrary ? catalogueReleases : publishedReleases).map((release) =>
+                      renderLibraryCard(release, {
+                        tone: 'published',
+                        dateLabel: showingScheduledCatalogue ? 'Go-Live Date' : 'Published',
+                        dateValue: showingScheduledCatalogue ? release.go_live_date : (release.published_at || release.created_at),
+                        metaLabel: showingScheduledCatalogue ? 'Scheduled' : 'Live'
+                      })
+                    )}
+                  </div>
                 </div>
-              </div>
+              )
             )}
           </div>
         )}
@@ -1563,10 +1727,9 @@ export function ArtistMusicManager({
                   </Button>
                 )}
                 <Button
-                  variant="ghost"
                   onClick={handleSave}
                   disabled={isSaving}
-                  className="text-gray-500 hover:text-gray-700"
+                  className="bg-emerald-600 text-white shadow-md hover:bg-emerald-700 disabled:bg-emerald-100 disabled:text-emerald-700"
                 >
                   {isSaving ? (
                     <>

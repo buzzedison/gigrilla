@@ -32,6 +32,7 @@ export function ReleaseRightsSection({
   const [labelExcludedSelectKeys, setLabelExcludedSelectKeys] = useState<Record<string, number>>({})
   const [publisherSpecificSelectKeys, setPublisherSpecificSelectKeys] = useState<Record<string, number>>({})
   const [publisherExcludedSelectKeys, setPublisherExcludedSelectKeys] = useState<Record<string, number>>({})
+  const inviteButtonClassName = 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800'
 
   const combinedTerritoryOptions = useMemo(
     () => [
@@ -497,13 +498,23 @@ export function ReleaseRightsSection({
                       <Button
                         variant="outline"
                         onClick={onInviteLabel}
-                        className="text-purple-600 border-purple-200"
+                        className={inviteButtonClassName}
                       >
                         Send Gigrilla Invite
                       </Button>
                     </div>
                   </div>
                 ))}
+
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={releaseData.applyRecordLabelToAllTracks}
+                    onChange={(e) => onUpdate('applyRecordLabelToAllTracks', e.target.checked)}
+                    className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+                  />
+                  💾 Apply this Record Label to All Tracks in This Release
+                </label>
 
                 <Button
                   type="button"
@@ -623,7 +634,7 @@ export function ReleaseRightsSection({
                       <Button
                         variant="outline"
                         onClick={onInvitePublisher}
-                        className="text-purple-600 border-purple-200"
+                        className={inviteButtonClassName}
                       >
                         Send Gigrilla Invite
                       </Button>

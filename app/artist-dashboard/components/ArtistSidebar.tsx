@@ -101,6 +101,8 @@ interface ArtistSidebarProps {
   onCollapsedChange?: (collapsed: boolean) => void
   capabilities?: ArtistTypeCapabilities | null
   unreadMessages?: number
+  messageFolderCounts?: Record<string, number>
+  gigNegotiationCounts?: Record<string, number>
   completedSections?: string[]
   hideTypeSection?: boolean
   className?: string
@@ -209,6 +211,8 @@ export function ArtistSidebar({
   onCollapsedChange,
   capabilities,
   unreadMessages = 0,
+  messageFolderCounts = {},
+  gigNegotiationCounts = {},
   completedSections = [],
   hideTypeSection,
   className
@@ -281,6 +285,14 @@ export function ArtistSidebar({
 
   const groups = useMemo<SidebarGroup[]>(() => {
     const messageBadge = unreadMessages > 0 ? (unreadMessages > 99 ? '99+' : unreadMessages) : null
+    const folderCount = (folderId: string) => messageFolderCounts[folderId] ?? 0
+    const gigFolderCount = (folderId: string) => gigNegotiationCounts[folderId] ?? 0
+    const sumFolders = (folderIds: string[]) => folderIds.reduce((sum, folderId) => sum + folderCount(folderId), 0)
+    const sumGigFolders = (folderIds: string[]) => folderIds.reduce((sum, folderId) => sum + gigFolderCount(folderId), 0)
+    const gigNegotiationCount = sumGigFolders(['gig_invites', 'gig_requests', 'confirmations'])
+    const messageGigNegotiationCount = sumFolders(['gig_invites', 'gig_requests', 'confirmations'])
+    const userMessagesCount = sumFolders(['colleagues', 'auditions', 'fans', 'artists', 'venues', 'services', 'pros'])
+    const systemMessagesCount = folderCount('system')
 
     const controlPanelItems: SidebarNode[] = [
       { id: 'artist-home', label: 'Artist HOME', icon: Music, section: 'home' },
@@ -379,7 +391,7 @@ export function ArtistSidebar({
           { id: 'published-ads', label: 'Published Ads', section: 'auditions', subSection: 'manage' },
           { id: 'unpublished-ads', label: 'Unpublished Ads', section: 'auditions', subSection: 'manage' },
           { id: 'historic-ads', label: 'Historic Ads', section: 'auditions', subSection: 'manage' },
-          { id: 'my-advert-messages', label: 'My Advert Messages', section: 'messages', subSection: 'auditions', badge: 3 },
+          { id: 'my-advert-messages', label: 'My Advert Messages', section: 'messages', subSection: 'auditions', badge: folderCount('auditions') },
         ]
       },
     ]
@@ -423,7 +435,7 @@ export function ArtistSidebar({
         subSection: 'confirm-gig',
         children: [
           { id: 'confirm-a-gig', label: 'Confirm a Gig', section: 'gig-reporting', subSection: 'confirm-gig' },
-          { id: 'report-a-gig', label: 'Report a Gig', section: 'gig-reporting', subSection: 'report-venue' },
+          { id: 'report-a-gig', label: 'Report a Gig', section: 'gig-reporting', subSection: 'report-gig' },
         ]
       },
       {
@@ -432,10 +444,11 @@ export function ArtistSidebar({
         icon: Mail,
         section: 'gig-negotiations',
         subSection: 'gig_invites',
+        badge: gigNegotiationCount,
         children: [
-          { id: 'gig-invites', label: 'Gig Invites', section: 'gig-negotiations', subSection: 'gig_invites', badge: 16 },
-          { id: 'gig-requests', label: 'Gig Requests', section: 'gig-negotiations', subSection: 'gig_requests', badge: 12 },
-          { id: 'gig-confirmations', label: 'Confirmations', section: 'gig-negotiations', subSection: 'confirmations', badge: 3 },
+          { id: 'gig-invites', label: 'Gig Invites (from Others)', section: 'gig-negotiations', subSection: 'gig_invites', badge: gigFolderCount('gig_invites') },
+          { id: 'gig-requests', label: 'Gig Requests (to Others)', section: 'gig-negotiations', subSection: 'gig_requests', badge: gigFolderCount('gig_requests') },
+          { id: 'gig-confirmations', label: 'Confirmations (Contracts)', section: 'gig-negotiations', subSection: 'confirmations', badge: gigFolderCount('confirmations') },
         ]
       },
       {
@@ -527,10 +540,11 @@ export function ArtistSidebar({
         icon: Mail,
         section: 'messages',
         subSection: 'gig_invites',
+        badge: messageGigNegotiationCount,
         children: [
-          { id: 'messages-gig-invites', label: 'Gig Invites', section: 'messages', subSection: 'gig_invites', badge: 16 },
-          { id: 'messages-gig-requests', label: 'Gig Requests', section: 'messages', subSection: 'gig_requests', badge: 12 },
-          { id: 'messages-confirmations', label: 'Confirmations', section: 'gig-negotiations', subSection: 'confirmations', badge: 3 },
+          { id: 'messages-gig-invites', label: 'Gig Invites (from Others)', section: 'messages', subSection: 'gig_invites', badge: folderCount('gig_invites') },
+          { id: 'messages-gig-requests', label: 'Gig Requests (to Others)', section: 'messages', subSection: 'gig_requests', badge: folderCount('gig_requests') },
+          { id: 'messages-confirmations', label: 'Confirmations (Contracts)', section: 'messages', subSection: 'confirmations', badge: folderCount('confirmations') },
         ]
       },
       {
@@ -539,14 +553,15 @@ export function ArtistSidebar({
         icon: Users,
         section: 'messages',
         subSection: 'colleagues',
+        badge: userMessagesCount,
         children: [
-          { id: 'colleague-messages', label: 'Colleague Messages', section: 'messages', subSection: 'colleagues', badge: 3 },
-          { id: 'advert-messages', label: 'My Advert Messages', section: 'messages', subSection: 'auditions', badge: 3 },
-          { id: 'fan-messages', label: 'Fan Messages', section: 'messages', subSection: 'fans', badge: 16 },
-          { id: 'artist-messages', label: 'Artist Messages', section: 'messages', subSection: 'artists', badge: 3 },
-          { id: 'venue-messages', label: 'Venue Messages', section: 'messages', subSection: 'venues', badge: 12 },
-          { id: 'service-messages', label: 'Service Messages', section: 'messages', subSection: 'services', badge: 3 },
-          { id: 'musicpro-messages', label: 'MusicPro Messages', section: 'messages', subSection: 'pros', badge: 3 },
+          { id: 'colleague-messages', label: 'Colleague Messages', section: 'messages', subSection: 'colleagues', badge: folderCount('colleagues') },
+          { id: 'advert-messages', label: 'My Advert Messages', section: 'messages', subSection: 'auditions', badge: folderCount('auditions') },
+          { id: 'fan-messages', label: 'Fan Messages', section: 'messages', subSection: 'fans', badge: folderCount('fans') },
+          { id: 'artist-messages', label: 'Artist Messages', section: 'messages', subSection: 'artists', badge: folderCount('artists') },
+          { id: 'venue-messages', label: 'Venue Messages', section: 'messages', subSection: 'venues', badge: folderCount('venues') },
+          { id: 'service-messages', label: 'Service Messages', section: 'messages', subSection: 'services', badge: folderCount('services') },
+          { id: 'musicpro-messages', label: 'MusicPro Messages', section: 'messages', subSection: 'pros', badge: folderCount('pros') },
         ]
       },
       {
@@ -555,7 +570,7 @@ export function ArtistSidebar({
         icon: Bell,
         section: 'messages',
         subSection: 'system',
-        badge: messageBadge,
+        badge: systemMessagesCount || messageBadge,
       },
     ]
 
@@ -564,10 +579,10 @@ export function ArtistSidebar({
       { id: 'artistProfile', label: 'Artist Profile Menu', items: artistProfileItems },
       { id: 'gigMenu', label: 'Gig Menu', items: gigItems },
       { id: 'musicMenu', label: 'Music Menu', items: musicItems },
-      { id: 'merchMenu', label: 'Merch Menu', items: merchItems },
+      { id: 'merchMenu', label: 'Your Store Menu', items: merchItems },
       { id: 'messageMenu', label: 'Messages Menu', items: messageItems },
     ]
-  }, [colourMode, unreadMessages])
+  }, [colourMode, unreadMessages, messageFolderCounts, gigNegotiationCounts])
 
   const isChildActive = (child: SidebarChild) => {
     if (child.path) return pathname === child.path

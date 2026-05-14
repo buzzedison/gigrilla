@@ -33,30 +33,6 @@ function readMetadataString(metadata: Record<string, unknown> | null | undefined
   return typeof raw === 'string' ? raw : ''
 }
 
-function getLivestreamPlatformLabel(url: string | null) {
-  if (!url) return 'Live Stream'
-
-  try {
-    const parsed = new URL(url)
-    const host = parsed.hostname.replace(/^www\./, '')
-
-    if (host.includes('youtube')) return 'YouTube'
-    if (host.includes('youtu.be')) return 'YouTube'
-    if (host.includes('twitch')) return 'Twitch'
-    if (host.includes('vimeo')) return 'Vimeo'
-    if (host.includes('facebook')) return 'Facebook Live'
-    if (host.includes('instagram')) return 'Instagram Live'
-    if (host.includes('tiktok')) return 'TikTok Live'
-    if (host.includes('restream')) return 'Restream'
-    if (host.includes('zoom')) return 'Zoom'
-
-    const root = host.split('.').at(0) || host
-    return root.charAt(0).toUpperCase() + root.slice(1)
-  } catch {
-    return 'Live Stream'
-  }
-}
-
 function getLivestreamDisplayLink(url: string | null) {
   if (!url) return 'Stream link to be confirmed'
 
@@ -73,7 +49,7 @@ function renderRequestTileMeta(request: ArtistGigRecord) {
   const isLivestream = (request.eventType || '').toLowerCase() === 'livestream'
   const livestreamUrl = readMetadataString(metadata, 'live_stream_url') || null
   const displayVenueName = isLivestream
-    ? getLivestreamPlatformLabel(livestreamUrl)
+    ? 'Live Stream Gig'
     : request.venueName || 'Venue TBD'
   const displayVenueAddress = isLivestream
     ? getLivestreamDisplayLink(livestreamUrl)
@@ -177,10 +153,10 @@ export function ArtistGigRequestsManager() {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Inbox className="w-5 h-5 text-purple-700" />
-              Gig Requests
+              Gig Requests (to Others)
             </CardTitle>
             <p className="text-sm text-gray-600 mt-1">
-              Track requests you have sent and manage their status.
+              Track requests you have sent to venues and artists.
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing}>

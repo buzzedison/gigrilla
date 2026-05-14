@@ -20,9 +20,12 @@ import { ArtistGigAbilityManager } from "./components/ArtistGigAbilityManager"
 import { ArtistGigCalendarManager } from "./components/ArtistGigCalendarManager"
 import { ArtistGigInvitesManager } from "./components/ArtistGigInvitesManager"
 import { ArtistGigRequestsManager } from "./components/ArtistGigRequestsManager"
+import { ArtistGigConfirmationsManager } from "./components/ArtistGigConfirmationsManager"
+import { ArtistGigPlannerManager } from "./components/ArtistGigPlannerManager"
+import { ArtistGigReportingManager } from "./components/ArtistGigReportingManager"
 import { ArtistGigStatisticsManager } from "./components/ArtistGigStatisticsManager"
 import { ArtistBookNewGigManager } from "./components/ArtistBookNewGigManager"
-import { ArtistMusicManager } from "./components/ArtistMusicManager"
+import { ArtistMusicManager, type MusicManagerForcedSubSection } from "./components/ArtistMusicManager"
 import { ArtistContractStatusManager } from "./components/ArtistContractStatusManager"
 import { ArtistInboxManager } from "./components/ArtistInboxManager"
 import { ArtistSettingsManager } from "./components/ArtistSettingsManager"
@@ -214,6 +217,8 @@ export default function ArtistDashboard() {
   const [onboardingCompleted, setOnboardingCompleted] = useState(false)
   const [activeSubSectionKey, setActiveSubSectionKey] = useState<string | null>(null)
   const [unreadMessages, setUnreadMessages] = useState(0)
+  const [messageFolderCounts, setMessageFolderCounts] = useState<Record<string, number>>({})
+  const [gigNegotiationCounts, setGigNegotiationCounts] = useState<Record<string, number>>({})
   const [missingArtistSubtype, setMissingArtistSubtype] = useState(false)
   const [isHomeOnboardingOpen, setIsHomeOnboardingOpen] = useState(true)
   const [isOnboardingPermanentlyDismissed, setIsOnboardingPermanentlyDismissed] = useState(() => {
@@ -245,7 +250,15 @@ export default function ArtistDashboard() {
   const supportedInboxFolders: Record<string, string> = {
     gig_invites: 'gig_invites',
     gig_requests: 'gig_requests',
-    venues: 'venue_updates',
+    confirmations: 'confirmations',
+    colleagues: 'colleagues',
+    auditions: 'auditions',
+    fans: 'fans',
+    artists: 'artists',
+    venues: 'venues',
+    venue_updates: 'venues',
+    services: 'services',
+    pros: 'pros',
     system: 'system',
   }
 
@@ -425,11 +438,47 @@ export default function ArtistDashboard() {
 
   const loadUnreadSummary = useCallback(async () => {
     try {
-      const response = await fetch('/api/inbox?audience=artist&summary=true', { cache: 'no-store' })
-      const payload = await response.json()
-      if (!response.ok || !payload?.success) return
-      const unread = typeof payload?.data?.unreadTotal === 'number' ? payload.data.unreadTotal : 0
-      setUnreadMessages(unread)
+      const [messageResponse, gigResponse] = await Promise.all([
+        fetch('/api/messages?audience=artist&summary=true', { cache: 'no-store' }),
+        fetch('/api/artist-gigs?summary=true', { cache: 'no-store' }),
+      ])
+
+      const messagePayload = await messageResponse.json()
+      if (messageResponse.ok && messagePayload?.success) {
+        const unread = typeof messagePayload?.data?.unreadTotal === 'number' ? messagePayload.data.unreadTotal : 0
+        const counts = Array.isArray(messagePayload?.data?.folders)
+          ? Object.fromEntries(
+              messagePayload.data.folders
+                .map((folder: { id?: unknown; total?: unknown }) => [
+                  typeof folder.id === 'string' ? folder.id : '',
+                  typeof folder.total === 'number' ? folder.total : 0
+                ])
+                .filter(([id]: [string, number]) => id)
+            )
+          : {}
+        setUnreadMessages(unread)
+        setMessageFolderCounts(counts)
+      }
+
+      const gigPayload = await gigResponse.json()
+      if (gigResponse.ok && gigPayload?.success) {
+        const counts = gigPayload?.data?.counts && typeof gigPayload.data.counts === 'object'
+          ? Object.fromEntries(
+              Object.entries(gigPayload.data.counts)
+                .map(([id, total]) => [id, typeof total === 'number' ? total : 0])
+            )
+          : Array.isArray(gigPayload?.data?.folders)
+        ? Object.fromEntries(
+            gigPayload.data.folders
+              .map((folder: { id?: unknown; total?: unknown }) => [
+                typeof folder.id === 'string' ? folder.id : '',
+                typeof folder.total === 'number' ? folder.total : 0
+              ])
+              .filter(([id]: [string, number]) => id)
+          )
+        : {}
+        setGigNegotiationCounts(counts)
+      }
     } catch {
       // keep the current unread count when refresh fails
     }
@@ -1287,7 +1336,12 @@ export default function ArtistDashboard() {
                 />
               )
             : currentSubSection === 'upcoming'
-              ? renderWithCompletion(<ArtistGigCalendarManager defaultView="upcoming" />)
+              ? renderWithCompletion(
+                  <ArtistGigCalendarManager
+                    defaultView="upcoming"
+                    onNavigateToGigSubSection={(subSection) => handleSubSectionChange('gig-bookings', subSection)}
+                  />
+                )
               : currentSubSection === 'historic'
                 ? renderWithCompletion(<ArtistGigCalendarManager defaultView="past" />)
                 : renderScaffoldSection(
@@ -1301,10 +1355,7 @@ export default function ArtistDashboard() {
         ))
       case 'gig-reporting':
         return renderGuardedSection('gig-reporting', (
-          renderScaffoldSection(
-            'Gig Reporting',
-            'This screen is reserved for post-gig confirmations, venue reviews, and negative reporting workflows. The menu and routing are in place so the dedicated reporting screens can now be built cleanly.'
-          )
+          renderWithCompletion(<ArtistGigReportingManager mode={currentSubSection === 'report-gig' || currentSubSection === 'report-venue' ? 'report' : 'confirm'} />)
         ))
       case 'gig-negotiations':
         return renderGuardedSection('gig-negotiations', (
@@ -1312,21 +1363,11 @@ export default function ArtistDashboard() {
             ? renderWithCompletion(<ArtistGigInvitesManager />)
             : currentSubSection === 'gig_requests'
               ? renderWithCompletion(<ArtistGigRequestsManager />)
-              : renderScaffoldSection(
-                  'Gig Negotiations',
-                  'Gig negotiation folders are now grouped under one menu. Invites and requests are live. Confirmation/contract views are scaffolded for the next screen build.',
-                  {
-                    status: currentSubSection ? `Sub-section: ${currentSubSection}` : 'Mixed live + scaffolded',
-                    nextAction: { label: 'Open Gig Invites', section: 'gig-negotiations', subSection: 'gig_invites' }
-                  }
-                )
+              : renderWithCompletion(<ArtistGigConfirmationsManager />)
         ))
       case 'gig-planner':
         return renderGuardedSection('gig-planner', (
-          renderScaffoldSection(
-            'Gig Planner',
-            'Use this space for the upcoming calendar view, clickable gig dates, and artist unavailability management. The route now exists and is ready for the dedicated planner UI.'
-          )
+          renderWithCompletion(<ArtistGigPlannerManager defaultView={currentSubSection === 'unavailability' ? 'unavailability' : 'calendar'} />)
         ))
       case 'gig-statistics':
         return renderGuardedSection('gig-statistics', (
@@ -1373,9 +1414,18 @@ export default function ArtistDashboard() {
       case 'music-uploads':
         return renderGuardedSection('music-uploads', (
           currentSubSection === 'drafts'
-            ? renderScaffoldSection(
-                'Draft Uploads',
-                'This branch is reserved for a dedicated draft uploads list. The release workflow itself is live under Upload Music, and this route is now ready for a focused draft-management screen.'
+            ? renderWithCompletion(
+                <ArtistMusicManager
+                  defaultView="manage"
+                  forcedSubSection="drafts"
+                  onSubSectionNavigate={(subSection) => {
+                    if (subSection === 'workflow' || subSection === 'guide' || subSection === 'intro') {
+                      handleSubSectionChange('music-upload', subSection)
+                      return
+                    }
+                    handleSubSectionChange('music-uploads', 'drafts')
+                  }}
+                />
               )
             : renderWithCompletion(
                 <ArtistMusicManager
@@ -1390,13 +1440,13 @@ export default function ArtistDashboard() {
           renderWithCompletion(
             <ArtistMusicManager
               defaultView="manage"
-              forcedSubSection="library"
+              forcedSubSection={(currentSubSection || 'published') as MusicManagerForcedSubSection}
               onSubSectionNavigate={(subSection) => {
                 if (subSection === 'workflow' || subSection === 'guide' || subSection === 'intro') {
                   handleSubSectionChange('music-upload', subSection)
                   return
                 }
-                handleSubSectionChange('music-catalogue', 'library')
+                handleSubSectionChange('music-catalogue', subSection)
               }}
             />
           )
@@ -1498,8 +1548,8 @@ export default function ArtistDashboard() {
     'gig-create': 'Add / Create Gig',
     'gig-upcoming': 'Amend Upcoming Gigs',
     'gig-past': 'Past & Unscheduled Gigs',
-    'gig-invites': 'Gig Invites',
-    'gig-requests': 'Gig Requests',
+    'gig-invites': 'Gig Invites (from Others)',
+    'gig-requests': 'Gig Requests (to Others)',
     bio: 'Artist Biography',
     genres: 'Artist Genres',
     'music-uploads': 'Music Uploads',
@@ -1525,7 +1575,7 @@ export default function ArtistDashboard() {
     royalty: 'Set default money splits for gigs and merch',
     gigability: 'Set your base location and stage timing preferences',
     'gig-bookings': 'Book new gigs, add manual gigs, and manage upcoming and historic work',
-    'gig-reporting': 'Confirm completed gigs and report venue issues',
+    'gig-reporting': 'Confirm completed gigs, review members, and report gig issues',
     'gig-negotiations': 'Track invites, requests, and contract-stage negotiations',
     'gig-planner': 'Use a dedicated calendar and availability planner',
     'gig-statistics': 'Review your location, venue, performance, and earnings statistics',
@@ -1533,8 +1583,8 @@ export default function ArtistDashboard() {
     'gig-create': 'Create a new gig booking',
     'gig-upcoming': 'Edit or amend your upcoming gig bookings',
     'gig-past': 'View past and unscheduled gigs',
-    'gig-invites': 'Review and respond to gig invitations',
-    'gig-requests': 'Track direct gig booking requests from venues',
+    'gig-invites': 'Review and respond to gig invitations from venues and artists',
+    'gig-requests': 'Track direct gig booking requests you send to venues and artists',
     bio: 'Write and manage your artist biography',
     genres: 'Select your music genres and sub-genres',
     'music-uploads': 'Start new uploads, consult the guide, and resume draft release work',
@@ -1542,7 +1592,7 @@ export default function ArtistDashboard() {
     'music-statistics': 'Review stream counts, download totals, and music earnings',
     'music-upload': 'Upload new releases and complete submission details',
     'music-manage': 'Manage drafts, pending releases, and published catalog',
-    messages: 'Read and manage in-app notifications and updates',
+    messages: 'Read and manage real direct-message threads',
     settings: 'Open artist-level settings and account administration shortcuts'
   }
 
@@ -1566,6 +1616,8 @@ export default function ArtistDashboard() {
             }}
             capabilities={capabilities}
             unreadMessages={unreadMessages}
+            messageFolderCounts={messageFolderCounts}
+            gigNegotiationCounts={gigNegotiationCounts}
             completedSections={completedSectionsForSidebar}
             hideTypeSection={false}
           />
@@ -1582,6 +1634,8 @@ export default function ArtistDashboard() {
               onCollapsedChange={setIsDesktopSidebarCollapsed}
               capabilities={capabilities}
               unreadMessages={unreadMessages}
+              messageFolderCounts={messageFolderCounts}
+              gigNegotiationCounts={gigNegotiationCounts}
               completedSections={completedSectionsForSidebar}
               hideTypeSection={false}
             />

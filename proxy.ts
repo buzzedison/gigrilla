@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -27,8 +27,7 @@ export async function middleware(request: NextRequest) {
             )
           } catch (error) {
             // The `setAll` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
+            // This can be ignored if you have proxy refreshing user sessions.
           }
         },
       },
@@ -44,15 +43,15 @@ export async function middleware(request: NextRequest) {
     try {
       const { error } = await supabase.auth.exchangeCodeForSession(code)
       if (error) {
-        console.error('Middleware: Failed to exchange code for session', error.message)
+        console.error('Proxy: Failed to exchange code for session', error.message)
       } else {
-        console.log('Middleware: Successfully exchanged code for session')
+        console.log('Proxy: Successfully exchanged code for session')
         // Remove the code parameter from URL to prevent header size issues
         const url = request.nextUrl.clone()
         url.searchParams.delete('code')
-        // Create redirect response and copy cookies from supabaseResponse (which was updated by exchangeCodeForSession)
+        // Create redirect response and copy cookies from supabaseResponse,
+        // which was updated by exchangeCodeForSession.
         const redirectResponse = NextResponse.redirect(url)
-        // Copy all cookies from supabaseResponse to redirectResponse
         supabaseResponse.cookies.getAll().forEach((cookie) => {
           redirectResponse.cookies.set(cookie.name, cookie.value, {
             path: cookie.path,
@@ -66,13 +65,11 @@ export async function middleware(request: NextRequest) {
         return redirectResponse
       }
     } catch (error) {
-      console.error('Middleware: Unexpected error exchanging code for session', error)
+      console.error('Proxy: Unexpected error exchanging code for session', error)
     }
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  await supabase.auth.getUser()
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
   // creating a new response object with NextResponse.next() make sure to:
@@ -98,5 +95,3 @@ export const config = {
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
-
-

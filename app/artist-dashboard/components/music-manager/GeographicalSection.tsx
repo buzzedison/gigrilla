@@ -89,7 +89,12 @@ export function GeographicalSection({ releaseData, onUpdate }: GeographicalSecti
       <div className="space-y-6">
         <div className="space-y-3">
           <label className="block text-sm font-medium text-gray-800">Recording Country of Origin</label>
-          <p className="text-xs text-gray-600">Where was this release recorded?</p>
+          <div className="space-y-1">
+            <p className="text-xs text-gray-600">Where was this release recorded?</p>
+            <p className="text-xs font-medium text-gray-700">
+              Set Country of Origin. This can default to the artist&apos;s home country, and you can amend it here if this release was recorded somewhere else.
+            </p>
+          </div>
           <Select
             value={releaseData.countryOfOrigin}
             onValueChange={(value) => onUpdate('countryOfOrigin', value)}

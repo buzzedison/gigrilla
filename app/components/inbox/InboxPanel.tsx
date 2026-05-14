@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Bell, CheckCheck, Inbox, Loader2, RefreshCw } from 'lucide-react'
+import { Bell, CheckCheck, Inbox, Loader2, Mail, RefreshCw, ShieldCheck, Users } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { formatDateTimeDDMMMyyyy } from '@/lib/date-format'
+import { ARTIST_INBOX_GROUPS, type InboxFolderGroupId } from '@/data/inbox-folders'
 
 export type InboxAudience = 'fan' | 'artist'
 
@@ -12,6 +13,7 @@ type InboxFolderSummary = {
   id: string
   label: string
   description: string
+  groupId?: InboxFolderGroupId
   total: number
   unread: number
 }
@@ -63,6 +65,12 @@ function formatDateTime(value: string) {
 function truncateText(value: string, max = 180) {
   if (value.length <= max) return value
   return `${value.slice(0, max - 1)}…`
+}
+
+const artistGroupIcons: Record<InboxFolderGroupId, React.ComponentType<{ className?: string }>> = {
+  gig_negotiations: Mail,
+  user_messages: Users,
+  system_messages: ShieldCheck,
 }
 
 export function InboxPanel({
@@ -139,6 +147,22 @@ export function InboxPanel({
     if (!selectedMessageId) return null
     return messages.find((message) => message.id === selectedMessageId) || null
   }, [messages, selectedMessageId])
+
+  const artistFolderGroups = useMemo(() => {
+    const folderMap = new Map(folders.map((folder) => [folder.id, folder]))
+    return ARTIST_INBOX_GROUPS.map((group) => {
+      const groupFolders = group.folderIds
+        .map((folderId) => folderMap.get(folderId))
+        .filter((folder): folder is InboxFolderSummary => Boolean(folder))
+
+      return {
+        ...group,
+        folders: groupFolders,
+        total: groupFolders.reduce((sum, folder) => sum + folder.total, 0),
+        unread: groupFolders.reduce((sum, folder) => sum + folder.unread, 0),
+      }
+    })
+  }, [folders])
 
   useEffect(() => {
     if (visibleMessages.length < 1) {
@@ -278,7 +302,75 @@ export function InboxPanel({
           </div>
         )}
 
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        {audience === 'artist' ? (
+          <div className="grid gap-3 lg:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedFolderId('all')
+                onFolderChange?.('all')
+              }}
+              className={`rounded-lg border p-3 text-left transition ${
+                selectedFolderId === 'all'
+                  ? 'border-purple-400 bg-purple-50 shadow-sm'
+                  : 'border-gray-200 bg-white hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold text-gray-950">All Messages</span>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">{messages.length}</span>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">Every artist inbox message.</p>
+            </button>
+
+            {artistFolderGroups.map((group) => {
+              const Icon = artistGroupIcons[group.id]
+              return (
+                <div key={group.id} className="rounded-lg border border-gray-200 bg-white p-3">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-2">
+                      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-purple-700" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-gray-950">{group.label}</p>
+                        <p className="line-clamp-2 text-xs text-gray-500">{group.description}</p>
+                      </div>
+                    </div>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      group.unread > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-700'
+                    }`}>
+                      {group.total}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    {group.folders.map((folder) => (
+                      <button
+                        key={folder.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedFolderId(folder.id)
+                          onFolderChange?.(folder.id)
+                        }}
+                        className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs transition ${
+                          selectedFolderId === folder.id
+                            ? 'bg-purple-100 text-purple-900'
+                            : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="truncate">{folder.label}</span>
+                        <span className={`ml-2 rounded-full px-1.5 py-0.5 font-semibold ${
+                          folder.unread > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {folder.total}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="flex gap-2 overflow-x-auto pb-1">
           <button
             type="button"
             onClick={() => {
@@ -312,7 +404,8 @@ export function InboxPanel({
               {folder.label} ({folder.total})
             </button>
           ))}
-        </div>
+          </div>
+        )}
 
         {selectedFolderId !== 'all' && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">

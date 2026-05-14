@@ -1,4 +1,5 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import type { Readable } from 'node:stream'
 
 // Cloudflare R2 configuration
 // R2 uses S3-compatible API but with Cloudflare's endpoint
@@ -29,9 +30,10 @@ export const R2_CONFIG = {
  * Upload a file to Cloudflare R2
  */
 export async function uploadToR2(
-  file: Buffer | Uint8Array,
+  file: Buffer | Uint8Array | Readable,
   key: string,
-  contentType: string
+  contentType: string,
+  contentLength?: number
 ): Promise<{ success: boolean; url?: string; error?: string }> {
   try {
     const command = new PutObjectCommand({
@@ -39,6 +41,7 @@ export async function uploadToR2(
       Key: key,
       Body: file,
       ContentType: contentType,
+      ContentLength: contentLength,
     })
 
     await r2Client.send(command)

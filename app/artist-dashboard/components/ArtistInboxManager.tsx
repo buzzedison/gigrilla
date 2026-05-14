@@ -1,6 +1,6 @@
 'use client'
 
-import { InboxPanel } from '../../components/inbox/InboxPanel'
+import { DirectMessagesPanel } from '../../components/messages/DirectMessagesPanel'
 
 interface ArtistInboxManagerProps {
   initialFolderId?: string | null
@@ -14,10 +14,10 @@ export function ArtistInboxManager({
   onUnreadCountChange,
 }: ArtistInboxManagerProps) {
   return (
-    <InboxPanel
+    <DirectMessagesPanel
       audience="artist"
       title="Artist Messages"
-      subtitle="Manage inbox updates without mass-email workflows. Use folders to track invites, requests, and release updates."
+      subtitle="Real direct-message threads for gigs, users, and system conversations."
       initialFolderId={initialFolderId}
       onFolderChange={onFolderChange}
       onUnreadCountChange={onUnreadCountChange}

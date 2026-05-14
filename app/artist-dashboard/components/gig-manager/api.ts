@@ -1,4 +1,4 @@
-import { ArtistGigListResponse, GigBookingStatus } from './types'
+import { ArtistGigListResponse, ArtistGigReportingRecord, ArtistGigSummaryResponse, ArtistUnavailabilityRecord, GigBookingStatus } from './types'
 
 type GigView = 'calendar' | 'invites' | 'requests'
 
@@ -39,7 +39,18 @@ export async function fetchArtistGigView(view: GigView, options?: GigQueryOption
   return payload as ArtistGigListResponse
 }
 
-type GigAction = 'accept_invite' | 'decline_invite' | 'cancel_request' | 'mark_completed' | 'publish_now'
+export async function fetchArtistGigSummary(): Promise<ArtistGigSummaryResponse> {
+  const response = await fetch('/api/artist-gigs?summary=true', { cache: 'no-store' })
+  const payload = await response.json()
+
+  if (!response.ok) {
+    throw new Error(payload?.error || 'Failed to load gig summary')
+  }
+
+  return payload as ArtistGigSummaryResponse
+}
+
+type GigAction = 'accept_invite' | 'decline_invite' | 'cancel_request' | 'mark_completed' | 'publish_now' | 'mark_sold_out'
 
 export async function updateArtistGig(bookingId: string, action: GigAction) {
   const response = await fetch('/api/artist-gigs', {
@@ -223,6 +234,118 @@ export async function cancelScheduledGigFanComms(bookingId: string, entryId: str
   }
 
   return payload
+}
+
+export interface ArtistAvailabilityResponse {
+  success: boolean
+  data: ArtistUnavailabilityRecord[]
+  warning?: string
+}
+
+export interface CreateArtistUnavailabilityPayload {
+  startsAt: string
+  endsAt: string
+  reason?: string
+  note?: string
+}
+
+export async function fetchArtistUnavailability(options?: { dateFrom?: string; dateTo?: string }) {
+  const query = new URLSearchParams()
+  if (options?.dateFrom) query.set('date_from', options.dateFrom)
+  if (options?.dateTo) query.set('date_to', options.dateTo)
+
+  const response = await fetch(`/api/artist-availability${query.toString() ? `?${query.toString()}` : ''}`, {
+    cache: 'no-store',
+  })
+  const payload = await response.json()
+
+  if (!response.ok) {
+    throw new Error(payload?.error || 'Failed to load unavailability')
+  }
+
+  return payload as ArtistAvailabilityResponse
+}
+
+export async function createArtistUnavailability(data: CreateArtistUnavailabilityPayload) {
+  const response = await fetch('/api/artist-availability', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+  const payload = await response.json()
+
+  if (!response.ok) {
+    throw new Error(payload?.error || 'Failed to save unavailability')
+  }
+
+  return payload as { success: boolean; data: ArtistUnavailabilityRecord }
+}
+
+export async function deleteArtistUnavailability(id: string) {
+  const query = new URLSearchParams({ id })
+  const response = await fetch(`/api/artist-availability?${query.toString()}`, {
+    method: 'DELETE',
+  })
+  const payload = await response.json()
+
+  if (!response.ok) {
+    throw new Error(payload?.error || 'Failed to remove unavailability')
+  }
+
+  return payload as { success: boolean }
+}
+
+export interface ArtistGigReportingResponse {
+  success: boolean
+  data: ArtistGigReportingRecord[]
+  warning?: string
+}
+
+export interface SubmitArtistGigReportingPayload {
+  bookingId: string
+  actionType: 'confirm' | 'report'
+  targetMemberType?: 'venue' | 'artist' | 'fan' | 'service' | 'professional' | 'other'
+  targetMemberId?: string | null
+  rating?: number | null
+  reviewText?: string
+  issueTypes?: string[]
+  environmentDetails?: string
+  attitudeDetails?: string
+}
+
+export async function fetchArtistGigReporting(actionType?: 'confirm' | 'report') {
+  const query = new URLSearchParams()
+  if (actionType) query.set('actionType', actionType)
+
+  const response = await fetch(`/api/artist-gig-reporting${query.toString() ? `?${query.toString()}` : ''}`, {
+    cache: 'no-store',
+  })
+  const payload = await response.json()
+
+  if (!response.ok) {
+    throw new Error(payload?.error || 'Failed to load gig reporting')
+  }
+
+  return payload as ArtistGigReportingResponse
+}
+
+export async function submitArtistGigReporting(data: SubmitArtistGigReportingPayload) {
+  const response = await fetch('/api/artist-gig-reporting', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+  const payload = await response.json()
+
+  if (!response.ok) {
+    throw new Error(payload?.error || 'Failed to save gig reporting')
+  }
+
+  return payload as { success: boolean; data: ArtistGigReportingRecord }
 }
 
 export interface UpdateScheduledGigFanCommsPayload {

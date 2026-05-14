@@ -53,6 +53,7 @@ export interface ReleaseData {
   goLiveDate: string
   masterRightsType: 'independent' | 'label' | ''
   recordLabels: RecordLabelEntry[]
+  applyRecordLabelToAllTracks: boolean
   masterRightsConfirmed: boolean
   publishingRightsType: 'independent' | 'publisher' | ''
   publishers: PublisherEntry[]
@@ -140,6 +141,7 @@ export const initialReleaseData: ReleaseData = {
   goLiveDate: '',
   masterRightsType: '',
   recordLabels: [createRecordLabelEntry()],
+  applyRecordLabelToAllTracks: false,
   masterRightsConfirmed: false,
   publishingRightsType: '',
   publishers: [createPublisherEntry()],

@@ -10,11 +10,22 @@ import { Checkbox } from '../../components/ui/checkbox'
 import { Badge } from '../../components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
 import { useAuth } from '../../../lib/auth-context'
-import { CreditCard, Building2, CheckCircle, X, ShieldCheck, Users2, WalletCards, ArrowDownCircle, ArrowUpCircle, ChevronDown, ChevronUp, Landmark } from 'lucide-react'
+import { CreditCard, Building2, CheckCircle, X, ShieldCheck, Users2, WalletCards, ArrowDownCircle, ArrowUpCircle, ChevronDown, ChevronUp, Landmark, Pencil, UserPlus } from 'lucide-react'
 import { COUNTRY_DIAL_CODE_CHOICES, DEFAULT_COUNTRY_DIAL_CODE, getDialCodeChoiceValue, getDialCodeFromChoiceValue } from '../../../lib/country-dial-codes'
+import { getCountryOptions } from '../../../lib/country-list'
 import { cn } from '../../../lib/utils'
+import { INSTRUMENT_TAXONOMY_3TIER } from '../../../data/instrument-taxonomy'
+import {
+  ARTIST_TAX_ID_COUNTRY_NAMES,
+  ARTIST_TAX_ID_FIELD_KEYS,
+  ArtistTaxIdField,
+  getArtistTaxIdProfile
+} from '../../../data/artist-tax-id-options'
 
-const COUNTRY_OPTIONS = Array.from(new Set(COUNTRY_DIAL_CODE_CHOICES.map(choice => choice.country))).sort((a, b) => a.localeCompare(b))
+const COUNTRY_OPTIONS = Array.from(new Set([
+  ...getCountryOptions().map(country => country.name),
+  ...ARTIST_TAX_ID_COUNTRY_NAMES
+])).sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }))
 
 const ENTITY_TYPES = [
   'Incorporated Company',
@@ -96,6 +107,17 @@ interface Notification {
   visible: boolean
 }
 
+type LegalEntityErrors = Partial<Record<
+  | 'entity_type'
+  | 'artist_entity_legal_name'
+  | 'main_contact'
+  | 'country'
+  | 'tax_ids'
+  | 'company_formation_date'
+  | 'legal_entity_date_of_birth',
+  string
+>>
+
 const DEFAULT_PAYMENT_DETAILS: PaymentDetails = {
   official_ids_acknowledged: false,
   payment_flows_acknowledged: false,
@@ -139,6 +161,32 @@ const DEFAULT_PAYMENT_DETAILS: PaymentDetails = {
 
 const corporateEntityTypes: EntityType[] = ['Incorporated Company', 'Incorporated Partnership']
 
+const titleCaseToken = (value: string) =>
+  value
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, char => char.toUpperCase())
+
+const formatRoleLabel = (role: string) => {
+  if (role.startsWith('instrument:')) {
+    const [, groupId, instrumentId, variantId] = role.split(':')
+    const group = INSTRUMENT_TAXONOMY_3TIER.find(item => item.id === groupId)
+    const instrument = group?.instruments.find(item => item.id === instrumentId)
+    const variant = variantId ? instrument?.variants?.find(item => item.id === variantId) : undefined
+
+    if (variant) return variant.label
+    if (instrument) return instrument.label
+    return titleCaseToken(variantId || instrumentId || groupId || role)
+  }
+
+  const parts = role.split(':').filter(Boolean)
+  return titleCaseToken(parts[parts.length - 1] || role)
+}
+
+const formatRoleLabels = (roles?: string[]) =>
+  Array.from(new Set((roles ?? []).map(formatRoleLabel).filter(Boolean)))
+
 export function ArtistPaymentsManager() {
   const { user } = useAuth()
   const [paymentDetails, setPaymentDetails] = useState<PaymentDetails>(DEFAULT_PAYMENT_DETAILS)
@@ -149,6 +197,7 @@ export function ArtistPaymentsManager() {
   const [notification, setNotification] = useState<Notification | null>(null)
   const [officialNoticeOpen, setOfficialNoticeOpen] = useState(true)
   const [paymentFlowsOpen, setPaymentFlowsOpen] = useState(true)
+  const [legalEntityErrors, setLegalEntityErrors] = useState<LegalEntityErrors>({})
 
   useEffect(() => {
     loadPaymentDetails()
@@ -226,11 +275,21 @@ export function ArtistPaymentsManager() {
 
   const handleSave = async () => {
     try {
+      const errors = validateLegalEntityDetails()
+      setLegalEntityErrors(errors)
+
+      if (Object.keys(errors).length > 0) {
+        const firstError = Object.values(errors)[0] || 'Complete Artist Legal Entity before saving'
+        showNotification('error', firstError)
+        return
+      }
+
       setSaving(true)
+      const payload = buildPaymentPayload()
       const response = await fetch('/api/artist-payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(paymentDetails)
+        body: JSON.stringify(payload)
       })
 
       const result = await response.json().catch(() => null)
@@ -262,12 +321,80 @@ export function ArtistPaymentsManager() {
 
   const updatePaymentDetails = <K extends keyof PaymentDetails>(field: K, value: PaymentDetails[K]) => {
     setPaymentDetails(prev => ({ ...prev, [field]: value }))
+    setLegalEntityErrors(prev => {
+      if (Object.keys(prev).length === 0) return prev
+      return validateLegalEntityDetails({ ...paymentDetails, [field]: value })
+    })
   }
 
   const entityType = paymentDetails.entity_type || ''
   const isCorporateEntity = corporateEntityTypes.includes(entityType as EntityType)
+  const selectedTaxCountry = isCorporateEntity ? paymentDetails.country_of_incorporation : paymentDetails.country_of_tax_residence
+  const selectedTaxProfile = entityType && selectedTaxCountry ? getArtistTaxIdProfile(selectedTaxCountry) : null
   const currentMembers = legalMembers.filter(member => member.metadata?.isCurrentMember !== false)
   const previousMembers = legalMembers.filter(member => member.metadata?.isCurrentMember === false)
+
+  function buildPaymentPayload(): PaymentDetails {
+    const payload = { ...paymentDetails }
+
+    if (isCorporateEntity) {
+      payload.country_of_tax_residence = ''
+      payload.legal_entity_date_of_birth = ''
+    } else {
+      payload.country_of_incorporation = ''
+      payload.company_registration_number = ''
+      payload.company_formation_date = ''
+    }
+
+    return payload
+  }
+
+  function validateLegalEntityDetails(details = paymentDetails): LegalEntityErrors {
+    const errors: LegalEntityErrors = {}
+    const resolvedEntityType = details.entity_type || ''
+    const resolvedIsCorporate = corporateEntityTypes.includes(resolvedEntityType as EntityType)
+    const country = resolvedIsCorporate ? details.country_of_incorporation : details.country_of_tax_residence
+    const countryProfile = country ? getArtistTaxIdProfile(country) : null
+    const visibleTaxIdKeys = countryProfile?.fields.map(field => field.key) ?? ARTIST_TAX_ID_FIELD_KEYS
+    const hasVisibleTaxId = visibleTaxIdKeys.some(key => details[key]?.trim())
+
+    if (!resolvedEntityType) {
+      errors.entity_type = 'Select an entity type'
+    }
+
+    if (!details.artist_entity_legal_name?.trim()) {
+      errors.artist_entity_legal_name = 'Enter the Artist Entity Legal Name'
+    }
+
+    if (
+      !details.main_contact_first_name?.trim() ||
+      !details.main_contact_last_name?.trim() ||
+      !details.main_contact_phone?.trim() ||
+      !details.main_contact_email?.trim()
+    ) {
+      errors.main_contact = 'Complete the main contact name, phone, and email'
+    }
+
+    if (!country?.trim()) {
+      errors.country = resolvedIsCorporate ? 'Select the country of incorporation' : 'Select the country of tax residence'
+    }
+
+    if (!hasVisibleTaxId) {
+      errors.tax_ids = 'Provide at least one valid ID number'
+    }
+
+    if (resolvedEntityType) {
+      if (resolvedIsCorporate && !details.company_formation_date?.trim()) {
+        errors.company_formation_date = 'Enter the company formation date'
+      }
+
+      if (!resolvedIsCorporate && !details.legal_entity_date_of_birth?.trim()) {
+        errors.legal_entity_date_of_birth = 'Enter your date of birth'
+      }
+    }
+
+    return errors
+  }
 
   if (loading) {
     return (
@@ -360,81 +487,121 @@ export function ArtistPaymentsManager() {
 
       <Card id="artist-payments-legal-entity" className="scroll-mt-28">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-purple-900"><Landmark className="w-5 h-5" /> Artist Legal Entity</CardTitle>
+          <CardTitle className="flex flex-wrap items-center gap-2 text-purple-900">
+            <Landmark className="w-5 h-5" />
+            Artist Legal Entity
+            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">NEW</Badge>
+          </CardTitle>
           <p className="text-sm text-gray-600">This is the legal payee Gigrilla uses for compliance, payouts, and payment reporting.</p>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Artist Stage Name</Label>
-              <Input value={artistStageName || 'Not set yet'} readOnly className="bg-gray-100" />
-              <p className="text-xs text-gray-500">Carried over from Artist Basics.</p>
+          <div className="space-y-4 rounded-xl border border-purple-100 bg-purple-50/40 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="bg-purple-100 text-purple-900 border-purple-200">Step One</Badge>
+              <h3 className="font-semibold text-purple-950">Entity details</h3>
             </div>
-            <div className="space-y-2">
-              <Label>Entity Type</Label>
-              <Select value={paymentDetails.entity_type || ''} onValueChange={(value) => updatePaymentDetails('entity_type', value as EntityType)}>
-                <SelectTrigger><SelectValue placeholder="Select entity type" /></SelectTrigger>
-                <SelectContent>
-                  {ENTITY_TYPES.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Artist Entity Legal Name (Payee)</Label>
-            <Input
-              value={paymentDetails.artist_entity_legal_name}
-              onChange={(event) => updatePaymentDetails('artist_entity_legal_name', event.target.value)}
-              placeholder="Your business entity name, your legal name, or your Artist name"
-            />
-          </div>
-
-          <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-4 space-y-4">
-            <h3 className="font-semibold text-purple-950">Main Contact (compliance/payments)</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input value={paymentDetails.main_contact_first_name} onChange={(event) => updatePaymentDetails('main_contact_first_name', event.target.value)} placeholder="First/Given Name" />
-              <Input value={paymentDetails.main_contact_last_name} onChange={(event) => updatePaymentDetails('main_contact_last_name', event.target.value)} placeholder="Last/Family Name" />
-              <div className="grid grid-cols-[minmax(150px,220px)_1fr] gap-2 md:col-span-1">
-                <Select
-                  value={getDialCodeChoiceValue(paymentDetails.main_contact_phone_country_code)}
-                  onValueChange={(value) => updatePaymentDetails('main_contact_phone_country_code', getDialCodeFromChoiceValue(value))}
-                >
-                  <SelectTrigger><SelectValue placeholder="Code" /></SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    {COUNTRY_DIAL_CODE_CHOICES.map(choice => <SelectItem key={choice.value} value={choice.value}>{choice.label}</SelectItem>)}
+              <div className="space-y-2">
+                <Label>Artist Stage Name</Label>
+                <Input value={artistStageName || 'Not set yet'} readOnly className="bg-gray-100" />
+                <p className="text-xs text-gray-500">Carried over from Artist Basics.</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Entity Type</Label>
+                <Select value={paymentDetails.entity_type || ''} onValueChange={(value) => updatePaymentDetails('entity_type', value as EntityType)}>
+                  <SelectTrigger className={legalEntityErrors.entity_type ? 'border-red-400' : undefined}><SelectValue placeholder="Select entity type" /></SelectTrigger>
+                  <SelectContent>
+                    {ENTITY_TYPES.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Input value={paymentDetails.main_contact_phone} onChange={(event) => updatePaymentDetails('main_contact_phone', event.target.value)} placeholder="Contact Phone" />
+                {legalEntityErrors.entity_type && <p className="text-xs text-red-600">{legalEntityErrors.entity_type}</p>}
               </div>
-              <Input value={paymentDetails.main_contact_email} onChange={(event) => updatePaymentDetails('main_contact_email', event.target.value)} placeholder="Contact Email" />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Artist Entity Legal Name (Payee)</Label>
+              <Input
+                value={paymentDetails.artist_entity_legal_name}
+                onChange={(event) => updatePaymentDetails('artist_entity_legal_name', event.target.value)}
+                placeholder="Your business entity name, your legal name, or your Artist name"
+                className={legalEntityErrors.artist_entity_legal_name ? 'border-red-400' : undefined}
+              />
+              {legalEntityErrors.artist_entity_legal_name && <p className="text-xs text-red-600">{legalEntityErrors.artist_entity_legal_name}</p>}
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="font-semibold text-purple-950">Main Contact (compliance/payments)</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input value={paymentDetails.main_contact_first_name} onChange={(event) => updatePaymentDetails('main_contact_first_name', event.target.value)} placeholder="First/Given Name" className={legalEntityErrors.main_contact ? 'border-red-400' : undefined} />
+                <Input value={paymentDetails.main_contact_last_name} onChange={(event) => updatePaymentDetails('main_contact_last_name', event.target.value)} placeholder="Last/Family Name" className={legalEntityErrors.main_contact ? 'border-red-400' : undefined} />
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(150px,220px)_1fr] md:col-span-1">
+                  <Select
+                    value={getDialCodeChoiceValue(paymentDetails.main_contact_phone_country_code)}
+                    onValueChange={(value) => updatePaymentDetails('main_contact_phone_country_code', getDialCodeFromChoiceValue(value))}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Code" /></SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {COUNTRY_DIAL_CODE_CHOICES.map(choice => <SelectItem key={choice.value} value={choice.value}>{choice.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Input value={paymentDetails.main_contact_phone} onChange={(event) => updatePaymentDetails('main_contact_phone', event.target.value)} placeholder="Contact Phone" className={legalEntityErrors.main_contact ? 'border-red-400' : undefined} />
+                </div>
+                <Input value={paymentDetails.main_contact_email} onChange={(event) => updatePaymentDetails('main_contact_email', event.target.value)} placeholder="Contact Email" className={legalEntityErrors.main_contact ? 'border-red-400' : undefined} />
+              </div>
+              {legalEntityErrors.main_contact && <p className="text-xs text-red-600">{legalEntityErrors.main_contact}</p>}
             </div>
           </div>
 
-          {entityType && (
-            <div className="space-y-4 rounded-xl border border-gray-200 p-4">
+          <div className="space-y-4 rounded-xl border border-gray-200 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="bg-gray-100 text-gray-900 border-gray-200">Step Two</Badge>
               <h3 className="font-semibold text-gray-950">
-                {isCorporateEntity ? 'Corporate Taxpayer ID Number (business)' : 'Income Taxpayer ID Number (individual)'}
+                {entityType
+                  ? isCorporateEntity
+                    ? 'Corporate Taxpayer ID Number (business)'
+                    : 'Income Taxpayer ID Number (individual)'
+                  : 'Taxpayer ID Number'}
               </h3>
+            </div>
+            {!entityType ? (
+              <p className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500">Select an Entity Type in Step One to show the correct tax ID section.</p>
+            ) : (
+              <>
               <div className="space-y-2">
                 <Label>{isCorporateEntity ? 'Country of Incorporation' : 'Country of Tax Residence'}</Label>
                 <Select
                   value={isCorporateEntity ? paymentDetails.country_of_incorporation : paymentDetails.country_of_tax_residence}
                   onValueChange={(value) => updatePaymentDetails(isCorporateEntity ? 'country_of_incorporation' : 'country_of_tax_residence', value)}
                 >
-                  <SelectTrigger><SelectValue placeholder="Select country" /></SelectTrigger>
+                  <SelectTrigger className={legalEntityErrors.country ? 'border-red-400' : undefined}><SelectValue placeholder="Select country" /></SelectTrigger>
                   <SelectContent className="max-h-72">
                     {COUNTRY_OPTIONS.map(country => <SelectItem key={country} value={country}>{country}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {legalEntityErrors.country && <p className="text-xs text-red-600">{legalEntityErrors.country}</p>}
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <TaxIdInput label="Generic/Tax ID" value={paymentDetails.generic_tax_id} onChange={(value) => updatePaymentDetails('generic_tax_id', value)} />
-                <TaxIdInput label="Individual Tax ID" value={paymentDetails.individual_tax_id} onChange={(value) => updatePaymentDetails('individual_tax_id', value)} />
-                <TaxIdInput label="Business Tax ID" value={paymentDetails.business_tax_id} onChange={(value) => updatePaymentDetails('business_tax_id', value)} />
-                <TaxIdInput label="VAT/GST/SST ID" value={paymentDetails.vat_gst_sst_id} onChange={(value) => updatePaymentDetails('vat_gst_sst_id', value)} />
-              </div>
-              <p className="text-xs text-gray-500">Provide at least one valid ID number. Local labels and format checks can be added country-by-country without changing this data model.</p>
+
+              {selectedTaxProfile && (
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-sm font-semibold text-gray-950">{selectedTaxProfile.countryName} - {selectedTaxProfile.authority}</p>
+                    <p className="text-xs text-gray-500">Provide at least one valid ID Number.</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {selectedTaxProfile.fields.map(field => (
+                      <TaxIdInput
+                        key={field.key}
+                        field={field}
+                        value={paymentDetails[field.key]}
+                        error={legalEntityErrors.tax_ids}
+                        onChange={(value) => updatePaymentDetails(field.key, value)}
+                      />
+                    ))}
+                  </div>
+                  {legalEntityErrors.tax_ids && <p className="text-xs text-red-600">{legalEntityErrors.tax_ids}</p>}
+                </div>
+              )}
+
               {isCorporateEntity ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                   <div className="space-y-2">
@@ -443,17 +610,22 @@ export function ArtistPaymentsManager() {
                   </div>
                   <div className="space-y-2">
                     <Label>Company Formation Date</Label>
-                    <Input type="date" value={paymentDetails.company_formation_date} onChange={(event) => updatePaymentDetails('company_formation_date', event.target.value)} />
+                    <Input type="date" value={paymentDetails.company_formation_date} onChange={(event) => updatePaymentDetails('company_formation_date', event.target.value)} className={legalEntityErrors.company_formation_date ? 'border-red-400' : undefined} />
+                    <p className="text-xs text-gray-500">Use DD/MMM/YYYY when reading this back in documents.</p>
+                    {legalEntityErrors.company_formation_date && <p className="text-xs text-red-600">{legalEntityErrors.company_formation_date}</p>}
                   </div>
                 </div>
               ) : (
                 <div className="space-y-2 pt-2">
                   <Label>Your Date of Birth</Label>
-                  <Input type="date" value={paymentDetails.legal_entity_date_of_birth} onChange={(event) => updatePaymentDetails('legal_entity_date_of_birth', event.target.value)} />
+                  <Input type="date" value={paymentDetails.legal_entity_date_of_birth} onChange={(event) => updatePaymentDetails('legal_entity_date_of_birth', event.target.value)} className={legalEntityErrors.legal_entity_date_of_birth ? 'border-red-400' : undefined} />
+                  <p className="text-xs text-gray-500">Use DD/MMM/YYYY when reading this back in documents.</p>
+                  {legalEntityErrors.legal_entity_date_of_birth && <p className="text-xs text-red-600">{legalEntityErrors.legal_entity_date_of_birth}</p>}
                 </div>
               )}
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -465,9 +637,18 @@ export function ArtistPaymentsManager() {
         <CardContent className="space-y-6">
           <LegalMemberSection title="Current Artist Members & IDs" members={currentMembers} emptyText="No current performer members have been added yet." />
           <LegalMemberSection title="Previous Artist Members & IDs" members={previousMembers} emptyText="No previous performer members have been recorded yet." previous />
-          <div className="flex flex-wrap gap-3">
-            <Button variant="outline" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=owner'}>Confirm/Update Shareholder Details</Button>
-            <Button className="bg-purple-600 hover:bg-purple-700 text-white" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=add-members'}>Add a New Artist Shareholder</Button>
+          <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-gray-500">Manage legal member records from Artist Crew.</p>
+            <div className="flex flex-wrap gap-3">
+              <Button variant="outline" size="sm" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=owner'}>
+                <Pencil className="w-4 h-4" />
+                Update shareholders
+              </Button>
+              <Button size="sm" className="bg-purple-600 text-white hover:bg-purple-700" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=add-members'}>
+                <UserPlus className="w-4 h-4" />
+                Add shareholder
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -542,11 +723,27 @@ export function ArtistPaymentsManager() {
   )
 }
 
-function TaxIdInput({ label, value, onChange }: { label: string; value?: string; onChange: (value: string) => void }) {
+function TaxIdInput({
+  field,
+  value,
+  error,
+  onChange
+}: {
+  field: ArtistTaxIdField
+  value?: string
+  error?: string
+  onChange: (value: string) => void
+}) {
   return (
     <div className="space-y-2">
-      <Label>{label}</Label>
-      <Input value={value || ''} onChange={(event) => onChange(event.target.value)} placeholder="Local name / format checker pending" />
+      <Label>{field.label} ({field.localName})</Label>
+      <Input
+        value={value || ''}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Enter ID#..."
+        className={error ? 'border-red-400' : undefined}
+      />
+      <p className="text-xs text-gray-500">Example format: {field.example}</p>
     </div>
   )
 }
@@ -554,39 +751,63 @@ function TaxIdInput({ label, value, onChange }: { label: string; value?: string;
 function LegalMemberSection({ title, members, emptyText, previous = false }: { title: string; members: LegalMember[]; emptyText: string; previous?: boolean }) {
   return (
     <div className="space-y-3">
-      <h3 className="font-semibold text-gray-950">{title}</h3>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-base font-semibold text-gray-950">{title}</h3>
+        <Badge variant="outline" className="border-gray-200 bg-white text-gray-600">
+          {members.length} {members.length === 1 ? 'member' : 'members'}
+        </Badge>
+      </div>
       {members.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500">{emptyText}</div>
+        <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50/50 p-4 text-sm text-gray-500">{emptyText}</div>
       ) : (
         <div className="space-y-3">
           {members.map(member => {
             const metadata = member.metadata ?? {}
-            const displayName = [metadata.firstName, metadata.nickname ? `“${metadata.nickname}”` : '', metadata.lastName].filter(Boolean).join(' ') || member.name || member.email || 'Unnamed performer'
+            const displayName = [metadata.firstName, metadata.nickname ? `"${metadata.nickname}"` : '', metadata.lastName].filter(Boolean).join(' ') || member.name || member.email || 'Unnamed performer'
+            const roleLabels = formatRoleLabels(member.roles)
             return (
-              <div key={member.id} className="rounded-xl border border-gray-200 p-4 space-y-3">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-gray-950">{displayName}</p>
+              <div key={member.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-semibold text-gray-950">{displayName}</p>
                     <p className="text-sm text-gray-500">{member.email}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">{previous ? 'Previous' : 'Current'}</Badge>
-                    {metadata.isShareholder && <Badge className="bg-green-100 text-green-800 border-green-200">Shareholder</Badge>}
-                    {metadata.isMainContact && <Badge className="bg-blue-100 text-blue-800 border-blue-200">Main Contact</Badge>}
-                    {metadata.isAdmin && <Badge className="bg-purple-100 text-purple-800 border-purple-200">Admin</Badge>}
+                    <Badge className={previous ? 'border-gray-200 bg-gray-100 text-gray-700' : 'border-teal-200 bg-teal-100 text-teal-800'}>{previous ? 'Previous' : 'Current'}</Badge>
+                    {metadata.isShareholder && <Badge className="border-green-200 bg-green-50 text-green-800">Shareholder</Badge>}
+                    {metadata.isMainContact && <Badge className="border-blue-200 bg-blue-50 text-blue-800">Main Contact</Badge>}
+                    {metadata.isAdmin && <Badge className="border-purple-200 bg-purple-50 text-purple-800">Admin</Badge>}
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+
+                <div className="mt-4 grid grid-cols-1 overflow-hidden rounded-lg border border-gray-200 sm:grid-cols-2 lg:grid-cols-5">
                   <MemberFact label="Individual ISNI" value={metadata.performerIsni} />
                   <MemberFact label="Performer IPN" value={metadata.performerIpn} />
                   <MemberFact label="Writer IPI" value={metadata.creatorIpiCae} />
                   <MemberFact label="Member Since" value={metadata.memberSince} />
                   <MemberFact label="Date Left" value={metadata.dateLeft} />
-                  <MemberFact label="Roles" value={member.roles?.join(', ')} />
                 </div>
-                <Button variant="outline" size="sm" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=owner'}>
-                  {previous ? 'Reinstate Shareholder' : 'Confirm/Update Shareholder Details'}
-                </Button>
+
+                <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0 space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Roles</p>
+                    {roleLabels.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {roleLabels.map(role => (
+                          <Badge key={role} variant="outline" className="border-gray-200 bg-gray-50 text-gray-700">
+                            {role}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No roles assigned</p>
+                    )}
+                  </div>
+                  <Button variant="outline" size="sm" className="self-start lg:self-center" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=owner'}>
+                    <Pencil className="w-4 h-4" />
+                    {previous ? 'Reinstate' : 'Update'}
+                  </Button>
+                </div>
               </div>
             )
           })}
@@ -598,9 +819,9 @@ function LegalMemberSection({ title, members, emptyText, previous = false }: { t
 
 function MemberFact({ label, value }: { label: string; value?: string }) {
   return (
-    <div className="rounded-lg bg-gray-50 p-3">
-      <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
-      <p className="font-medium text-gray-900">{value || 'Not set'}</p>
+    <div className="border-b border-r border-gray-200 bg-gray-50/70 p-3 last:border-r-0 sm:[&:nth-child(2n)]:border-r-0 lg:border-b-0 lg:[&:nth-child(2n)]:border-r lg:last:border-r-0">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="mt-1 truncate text-sm font-medium text-gray-950" title={value || 'Not set'}>{value || 'Not set'}</p>
     </div>
   )
 }

@@ -266,6 +266,7 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
   const [uploadingTrackIndex, setUploadingTrackIndex] = useState<number | null>(null)
   const [uploadProgress, setUploadProgress] = useState<Record<number, number>>({})
   const [isLoadingTracks, setIsLoadingTracks] = useState(true)
+  const [savingTrackIndex, setSavingTrackIndex] = useState<number | null>(null)
   const [verifyingISRC, setVerifyingISRC] = useState<Record<number, boolean>>({})
   const [isrcErrors, setIsrcErrors] = useState<Record<number, string>>({})
   const [isrcSuccess, setIsrcSuccess] = useState<Record<number, string>>({})
@@ -907,22 +908,9 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
       return
     }
 
-    if (!track.trackTitle.trim()) {
-      showNotification('Missing Information', 'Track title is required. Please enter a title for this track.', 'warning')
-      return
-    }
+    if (!track) return
 
-    if (!track.isrc.trim()) {
-      showNotification('Missing ISRC', 'ISRC code is required. Please enter or verify the ISRC code.', 'warning')
-      return
-    }
-
-    const isrcValidation = validateISRC(track.isrc)
-    if (!isrcValidation.valid) {
-      showNotification('Invalid ISRC', isrcValidation.error || 'Please check the ISRC format and try again.', 'error')
-      return
-    }
-
+    setSavingTrackIndex(index)
     try {
       const payload = buildTrackPayload(track, releaseId, releaseData.releaseVersion)
 
@@ -944,14 +932,64 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
         if (result.data?.id) {
           updateTrack(index, 'id', result.data.id)
         }
-        showNotification('Success!', `Track ${track.trackNumber} saved successfully!`, 'success')
+        showNotification('Success!', `Track ${track.trackNumber} draft saved. You can switch tracks and come back later.`, 'success')
       } else {
         showNotification('Save Failed', result.error || 'Failed to save track. Please try again.', 'error')
       }
     } catch (error) {
       console.error('Error saving track:', error)
       showNotification('Save Error', 'Failed to save track. Please check your connection and try again.', 'error')
+    } finally {
+      setSavingTrackIndex(null)
     }
+  }
+
+  const selectTrack = async (nextIndex: number) => {
+    const boundedIndex = Math.max(0, Math.min(tracks.length - 1, nextIndex))
+    if (boundedIndex === currentPage) return
+
+    if (releaseId && tracks[currentPage]) {
+      await saveTrackSilently(currentPage)
+    }
+
+    setCurrentPage(boundedIndex)
+    window.scrollTo(0, 0)
+  }
+
+  const isYouTubeVideoUrl = (value: string) => {
+    const trimmed = value.trim()
+    if (!trimmed) return false
+
+    try {
+      const url = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`)
+      return ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'].includes(url.hostname)
+    } catch {
+      return false
+    }
+  }
+
+  const confirmVideoLink = async (index: number) => {
+    const track = tracks[index]
+    const videoUrl = track.videoUrl.trim()
+
+    if (!videoUrl) {
+      showNotification('Missing Video Link', 'Paste a YouTube music video link before confirming.', 'warning')
+      return
+    }
+
+    if (!isYouTubeVideoUrl(videoUrl)) {
+      showNotification('Invalid Video Link', 'Please use a valid YouTube or youtu.be link.', 'error')
+      return
+    }
+
+    updateTrack(index, 'hasNoVideo', false)
+    updateTrack(index, 'videoUrlConfirmed', true)
+    await saveTrackSilently(index, {
+      hasNoVideo: false,
+      videoUrl,
+      videoUrlConfirmed: true
+    })
+    showNotification('Video Link Confirmed', `Track ${track.trackNumber} YouTube music video link saved.`, 'success')
   }
 
   const [expandedSections, setExpandedSections] = useState<Record<number, Set<string>>>({})
@@ -1147,17 +1185,14 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
             </div>
           )}
 
-          {/* Track Pagination Navigator (for 4+ tracks) */}
+          {/* Track Navigator */}
           {!isLoadingTracks && useSingleTrackView && (
             <div className="bg-white border-2 border-purple-200 rounded-xl p-4 mb-6 sticky top-4 z-10 shadow-lg">
               <div className="flex items-center justify-between gap-4 mb-3">
                 <div className="flex items-center gap-3">
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      setCurrentPage(Math.max(0, currentPage - 1))
-                      window.scrollTo(0, 0)
-                    }}
+                    onClick={() => void selectTrack(currentPage - 1)}
                     disabled={currentPage === 0}
                   >
                     <ChevronUp className="w-4 h-4 mr-2" />
@@ -1166,10 +1201,7 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                   <span className="text-sm font-bold">Track {currentPage + 1} of {tracks.length}</span>
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      setCurrentPage(Math.min(tracks.length - 1, currentPage + 1))
-                      window.scrollTo(0, 0)
-                    }}
+                    onClick={() => void selectTrack(currentPage + 1)}
                     disabled={currentPage === tracks.length - 1}
                   >
                     Next
@@ -1187,6 +1219,9 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                   <span className="text-xs font-medium">{tracks.filter(t => t.uploaded).length}/{tracks.length}</span>
                 </div>
               </div>
+              <p className="mb-3 text-xs font-medium text-gray-600">
+                Each track saves as its own draft. You can jump to any track and finish them in any order.
+              </p>
               <div className="flex gap-2 overflow-x-auto pb-2">
                 <span className="text-xs font-semibold text-gray-600 self-center whitespace-nowrap">Jump:</span>
                 {tracks.map((t, i) => {
@@ -1194,7 +1229,7 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                   return (
                     <button
                       key={i}
-                      onClick={() => { setCurrentPage(i); window.scrollTo(0, 0) }}
+                      onClick={() => void selectTrack(i)}
                       className={`flex-shrink-0 w-10 h-10 rounded-lg border-2 font-bold text-sm transition-all relative ${currentPage === i
                         ? 'border-purple-500 bg-purple-500 text-white shadow-lg scale-110'
                         : comp === 100
@@ -1910,9 +1945,13 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                                 className="hidden"
                               />
                               <div className="flex items-center gap-3">
+                                {track.audioFile && !track.audioFileUrl && uploadingTrackIndex !== index && (
+                                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
+                                    Upload failed or not completed
+                                  </span>
+                                )}
                                 <Button
                                   type="button"
-                                  variant="outline"
                                   onClick={() => {
                                     if (track.audioFile && !track.audioFileUrl) {
                                       void uploadAudioFile(index, track.audioFile)
@@ -1922,6 +1961,11 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                                     fileInputRefs.current[index]?.click()
                                   }}
                                   disabled={uploadingTrackIndex === index}
+                                  className={
+                                    track.audioFile && !track.audioFileUrl
+                                      ? 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-200 hover:bg-emerald-700'
+                                      : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                                  }
                                 >
                                   {uploadingTrackIndex === index ? (
                                     <>
@@ -1963,10 +2007,15 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                                 </span>
                               )}
                               {track.audioFile && !track.audioFileUrl && uploadingTrackIndex !== index && (
-                                <span className="text-sm text-amber-700 flex items-center gap-2">
-                                  <AlertCircle className="w-4 h-4 text-amber-500" />
-                                  File selected locally only. Upload not confirmed yet.
-                                </span>
+                                <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                                  <div className="flex items-start gap-2">
+                                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                                    <div>
+                                      <p className="font-semibold">File selected locally only. Upload not confirmed yet.</p>
+                                      <p className="mt-0.5 text-xs text-amber-800">Click the green retry button to upload this selected file, or choose another file to replace it.</p>
+                                    </div>
+                                  </div>
+                                </div>
                               )}
                               {track.audioFile && (
                                 <span className="text-sm text-gray-600">
@@ -2256,12 +2305,13 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                           {track.videoUrl && (
                             <Button
                               type="button"
-                              variant="outline"
                               size="sm"
-                              onClick={() => updateTrack(index, 'videoUrlConfirmed', true)}
+                              onClick={() => void confirmVideoLink(index)}
+                              disabled={track.videoUrlConfirmed}
+                              className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-emerald-100 disabled:text-emerald-700"
                             >
                               <CheckCircle className="w-4 h-4 mr-2" />
-                              Confirm YouTube Music Video Link
+                              {track.videoUrlConfirmed ? 'YouTube Music Video Link Confirmed' : 'Confirm YouTube Music Video Link'}
                             </Button>
                           )}
                         </div>
@@ -2273,18 +2323,19 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                   <div className="pt-6 border-t-2 flex items-center justify-between">
                     <Button
                       onClick={() => saveTrack(index)}
-                      disabled={!track.trackTitle.trim() || !track.isrc.trim()}
-                      className="bg-purple-600 hover:bg-purple-700 text-lg px-6 py-3"
+                      disabled={savingTrackIndex === index}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-lg px-6 py-3 disabled:bg-gray-200 disabled:text-gray-500"
                     >
-                      <CheckCircle className="w-5 h-5 mr-2" />
-                      Save Track {track.trackNumber}
+                      {savingTrackIndex === index ? (
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      ) : (
+                        <CheckCircle className="w-5 h-5 mr-2" />
+                      )}
+                      {savingTrackIndex === index ? 'Saving...' : `Save Track ${track.trackNumber}`}
                     </Button>
                     {useSingleTrackView && currentPage < tracks.length - 1 && (
                       <Button
-                        onClick={() => {
-                          setCurrentPage(currentPage + 1)
-                          window.scrollTo(0, 0)
-                        }}
+                        onClick={() => void selectTrack(currentPage + 1)}
                         className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-lg px-6 py-3"
                       >
                         Next Track ({currentPage + 2}/{tracks.length}) →

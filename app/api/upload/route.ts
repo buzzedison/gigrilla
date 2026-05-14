@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { Readable } from 'node:stream'
 import { uploadToR2, isR2Configured, R2_CONFIG } from '@/lib/cloudflare/r2'
 import { readImageMetadata } from '@/lib/image-metadata'
+
+export const runtime = 'nodejs'
+export const maxDuration = 300
 
 interface UploadConfig {
   folder: string
   subfolder?: string
   maxSize: number
   allowedTypes: readonly string[]
+  allowedExtensions?: readonly string[]
   minWidth?: number
   minHeight?: number
   maxWidth?: number
@@ -80,7 +85,18 @@ const UPLOAD_CONFIGS = {
   'track-audio': {
     folder: 'music-tracks',
     maxSize: 2 * 1024 * 1024 * 1024, // 2GB max for audio files
-    allowedTypes: ['audio/wav', 'audio/x-wav', 'audio/wave', 'audio/aiff', 'audio/x-aiff', 'audio/aif'],
+    allowedTypes: [
+      'audio/wav',
+      'audio/x-wav',
+      'audio/wave',
+      'audio/vnd.wave',
+      'audio/aiff',
+      'audio/x-aiff',
+      'audio/aif',
+      'application/octet-stream',
+      ''
+    ],
+    allowedExtensions: ['wav', 'aiff', 'aif'],
   },
   'track-lyrics': {
     folder: 'music-tracks',
@@ -109,6 +125,27 @@ const UPLOAD_CONFIGS = {
 } satisfies Record<string, UploadConfig>
 
 type UploadType = keyof typeof UPLOAD_CONFIGS
+
+function getFileExtension(filename: string) {
+  return filename.split('.').pop()?.toLowerCase() || ''
+}
+
+function isAllowedFile(config: UploadConfig, file: File) {
+  const contentTypeAllowed = (config.allowedTypes as readonly string[]).includes(file.type)
+  const extension = getFileExtension(file.name)
+  const extensionAllowed = config.allowedExtensions?.includes(extension) || false
+  return contentTypeAllowed || extensionAllowed
+}
+
+function shouldValidateImage(config: UploadConfig) {
+  return (
+    'minWidth' in config ||
+    'maxWidth' in config ||
+    'requireSquare' in config ||
+    'minDpi' in config ||
+    'maxDpi' in config
+  )
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -192,11 +229,13 @@ export async function POST(request: NextRequest) {
 
     const config = UPLOAD_CONFIGS[type as UploadType] as UploadConfig
 
-    // Validate file type
-    if (!(config.allowedTypes as readonly string[]).includes(file.type)) {
+    // Validate file type. Audio uploads can arrive with a blank or generic MIME type
+    // depending on browser/OS, so those are also checked by extension.
+    if (!isAllowedFile(config, file)) {
       return NextResponse.json({
         error: 'Invalid file type',
-        allowed: config.allowedTypes
+        allowed: config.allowedTypes,
+        allowedExtensions: config.allowedExtensions || []
       }, { status: 400 })
     }
 
@@ -208,17 +247,11 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Convert file to buffer for validation and upload
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    let uploadBody: Buffer | Readable
 
-    if (
-      'minWidth' in config ||
-      'maxWidth' in config ||
-      'requireSquare' in config ||
-      'minDpi' in config ||
-      'maxDpi' in config
-    ) {
+    if (shouldValidateImage(config)) {
+      const arrayBuffer = await file.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
       const metadata = readImageMetadata(new Uint8Array(buffer), file.type)
       if (!metadata) {
         return NextResponse.json({ error: 'Unable to read image dimensions from upload' }, { status: 400 })
@@ -252,10 +285,14 @@ export async function POST(request: NextRequest) {
       if (maxDpi !== null && dpiValues.some(value => value > maxDpi)) {
         return NextResponse.json({ error: `Image DPI must be no more than ${maxDpi}` }, { status: 400 })
       }
+
+      uploadBody = buffer
+    } else {
+      uploadBody = Readable.fromWeb(file.stream() as unknown as Parameters<typeof Readable.fromWeb>[0])
     }
 
     // Generate R2 key based on type
-    const fileExt = file.name.split('.').pop() || 'jpg'
+    const fileExt = getFileExtension(file.name) || 'bin'
     const timestamp = Date.now()
 
     let r2Key: string
@@ -270,7 +307,7 @@ export async function POST(request: NextRequest) {
     console.log('Upload API: Uploading file for user:', user.id, 'type:', type, 'key:', r2Key)
 
     // Upload to Cloudflare R2
-    const uploadResult = await uploadToR2(buffer, r2Key, file.type)
+    const uploadResult = await uploadToR2(uploadBody, r2Key, file.type || 'application/octet-stream', file.size)
 
     if (!uploadResult.success || !uploadResult.url) {
       console.error('Upload API: R2 upload error:', uploadResult.error)
@@ -308,14 +345,18 @@ export async function GET() {
     publicUrl: isR2Configured() ? R2_CONFIG.publicUrl : null,
     supportedTypes: Object.keys(UPLOAD_CONFIGS),
     limits: Object.fromEntries(
-      Object.entries(UPLOAD_CONFIGS).map(([key, config]) => [
-        key,
-        {
-          maxSize: config.maxSize,
-          maxSizeMB: config.maxSize / (1024 * 1024),
-          allowedTypes: config.allowedTypes,
-        }
-      ])
+      Object.entries(UPLOAD_CONFIGS).map(([key, config]) => {
+        const uploadConfig = config as UploadConfig
+        return [
+          key,
+          {
+            maxSize: uploadConfig.maxSize,
+            maxSizeMB: uploadConfig.maxSize / (1024 * 1024),
+            allowedTypes: uploadConfig.allowedTypes,
+            allowedExtensions: uploadConfig.allowedExtensions || [],
+          }
+        ]
+      })
     )
   })
 }

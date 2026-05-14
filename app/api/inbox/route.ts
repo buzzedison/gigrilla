@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-
-type InboxAudience = 'fan' | 'artist'
-
-type InboxFolder = {
-  id: string
-  label: string
-  description: string
-}
+import { getInboxFolders, normalizeArtistInboxFolderId, type InboxAudience, type InboxFolderDefinition } from '@/data/inbox-folders'
 
 type NotificationRow = {
   id: string
@@ -22,21 +15,6 @@ type NotificationRow = {
   created_at: string
   expires_at: string | null
 }
-
-const FAN_FOLDERS: InboxFolder[] = [
-  { id: 'upcoming_gigs', label: 'Upcoming Gigs', description: 'Gig reminders and schedule updates' },
-  { id: 'artist_updates', label: 'Artist Updates', description: 'Artist communications and announcements' },
-  { id: 'venue_updates', label: 'Venue Updates', description: 'Venue-side updates for gigs you follow' },
-  { id: 'system', label: 'System', description: 'Account and platform notices' },
-]
-
-const ARTIST_FOLDERS: InboxFolder[] = [
-  { id: 'gig_invites', label: 'Gig Invites', description: 'Invitations sent by venues and promoters' },
-  { id: 'gig_requests', label: 'Gig Requests', description: 'Direct booking requests requiring action' },
-  { id: 'release_updates', label: 'Release Updates', description: 'Music release workflow and admin updates' },
-  { id: 'venue_updates', label: 'Venue Updates', description: 'Venue-side updates that affect your gigs' },
-  { id: 'system', label: 'System', description: 'Account and platform notices' },
-]
 
 function safeObject(value: unknown): Record<string, unknown> {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -87,17 +65,40 @@ function classifyArtistFolder(row: NotificationRow) {
   const type = readString(row.notification_type).toLowerCase()
   const data = safeObject(row.data)
   const source = readString(data.source).toLowerCase()
+  const folder = normalizeArtistInboxFolderId(
+    readString(data.folder) ||
+    readString(data.inbox_folder) ||
+    readString(data.message_folder) ||
+    readString(data.category)
+  )
 
-  if (type.includes('invite')) return 'gig_invites'
-  if (type.includes('request')) return 'gig_requests'
-  if (type.includes('release') || source.includes('release')) return 'release_updates'
-  if (type.includes('venue') || source.includes('venue')) return 'venue_updates'
+  if (folder && getInboxFolders('artist').some((item) => item.id === folder)) return folder
+
+  const senderType = [
+    readString(data.sender_type),
+    readString(data.sender_profile_type),
+    readString(data.from_profile_type),
+    readString(data.member_type),
+    source,
+    type,
+  ].join(' ').toLowerCase()
+
+  if (senderType.includes('confirm') || senderType.includes('contract')) return 'confirmations'
+  if (senderType.includes('gig') && senderType.includes('invite')) return 'gig_invites'
+  if (senderType.includes('gig') && senderType.includes('request')) return 'gig_requests'
+  if (senderType.includes('colleague') || senderType.includes('crew') || senderType.includes('member')) return 'colleagues'
+  if (senderType.includes('advert') || senderType.includes('audition') || senderType.includes('collab')) return 'auditions'
+  if (senderType.includes('fan')) return 'fans'
+  if (senderType.includes('artist')) return 'artists'
+  if (senderType.includes('venue')) return 'venues'
+  if (senderType.includes('service')) return 'services'
+  if (senderType.includes('pro') || senderType.includes('professional')) return 'pros'
 
   return 'system'
 }
 
 function getFolders(audience: InboxAudience) {
-  return audience === 'artist' ? ARTIST_FOLDERS : FAN_FOLDERS
+  return getInboxFolders(audience)
 }
 
 function classifyFolder(audience: InboxAudience, row: NotificationRow) {
@@ -195,12 +196,15 @@ function buildInboxPayload(params: {
   const allMessages = rows.map((row) => toInboxMessage(audience, row))
 
   const folderSet = new Set(folders.map((folder) => folder.id))
-  const activeFolder = selectedFolder && folderSet.has(selectedFolder) ? selectedFolder : null
+  const normalizedSelectedFolder = audience === 'artist'
+    ? normalizeArtistInboxFolderId(selectedFolder)
+    : selectedFolder
+  const activeFolder = normalizedSelectedFolder && folderSet.has(normalizedSelectedFolder) ? normalizedSelectedFolder : null
   const filteredMessages = activeFolder
     ? allMessages.filter((message) => message.folderId === activeFolder)
     : allMessages
 
-  const folderSummaries = folders.map((folder) => {
+  const folderSummaries = folders.map((folder: InboxFolderDefinition) => {
     const folderMessages = allMessages.filter((message) => message.folderId === folder.id)
     const unread = folderMessages.filter((message) => !message.isRead).length
     return {

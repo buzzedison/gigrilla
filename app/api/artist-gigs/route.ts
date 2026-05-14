@@ -6,7 +6,7 @@ import { dispatchDueFanCommsForArtistGigs } from '@/lib/gig-fan-comms'
 import { getCurrencyOptions } from '@/lib/currency-options'
 
 type GigView = 'calendar' | 'invites' | 'requests' | 'all'
-type GigAction = 'accept_invite' | 'decline_invite' | 'cancel_request' | 'mark_completed' | 'publish_now'
+type GigAction = 'accept_invite' | 'decline_invite' | 'cancel_request' | 'mark_completed' | 'publish_now' | 'mark_sold_out'
 type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed'
 
 type GigStatus = 'draft' | 'published' | 'cancelled' | 'completed'
@@ -650,6 +650,7 @@ export async function GET(request: NextRequest) {
     const serviceSupabase = createServiceClient()
     const { searchParams } = new URL(request.url)
     const view = getViewParam(searchParams.get('view'))
+    const wantsSummary = searchParams.get('summary') === 'true'
     const statusFilter = parseStatusFilter(searchParams.get('status'))
     const dateFrom = parseQueryDate(searchParams.get('date_from'), 'date_from')
     const dateTo = parseQueryDate(searchParams.get('date_to'), 'date_to')
@@ -675,6 +676,22 @@ export async function GET(request: NextRequest) {
 
     if (bookingError) {
       if (isMissingTableError(bookingError)) {
+        if (wantsSummary) {
+          return NextResponse.json({
+            success: true,
+            view,
+            data: {
+              counts: {
+                gig_invites: 0,
+                gig_requests: 0,
+                confirmations: 0,
+              },
+              total: 0,
+            },
+            warning: 'Gig tables are not available yet in this environment.'
+          })
+        }
+
         return NextResponse.json({
           success: true,
           data: [],
@@ -882,6 +899,37 @@ export async function GET(request: NextRequest) {
       return enriched
     })()
 
+    if (wantsSummary) {
+      const gigInvites = enriched.filter((row) => row.isInvite)
+      const gigRequests = enriched.filter((row) => row.isRequest)
+      const confirmations = enriched.filter((row) => row.bookingStatus === 'confirmed')
+      const counts = {
+        gig_invites: gigInvites.length,
+        gig_requests: gigRequests.length,
+        confirmations: confirmations.length,
+      }
+
+      return NextResponse.json({
+        success: true,
+        view: 'all',
+        data: {
+          counts,
+          folders: [
+            { id: 'gig_invites', label: 'Gig Invites (from Others)', total: counts.gig_invites },
+            { id: 'gig_requests', label: 'Gig Requests (to Others)', total: counts.gig_requests },
+            { id: 'confirmations', label: 'Confirmations (Contracts)', total: counts.confirmations },
+          ],
+          total: counts.gig_invites + counts.gig_requests + counts.confirmations,
+          statuses: {
+            pending: enriched.filter((row) => row.bookingStatus === 'pending').length,
+            confirmed: confirmations.length,
+            completed: enriched.filter((row) => row.bookingStatus === 'completed').length,
+            cancelled: enriched.filter((row) => row.bookingStatus === 'cancelled').length,
+          },
+        },
+      })
+    }
+
     const dateFiltered = viewFiltered.filter((row) => {
       if (!dateFrom && !dateTo) return true
       if (!row.startDatetime) return false
@@ -1036,7 +1084,7 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Booking has no linked gig.' }, { status: 400 })
       }
       if (booking.booked_by !== user.id) {
-        return NextResponse.json({ error: 'Only gigs you created can be published.' }, { status: 403 })
+        return NextResponse.json({ error: 'Only gigs you created can be made public.' }, { status: 403 })
       }
 
       const { data: gig, error: gigError } = await serviceSupabase
@@ -1067,7 +1115,7 @@ export async function PATCH(request: NextRequest) {
         .eq('id', gig.id)
 
       if (publishError) {
-        return NextResponse.json({ error: 'Failed to publish gig now', details: publishError.message }, { status: 500 })
+        return NextResponse.json({ error: 'Failed to make gig public now', details: publishError.message }, { status: 500 })
       }
 
       return NextResponse.json({
@@ -1076,6 +1124,51 @@ export async function PATCH(request: NextRequest) {
           bookingId: booking.id,
           gigId: gig.id,
           gigStatus: 'published'
+        }
+      })
+    }
+
+    if (action === 'mark_sold_out') {
+      if (!booking.gig_id) {
+        return NextResponse.json({ error: 'Booking has no linked gig.' }, { status: 400 })
+      }
+
+      const { data: gig, error: gigError } = await serviceSupabase
+        .from('gigs')
+        .select('id, metadata')
+        .eq('id', booking.gig_id)
+        .single()
+
+      if (gigError || !gig) {
+        return NextResponse.json({ error: 'Linked gig not found.' }, { status: 404 })
+      }
+
+      const currentMetadata = safeObject(gig.metadata)
+      const updatedMetadata = {
+        ...currentMetadata,
+        ticket_sold_out: true,
+        ticket_sold_out_at: nowIso,
+        ticket_sold_out_by: user.id,
+      }
+
+      const { error: soldOutError } = await serviceSupabase
+        .from('gigs')
+        .update({
+          metadata: updatedMetadata,
+          updated_at: nowIso,
+        })
+        .eq('id', gig.id)
+
+      if (soldOutError) {
+        return NextResponse.json({ error: 'Failed to mark gig sold out', details: soldOutError.message }, { status: 500 })
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          bookingId: booking.id,
+          gigId: gig.id,
+          ticketSoldOut: true,
         }
       })
     }

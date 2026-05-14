@@ -85,3 +85,55 @@ export interface ArtistGigListResponse {
     completed: number
   }
 }
+
+export interface ArtistGigSummaryResponse {
+  success: boolean
+  view: 'all'
+  warning?: string
+  data: {
+    counts: Record<'gig_invites' | 'gig_requests' | 'confirmations', number>
+    folders?: Array<{
+      id: 'gig_invites' | 'gig_requests' | 'confirmations'
+      label: string
+      total: number
+    }>
+    total: number
+    statuses?: {
+      pending: number
+      confirmed: number
+      completed: number
+      cancelled: number
+    }
+  }
+}
+
+export interface ArtistUnavailabilityRecord {
+  id: string
+  artist_id: string
+  starts_at: string
+  ends_at: string
+  reason: string
+  note: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ArtistGigReportingRecord {
+  id: string
+  booking_id: string
+  gig_id: string | null
+  artist_id: string
+  venue_id: string | null
+  action_type: 'confirm' | 'report'
+  target_member_type: 'venue' | 'artist' | 'fan' | 'service' | 'professional' | 'other'
+  target_member_id: string | null
+  rating: number | null
+  review_text: string | null
+  issue_types: string[]
+  environment_details: string | null
+  attitude_details: string | null
+  metadata: Record<string, unknown>
+  status: 'submitted' | 'reviewed' | 'resolved' | 'dismissed'
+  created_at: string
+  updated_at: string
+}

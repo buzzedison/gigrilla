@@ -276,6 +276,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
+    const entityType = toEntityType(body.entity_type)
+    const isCorporateEntity = entityType === 'Incorporated Company' || entityType === 'Incorporated Partnership'
     const useFanBanking = !!body.use_fan_banking
     const paymentOutMethod = useFanBanking ? null : (toPaymentMethod(body.payment_out_method) ?? 'direct_debit')
     const paymentInSameAsOut = body.payment_in_same_as_out ?? true
@@ -289,22 +291,22 @@ export async function POST(request: NextRequest) {
       artist_profile_id: profileId,
       official_ids_acknowledged: !!body.official_ids_acknowledged,
       payment_flows_acknowledged: !!body.payment_flows_acknowledged,
-      entity_type: toEntityType(body.entity_type),
+      entity_type: entityType,
       artist_entity_legal_name: toNullableString(body.artist_entity_legal_name),
       main_contact_first_name: toNullableString(body.main_contact_first_name),
       main_contact_last_name: toNullableString(body.main_contact_last_name),
       main_contact_phone_country_code: toNullableString(body.main_contact_phone_country_code),
       main_contact_phone: toNullableString(body.main_contact_phone),
       main_contact_email: toNullableString(body.main_contact_email),
-      country_of_incorporation: toNullableString(body.country_of_incorporation),
-      country_of_tax_residence: toNullableString(body.country_of_tax_residence),
+      country_of_incorporation: isCorporateEntity ? toNullableString(body.country_of_incorporation) : null,
+      country_of_tax_residence: entityType && !isCorporateEntity ? toNullableString(body.country_of_tax_residence) : null,
       generic_tax_id: toNullableString(body.generic_tax_id),
       individual_tax_id: toNullableString(body.individual_tax_id),
       business_tax_id: toNullableString(body.business_tax_id),
       vat_gst_sst_id: toNullableString(body.vat_gst_sst_id),
-      company_registration_number: toNullableString(body.company_registration_number),
-      company_formation_date: toNullableString(body.company_formation_date),
-      legal_entity_date_of_birth: toNullableString(body.legal_entity_date_of_birth),
+      company_registration_number: isCorporateEntity ? toNullableString(body.company_registration_number) : null,
+      company_formation_date: isCorporateEntity ? toNullableString(body.company_formation_date) : null,
+      legal_entity_date_of_birth: entityType && !isCorporateEntity ? toNullableString(body.legal_entity_date_of_birth) : null,
       use_fan_banking: useFanBanking,
       payment_out_method: paymentOutMethod,
       payment_out_bank_name: toNullableString(body.payment_out_bank_name),

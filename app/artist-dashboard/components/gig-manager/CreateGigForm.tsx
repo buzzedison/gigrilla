@@ -128,6 +128,7 @@ const ARTWORK_REQUIREMENTS = {
 } as const
 
 type ArtworkRequirementKey = keyof typeof ARTWORK_REQUIREMENTS
+type TimeField = 'doorsOpen' | 'streamOpens' | 'setStartTime' | 'setEndTime' | 'publishTime'
 
 const DEFAULT_FORM: GigFormData = {
     gigEventName: '',
@@ -213,6 +214,12 @@ function buildInitialFormState(initialData?: CreateGigFormInitialData): GigFormD
         gigFinishDate: fallbackFinishDate,
         venueContactPhoneCode: initialData?.venueContactPhoneCode || DEFAULT_FORM.venueContactPhoneCode,
     }
+}
+
+function getCurrentHourDefaultTime() {
+    const now = new Date()
+    const hours = String(now.getHours()).padStart(2, '0')
+    return `${hours}:00`
 }
 
 function normalizeCountryName(value?: string | null) {
@@ -393,6 +400,14 @@ export function CreateGigForm({
 
     const update = <K extends keyof GigFormData>(key: K, value: GigFormData[K]) => {
         setForm(prev => ({ ...prev, [key]: value }))
+    }
+
+    const defaultTimeIfBlank = (key: TimeField) => {
+        setForm(prev => (
+            prev[key]
+                ? prev
+                : { ...prev, [key]: getCurrentHourDefaultTime() }
+        ))
     }
 
     const handleStartDateChange = (value: string) => {
@@ -1052,6 +1067,7 @@ export function CreateGigForm({
                                     id="doorsOpen"
                                     type="time"
                                     value={form.doorsOpen}
+                                    onFocus={() => defaultTimeIfBlank('doorsOpen')}
                                     onChange={e => update('doorsOpen', e.target.value)}
                                     className="mt-1"
                                 />
@@ -1066,6 +1082,7 @@ export function CreateGigForm({
                                     id="streamOpens"
                                     type="time"
                                     value={form.streamOpens}
+                                    onFocus={() => defaultTimeIfBlank('streamOpens')}
                                     onChange={e => update('streamOpens', e.target.value)}
                                     className="mt-1"
                                 />
@@ -1079,6 +1096,7 @@ export function CreateGigForm({
                                 id="setStartTime"
                                 type="time"
                                 value={form.setStartTime}
+                                onFocus={() => defaultTimeIfBlank('setStartTime')}
                                 onChange={e => update('setStartTime', e.target.value)}
                                 required
                                 className="mt-1"
@@ -1091,6 +1109,7 @@ export function CreateGigForm({
                                 id="setEndTime"
                                 type="time"
                                 value={form.setEndTime}
+                                onFocus={() => defaultTimeIfBlank('setEndTime')}
                                 onChange={e => update('setEndTime', e.target.value)}
                                 className="mt-1"
                             />
@@ -1866,6 +1885,7 @@ export function CreateGigForm({
                                     id="publishTime"
                                     type="time"
                                     value={form.publishTime}
+                                    onFocus={() => defaultTimeIfBlank('publishTime')}
                                     onChange={e => update('publishTime', e.target.value)}
                                     className="mt-1"
                                 />

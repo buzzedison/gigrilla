@@ -82,10 +82,10 @@ export function ArtistGigInvitesManager() {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Mail className="w-5 h-5 text-purple-700" />
-              Gig Invites
+              Gig Invites (from Others)
             </CardTitle>
             <p className="text-sm text-gray-600 mt-1">
-              Accept or decline invites from venues and organizers.
+              Accept or decline invites from venues and artists.
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing}>

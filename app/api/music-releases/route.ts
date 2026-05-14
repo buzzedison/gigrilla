@@ -5,7 +5,8 @@ import { createServiceClient } from '@/lib/supabase/service-client'
 
 const RELEASE_SCHEMA_FALLBACK_COLUMNS = [
   'available_worldwide_with_exclusions',
-  'excluded_territories'
+  'excluded_territories',
+  'apply_record_label_to_all_tracks'
 ] as const
 
 // Helper to create Supabase client
@@ -301,6 +302,7 @@ export async function POST(request: NextRequest) {
       go_live_date,
       master_rights_type,
       record_labels,
+      apply_record_label_to_all_tracks,
       master_rights_confirmed,
       publishing_rights_type,
       publishers,
@@ -457,6 +459,7 @@ export async function POST(request: NextRequest) {
     assignIfDefined('go_live_date', go_live_date)
     assignIfDefined('master_rights_type', master_rights_type)
     assignIfDefined('record_labels', record_labels)
+    assignIfDefined('apply_record_label_to_all_tracks', apply_record_label_to_all_tracks)
     assignIfDefined('master_rights_confirmed', master_rights_confirmed)
     assignIfDefined('publishing_rights_type', publishing_rights_type)
     assignIfDefined('publishers', publishers)

@@ -25,6 +25,7 @@ export function ReleaseRoyaltiesSection({
   onInviteMcs
 }: ReleaseRoyaltiesSectionProps) {
   const isSelfDistributed = releaseData.distributorName.trim().toLowerCase() === 'self-distributed'
+  const inviteButtonClassName = 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800'
   const blockers: string[] = []
 
   if (!releaseData.distributorName.trim()) {
@@ -141,7 +142,7 @@ export function ReleaseRoyaltiesSection({
               type="button"
               variant="outline"
               onClick={onInviteDistributor}
-              className="text-green-600 border-green-200"
+              className={inviteButtonClassName}
             >
               <Plus className="w-4 h-4 mr-1" /> Send Gigrilla Invite
             </Button>
@@ -229,7 +230,7 @@ export function ReleaseRoyaltiesSection({
                 <Button
                   variant="outline"
                   onClick={onInvitePro}
-                  className="text-blue-600 border-blue-200"
+                  className={inviteButtonClassName}
                 >
                   <Plus className="w-4 h-4 mr-1" /> Send Gigrilla Invite
                 </Button>
@@ -280,7 +281,7 @@ export function ReleaseRoyaltiesSection({
                 <Button
                   variant="outline"
                   onClick={onInviteMcs}
-                  className="text-amber-600 border-amber-200"
+                  className={inviteButtonClassName}
                 >
                   <Plus className="w-4 h-4 mr-1" /> Send Gigrilla Invite
                 </Button>
