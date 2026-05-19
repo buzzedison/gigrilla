@@ -49,6 +49,7 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
   const [photoCaption, setPhotoCaption] = useState('')
   const [uploadingType, setUploadingType] = useState<'logo' | 'header' | 'photo' | null>(null)
   const [dragOverType, setDragOverType] = useState<'logo' | 'header' | 'photo' | null>(null)
+  const uploadLockRef = useRef(false)
   const [headerFocusDraft, setHeaderFocusDraft] = useState({ x: 50, y: 50 })
   const [headerFocusDirty, setHeaderFocusDirty] = useState(false)
   const [isDraggingHeaderFocus, setIsDraggingHeaderFocus] = useState(false)
@@ -121,6 +122,10 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
   }
 
   const handleFileSelect = (type: 'logo' | 'header' | 'photo') => {
+    if (uploadLockRef.current || uploadingType) {
+      showNotification('error', 'Please wait for the current upload to finish before selecting another image.')
+      return
+    }
     fileInputRefs[type].current?.click()
   }
 
@@ -129,10 +134,15 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
     if (!file) return
 
     await handleSelectedFile(file, type)
+    event.target.value = ''
   }
 
   const handleSelectedFile = async (file: File, type: 'logo' | 'header' | 'photo') => {
     if (!file) return
+    if (uploadLockRef.current || uploadingType) {
+      showNotification('error', 'Upload already in progress. Please wait before adding another image.')
+      return
+    }
 
     const validTypes = ['image/jpeg', 'image/png', 'image/webp']
     if (!validTypes.includes(file.type)) {
@@ -157,6 +167,11 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
     event.stopPropagation()
     setDragOverType((current) => (current === type ? null : current))
 
+    if (uploadLockRef.current || uploadingType) {
+      showNotification('error', 'Upload already in progress. Please wait before dropping another image.')
+      return
+    }
+
     const file = event.dataTransfer.files?.[0]
     if (!file) return
 
@@ -170,8 +185,9 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
     event.preventDefault()
     event.stopPropagation()
     if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = 'copy'
+      event.dataTransfer.dropEffect = uploadLockRef.current || uploadingType ? 'none' : 'copy'
     }
+    if (uploadLockRef.current || uploadingType) return
     setDragOverType(type)
   }
 
@@ -184,8 +200,37 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
     setDragOverType((current) => (current === type ? null : current))
   }
 
+  const isUploadDisabled = (type: 'logo' | 'header' | 'photo') =>
+    Boolean(uploadingType && uploadingType !== type) || (saving && uploadingType === type)
+
+  const renderUploadStatus = (type: 'logo' | 'header' | 'photo') => {
+    if (uploadingType === type) {
+      return (
+        <div className="mb-4 rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-900">
+          Uploading 1 image. Please wait for this upload to finish before adding another image.
+        </div>
+      )
+    }
+
+    if (uploadingType) {
+      return (
+        <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+          Another image is uploading. This uploader is temporarily locked.
+        </div>
+      )
+    }
+
+    return null
+  }
+
   const uploadPhoto = async (file: File, type: 'logo' | 'header' | 'photo') => {
+    if (uploadLockRef.current || uploadingType) {
+      showNotification('error', 'Upload already in progress. Please wait before adding another image.')
+      return
+    }
+
     try {
+      uploadLockRef.current = true
       setSaving(true)
       setUploadingType(type)
 
@@ -209,7 +254,12 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
       })
 
       if (!response.ok) {
-        throw new Error('Failed to upload photo')
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(typeof payload.details === 'string'
+          ? payload.details
+          : typeof payload.error === 'string'
+            ? payload.error
+            : 'Failed to upload photo')
       }
 
       const result = await response.json()
@@ -239,8 +289,9 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
       showNotification('success', `${type === 'logo' ? 'Logo' : type === 'header' ? 'Header image' : 'Photo'} uploaded successfully!`)
     } catch (error) {
       console.error('Error uploading photo:', error)
-      showNotification('error', 'Failed to upload photo')
+      showNotification('error', error instanceof Error ? error.message : 'Failed to upload photo')
     } finally {
+      uploadLockRef.current = false
       setSaving(false)
       setUploadingType(null)
     }
@@ -450,6 +501,7 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                       onDragLeave={(e) => handleDragLeave(e, 'logo')}
                       className={cn(
                         "border-2 border-dashed rounded-lg p-6 text-center transition-colors",
+                        isUploadDisabled('logo') && "pointer-events-none opacity-60",
                         dragOverType === 'logo'
                           ? "border-purple-500 bg-purple-50"
                           : "border-gray-300 hover:border-purple-400"
@@ -463,17 +515,20 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                         accept=".jpg,.jpeg,.png,.webp"
                         className="hidden"
                         onChange={(e) => handleFileChange(e, 'logo')}
+                        disabled={Boolean(uploadingType)}
                       />
+                      {renderUploadStatus('logo')}
                       <Textarea
                         placeholder="Write a caption for your logo..."
                         value={logoCaption}
                         onChange={(e) => setLogoCaption(e.target.value)}
                         className="mb-4"
                         rows={2}
+                        disabled={Boolean(uploadingType)}
                       />
                       <Button
                         onClick={() => handleFileSelect('logo')}
-                        disabled={saving && uploadingType === 'logo'}
+                        disabled={Boolean(uploadingType)}
                         className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
                       >
                         {saving && uploadingType === 'logo' ? (
@@ -606,6 +661,7 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                       onDragLeave={(e) => handleDragLeave(e, 'header')}
                       className={cn(
                         "border-2 border-dashed rounded-lg p-6 text-center transition-colors",
+                        isUploadDisabled('header') && "pointer-events-none opacity-60",
                         dragOverType === 'header'
                           ? "border-purple-500 bg-purple-50"
                           : "border-gray-300 hover:border-purple-400"
@@ -619,17 +675,20 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                         accept=".jpg,.jpeg,.png,.webp"
                         className="hidden"
                         onChange={(e) => handleFileChange(e, 'header')}
+                        disabled={Boolean(uploadingType)}
                       />
+                      {renderUploadStatus('header')}
                       <Textarea
                         placeholder="Write a caption for your image..."
                         value={headerCaption}
                         onChange={(e) => setHeaderCaption(e.target.value)}
                         className="mb-4"
                         rows={2}
+                        disabled={Boolean(uploadingType)}
                       />
                       <Button
                         onClick={() => handleFileSelect('header')}
-                        disabled={saving && uploadingType === 'header'}
+                        disabled={Boolean(uploadingType)}
                         className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
                       >
                         {saving && uploadingType === 'header' ? (
@@ -777,6 +836,7 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                 onDragLeave={(e) => handleDragLeave(e, 'photo')}
                 className={cn(
                   "border-2 border-dashed rounded-lg p-6 text-center transition-colors",
+                  isUploadDisabled('photo') && "pointer-events-none opacity-60",
                   dragOverType === 'photo'
                     ? "border-purple-500 bg-purple-50"
                     : "border-gray-300 hover:border-purple-400"
@@ -790,17 +850,20 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                   accept=".jpg,.jpeg,.png,.webp"
                   className="hidden"
                   onChange={(e) => handleFileChange(e, 'photo')}
+                  disabled={Boolean(uploadingType)}
                 />
+                {renderUploadStatus('photo')}
                 <Textarea
                   placeholder="Write a caption for your photo..."
                   value={photoCaption}
                   onChange={(e) => setPhotoCaption(e.target.value)}
                   className="mb-4"
                   rows={2}
+                  disabled={Boolean(uploadingType)}
                 />
                 <Button
                   onClick={() => handleFileSelect('photo')}
-                  disabled={saving && uploadingType === 'photo'}
+                  disabled={Boolean(uploadingType)}
                   className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
                 >
                   {saving && uploadingType === 'photo' ? (

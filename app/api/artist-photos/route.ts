@@ -142,6 +142,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File size must be less than 5MB' }, { status: 400 })
     }
 
+    if (type === 'photo') {
+      const duplicateCutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+      const { data: recentPhotos, error: recentPhotosError } = await supabase
+        .from('artist_photos')
+        .select('id, caption, created_at')
+        .eq('user_id', user.id)
+        .eq('type', 'photo')
+        .eq('caption', caption || '')
+        .gte('created_at', duplicateCutoff)
+        .limit(1)
+
+      if (recentPhotosError) {
+        console.error('API: Duplicate photo check failed:', recentPhotosError)
+      } else if (recentPhotos && recentPhotos.length > 0) {
+        return NextResponse.json({
+          error: 'Duplicate upload blocked',
+          details: 'This looks like the same photo was just uploaded. Please wait before uploading it again.'
+        }, { status: 409 })
+      }
+    }
+
     console.log('API: Uploading photo for user:', user.id, 'type:', type)
 
     // Check if R2 is configured

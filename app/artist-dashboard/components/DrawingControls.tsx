@@ -4,45 +4,56 @@ import { useEffect, useRef } from 'react'
 import { useMap } from 'react-leaflet'
 import * as L from 'leaflet'
 
+interface MapPoint { lat: number; lng: number }
+
+interface ZoneValue {
+  type: 'radius' | 'polygon' | 'country'
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any[] | any
+  radius?: number
+  center?: [number, number]
+}
+
 interface DrawingControlsProps {
   mode: 'radius' | 'polygon' | 'country'
   baseLocation?: { lat: number; lng: number }
-  value?: {
-    type: 'radius' | 'polygon' | 'country'
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    data: any[] | any
-    coordinates?: number[][]
-    radius?: number
-    center?: [number, number]
-  } | null
-  onZoneCreated: (zone: {
-    type: 'radius' | 'polygon' | 'country'
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    data: any[] | any
-    coordinates?: number[][]
-    radius?: number
-    center?: [number, number]
-  } | null) => void
+  value?: ZoneValue | null
+  onZoneCreated: (zone: ZoneValue | null) => void
+}
+
+const SHAPE_OPTIONS = {
+  color: '#7c3aed',
+  fillColor: '#7c3aed',
+  fillOpacity: 0.15,
+  weight: 2.5,
 }
 
 function DrawingControlsInner({ mode, baseLocation, value, onZoneCreated }: DrawingControlsProps) {
-  const map = useMap() // Use the hook directly at the top level
+  const map = useMap()
   const drawnItemsRef = useRef<L.FeatureGroup | null>(null)
   const drawControlRef = useRef<L.Control.Draw | null>(null)
 
+  // Keep stable refs so effects don't need them as deps
+  const onZoneCreatedRef = useRef(onZoneCreated)
+  const valueRef = useRef(value)
+  useEffect(() => { onZoneCreatedRef.current = onZoneCreated }, [onZoneCreated])
+  useEffect(() => { valueRef.current = value }, [value])
+
+  // ─── Effect 1: set up drawing controls (re-runs only on mode / location change) ───
   useEffect(() => {
     if (!map || typeof window === 'undefined') return
 
-    const initializeDrawing = async () => {
+    let cleanupFns: Array<() => void> = []
+    let cancelled = false
+
+    const setup = async () => {
       try {
-        // Import Leaflet and Leaflet.draw
         const L = await import('leaflet')
         await import('leaflet-draw')
-        
-        // Wait a bit for the library to fully initialize
-        await new Promise(resolve => setTimeout(resolve, 100))
+        await new Promise(r => setTimeout(r, 50))
+        if (cancelled) return
 
-        // Fix default icon issue
+        // Fix default marker icons
         delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl
         L.Icon.Default.mergeOptions({
           iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
@@ -50,334 +61,259 @@ function DrawingControlsInner({ mode, baseLocation, value, onZoneCreated }: Draw
           shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
         })
 
-        console.log('Initializing drawing controls with map:', map)
-        console.log('L.Draw available:', !!L.Draw)
-        console.log('L.Control.Draw available:', !!(L.Control.Draw))
-
-        // Remove existing draw controls
+        // Remove stale controls / layers
         if (drawControlRef.current) {
-          map.removeControl(drawControlRef.current)
+          try { map.removeControl(drawControlRef.current) } catch { /* ignore */ }
           drawControlRef.current = null
         }
-
-        // Create feature group for drawn items
         if (drawnItemsRef.current) {
-          map.removeLayer(drawnItemsRef.current)
+          try { map.removeLayer(drawnItemsRef.current) } catch { /* ignore */ }
         }
+
         drawnItemsRef.current = new L.FeatureGroup()
         map.addLayer(drawnItemsRef.current)
 
-        const shapeOptions = {
-          color: '#3b82f6',
-          fillColor: '#3b82f6',
-          fillOpacity: 0.2,
-          weight: 2
-        }
-
-        // Configure draw options
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const drawOptions: any = {
-          edit: {
-            featureGroup: drawnItemsRef.current,
-            remove: true
-          },
-          draw: {
-            rectangle: false,
-            polyline: false,
-            marker: false,
-            circlemarker: false,
-            circle: false,
-            polygon: mode === 'polygon'
-          }
-        }
-
-        // Add polygon options for polygon mode
+        // ─── POLYGON MODE ────────────────────────────────────────────────────────
         if (mode === 'polygon') {
-          drawOptions.draw.polygon = {
-            shapeOptions,
-            allowIntersection: false,
-            drawError: {
-              color: '#e1e5e9',
-              message: '<strong>Error:</strong> Shape edges cannot cross!'
-            },
-            shapeName: 'Custom Gig Zone'
+          if (!L.Control?.Draw) {
+            console.error('leaflet-draw Control not loaded')
+            return
           }
-        }
 
-        // Verify L.Control.Draw is available before using it where needed
-        if (mode === 'polygon' && !L.Control.Draw) {
-          console.error('Leaflet.Draw Control not properly loaded')
-          console.log('Available L properties:', Object.keys(L))
-          console.log('Available L.Control properties:', Object.keys(L.Control))
-          return
-        }
-
-        const cleanupFns: Array<() => void> = []
-
-        const keepCircleInView = (circle: L.Circle) => {
-          if (!map || !circle) return
-
-          try {
-            const circleBounds = circle.getBounds()
-            const currentBounds = map.getBounds().pad(-0.08)
-
-            if (!currentBounds.contains(circleBounds)) {
-              map.fitBounds(circleBounds, {
-                padding: [50, 50],
-                animate: false
-              })
-            }
-          } catch (error) {
-            console.warn('Skipping circle auto-fit while map projection is unavailable', error)
+          // Restore any existing polygon from saved value
+          const existing = valueRef.current
+          if (existing?.type === 'polygon' && Array.isArray(existing.data) && existing.data.length >= 3) {
+            const latlngs = existing.data.map((p: MapPoint) => L.latLng(p.lat, p.lng))
+            const poly = L.polygon(latlngs, SHAPE_OPTIONS)
+            drawnItemsRef.current?.addLayer(poly)
+            try { map.fitBounds(poly.getBounds(), { padding: [40, 40], animate: false }) } catch { /* ignore */ }
           }
-        }
 
-        if (mode === 'polygon') {
-          // Add draw control to map
-          drawControlRef.current = new L.Control.Draw(drawOptions)
-          map.addControl(drawControlRef.current)
-          console.log('Drawing controls added to map')
-        }
-
-        if (mode === 'radius') {
           drawControlRef.current = new L.Control.Draw({
-            edit: {
-              featureGroup: drawnItemsRef.current,
-              remove: true
-            },
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            edit: { featureGroup: drawnItemsRef.current, remove: true },
             draw: {
               rectangle: false,
               polyline: false,
               marker: false,
               circlemarker: false,
               circle: false,
-              polygon: false
-            } as any
+              polygon: {
+                shapeOptions: SHAPE_OPTIONS,
+                allowIntersection: false,
+                showArea: true,
+                drawError: { color: '#ef4444', message: '<strong>Error:</strong> Lines cannot cross!' },
+              },
+            } as L.Control.DrawConstructorOptions['draw'],
           })
           map.addControl(drawControlRef.current)
-        }
 
-        // Handle drawing creation
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const handleDrawCreated = (e: any) => {
-          console.log('Draw created:', e.layerType)
-          const layer = e.layer
-          
-          // Clear any existing drawn items first
-          if (drawnItemsRef.current) {
-            drawnItemsRef.current.clearLayers()
-          }
-          
-          // Add the new layer
-          if (drawnItemsRef.current) {
-            drawnItemsRef.current.addLayer(layer)
-          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const onCreated = (e: any) => {
+            drawnItemsRef.current?.clearLayers()
+            drawnItemsRef.current?.addLayer(e.layer)
 
-          if (e.layerType === 'polygon') {
-            // Handle polygon
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const latlngs = (layer as any).getLatLngs()[0]
-            const points = latlngs.map((latlng: L.LatLng) => ({
-              lat: latlng.lat,
-              lng: latlng.lng
-            }))
-
-            // Auto-zoom map to fit the entire polygon
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const bounds = (layer as any).getBounds()
-            if (bounds && map) {
-              map.fitBounds(bounds, { padding: [50, 50] })
+            if (e.layerType === 'polygon') {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const points: MapPoint[] = e.layer.getLatLngs()[0].map((ll: any) => ({ lat: ll.lat, lng: ll.lng }))
+              try { map.fitBounds(e.layer.getBounds(), { padding: [40, 40] }) } catch { /* ignore */ }
+              onZoneCreatedRef.current({ type: 'polygon', data: points })
             }
-
-            const zone = {
-              type: 'polygon' as const,
-              data: points
-            }
-
-            console.log('Polygon zone created:', zone)
-            onZoneCreated(zone)
           }
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const onEdited = (e: any) => {
+            e.layers.eachLayer((layer: L.Layer) => {
+              if (layer instanceof L.Polygon) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const points: MapPoint[] = (layer.getLatLngs()[0] as any[]).map((ll: any) => ({ lat: ll.lat, lng: ll.lng }))
+                onZoneCreatedRef.current({ type: 'polygon', data: points })
+              }
+            })
+          }
+
+          const onDeleted = () => onZoneCreatedRef.current(null)
+
+          map.on('draw:created', onCreated)
+          map.on('draw:edited', onEdited)
+          map.on('draw:deleted', onDeleted)
+          cleanupFns.push(() => {
+            map.off('draw:created', onCreated)
+            map.off('draw:edited', onEdited)
+            map.off('draw:deleted', onDeleted)
+          })
         }
 
-        // Handle drawing deletion
-        const handleDrawDeleted = () => {
-          console.log('Draw deleted')
-          onZoneCreated(null)
-        }
-
-        if (mode === 'polygon') {
-          // Use string event names instead of L.Draw.Event constants
-          map.on('draw:created', handleDrawCreated)
-          map.on('draw:deleted', handleDrawDeleted)
-          cleanupFns.push(() => map.off('draw:created', handleDrawCreated))
-          cleanupFns.push(() => map.off('draw:deleted', handleDrawDeleted))
-        }
-
+        // ─── RADIUS MODE ─────────────────────────────────────────────────────────
         if (mode === 'radius' && baseLocation) {
-          const center = L.latLng(baseLocation.lat, baseLocation.lng)
-          let isRadiusDrawing = false
-          let activeCircle: L.Circle | null = null
           const container = map.getContainer()
           container.style.cursor = 'crosshair'
 
-          const getRadiusCenter = () => {
-            if (value?.type === 'radius') {
-              if (value.center && value.center.length === 2) {
-                return L.latLng(value.center[0], value.center[1])
-              }
+          const centerLatLng = L.latLng(baseLocation.lat, baseLocation.lng)
+          let isDrawing = false
+          let activeCircle: L.Circle | null = null
 
-              if (Array.isArray(value.data) && value.data[0]?.lat && value.data[0]?.lng) {
-                return L.latLng(value.data[0].lat, value.data[0].lng)
-              }
-            }
-
-            return center
-          }
-
-          const syncRadiusZone = (circle: L.Circle) => {
-            const circleCenter = circle.getLatLng()
-            const nextRadiusKm = Math.round(circle.getRadius() / 1000)
-
-            onZoneCreated({
-              type: 'radius',
-              data: [{ lat: circleCenter.lat, lng: circleCenter.lng }],
-              radius: nextRadiusKm,
-              center: [circleCenter.lat, circleCenter.lng]
-            })
-          }
-
-          const initialCenter = getRadiusCenter()
-
-          if (value?.type === 'radius' && typeof value.radius === 'number' && value.radius > 0) {
-            activeCircle = L.circle(initialCenter, {
-              ...shapeOptions,
-              radius: value.radius * 1000
-            })
-            drawnItemsRef.current?.clearLayers()
+          // Restore existing radius
+          const existing = valueRef.current
+          if (existing?.type === 'radius' && typeof existing.radius === 'number' && existing.radius > 0) {
+            const c = Array.isArray(existing.data) && existing.data[0]
+              ? L.latLng(existing.data[0].lat, existing.data[0].lng)
+              : centerLatLng
+            activeCircle = L.circle(c, { ...SHAPE_OPTIONS, radius: existing.radius * 1000 })
             drawnItemsRef.current?.addLayer(activeCircle)
-            keepCircleInView(activeCircle)
+            try { map.fitBounds(activeCircle.getBounds(), { padding: [40, 40], animate: false }) } catch { /* ignore */ }
           }
 
-          const updateRadiusCircle = (latlng?: L.LatLng | null) => {
-            if (!latlng) return
-            const nextRadius = Math.max(initialCenter.distanceTo(latlng), 1)
+          const syncZone = (circle: L.Circle) => {
+            const ll = circle.getLatLng()
+            onZoneCreatedRef.current({
+              type: 'radius',
+              data: [{ lat: ll.lat, lng: ll.lng }],
+              radius: Math.max(1, Math.round(circle.getRadius() / 1000)),
+              center: [ll.lat, ll.lng],
+            })
+          }
 
+          const updateCircle = (latlng: L.LatLng) => {
+            const dist = Math.max(centerLatLng.distanceTo(latlng), 1000) // min 1km
             if (!activeCircle) {
-              activeCircle = L.circle(initialCenter, {
-                ...shapeOptions,
-                radius: nextRadius
-              })
+              activeCircle = L.circle(centerLatLng, { ...SHAPE_OPTIONS, radius: dist })
               drawnItemsRef.current?.clearLayers()
               drawnItemsRef.current?.addLayer(activeCircle)
             } else {
-              activeCircle.setRadius(nextRadius)
-            }
-
-            if (activeCircle) {
-              keepCircleInView(activeCircle)
+              activeCircle.setRadius(dist)
             }
           }
 
-          const startRadiusDraw = (e: L.LeafletMouseEvent) => {
-            isRadiusDrawing = true
+          const onMouseDown = (e: L.LeafletMouseEvent) => {
+            isDrawing = true
             map.dragging.disable()
-            updateRadiusCircle(e.latlng)
+            updateCircle(e.latlng)
           }
-
-          const moveRadiusDraw = (e: L.LeafletMouseEvent) => {
-            if (!isRadiusDrawing) return
-            updateRadiusCircle(e.latlng)
+          const onMouseMove = (e: L.LeafletMouseEvent) => {
+            if (!isDrawing) return
+            updateCircle(e.latlng)
           }
-
-          const handleRadiusMouseOut = () => {
-            finishRadiusDraw()
-          }
-
-          const finishRadiusDraw = (e?: L.LeafletMouseEvent) => {
-            if (!isRadiusDrawing) return
-            isRadiusDrawing = false
+          const onMouseUp = (e: L.LeafletMouseEvent) => {
+            if (!isDrawing) return
+            isDrawing = false
             map.dragging.enable()
-
-            if (e?.latlng) updateRadiusCircle(e.latlng)
-            if (!activeCircle) return
-
-            try {
-              map.fitBounds(activeCircle.getBounds(), { padding: [50, 50] })
-            } catch (error) {
-              console.warn('Skipping radius final fit while map projection is unavailable', error)
+            updateCircle(e.latlng)
+            if (activeCircle) {
+              try { map.fitBounds(activeCircle.getBounds(), { padding: [40, 40] }) } catch { /* ignore */ }
+              syncZone(activeCircle)
             }
-            syncRadiusZone(activeCircle)
+          }
+          const onMouseOut = () => {
+            if (!isDrawing) return
+            isDrawing = false
+            map.dragging.enable()
+            if (activeCircle) syncZone(activeCircle)
           }
 
-          const handleEdited = () => {
-            if (!drawnItemsRef.current) return
+          // Edit support for radius (via leaflet-draw edit toolbar)
+          if (L.Control?.Draw) {
+            drawControlRef.current = new L.Control.Draw({
+              edit: { featureGroup: drawnItemsRef.current, remove: true },
+              draw: {
+                rectangle: false, polyline: false, marker: false,
+                circlemarker: false, circle: false, polygon: false,
+              } as L.Control.DrawConstructorOptions['draw'],
+            })
+            map.addControl(drawControlRef.current)
+          }
 
-            drawnItemsRef.current.eachLayer((layer) => {
-              if (layer instanceof L.Circle) {
-                activeCircle = layer
-                keepCircleInView(layer)
-                syncRadiusZone(layer)
-              }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const onEdited = (e: any) => {
+            e.layers.eachLayer((layer: L.Layer) => {
+              if (layer instanceof L.Circle) { activeCircle = layer; syncZone(layer) }
             })
           }
+          const onDeleted = () => { activeCircle = null; onZoneCreatedRef.current(null) }
 
-          const handleEditStart = () => {
-            if (activeCircle) {
-              keepCircleInView(activeCircle)
-            }
-          }
-
-          map.on('mousedown', startRadiusDraw)
-          map.on('mousemove', moveRadiusDraw)
-          map.on('mouseup', finishRadiusDraw)
-          map.on('mouseout', handleRadiusMouseOut)
-          map.on('draw:edited', handleEdited)
-          map.on('draw:editstart', handleEditStart)
-          map.on('draw:deleted', handleDrawDeleted)
+          map.on('mousedown', onMouseDown)
+          map.on('mousemove', onMouseMove)
+          map.on('mouseup', onMouseUp)
+          map.on('mouseout', onMouseOut)
+          map.on('draw:edited', onEdited)
+          map.on('draw:deleted', onDeleted)
 
           cleanupFns.push(() => {
             container.style.cursor = ''
-            map.off('mousedown', startRadiusDraw)
-            map.off('mousemove', moveRadiusDraw)
-            map.off('mouseup', finishRadiusDraw)
-            map.off('mouseout', handleRadiusMouseOut)
-            map.off('draw:edited', handleEdited)
-            map.off('draw:editstart', handleEditStart)
-            map.off('draw:deleted', handleDrawDeleted)
             map.dragging.enable()
+            map.off('mousedown', onMouseDown)
+            map.off('mousemove', onMouseMove)
+            map.off('mouseup', onMouseUp)
+            map.off('mouseout', onMouseOut)
+            map.off('draw:edited', onEdited)
+            map.off('draw:deleted', onDeleted)
           })
         }
 
-        return () => {
-          cleanupFns.forEach((cleanup) => cleanup())
-        }
-
-      } catch (error) {
-        console.error('Error initializing drawing controls:', error)
+      } catch (err) {
+        console.error('DrawingControls setup error:', err)
       }
     }
 
-    let cleanupDrawing: (() => void) | undefined
-    initializeDrawing().then((cleanup) => {
-      cleanupDrawing = cleanup
-    })
+    setup()
 
-    // Cleanup
     return () => {
-      cleanupDrawing?.()
-      if (map && drawControlRef.current) {
-        map.removeControl(drawControlRef.current)
+      cancelled = true
+      cleanupFns.forEach(fn => fn())
+      if (drawControlRef.current) {
+        try { map.removeControl(drawControlRef.current) } catch { /* ignore */ }
         drawControlRef.current = null
       }
-      if (map && drawnItemsRef.current) {
-        map.removeLayer(drawnItemsRef.current)
+      if (drawnItemsRef.current) {
+        try { map.removeLayer(drawnItemsRef.current) } catch { /* ignore */ }
         drawnItemsRef.current = null
       }
     }
-  }, [map, mode, onZoneCreated, baseLocation, value])
+  // Only re-run when mode or base location changes — NOT on value / onZoneCreated
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, mode, baseLocation?.lat, baseLocation?.lng])
 
-  return null // Controls are added directly to the map
+
+  // ─── Effect 2: sync displayed shape when value is updated externally ─────────
+  // (e.g. user types a radius number in the input box, or clears the zone)
+  useEffect(() => {
+    if (!map || !drawnItemsRef.current) return
+
+    const current = drawnItemsRef.current
+
+    if (!value) {
+      current.clearLayers()
+      return
+    }
+
+    // Only update the visual if there's nothing currently drawn
+    // (don't clobber in-progress drawings)
+    if (current.getLayers().length === 0) {
+      (async () => {
+        const L = await import('leaflet')
+
+        if (value.type === 'radius' && typeof value.radius === 'number' && value.radius > 0) {
+          const c = Array.isArray(value.data) && value.data[0]
+            ? L.latLng(value.data[0].lat, value.data[0].lng)
+            : baseLocation ? L.latLng(baseLocation.lat, baseLocation.lng) : null
+          if (!c) return
+          const circle = L.circle(c, { ...SHAPE_OPTIONS, radius: value.radius * 1000 })
+          current.clearLayers()
+          current.addLayer(circle)
+          try { map.fitBounds(circle.getBounds(), { padding: [40, 40], animate: false }) } catch { /* ignore */ }
+        }
+
+        if (value.type === 'polygon' && Array.isArray(value.data) && value.data.length >= 3) {
+          const latlngs = value.data.map((p: MapPoint) => L.latLng(p.lat, p.lng))
+          const poly = L.polygon(latlngs, SHAPE_OPTIONS)
+          current.clearLayers()
+          current.addLayer(poly)
+          try { map.fitBounds(poly.getBounds(), { padding: [40, 40], animate: false }) } catch { /* ignore */ }
+        }
+      })()
+    }
+  }, [value, map, baseLocation])
+
+  return null
 }
 
 export function DrawingControls(props: DrawingControlsProps) {

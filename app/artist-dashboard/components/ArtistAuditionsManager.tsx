@@ -11,7 +11,7 @@ import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group'
 import { Checkbox } from '../../components/ui/checkbox'
 import { Badge } from '../../components/ui/badge'
 import { useAuth } from '../../../lib/auth-context'
-import { Megaphone, Plus, Edit3, Trash2, CheckCircle, X, Calendar, Clock } from 'lucide-react'
+import { Megaphone, Plus, Edit3, CheckCircle, X, Calendar, Clock, Archive, Eye, EyeOff } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 import { formatDateDDMMMyyyy } from '@/lib/date-format'
 import {
@@ -29,7 +29,7 @@ import { MultiSelectChips, type MultiSelectOption } from '../../components/ui/mu
 
 interface AuditionAdvert {
   id: string
-  advert_type: string
+  advert_type?: string | null
   instruments?: string[]
   vocalist_types?: string[]
   vocalist_sound_descriptors?: string[]
@@ -38,19 +38,26 @@ interface AuditionAdvert {
   lyricist_type?: string
   composer_type?: string
   collaboration_direction?: string
-  genre_selection: 'any' | 'specific'
+  genre_selection?: 'any' | 'specific' | null
   genres?: string[]
-  headline: string
-  description: string
+  headline?: string | null
+  description?: string | null
   includes_fixed_fee: boolean
   includes_royalty_share: boolean
-  deadline_type: 'asap' | 'specific'
-  deadline_date?: string
-  expiry_date: string
-  expiry_time: string
-  published_at: string
+  deadline_type?: 'asap' | 'specific' | null
+  deadline_date?: string | null
+  expiry_date?: string | null
+  expiry_time?: string | null
+  published_at?: string | null
   edited_at?: string
   created_at: string
+  status?: 'draft' | 'published' | 'unpublished' | 'historic'
+}
+
+type AdvertView = 'add' | 'drafts' | 'published' | 'unpublished' | 'historic'
+
+interface ArtistAuditionsManagerProps {
+  initialView?: AdvertView
 }
 
 interface Notification {
@@ -228,7 +235,23 @@ const GENRE_FAMILIES = [
   'The Blues & Jazz', 'World', 'Other'
 ]
 
-export function ArtistAuditionsManager() {
+const VIEW_LABELS: Record<AdvertView, string> = {
+  add: 'Create an Ad',
+  drafts: 'Draft Ads',
+  published: 'Published Ads',
+  unpublished: 'Unpublished Ads',
+  historic: 'Historic Ads',
+}
+
+const VIEW_STATUS: Partial<Record<AdvertView, AuditionAdvert['status']>> = {
+  add: 'published',
+  drafts: 'draft',
+  published: 'published',
+  unpublished: 'unpublished',
+  historic: 'historic',
+}
+
+export function ArtistAuditionsManager({ initialView = 'published' }: ArtistAuditionsManagerProps) {
   const { user } = useAuth()
   const [adverts, setAdverts] = useState<AuditionAdvert[]>([])
   const [loading, setLoading] = useState(true)
@@ -259,12 +282,14 @@ export function ArtistAuditionsManager() {
 
   useEffect(() => {
     loadAdverts()
-  }, [user])
+  }, [user, initialView])
 
   const loadAdverts = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/artist-auditions')
+      const status = VIEW_STATUS[initialView]
+      const query = status ? `?status=${encodeURIComponent(status)}` : ''
+      const response = await fetch(`/api/artist-auditions${query}`, { cache: 'no-store' })
       const result = await response.json()
 
       if (result.data) {
@@ -303,7 +328,7 @@ export function ArtistAuditionsManager() {
 
   const handleEdit = (advert: AuditionAdvert) => {
     setEditingId(advert.id)
-    setAdvertType(advert.advert_type)
+    setAdvertType(advert.advert_type || '')
     setInstrumentSelections(instrumentLabelsToSelections(advert.instruments || []))
     setVocalistTypes(normalizeVocalistTypes(advert.vocalist_types || []))
     setVocalistSoundDescriptors(advert.vocalist_sound_descriptors || [])
@@ -312,20 +337,22 @@ export function ArtistAuditionsManager() {
     setLyricistType(advert.lyricist_type || '')
     setComposerType(advert.composer_type || '')
     setCollaborationDirection(advert.collaboration_direction || '')
-    setGenreSelection(advert.genre_selection)
+    setGenreSelection(advert.genre_selection || 'any')
     setSelectedGenres(advert.genres || [])
-    setHeadline(advert.headline)
-    setDescription(advert.description)
+    setHeadline(advert.headline || '')
+    setDescription(advert.description || '')
     setIncludesFixedFee(advert.includes_fixed_fee)
     setIncludesRoyaltyShare(advert.includes_royalty_share)
-    setDeadlineType(advert.deadline_type)
+    setDeadlineType(advert.deadline_type || 'asap')
     setDeadlineDate(advert.deadline_date || '')
-    setExpiryDate(advert.expiry_date)
-    setExpiryTime(advert.expiry_time)
+    setExpiryDate(advert.expiry_date || '')
+    setExpiryTime(advert.expiry_time || '23:59')
   }
 
-  const handleSave = async () => {
-    if (!advertType || !headline || !description || !expiryDate) {
+  const handleSave = async (targetStatus: 'draft' | 'published' = 'published') => {
+    const isDraft = targetStatus === 'draft'
+
+    if (!isDraft && (!advertType || !headline || !description || !expiryDate)) {
       showNotification('error', 'Please fill in all required fields')
       return
     }
@@ -340,7 +367,7 @@ export function ArtistAuditionsManager() {
       return
     }
 
-    if (genreSelection === 'specific' && selectedGenres.length === 0) {
+    if (!isDraft && genreSelection === 'specific' && selectedGenres.length === 0) {
       showNotification('error', 'Please select at least one genre')
       return
     }
@@ -350,48 +377,48 @@ export function ArtistAuditionsManager() {
       return
     }
 
-    if (deadlineType === 'specific' && !deadlineDate) {
+    if (!isDraft && deadlineType === 'specific' && !deadlineDate) {
       showNotification('error', 'Please select a Deadline Date')
       return
     }
 
     const maxDate = getMaxDate()
-    if (deadlineType === 'specific' && deadlineDate && deadlineDate > maxDate) {
+    if (!isDraft && deadlineType === 'specific' && deadlineDate && deadlineDate > maxDate) {
       showNotification('error', 'Deadline Date must be within 3 months from today')
       return
     }
 
-    if (expiryDate > maxDate) {
+    if (!isDraft && expiryDate > maxDate) {
       showNotification('error', 'Advert Expiry Date must be within 3 months from today')
       return
     }
 
-    if (selectedAdvertType?.requiresVocalistType && vocalistTypes.length === 0) {
+    if (!isDraft && selectedAdvertType?.requiresVocalistType && vocalistTypes.length === 0) {
       showNotification('error', 'Please select at least one Vocalist Type')
       return
     }
 
-    if (selectedAdvertType?.requiresInstrument && instrumentSelections.length === 0) {
+    if (!isDraft && selectedAdvertType?.requiresInstrument && instrumentSelections.length === 0) {
       showNotification('error', 'Please select at least one Instrument')
       return
     }
 
-    if (selectedAdvertType?.requiresProducerType && !producerType) {
+    if (!isDraft && selectedAdvertType?.requiresProducerType && !producerType) {
       showNotification('error', 'Please select a Producer Type')
       return
     }
 
-    if (selectedAdvertType?.requiresLyricistType && !lyricistType) {
+    if (!isDraft && selectedAdvertType?.requiresLyricistType && !lyricistType) {
       showNotification('error', 'Please select a Lyricist Type')
       return
     }
 
-    if (selectedAdvertType?.requiresComposerType && !composerType) {
+    if (!isDraft && selectedAdvertType?.requiresComposerType && !composerType) {
       showNotification('error', 'Please select a Composer Type')
       return
     }
 
-    if (selectedAdvertType?.requiresDirection && !collaborationDirection) {
+    if (!isDraft && selectedAdvertType?.requiresDirection && !collaborationDirection) {
       showNotification('error', 'Please select a Direction')
       return
     }
@@ -418,7 +445,8 @@ export function ArtistAuditionsManager() {
         deadline_type: deadlineType,
         deadline_date: deadlineType === 'specific' ? deadlineDate : null,
         expiry_date: expiryDate,
-        expiry_time: expiryTime
+        expiry_time: expiryTime,
+        status: targetStatus
       }
 
       const response = await fetch('/api/artist-auditions', {
@@ -431,9 +459,12 @@ export function ArtistAuditionsManager() {
         throw new Error('Failed to save advert')
       }
 
-      showNotification('success', editingId ? 'Advert updated successfully' : 'Advert added successfully')
+      showNotification('success', targetStatus === 'draft'
+        ? 'Advert draft saved successfully'
+        : editingId ? 'Advert published successfully' : 'Advert added successfully')
       resetForm()
       loadAdverts()
+      notifyAdvertCountsChanged()
     } catch (error) {
       console.error('Error saving advert:', error)
       showNotification('error', 'Failed to save advert')
@@ -443,7 +474,7 @@ export function ArtistAuditionsManager() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this advert?')) return
+    if (!confirm('Move this advert to Historic Ads?')) return
 
     try {
       const response = await fetch(`/api/artist-auditions?id=${id}`, {
@@ -454,11 +485,48 @@ export function ArtistAuditionsManager() {
         throw new Error('Failed to delete advert')
       }
 
-      showNotification('success', 'Advert deleted successfully')
+      showNotification('success', 'Advert moved to Historic Ads')
       loadAdverts()
+      notifyAdvertCountsChanged()
     } catch (error) {
       console.error('Error deleting advert:', error)
       showNotification('error', 'Failed to delete advert')
+    }
+  }
+
+  const updateAdvertStatus = async (advert: AuditionAdvert, status: 'published' | 'unpublished' | 'historic') => {
+    try {
+      const response = await fetch('/api/artist-auditions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...advert,
+          status,
+          advert_type: advert.advert_type || '',
+          genre_selection: advert.genre_selection || 'any',
+          headline: advert.headline || '',
+          description: advert.description || '',
+          deadline_type: advert.deadline_type || 'asap',
+          expiry_date: advert.expiry_date || '',
+          expiry_time: advert.expiry_time || '23:59',
+        })
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(typeof payload.error === 'string' ? payload.error : 'Failed to update advert')
+      }
+
+      showNotification('success', status === 'published'
+        ? 'Advert published successfully'
+        : status === 'unpublished'
+          ? 'Advert unpublished successfully'
+          : 'Advert moved to Historic Ads')
+      loadAdverts()
+      notifyAdvertCountsChanged()
+    } catch (error) {
+      console.error('Error updating advert status:', error)
+      showNotification('error', error instanceof Error ? error.message : 'Failed to update advert')
     }
   }
 
@@ -488,6 +556,10 @@ export function ArtistAuditionsManager() {
     setExpiryTime('23:59')
   }
 
+  const notifyAdvertCountsChanged = () => {
+    window.dispatchEvent(new CustomEvent('artist-auditions-updated'))
+  }
+
   const selectedAdvertType = ADVERT_TYPES.find(t => t.value === advertType)
 
   return (
@@ -512,6 +584,7 @@ export function ArtistAuditionsManager() {
       )}
 
       {/* Add/Edit Advert Form */}
+      {(initialView === 'add' || editingId) && (
       <Card id="artist-auditions-add" className="scroll-mt-28">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
@@ -824,7 +897,7 @@ export function ArtistAuditionsManager() {
             </div>
           </div>
 
-          <div className="flex justify-end space-x-2">
+          <div className="flex flex-wrap justify-end gap-2">
             {editingId && (
               <Button
                 variant="outline"
@@ -834,21 +907,32 @@ export function ArtistAuditionsManager() {
               </Button>
             )}
             <Button
-              onClick={handleSave}
+              type="button"
+              variant="outline"
+              onClick={() => handleSave('draft')}
+              disabled={saving}
+              className="border-purple-200 text-purple-700 hover:bg-purple-50"
+            >
+              <Archive className="w-4 h-4 mr-2" />
+              {saving ? 'Saving...' : 'Save Draft'}
+            </Button>
+            <Button
+              onClick={() => handleSave('published')}
               disabled={saving}
               className="bg-purple-600 hover:bg-purple-700 text-white"
             >
               <Plus className="w-4 h-4 mr-2" />
-              {saving ? 'Saving...' : editingId ? 'Update Advert' : 'Add Advert'}
+              {saving ? 'Saving...' : editingId ? 'Publish Advert' : 'Publish Advert'}
             </Button>
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Manage Adverts */}
       <Card id="artist-auditions-manage" className="scroll-mt-28">
         <CardHeader>
-          <CardTitle>Manage Audition & Collaboration Adverts</CardTitle>
+          <CardTitle>{VIEW_LABELS[initialView] === 'Create an Ad' ? 'Published Ads' : VIEW_LABELS[initialView]}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -864,8 +948,13 @@ export function ArtistAuditionsManager() {
                   key={advert.id}
                   className="border border-gray-200 rounded-lg p-4 space-y-3"
                 >
-                  <div className="font-semibold text-lg text-purple-600 uppercase">
-                    {advert.advert_type.replace(/-/g, ' ')}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="font-semibold text-lg text-purple-600 uppercase">
+                      {(advert.advert_type || 'draft advert').replace(/-/g, ' ')}
+                    </div>
+                    <Badge variant="outline" className="capitalize">
+                      {advert.status || 'published'}
+                    </Badge>
                   </div>
                   {advert.instruments && advert.instruments.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
@@ -912,16 +1001,16 @@ export function ArtistAuditionsManager() {
                       {advert.lyricist_type || advert.composer_type} - {advert.collaboration_direction}
                     </div>
                   )}
-                  <div className="font-medium">{advert.headline}</div>
+                  <div className="font-medium">{advert.headline || 'Untitled advert draft'}</div>
                   <div className="text-sm text-gray-600 whitespace-pre-wrap">
-                    {advert.description}
+                    {advert.description || 'No description added yet.'}
                   </div>
                   <div className="text-sm space-y-1">
                     <div>
                       <span className="font-medium">Genre:</span>{' '}
                       {advert.genre_selection === 'any'
                         ? 'ANY GENRE'
-                        : advert.genres?.join('; ')}
+                        : advert.genres?.length ? advert.genres.join('; ') : 'Not set'}
                     </div>
                     <div>
                       <span className="font-medium">Fixed Fee:</span>{' '}
@@ -936,38 +1025,64 @@ export function ArtistAuditionsManager() {
                       <span className="font-medium">Deadline:</span>{' '}
                       {advert.deadline_type === 'asap'
                         ? 'ASAP'
-                        : formatDateDDMMMyyyy(advert.deadline_date)}
+                        : formatDateDDMMMyyyy(advert.deadline_date, 'Not set')}
                     </div>
                     <div>
                       <span className="font-medium">Ad Expires:</span>{' '}
-                      {formatDateDDMMMyyyy(advert.expiry_date)}
+                      {formatDateDDMMMyyyy(advert.expiry_date, 'Not set')}
                       {advert.expiry_time ? ` ${advert.expiry_time}` : ''}
                     </div>
                   </div>
                   <div className="text-xs text-gray-500 space-y-1 pt-2 border-t">
-                    <div>Published on {formatDateDDMMMyyyy(advert.published_at)}</div>
+                    {advert.published_at ? (
+                      <div>Published on {formatDateDDMMMyyyy(advert.published_at)}</div>
+                    ) : (
+                      <div>Not published yet</div>
+                    )}
                     {advert.edited_at && (
                       <div>Edited on {formatDateDDMMMyyyy(advert.edited_at)}</div>
                     )}
                   </div>
-                  <div className="flex space-x-2 pt-2">
+                  <div className="flex flex-wrap gap-2 pt-2">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleEdit(advert)}
-                      className="flex-1"
+                      className="flex-1 min-w-28"
                     >
                       <Edit3 className="w-4 h-4 mr-2" />
                       Edit Ad
                     </Button>
+                    {advert.status !== 'published' && advert.status !== 'historic' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateAdvertStatus(advert, 'published')}
+                        className="flex-1 min-w-28 text-green-700 hover:text-green-800"
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        Publish
+                      </Button>
+                    )}
+                    {advert.status === 'published' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateAdvertStatus(advert, 'unpublished')}
+                        className="flex-1 min-w-28"
+                      >
+                        <EyeOff className="w-4 h-4 mr-2" />
+                        Unpublish
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleDelete(advert.id)}
-                      className="flex-1 text-red-600 hover:text-red-700"
+                      className="flex-1 min-w-28 text-red-600 hover:text-red-700"
                     >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete Ad
+                      <Archive className="w-4 h-4 mr-2" />
+                      Historic
                     </Button>
                   </div>
                 </div>

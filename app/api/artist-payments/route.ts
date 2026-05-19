@@ -303,6 +303,7 @@ export async function POST(request: NextRequest) {
       generic_tax_id: toNullableString(body.generic_tax_id),
       individual_tax_id: toNullableString(body.individual_tax_id),
       business_tax_id: toNullableString(body.business_tax_id),
+      partnership_tax_id: toNullableString(body.partnership_tax_id),
       vat_gst_sst_id: toNullableString(body.vat_gst_sst_id),
       company_registration_number: isCorporateEntity ? toNullableString(body.company_registration_number) : null,
       company_formation_date: isCorporateEntity ? toNullableString(body.company_formation_date) : null,

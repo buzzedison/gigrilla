@@ -103,6 +103,8 @@ interface ArtistSidebarProps {
   unreadMessages?: number
   messageFolderCounts?: Record<string, number>
   gigNegotiationCounts?: Record<string, number>
+  gigBookingCounts?: Record<string, number>
+  auditionAdvertCounts?: Record<string, number>
   completedSections?: string[]
   hideTypeSection?: boolean
   className?: string
@@ -145,12 +147,14 @@ function isSectionEnabled(section: ArtistDashboardSection, capabilities: ArtistT
 type SidebarChild = {
   id: string
   label: string
+  description?: string
   icon?: React.ComponentType<{ className?: string }>
   section?: ArtistDashboardSection
   subSection?: string
   path?: string
   action?: 'toggleAll' | 'profileView' | 'theme' | 'logout'
   badge?: string | number | null
+  statusBadge?: string | number | null
 }
 
 type SidebarNode = SidebarChild & {
@@ -160,6 +164,8 @@ type SidebarNode = SidebarChild & {
 type SidebarGroup = {
   id: string
   label: string
+  badge?: string | number | null
+  statusBadge?: string | number | null
   items: SidebarNode[]
 }
 
@@ -213,6 +219,8 @@ export function ArtistSidebar({
   unreadMessages = 0,
   messageFolderCounts = {},
   gigNegotiationCounts = {},
+  gigBookingCounts = {},
+  auditionAdvertCounts = {},
   completedSections = [],
   hideTypeSection,
   className
@@ -287,9 +295,13 @@ export function ArtistSidebar({
     const messageBadge = unreadMessages > 0 ? (unreadMessages > 99 ? '99+' : unreadMessages) : null
     const folderCount = (folderId: string) => messageFolderCounts[folderId] ?? 0
     const gigFolderCount = (folderId: string) => gigNegotiationCounts[folderId] ?? 0
+    const gigBookingCount = (folderId: string) => gigBookingCounts[folderId] ?? 0
+    const auditionCount = (folderId: string) => auditionAdvertCounts[folderId] ?? 0
     const sumFolders = (folderIds: string[]) => folderIds.reduce((sum, folderId) => sum + folderCount(folderId), 0)
     const sumGigFolders = (folderIds: string[]) => folderIds.reduce((sum, folderId) => sum + gigFolderCount(folderId), 0)
     const gigNegotiationCount = sumGigFolders(['gig_invites', 'gig_requests', 'confirmations'])
+    const gigBookingTotal = gigBookingCount('total_gig_bookings')
+    const gigMenuTotal = gigBookingTotal + gigNegotiationCount
     const messageGigNegotiationCount = sumFolders(['gig_invites', 'gig_requests', 'confirmations'])
     const userMessagesCount = sumFolders(['colleagues', 'auditions', 'fans', 'artists', 'venues', 'services', 'pros'])
     const systemMessagesCount = folderCount('system')
@@ -385,13 +397,23 @@ export function ArtistSidebar({
         icon: Megaphone,
         section: 'auditions',
         subSection: 'add',
+        description: 'Ads for wanted/offered to Artists, incl. Msgs',
+        badge: auditionCount('total_ads'),
         children: [
           { id: 'create-ad', label: '+Create an Ad', section: 'auditions', subSection: 'add' },
-          { id: 'draft-ads', label: 'Draft Ads', section: 'auditions', subSection: 'manage' },
-          { id: 'published-ads', label: 'Published Ads', section: 'auditions', subSection: 'manage' },
-          { id: 'unpublished-ads', label: 'Unpublished Ads', section: 'auditions', subSection: 'manage' },
-          { id: 'historic-ads', label: 'Historic Ads', section: 'auditions', subSection: 'manage' },
-          { id: 'my-advert-messages', label: 'My Advert Messages', section: 'messages', subSection: 'auditions', badge: folderCount('auditions') },
+          { id: 'draft-ads', label: 'Draft Ads', section: 'auditions', subSection: 'drafts', badge: auditionCount('draft_ads'), statusBadge: 'NEW' },
+          { id: 'published-ads', label: 'Published Ads', section: 'auditions', subSection: 'published', badge: auditionCount('published_ads'), statusBadge: 'NEW' },
+          { id: 'unpublished-ads', label: 'Unpublished Ads', section: 'auditions', subSection: 'unpublished', badge: auditionCount('unpublished_ads'), statusBadge: 'NEW' },
+          { id: 'historic-ads', label: 'Historic Ads', section: 'auditions', subSection: 'historic', badge: auditionCount('historic_ads'), statusBadge: 'NEW' },
+          {
+            id: 'my-advert-messages',
+            label: 'My Advert Messages',
+            description: 'Twinned in Messages; people responding to Ads',
+            section: 'messages',
+            subSection: 'auditions',
+            badge: folderCount('auditions'),
+            statusBadge: 'NEW',
+          },
         ]
       },
     ]
@@ -403,8 +425,17 @@ export function ArtistSidebar({
         icon: Gauge,
         section: 'gigability',
         subSection: 'base',
+        description: 'Gig/Booking System default settings',
+        statusBadge: 'pre-contract',
         children: [
-          { id: 'gig-splits', label: 'Gig Money Splits', section: 'royalty', subSection: 'splits' },
+          {
+            id: 'gig-splits',
+            label: 'Gig Money Splits',
+            description: 'Twinned with Artist Crew; changes affect both',
+            section: 'royalty',
+            subSection: 'splits',
+            statusBadge: 'NEW twinned',
+          },
           { id: 'gig-base-location', label: 'Base Location', section: 'gigability', subSection: 'base' },
           { id: 'gig-set-lengths', label: 'Set Lengths', section: 'gigability', subSection: 'sets' },
           { id: 'gig-fees', label: 'Gig Fees', section: 'gigability', subSection: 'fees' },
@@ -418,11 +449,12 @@ export function ArtistSidebar({
         icon: CalendarDays,
         section: 'gig-bookings',
         subSection: 'book-new',
+        badge: gigBookingTotal,
         children: [
           { id: 'book-new-gig', label: '+Book a New Gig', section: 'gig-bookings', subSection: 'book-new' },
-          { id: 'add-gig-manually', label: '+Add Gig Manually', section: 'gig-bookings', subSection: 'add-manually' },
-          { id: 'draft-gigs', label: 'Draft Gigs', section: 'gig-bookings', subSection: 'drafts' },
-          { id: 'upcoming-gigs', label: 'Upcoming Gigs', section: 'gig-bookings', subSection: 'upcoming' },
+          { id: 'add-gig-manually', label: 'Add Gig Manually', section: 'gig-bookings', subSection: 'add-manually' },
+          { id: 'draft-gigs', label: 'Draft Gigs', section: 'gig-bookings', subSection: 'drafts', badge: gigBookingCount('draft_gigs') },
+          { id: 'upcoming-gigs', label: 'Upcoming Gigs', section: 'gig-bookings', subSection: 'upcoming', badge: gigBookingCount('upcoming_gigs') },
           { id: 'scheduled-hidden-gigs', label: 'Scheduled/Hidden', section: 'gig-bookings', subSection: 'scheduled-hidden' },
           { id: 'historic-gigs', label: 'Historic Gigs', section: 'gig-bookings', subSection: 'historic' },
         ]
@@ -577,12 +609,12 @@ export function ArtistSidebar({
     return [
       { id: 'controlPanel', label: 'Control Panel Menu', items: controlPanelItems },
       { id: 'artistProfile', label: 'Artist Profile Menu', items: artistProfileItems },
-      { id: 'gigMenu', label: 'Gig Menu', items: gigItems },
+      { id: 'gigMenu', label: 'Gig Menu', badge: gigMenuTotal, statusBadge: 'I1+T3', items: gigItems },
       { id: 'musicMenu', label: 'Music Menu', items: musicItems },
       { id: 'merchMenu', label: 'Your Store Menu', items: merchItems },
       { id: 'messageMenu', label: 'Messages Menu', items: messageItems },
     ]
-  }, [colourMode, unreadMessages, messageFolderCounts, gigNegotiationCounts])
+  }, [colourMode, unreadMessages, messageFolderCounts, gigNegotiationCounts, gigBookingCounts, auditionAdvertCounts])
 
   const isChildActive = (child: SidebarChild) => {
     if (child.path) return pathname === child.path
@@ -684,6 +716,15 @@ export function ArtistSidebar({
     )
   }
 
+  const renderStatusBadge = (badge?: string | number | null) => {
+    if (badge === null || badge === undefined || badge === 0) return null
+    return (
+      <span className="rounded-full bg-[#a855f7]/20 px-2 py-0.5 text-[10px] font-semibold text-[#f0d8ff]">
+        {badge}
+      </span>
+    )
+  }
+
   const renderLeafButton = (entry: SidebarChild, indent = false) => {
     const active = isChildActive(entry)
     const disabled = entry.section ? !isSectionEnabled(entry.section, capabilities, hideTypeSection) : false
@@ -720,12 +761,20 @@ export function ArtistSidebar({
         disabled={disabled}
         className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition-colors ${indent ? 'pl-4 text-[13px]' : 'text-sm'} ${disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'} ${baseClass}`}
       >
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-start gap-2">
           {entry.icon ? <entry.icon className="h-4 w-4 shrink-0" /> : null}
-          <span className="truncate">{entry.label}</span>
+          <span className="min-w-0">
+            <span className="block truncate">{entry.label}</span>
+            {entry.description ? (
+              <span className="mt-0.5 block truncate text-[11px] leading-4 text-[#8e7b9d]">
+                {entry.description}
+              </span>
+            ) : null}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           {renderBadge(entry.badge)}
+          {renderStatusBadge(entry.statusBadge)}
           {!disabled && entry.section && completedSections.includes(entry.section) && !indent ? (
             <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />
           ) : null}
@@ -773,12 +822,20 @@ export function ArtistSidebar({
             disabled={disabled}
             className={`flex min-w-0 flex-1 items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors ${disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'} ${baseClass}`}
           >
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 items-start gap-2">
               {node.icon ? <node.icon className="h-4 w-4 shrink-0" /> : null}
-              <span className="truncate">{node.label}</span>
+              <span className="min-w-0">
+                <span className="block truncate">{node.label}</span>
+                {node.description ? (
+                  <span className="mt-0.5 block truncate text-[11px] leading-4 text-[#8e7b9d]">
+                    {node.description}
+                  </span>
+                ) : null}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               {renderBadge(node.badge)}
+              {renderStatusBadge(node.statusBadge)}
               {!disabled && node.section && completedSections.includes(node.section) ? <CheckCircle2 className="h-3.5 w-3.5 text-green-400" /> : null}
             </div>
           </button>
@@ -830,8 +887,12 @@ export function ArtistSidebar({
             onClick={() => setExpandedGroups((prev) => ({ ...prev, [group.id]: !prev[group.id] }))}
             className={isCollapsed ? "sr-only" : "mb-3 flex w-full items-center justify-between text-[11px] uppercase tracking-[0.32em] text-[#8e7b9d] transition hover:text-white"}
           >
-            <span>{group.label}</span>
-            {expandedGroups[group.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate">{group.label}</span>
+              {renderBadge(group.badge)}
+              {renderStatusBadge(group.statusBadge)}
+            </span>
+            {expandedGroups[group.id] ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
           </button>
           {isCollapsed || expandedGroups[group.id] ? <div className={isCollapsed ? "flex flex-col items-center gap-2" : "space-y-1"}>{group.items.map(renderNode)}</div> : null}
         </div>

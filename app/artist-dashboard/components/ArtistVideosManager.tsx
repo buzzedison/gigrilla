@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog'
 import { YouTubeVideoModal } from '../../components/ui/youtube-video-modal'
-import { addYouTubeRelParam } from '../../../lib/utils'
+import { addYouTubeRelParam, cleanYouTubeUrl } from '../../../lib/utils'
 import { formatDateDDMMMyyyy } from '@/lib/date-format'
 
 interface VideoItem {
@@ -61,6 +61,16 @@ export function ArtistVideosManager() {
   const extractVideoId = useCallback((url: string): string | null => {
     const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([^&\n?#]+)/)
     return match ? match[1] : null
+  }, [])
+
+  // Strip playlist/radio/autoplay junk when user pastes a URL
+  const handleUrlPaste = useCallback((e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData('text')
+    const cleaned = cleanYouTubeUrl(pasted)
+    if (cleaned !== pasted) {
+      e.preventDefault()
+      setNewYoutubeUrl(cleaned)
+    }
   }, [])
 
   const fetchVideos = useCallback(async () => {
@@ -366,6 +376,7 @@ export function ArtistVideosManager() {
               <Input
                 value={newYoutubeUrl}
                 onChange={(e) => setNewYoutubeUrl(e.target.value)}
+                onPaste={handleUrlPaste}
                 placeholder="https://youtu.be/your-video"
                 className="text-sm"
               />
@@ -395,7 +406,7 @@ export function ArtistVideosManager() {
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button
                 onClick={handleUploadVideo}
-                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white shadow-sm"
                 disabled={!newYoutubeUrl.trim() || !newVideoTitle.trim() || uploading}
               >
                 {uploading ? (

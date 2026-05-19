@@ -43,6 +43,8 @@ interface GigAbilityMapProps {
   onChange: (zone: MapZone | null) => void
   baseLocation?: { lat: number; lng: number }
   mapId?: string // Unique ID for the map container
+  allowCountrySelection?: boolean
+  profileAreaLabel?: string
 }
 
 const COUNTRIES = getCountryOptions()
@@ -97,7 +99,16 @@ const getCountryNameFromValue = (value: string) => {
   return value
 }
 
-export function GigAbilityMap({ title, description, value, onChange, baseLocation, mapId = 'gig-map' }: GigAbilityMapProps) {
+export function GigAbilityMap({
+  title,
+  description,
+  value,
+  onChange,
+  baseLocation,
+  mapId = 'gig-map',
+  allowCountrySelection = true,
+  profileAreaLabel = 'Gig Area',
+}: GigAbilityMapProps) {
   const [mode, setMode] = useState<'radius' | 'polygon' | 'country'>('radius')
   const [radius] = useState(50) // km
   const [radiusUnit, setRadiusUnit] = useState<'km' | 'mi'>('km')
@@ -219,6 +230,11 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
     setSelectedCountries(countries.filter((country): country is string => typeof country === 'string' && country.length > 0))
   }, [value])
 
+  useEffect(() => {
+    if (allowCountrySelection || mode !== 'country') return
+    setMode('radius')
+  }, [allowCountrySelection, mode])
+
   const filteredCountries = COUNTRIES.filter((country) =>
     country.name.toLowerCase().includes(countrySearch.trim().toLowerCase())
   )
@@ -275,7 +291,7 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
       </div>
 
       {/* Mode Selection */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button
           variant={mode === 'radius' ? 'default' : 'outline'}
           size="sm"
@@ -292,15 +308,17 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
           <Move className="w-4 h-4 mr-1" />
           Draw-a-Zone
         </Button>
-        <Button
-          variant={mode === 'country' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setMode('country')}
-        >
-          <Globe className="w-4 h-4 mr-1" />
-          Select Countries
-        </Button>
-        {mode === 'country' && (
+        {allowCountrySelection && (
+          <Button
+            variant={mode === 'country' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setMode('country')}
+          >
+            <Globe className="w-4 h-4 mr-1" />
+            Countries
+          </Button>
+        )}
+        {allowCountrySelection && mode === 'country' && (
           <Button
             variant="outline"
             size="sm"
@@ -384,121 +402,137 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
         </div>
       )}
 
-      {mode === 'country' && (
-        <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
-                Select Countries
-              </label>
-              <Input
-                value={countrySearch}
-                onChange={(e) => setCountrySearch(e.target.value)}
-                placeholder="Search and tick countries"
-                className="bg-white md:w-80"
-              />
-              <p className="text-xs text-slate-500">
-                Tick and untick countries directly in the list. Your public profile preview updates as you select them.
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={selectWorldwide}
-              >
-                Select Worldwide
-              </Button>
-              {selectedCountries.length > 0 && (
+      {allowCountrySelection && mode === 'country' && (
+        <div className="grid gap-4 rounded-xl border border-slate-200 bg-white p-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-3">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h5 className="text-sm font-semibold text-slate-900">Country Coverage</h5>
+                <p className="text-xs text-slate-500">
+                  Search, select, and remove countries from one place.
+                </p>
+              </div>
+              <div className="flex gap-2">
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={clearMap}
+                  onClick={selectWorldwide}
                 >
-                  Clear Countries
+                  Select Worldwide
                 </Button>
-              )}
-            </div>
-          </div>
-          <ScrollArea className="h-72 rounded-2xl border border-slate-200 bg-white">
-            <div className="p-2">
-              {filteredCountries.length === 0 ? (
-                <div className="px-3 py-6 text-sm text-slate-500">
-                  No countries match your search.
-                </div>
-              ) : (
-                filteredCountries.map((country) => {
-                  const isSelected = selectedCountries.includes(country.code)
-
-                  return (
-                    <div
-                      key={country.code}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => toggleCountry(country.code)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          toggleCountry(country.code)
-                        }
-                      }}
-                      className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition-colors ${
-                        isSelected
-                          ? 'bg-blue-50 text-blue-900'
-                          : 'hover:bg-slate-50 text-slate-800'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Checkbox
-                          checked={isSelected}
-                          onClick={(e) => e.stopPropagation()}
-                          onCheckedChange={() => toggleCountry(country.code)}
-                          aria-label={`Select ${country.name}`}
-                        />
-                        <span className="text-base">{getFlagEmoji(country.code)}</span>
-                        <span className="text-sm font-medium">{country.name}</span>
-                      </div>
-                      {isSelected && (
-                        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
-                          Selected
-                        </span>
-                      )}
-                    </div>
-                  )
-                })
-              )}
-            </div>
-          </ScrollArea>
-          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
-            {selectedCountries.length === 0
-              ? 'No countries selected yet.'
-              : `${selectedCountries.length} countries selected.`}
-          </div>
-          {selectedCountries.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {selectedCountries.map((countryCode) => {
-                const countryName = getCountryNameFromValue(countryCode)
-                return (
-                  <span
-                    key={countryCode}
-                    className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-3 py-1 text-sm text-gray-700"
+                {selectedCountries.length > 0 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={clearMap}
                   >
-                    {countryName}
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <Input
+              value={countrySearch}
+              onChange={(e) => setCountrySearch(e.target.value)}
+              placeholder="Search countries"
+              className="bg-white"
+            />
+
+            <ScrollArea className="h-72 rounded-xl border border-slate-200 bg-slate-50">
+              <div className="p-2">
+                {filteredCountries.length === 0 ? (
+                  <div className="px-3 py-6 text-sm text-slate-500">
+                    No countries match your search.
+                  </div>
+                ) : (
+                  filteredCountries.map((country) => {
+                    const isSelected = selectedCountries.includes(country.code)
+
+                    return (
+                      <div
+                        key={country.code}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => toggleCountry(country.code)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            toggleCountry(country.code)
+                          }
+                        }}
+                        className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
+                          isSelected
+                            ? 'bg-purple-50 text-purple-950'
+                            : 'text-slate-800 hover:bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Checkbox
+                            checked={isSelected}
+                            onClick={(e) => e.stopPropagation()}
+                            onCheckedChange={() => toggleCountry(country.code)}
+                            aria-label={`Select ${country.name}`}
+                          />
+                          <span className="text-base">{getFlagEmoji(country.code)}</span>
+                          <span className="text-sm font-medium">{country.name}</span>
+                        </div>
+                        {isSelected && (
+                          <span className="text-xs font-semibold text-purple-700">
+                            Added
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+
+          <div className="rounded-xl border border-purple-100 bg-purple-50/60 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-purple-700">
+                  Selected Countries
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  {selectedCountries.length === 0
+                    ? 'No countries selected yet.'
+                    : `${selectedCountries.length} selected for ${profileAreaLabel.toLowerCase()}.`}
+                </p>
+              </div>
+              {selectedCountries.length > 0 && (
+                <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-purple-700 shadow-sm">
+                  {selectedCountries.length}
+                </span>
+              )}
+            </div>
+
+            {selectedCountries.length > 0 && (
+              <div className="mt-4 flex max-h-64 flex-wrap gap-2 overflow-y-auto pr-1">
+                {countryPreviewItems.map((country) => (
+                  <span
+                    key={country.value}
+                    className="inline-flex items-center gap-2 rounded-full border border-purple-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm"
+                  >
+                    <span>{country.flag}</span>
+                    <span>{country.name}</span>
                     <button
                       type="button"
-                      className="text-gray-400 hover:text-red-500 transition-colors"
-                      onClick={() => handleCountryRemove(countryCode)}
-                      aria-label={`Remove ${countryName}`}
+                      className="text-slate-400 transition-colors hover:text-red-500"
+                      onClick={() => handleCountryRemove(country.value)}
+                      aria-label={`Remove ${country.name}`}
                     >
                       <X className="w-3 h-3" />
                     </button>
                   </span>
-                )
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -561,10 +595,10 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
                       Artist Public Profile Preview
                     </p>
                     <h5 className="mt-1 text-lg font-bold text-slate-900">
-                      Wider Gig Area
+                      {profileAreaLabel}
                     </h5>
                     <p className="mt-1 text-sm text-slate-600">
-                      Your profile will show these selected countries as part of your wider coverage.
+                      Your profile will show these selected countries as part of this coverage area.
                     </p>
                   </div>
                   <div className="rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700">
@@ -590,35 +624,7 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
       </div>
 
       {/* Current Selection Display */}
-      {value && (
-        value.type === 'country' ? (
-          <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-blue-700">
-                  Public Profile Display
-                </p>
-                <p className="mt-1 text-sm text-slate-700">
-                  Selected countries appear as individual coverage badges on the artist profile.
-                </p>
-              </div>
-              <div className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-blue-700 shadow-sm">
-                {countryPreviewItems.length} countries
-              </div>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {countryPreviewItems.map((country) => (
-                <div
-                  key={country.value}
-                  className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm"
-                >
-                  <span className="text-base">{country.flag}</span>
-                  <span>{country.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
+      {value && value.type !== 'country' && (
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm font-medium text-blue-900">
               Current selection: {value.type === 'radius'
@@ -627,7 +633,6 @@ export function GigAbilityMap({ title, description, value, onChange, baseLocatio
                 `${Array.isArray(value.data) ? value.data.length : 0} points`}
             </p>
           </div>
-        )
       )}
     </div>
   )

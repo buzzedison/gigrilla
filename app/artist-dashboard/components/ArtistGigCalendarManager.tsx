@@ -31,7 +31,7 @@ import { formatDateDDMMMyyyy, formatDateTimeDDMMMyyyy } from '@/lib/date-format'
 import { getCurrencySymbol } from '@/lib/currency-options'
 
 interface ArtistGigCalendarManagerProps {
-  defaultView?: 'create' | 'upcoming' | 'past'
+  defaultView?: 'create' | 'upcoming' | 'past' | 'drafts'
   onNavigateToView?: (view: 'create' | 'upcoming' | 'past') => void
   onNavigateToGigSubSection?: (subSection: 'book-new' | 'add-manually' | 'drafts') => void
 }
@@ -304,6 +304,7 @@ function toGigFormInitialData(gig: ArtistGigRecord): CreateGigFormInitialData {
     customTickets: Array.isArray(metadata?.custom_tickets) ? (metadata.custom_tickets as CreateGigFormInitialData['customTickets']) || [] : [],
     ticketAvailability,
     customTicketCount: readMetadataNumberLike(metadata, 'custom_ticket_count'),
+    ticketSoldOut: readMetadataBoolean(metadata, 'ticket_sold_out'),
     artworkCaption: readMetadataString(metadata, 'artwork_caption'),
     artworkPreview: readMetadataString(metadata, 'artwork_url'),
     publishMode,
@@ -495,7 +496,7 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
       setLoading(false)
       setRefreshing(false)
     }
-  }, [])
+  }, [defaultView])
 
   useEffect(() => {
     load()
@@ -513,6 +514,10 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
   const upcoming = useMemo(
     () => sorted.filter((gig) => gig.startDatetime && new Date(gig.startDatetime) >= now),
     [sorted, now]
+  )
+  const draftGigs = useMemo(
+    () => sorted.filter((gig) => gig.gigStatus === 'draft'),
+    [sorted]
   )
   const past = useMemo(
     () => sorted.filter((gig) => !gig.startDatetime || new Date(gig.startDatetime) < now),
@@ -882,6 +887,131 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
                 }}
               />
             )}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (defaultView === 'drafts') {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarDays className="w-5 h-5 text-purple-700" />
+                Draft Gigs
+              </CardTitle>
+              <p className="text-sm text-gray-600 mt-1">
+                Resume scheduled or unpublished gig drafts before they become public.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {editGig && (
+              <div className="mb-6 rounded-xl border border-purple-200 bg-purple-50/40 p-4">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-purple-900">Editing: {editGig.gigTitle}</h3>
+                    <p className="text-sm text-purple-800">Update this draft and choose when it becomes public.</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setEditGig(null)}>
+                    Back to Drafts
+                  </Button>
+                </div>
+                <CreateGigForm
+                  mode="edit"
+                  bookingId={editGig.id}
+                  initialData={toGigFormInitialData(editGig)}
+                  onCancel={() => setEditGig(null)}
+                  onSuccess={() => {
+                    setEditGig(null)
+                    load(true)
+                  }}
+                />
+              </div>
+            )}
+            {warning && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                {warning}
+              </div>
+            )}
+            {error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" />
+                {error}
+              </div>
+            )}
+            {!error && draftGigs.length === 0 ? (
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center">
+                <CalendarDays className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                <p className="text-sm text-gray-500">No draft gigs saved yet.</p>
+                <p className="text-xs text-gray-400 mt-1">Scheduled public gigs and saved draft gigs will appear here.</p>
+              </div>
+            ) : !error ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {draftGigs.map((gig) => {
+                  const isPublishing = actioningGigId === gig.id
+                  const performanceStart = gig.artistTile?.performanceStartDatetime || gig.startDatetime
+                  const performanceEnd = gig.artistTile?.performanceEndDatetime || gig.endDatetime
+                  const metadata = gig.metadata && typeof gig.metadata === 'object' ? gig.metadata : null
+                  const isLivestream = (gig.eventType || '').toLowerCase() === 'livestream'
+                  const livestreamUrl = readMetadataString(metadata, 'live_stream_url') || null
+                  const publishAt = readMetadataString(metadata, 'publish_at')
+                  const displayVenueName = isLivestream ? 'Live Stream Gig' : gig.venueName
+                  const displayVenueAddress = isLivestream ? getLivestreamDisplayLink(livestreamUrl) : gig.venueAddress
+
+                  return (
+                    <div key={gig.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h3 className="font-bold text-gray-900 text-lg leading-tight">{gig.gigTitle}</h3>
+                            <p className="text-sm text-gray-600">@ {displayVenueName}</p>
+                            <p className="text-sm text-gray-500 italic break-all">{displayVenueAddress}</p>
+                          </div>
+                          <Badge variant="secondary">Draft</Badge>
+                        </div>
+                        <p className="text-sm font-semibold text-purple-700">
+                          Gig Date: {formatDateRange(performanceStart, performanceEnd)}
+                        </p>
+                        {publishAt ? (
+                          <p className="text-xs text-gray-500">
+                            Scheduled public date: {formatDateTimeDDMMMyyyy(publishAt, 'Not set')}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-gray-500">Public date not scheduled.</p>
+                        )}
+                        <div className="grid gap-2 pt-3 border-t sm:grid-cols-2">
+                          <Button variant="outline" size="sm" className="w-full" onClick={() => openEditDialog(gig)}>
+                            <Edit className="w-3 h-3 mr-1" />
+                            Edit Draft
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="w-full bg-green-600 hover:bg-green-700"
+                            onClick={() => handlePublishNow(gig)}
+                            disabled={isPublishing}
+                          >
+                            {isPublishing ? (
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            ) : (
+                              <Eye className="w-3 h-3 mr-1" />
+                            )}
+                            Make Public Now
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       </div>

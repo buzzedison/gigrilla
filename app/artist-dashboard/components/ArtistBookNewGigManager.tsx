@@ -135,8 +135,8 @@ export function ArtistBookNewGigManager({ onBookVenue, onAddManualGig }: ArtistB
             Book a New Gig
           </CardTitle>
           <p className="max-w-3xl text-base text-slate-600">
-            This is the Gigrilla Booking System entry point. Search verified venues, narrow the list with filters,
-            then carry your selected venue straight into the gig booking form.
+            Gigrilla Booking System - Venue Gigs & Other Member Gigs. Search verified venues, narrow the list with filters,
+            then carry your selected venue straight into the gig booking form, or add a gig manually.
           </p>
         </CardHeader>
         <CardContent className="space-y-6">

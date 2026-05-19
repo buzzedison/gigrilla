@@ -202,6 +202,19 @@ function validateUrl(value: string, fieldName: string) {
   }
 }
 
+function normalizeUrlWithProtocol(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) return trimmed
+  return `https://${trimmed.replace(/^\/+/, '')}`
+}
+
+function validateAndNormalizeUrl(value: string, fieldName: string) {
+  const normalized = normalizeUrlWithProtocol(value)
+  validateUrl(normalized, fieldName)
+  return normalized
+}
+
 function safeObject(value: unknown): Record<string, unknown> {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value as Record<string, unknown>
@@ -685,6 +698,9 @@ export async function GET(request: NextRequest) {
                 gig_invites: 0,
                 gig_requests: 0,
                 confirmations: 0,
+                draft_gigs: 0,
+                upcoming_gigs: 0,
+                total_gig_bookings: 0,
               },
               total: 0,
             },
@@ -900,13 +916,25 @@ export async function GET(request: NextRequest) {
     })()
 
     if (wantsSummary) {
+      const nowMs = Date.now()
       const gigInvites = enriched.filter((row) => row.isInvite)
       const gigRequests = enriched.filter((row) => row.isRequest)
       const confirmations = enriched.filter((row) => row.bookingStatus === 'confirmed')
+      const draftGigs = enriched.filter((row) => row.gigStatus === 'draft')
+      const upcomingGigs = enriched.filter((row) => {
+        if (!row.startDatetime) return false
+        if (row.bookingStatus === 'cancelled' || row.bookingStatus === 'completed') return false
+        const startDate = new Date(row.startDatetime)
+        if (Number.isNaN(startDate.getTime())) return false
+        return startDate.getTime() >= nowMs
+      })
       const counts = {
         gig_invites: gigInvites.length,
         gig_requests: gigRequests.length,
         confirmations: confirmations.length,
+        draft_gigs: draftGigs.length,
+        upcoming_gigs: upcomingGigs.length,
+        total_gig_bookings: enriched.length,
       }
 
       return NextResponse.json({
@@ -918,6 +946,9 @@ export async function GET(request: NextRequest) {
             { id: 'gig_invites', label: 'Gig Invites (from Others)', total: counts.gig_invites },
             { id: 'gig_requests', label: 'Gig Requests (to Others)', total: counts.gig_requests },
             { id: 'confirmations', label: 'Confirmations (Contracts)', total: counts.confirmations },
+            { id: 'draft_gigs', label: 'Draft Gigs', total: counts.draft_gigs },
+            { id: 'upcoming_gigs', label: 'Upcoming Gigs', total: counts.upcoming_gigs },
+            { id: 'total_gig_bookings', label: 'Gig Bookings', total: counts.total_gig_bookings },
           ],
           total: counts.gig_invites + counts.gig_requests + counts.confirmations,
           statuses: {
@@ -1325,6 +1356,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'gig_finish_date must match end_datetime date.' }, { status: 400 })
     }
 
+    const gigType = inferGigType(eventType, mergedMetadata)
     const ticketAvailability = typeof mergedMetadata.ticket_availability === 'string'
       ? mergedMetadata.ticket_availability
       : null
@@ -1337,6 +1369,9 @@ export async function PUT(request: NextRequest) {
       : ticketAvailability === 'full_capacity'
         ? 'full_venue_capacity'
         : ticketAvailability
+    if (gigType === 'streaming' && normalizedTicketAvailability === 'full_venue_capacity') {
+      return NextResponse.json({ error: 'Live stream gigs cannot use full venue capacity for ticket availability.' }, { status: 400 })
+    }
     const customTicketCount = normalizedTicketAvailability === 'less_than_full_venue_capacity'
       ? Number(mergedMetadata.custom_ticket_count)
       : null
@@ -1349,7 +1384,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const liveStreamUrl = typeof mergedMetadata.live_stream_url === 'string' ? mergedMetadata.live_stream_url.trim() : ''
-    const gigType = inferGigType(eventType, mergedMetadata)
+    let normalizedLiveStreamUrl = ''
 
     if (gigType === 'streaming' && !liveStreamUrl) {
       return NextResponse.json({ error: 'Live streaming gigs require a stream URL.' }, { status: 400 })
@@ -1357,23 +1392,27 @@ export async function PUT(request: NextRequest) {
 
     if (liveStreamUrl) {
       try {
-        validateUrl(liveStreamUrl, 'live_stream_url')
+        normalizedLiveStreamUrl = validateAndNormalizeUrl(liveStreamUrl, 'live_stream_url')
       } catch (error) {
         return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid stream URL.' }, { status: 400 })
       }
     }
 
+    const normalizedTicketLinks: Record<string, string | null> = {}
     for (const [fieldName, label] of [
       ['third_party_ticket_link', 'Third-party ticket link'],
       ['free_third_party_ticket_link', 'Free third-party ticket link'],
       ['paid_third_party_ticket_link', 'Paid third-party ticket link'],
     ] as const) {
-      if (typeof mergedMetadata[fieldName] === 'string' && mergedMetadata[fieldName].trim()) {
+      const rawLink = typeof mergedMetadata[fieldName] === 'string' ? mergedMetadata[fieldName].trim() : ''
+      if (rawLink) {
         try {
-          validateUrl(mergedMetadata[fieldName].trim(), label)
+          normalizedTicketLinks[fieldName] = validateAndNormalizeUrl(rawLink, label)
         } catch (error) {
           return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid ticket link.' }, { status: 400 })
         }
+      } else {
+        normalizedTicketLinks[fieldName] = null
       }
     }
 
@@ -1462,7 +1501,10 @@ export async function PUT(request: NextRequest) {
           gig_start_date: startDateKey,
           gig_finish_date: endDateKey,
           gig_type: gigType,
-          live_stream_url: liveStreamUrl || null,
+          live_stream_url: normalizedLiveStreamUrl || null,
+          third_party_ticket_link: normalizedTicketLinks.third_party_ticket_link,
+          free_third_party_ticket_link: normalizedTicketLinks.free_third_party_ticket_link,
+          paid_third_party_ticket_link: normalizedTicketLinks.paid_third_party_ticket_link,
           age_restriction_mode: normalizedAgeMetadata.ageRestrictionMode,
           age_restrictions: normalizedAgeMetadata.ageRestrictions,
           age_display: normalizedAgeMetadata.ageDisplay,
@@ -1470,6 +1512,7 @@ export async function PUT(request: NextRequest) {
           custom_ticket_count: normalizedTicketAvailability === 'less_than_full_venue_capacity'
             ? Math.floor(customTicketCount as number)
             : null,
+          ticket_sold_out: mergedMetadata.ticket_sold_out === true,
           publish_mode: publishMeta.publishMode,
           publish_date: publishMeta.publishDate,
           publish_time: publishMeta.publishTime,
@@ -1599,12 +1642,13 @@ export async function POST(request: NextRequest) {
     }
 
     const liveStreamUrl = typeof metadata.live_stream_url === 'string' ? metadata.live_stream_url.trim() : ''
+    let normalizedLiveStreamUrl = ''
     if (gigType === 'streaming' && !liveStreamUrl) {
       return NextResponse.json({ error: 'Live stream URL is required for streaming gigs.' }, { status: 400 })
     }
     if (liveStreamUrl) {
       try {
-        validateUrl(liveStreamUrl, 'Live stream URL')
+        normalizedLiveStreamUrl = validateAndNormalizeUrl(liveStreamUrl, 'Live stream URL')
       } catch (error) {
         return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid live stream URL.' }, { status: 400 })
       }
@@ -1629,6 +1673,9 @@ export async function POST(request: NextRequest) {
       : ticketAvailability === 'full_capacity'
         ? 'full_venue_capacity'
         : ticketAvailability
+    if (gigType === 'streaming' && normalizedTicketAvailability === 'full_venue_capacity') {
+      return NextResponse.json({ error: 'Live stream gigs cannot use full venue capacity for ticket availability.' }, { status: 400 })
+    }
     const customTicketCount = normalizedTicketAvailability === 'less_than_full_venue_capacity'
       ? Number(metadata.custom_ticket_count)
       : null
@@ -1640,17 +1687,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'custom_ticket_count must be a positive number when ticket availability is less than full venue capacity.' }, { status: 400 })
     }
 
+    const normalizedTicketLinks: Record<string, string | null> = {}
     for (const [fieldName, label] of [
       ['third_party_ticket_link', 'Third-party ticket link'],
       ['free_third_party_ticket_link', 'Free third-party ticket link'],
       ['paid_third_party_ticket_link', 'Paid third-party ticket link'],
     ] as const) {
-      if (typeof metadata[fieldName] === 'string' && metadata[fieldName].trim()) {
+      const rawLink = typeof metadata[fieldName] === 'string' ? metadata[fieldName].trim() : ''
+      if (rawLink) {
         try {
-          validateUrl(metadata[fieldName].trim(), label)
+          normalizedTicketLinks[fieldName] = validateAndNormalizeUrl(rawLink, label)
         } catch (error) {
           return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid ticket link.' }, { status: 400 })
         }
+      } else {
+        normalizedTicketLinks[fieldName] = null
       }
     }
 
@@ -1723,7 +1774,10 @@ export async function POST(request: NextRequest) {
       gig_start_date: startDateKey,
       gig_finish_date: endDateKey,
       gig_type: gigType,
-      live_stream_url: liveStreamUrl || null,
+      live_stream_url: normalizedLiveStreamUrl || null,
+      third_party_ticket_link: normalizedTicketLinks.third_party_ticket_link,
+      free_third_party_ticket_link: normalizedTicketLinks.free_third_party_ticket_link,
+      paid_third_party_ticket_link: normalizedTicketLinks.paid_third_party_ticket_link,
       age_restriction_mode: normalizedAgeMetadata.ageRestrictionMode,
       age_restrictions: normalizedAgeMetadata.ageRestrictions,
       age_display: normalizedAgeMetadata.ageDisplay,
@@ -1731,6 +1785,7 @@ export async function POST(request: NextRequest) {
       custom_ticket_count: normalizedTicketAvailability === 'less_than_full_venue_capacity'
         ? Math.floor(customTicketCount as number)
         : null,
+      ticket_sold_out: metadata.ticket_sold_out === true,
       publish_mode: publishMeta.publishMode,
       publish_date: publishMeta.publishDate,
       publish_time: publishMeta.publishTime,

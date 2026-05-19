@@ -219,6 +219,8 @@ export default function ArtistDashboard() {
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [messageFolderCounts, setMessageFolderCounts] = useState<Record<string, number>>({})
   const [gigNegotiationCounts, setGigNegotiationCounts] = useState<Record<string, number>>({})
+  const [gigBookingCounts, setGigBookingCounts] = useState<Record<string, number>>({})
+  const [auditionAdvertCounts, setAuditionAdvertCounts] = useState<Record<string, number>>({})
   const [missingArtistSubtype, setMissingArtistSubtype] = useState(false)
   const [isHomeOnboardingOpen, setIsHomeOnboardingOpen] = useState(true)
   const [isOnboardingPermanentlyDismissed, setIsOnboardingPermanentlyDismissed] = useState(() => {
@@ -438,9 +440,10 @@ export default function ArtistDashboard() {
 
   const loadUnreadSummary = useCallback(async () => {
     try {
-      const [messageResponse, gigResponse] = await Promise.all([
+      const [messageResponse, gigResponse, auditionResponse] = await Promise.all([
         fetch('/api/messages?audience=artist&summary=true', { cache: 'no-store' }),
         fetch('/api/artist-gigs?summary=true', { cache: 'no-store' }),
+        fetch('/api/artist-auditions?summary=true', { cache: 'no-store' }),
       ])
 
       const messagePayload = await messageResponse.json()
@@ -478,6 +481,27 @@ export default function ArtistDashboard() {
           )
         : {}
         setGigNegotiationCounts(counts)
+        setGigBookingCounts(counts)
+      }
+
+      const auditionPayload = await auditionResponse.json()
+      if (auditionResponse.ok && auditionPayload?.success) {
+        const counts = auditionPayload?.data?.counts && typeof auditionPayload.data.counts === 'object'
+          ? Object.fromEntries(
+              Object.entries(auditionPayload.data.counts)
+                .map(([id, total]) => [`${id}_ads`.replace('total_ads_ads', 'total_ads'), typeof total === 'number' ? total : 0])
+            )
+          : Array.isArray(auditionPayload?.data?.folders)
+            ? Object.fromEntries(
+                auditionPayload.data.folders
+                  .map((folder: { id?: unknown; total?: unknown }) => [
+                    typeof folder.id === 'string' ? folder.id : '',
+                    typeof folder.total === 'number' ? folder.total : 0
+                  ])
+                  .filter(([id]: [string, number]) => id)
+              )
+            : {}
+        setAuditionAdvertCounts(counts)
       }
     } catch {
       // keep the current unread count when refresh fails
@@ -489,7 +513,14 @@ export default function ArtistDashboard() {
     const interval = window.setInterval(() => {
       void loadUnreadSummary()
     }, 45000)
-    return () => window.clearInterval(interval)
+    const handleAuditionUpdate = () => {
+      void loadUnreadSummary()
+    }
+    window.addEventListener('artist-auditions-updated', handleAuditionUpdate)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('artist-auditions-updated', handleAuditionUpdate)
+    }
   }, [loadUnreadSummary])
 
   useEffect(() => {
@@ -1304,7 +1335,17 @@ export default function ArtistDashboard() {
       case 'crew':
         return renderWithCompletion(<ArtistCrewManager />)
       case 'auditions':
-        return renderWithCompletion(<ArtistAuditionsManager />)
+        return renderWithCompletion(
+          <ArtistAuditionsManager
+            initialView={
+              currentSubSection === 'drafts' || currentSubSection === 'published' || currentSubSection === 'unpublished' || currentSubSection === 'historic'
+                ? currentSubSection
+                : currentSubSection === 'add'
+                  ? 'add'
+                  : 'published'
+            }
+          />
+        )
       case 'royalty':
         return renderWithCompletion(<ArtistRoyaltySplitsManager />)
       case 'gigability':
@@ -1342,6 +1383,8 @@ export default function ArtistDashboard() {
                     onNavigateToGigSubSection={(subSection) => handleSubSectionChange('gig-bookings', subSection)}
                   />
                 )
+              : currentSubSection === 'drafts'
+                ? renderWithCompletion(<ArtistGigCalendarManager defaultView="drafts" />)
               : currentSubSection === 'historic'
                 ? renderWithCompletion(<ArtistGigCalendarManager defaultView="past" />)
                 : renderScaffoldSection(
@@ -1574,7 +1617,7 @@ export default function ArtistDashboard() {
     type: 'Select your official artist type and sub-types',
     royalty: 'Set default money splits for gigs and merch',
     gigability: 'Set your base location and stage timing preferences',
-    'gig-bookings': 'Book new gigs, add manual gigs, and manage upcoming and historic work',
+    'gig-bookings': 'Book/add new Gigs, edit/view upcoming/previous Gigs',
     'gig-reporting': 'Confirm completed gigs, review members, and report gig issues',
     'gig-negotiations': 'Track invites, requests, and contract-stage negotiations',
     'gig-planner': 'Use a dedicated calendar and availability planner',
@@ -1618,6 +1661,8 @@ export default function ArtistDashboard() {
             unreadMessages={unreadMessages}
             messageFolderCounts={messageFolderCounts}
             gigNegotiationCounts={gigNegotiationCounts}
+            gigBookingCounts={gigBookingCounts}
+            auditionAdvertCounts={auditionAdvertCounts}
             completedSections={completedSectionsForSidebar}
             hideTypeSection={false}
           />
@@ -1636,6 +1681,8 @@ export default function ArtistDashboard() {
               unreadMessages={unreadMessages}
               messageFolderCounts={messageFolderCounts}
               gigNegotiationCounts={gigNegotiationCounts}
+              gigBookingCounts={gigBookingCounts}
+              auditionAdvertCounts={auditionAdvertCounts}
               completedSections={completedSectionsForSidebar}
               hideTypeSection={false}
             />

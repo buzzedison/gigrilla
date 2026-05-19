@@ -759,6 +759,8 @@ export function ArtistGigAbilityManager() {
               value={localGigZone}
               onChange={setLocalGigZone}
               baseLocation={baseLocationCoords || undefined}
+              allowCountrySelection={false}
+              profileAreaLabel="Local Gig Area"
             />
 
             <div className="pt-2">
@@ -878,6 +880,8 @@ export function ArtistGigAbilityManager() {
               value={widerGigZone}
               onChange={setWiderGigZone}
               baseLocation={baseLocationCoords || undefined}
+              allowCountrySelection
+              profileAreaLabel="Wider Gig Area"
             />
 
             <div className="pt-2">

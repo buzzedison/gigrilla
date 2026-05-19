@@ -88,6 +88,7 @@ interface GigFormData {
     customTickets: TicketOption[]
     ticketAvailability: 'skip' | 'full_venue_capacity' | 'less_than_full_venue_capacity'
     customTicketCount: string
+    ticketSoldOut: boolean
     // 8. Artwork
     artworkFile: File | null
     artworkCaption: string
@@ -161,6 +162,7 @@ const DEFAULT_FORM: GigFormData = {
     customTickets: [],
     ticketAvailability: 'skip',
     customTicketCount: '',
+    ticketSoldOut: false,
     artworkFile: null,
     artworkCaption: '',
     artworkPreview: '',
@@ -222,6 +224,13 @@ function getCurrentHourDefaultTime() {
     return `${hours}:00`
 }
 
+function normalizeUrlInput(value: string) {
+    const trimmed = value.trim()
+    if (!trimmed) return ''
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) return trimmed
+    return `https://${trimmed.replace(/^\/+/, '')}`
+}
+
 function normalizeCountryName(value?: string | null) {
     return (value || '')
         .toLowerCase()
@@ -275,6 +284,7 @@ export function CreateGigForm({
     const [isArtworkDragActive, setIsArtworkDragActive] = useState(false)
     const [artworkValidationError, setArtworkValidationError] = useState<string | null>(null)
     const [artworkFailedRequirement, setArtworkFailedRequirement] = useState<ArtworkRequirementKey | null>(null)
+    const [editingTicketId, setEditingTicketId] = useState<string | null>(null)
     const venueFetchIdRef = useRef(0)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -322,6 +332,11 @@ export function CreateGigForm({
         form.gigFinishDate &&
         form.gigFinishDate > form.gigStartDate
     )
+
+    useEffect(() => {
+        if (!isStreaming || form.ticketAvailability !== 'full_venue_capacity') return
+        setForm(prev => ({ ...prev, ticketAvailability: 'skip' }))
+    }, [isStreaming, form.ticketAvailability])
 
     useEffect(() => {
         setForm(buildInitialFormState(initialData))
@@ -779,21 +794,53 @@ export function CreateGigForm({
         setArtworkFailedRequirement(null)
     }
 
-    const addCustomTicket = () => {
+    const resetTicketBuilder = () => {
+        setNewTicket({
+            name: '', durationType: 'one_gig', admissionType: 'general',
+            benefits: '', price: '', currency: form.ticketCurrency,
+        })
+        setEditingTicketId(null)
+    }
+
+    const addOrUpdateCustomTicket = () => {
         if (!newTicket.name.trim()) return
+
+        if (editingTicketId) {
+            update('customTickets', form.customTickets.map(ticket => (
+                ticket.id === editingTicketId
+                    ? { ...ticket, ...newTicket }
+                    : ticket
+            )))
+            resetTicketBuilder()
+            return
+        }
+
         const ticket: TicketOption = {
             id: crypto.randomUUID(),
             ...newTicket,
         }
         update('customTickets', [...form.customTickets, ticket])
+        resetTicketBuilder()
+    }
+
+    const editCustomTicket = (ticket: TicketOption) => {
+        setExpandedTicketBuilder(true)
+        setEditingTicketId(ticket.id)
         setNewTicket({
-            name: '', durationType: 'one_gig', admissionType: 'general',
-            benefits: '', price: '', currency: form.ticketCurrency,
+            name: ticket.name,
+            durationType: ticket.durationType,
+            admissionType: ticket.admissionType,
+            benefits: ticket.benefits,
+            price: ticket.price,
+            currency: ticket.currency,
         })
     }
 
     const removeCustomTicket = (id: string) => {
         update('customTickets', form.customTickets.filter(t => t.id !== id))
+        if (editingTicketId === id) {
+            resetTicketBuilder()
+        }
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -835,6 +882,12 @@ export function CreateGigForm({
             if (form.paidTicketOptions.includes('paid_3rd_party') && !form.paidThirdPartyTicketLink.trim()) {
                 throw new Error('Please enter the link for paid 3rd-party tickets')
             }
+            const normalizedLiveStreamUrl = normalizeUrlInput(form.liveStreamUrl)
+            const normalizedFreeThirdPartyTicketLink = normalizeUrlInput(form.freeThirdPartyTicketLink)
+            const normalizedPaidThirdPartyTicketLink = normalizeUrlInput(form.paidThirdPartyTicketLink)
+            const normalizedTicketAvailability = isStreaming && form.ticketAvailability === 'full_venue_capacity'
+                ? 'skip'
+                : form.ticketAvailability
 
             // Build start datetime
             const startDatetime = new Date(`${form.gigStartDate}T${form.setStartTime}:00`).toISOString()
@@ -893,7 +946,7 @@ export function CreateGigForm({
                     stream_opens: isStreaming ? form.streamOpens : null,
                     set_start_time: form.setStartTime,
                     set_end_time: form.setEndTime,
-                    live_stream_url: isStreaming ? form.liveStreamUrl : null,
+                    live_stream_url: isStreaming ? normalizedLiveStreamUrl : null,
                     venue_address: isInPerson ? form.venueAddress : null,
                     venue_contact: isInPerson ? {
                         name: form.venueContactName,
@@ -907,17 +960,18 @@ export function CreateGigForm({
                     ticket_mode: form.ticketMode,
                     free_ticket_options: form.freeTicketOptions,
                     paid_ticket_options: form.paidTicketOptions,
-                    free_third_party_ticket_link: form.freeThirdPartyTicketLink || null,
-                    paid_third_party_ticket_link: form.paidThirdPartyTicketLink || null,
-                    third_party_ticket_link: form.paidThirdPartyTicketLink || form.freeThirdPartyTicketLink || null,
+                    free_third_party_ticket_link: normalizedFreeThirdPartyTicketLink || null,
+                    paid_third_party_ticket_link: normalizedPaidThirdPartyTicketLink || null,
+                    third_party_ticket_link: normalizedPaidThirdPartyTicketLink || normalizedFreeThirdPartyTicketLink || null,
                     ticket_price_venue: form.ticketPriceVenue || null,
                     ticket_price_online: form.ticketPriceOnline || null,
                     ticket_price_gigrilla_digital: form.ticketPriceGigrillaDigital || null,
                     ticket_price_third_party_digital: form.ticketPriceThirdPartyDigital || null,
                     ticket_currency: form.ticketCurrency,
                     custom_tickets: form.customTickets,
-                    ticket_availability: form.ticketAvailability,
+                    ticket_availability: normalizedTicketAvailability,
                     custom_ticket_count: form.customTicketCount || null,
+                    ticket_sold_out: form.ticketSoldOut,
                     agreed_gig_date: form.gigStartDate,
                     gig_start_date: form.gigStartDate,
                     gig_finish_date: resolvedFinishDate,
@@ -1286,10 +1340,12 @@ export function CreateGigForm({
                         </Label>
                         <Input
                             id="liveStreamUrl"
-                            type="url"
+                            type="text"
+                            inputMode="url"
                             placeholder="Type Live Stream Link URL…"
                             value={form.liveStreamUrl}
                             onChange={e => update('liveStreamUrl', e.target.value)}
+                            onBlur={e => update('liveStreamUrl', normalizeUrlInput(e.target.value))}
                             className="mt-1"
                         />
                     </div>
@@ -1436,10 +1492,12 @@ export function CreateGigForm({
                                         <Label htmlFor="freeThirdPartyTicketLink">Link to Free 3rd Party Online Tickets</Label>
                                         <Input
                                             id="freeThirdPartyTicketLink"
-                                            type="url"
-                                            placeholder="https://…"
+                                            type="text"
+                                            inputMode="url"
+                                            placeholder="ticketmaster.co.uk/your-gig"
                                             value={form.freeThirdPartyTicketLink}
                                             onChange={e => update('freeThirdPartyTicketLink', e.target.value)}
+                                            onBlur={e => update('freeThirdPartyTicketLink', normalizeUrlInput(e.target.value))}
                                             className="mt-1"
                                         />
                                     </div>
@@ -1536,10 +1594,12 @@ export function CreateGigForm({
                                         <Label htmlFor="paidThirdPartyTicketLink">Link to Paid 3rd Party Online Tickets</Label>
                                         <Input
                                             id="paidThirdPartyTicketLink"
-                                            type="url"
-                                            placeholder="https://…"
+                                            type="text"
+                                            inputMode="url"
+                                            placeholder="ticketmaster.co.uk/your-gig"
                                             value={form.paidThirdPartyTicketLink}
                                             onChange={e => update('paidThirdPartyTicketLink', e.target.value)}
+                                            onBlur={e => update('paidThirdPartyTicketLink', normalizeUrlInput(e.target.value))}
                                             className="mt-1"
                                         />
                                     </div>
@@ -1549,16 +1609,18 @@ export function CreateGigForm({
 
                         <div className="space-y-3 rounded-lg border border-purple-200 bg-purple-50/50 p-4">
                             <p className="text-sm font-medium text-gray-900">Total Tickets Available</p>
-                            <p className="text-xs text-gray-500">Add this if you know the ticket allocation for this gig. This applies to physical gigs and live stream gigs.</p>
+                            <p className="text-xs text-gray-500">Add this if you know the ticket allocation for this gig. Venue capacity only applies to physical gigs.</p>
                             <div className="space-y-2">
                                 <label className="flex items-center gap-2 text-sm cursor-pointer">
                                     <input type="radio" name="ticketAvailability" checked={form.ticketAvailability === 'skip'} onChange={() => update('ticketAvailability', 'skip')} className="accent-purple-600" />
                                     Skip Ticket Availability Details
                                 </label>
-                                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                    <input type="radio" name="ticketAvailability" checked={form.ticketAvailability === 'full_venue_capacity'} onChange={() => update('ticketAvailability', 'full_venue_capacity')} className="accent-purple-600" />
-                                    Total Tickets Available equals full venue capacity
-                                </label>
+                                {isInPerson && (
+                                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                        <input type="radio" name="ticketAvailability" checked={form.ticketAvailability === 'full_venue_capacity'} onChange={() => update('ticketAvailability', 'full_venue_capacity')} className="accent-purple-600" />
+                                        Total Tickets Available equals full venue capacity
+                                    </label>
+                                )}
                                 <label className="flex items-center gap-2 text-sm cursor-pointer">
                                     <input type="radio" name="ticketAvailability" checked={form.ticketAvailability === 'less_than_full_venue_capacity'} onChange={() => update('ticketAvailability', 'less_than_full_venue_capacity')} className="accent-purple-600" />
                                     Total Tickets Available = specific number
@@ -1575,6 +1637,14 @@ export function CreateGigForm({
                                         />
                                     </div>
                                 )}
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className={`mt-2 ${form.ticketSoldOut ? 'border-red-500 bg-red-50 text-red-700 hover:bg-red-100' : 'border-red-200 text-red-700 hover:bg-red-50'}`}
+                                    onClick={() => update('ticketSoldOut', !form.ticketSoldOut)}
+                                >
+                                    {form.ticketSoldOut ? 'Marked as SOLD OUT' : 'Mark as SOLD OUT'}
+                                </Button>
                             </div>
                         </div>
 
@@ -1601,6 +1671,9 @@ export function CreateGigForm({
                                                 <div className="flex items-start justify-between">
                                                     <p className="font-semibold">Ticket: {ticket.name}</p>
                                                     <div className="flex gap-1">
+                                                        <button type="button" onClick={() => editCustomTicket(ticket)} className="text-purple-600 hover:text-purple-800" aria-label={`Edit ${ticket.name}`}>
+                                                            <Edit className="w-4 h-4" />
+                                                        </button>
                                                         <button type="button" onClick={() => removeCustomTicket(ticket.id)} className="text-red-500 hover:text-red-700">
                                                             <Trash2 className="w-4 h-4" />
                                                         </button>
@@ -1615,6 +1688,21 @@ export function CreateGigForm({
 
                                         {/* Add new ticket form */}
                                         <div className="space-y-3">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <p className="text-sm font-semibold text-gray-900">
+                                                    {editingTicketId ? 'Edit Ticket Details' : 'Add Ticket Details'}
+                                                </p>
+                                                {editingTicketId && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={resetTicketBuilder}
+                                                    >
+                                                        Cancel Edit
+                                                    </Button>
+                                                )}
+                                            </div>
                                             <div>
                                                 <Label>Name your Ticket Type</Label>
                                                 <Input
@@ -1686,12 +1774,16 @@ export function CreateGigForm({
                                                 <Button
                                                     type="button"
                                                     variant="outline"
-                                                    onClick={addCustomTicket}
+                                                    onClick={addOrUpdateCustomTicket}
                                                     disabled={!newTicket.name.trim()}
                                                     className="shrink-0"
                                                 >
-                                                    <Plus className="w-4 h-4 mr-1" />
-                                                    Add Ticket
+                                                    {editingTicketId ? (
+                                                        <Edit className="w-4 h-4 mr-1" />
+                                                    ) : (
+                                                        <Plus className="w-4 h-4 mr-1" />
+                                                    )}
+                                                    {editingTicketId ? 'Save Ticket' : 'Add Ticket'}
                                                 </Button>
                                             </div>
                                         </div>

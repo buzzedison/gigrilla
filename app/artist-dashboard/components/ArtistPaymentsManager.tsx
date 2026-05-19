@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
@@ -19,8 +19,31 @@ import {
   ARTIST_TAX_ID_COUNTRY_NAMES,
   ARTIST_TAX_ID_FIELD_KEYS,
   ArtistTaxIdField,
+  ArtistTaxIdFieldKey,
   getArtistTaxIdProfile
 } from '../../../data/artist-tax-id-options'
+import type { CountryTaxIdRow } from '../../api/country-tax-ids/route'
+
+/** Convert a DB row into the field list for the given entity type. */
+function buildFieldsFromDbRow(row: CountryTaxIdRow, isCorp: boolean): ArtistTaxIdField[] {
+  const result: ArtistTaxIdField[] = []
+  const add = (
+    corpFlag: boolean, indivFlag: boolean,
+    key: ArtistTaxIdFieldKey, label: string,
+    name: string | null, format: string | null
+  ) => {
+    if (!name) return
+    if (isCorp && !corpFlag) return
+    if (!isCorp && !indivFlag) return
+    result.push({ key, label, localName: name, example: format ?? '' })
+  }
+  add(row.generic_id_corp_display,     row.generic_id_indiv_display,     'generic_tax_id',     'Generic/Tax ID',     row.generic_id_name,     row.generic_id_format)
+  add(row.individual_id_corp_display,  row.individual_id_indiv_display,  'individual_tax_id',  'Individual Tax ID',  row.individual_id_name,  row.individual_id_format)
+  add(row.business_id_corp_display,    row.business_id_indiv_display,    'business_tax_id',    'Business Tax ID',    row.business_id_name,    row.business_id_format)
+  add(row.partnership_id_corp_display, row.partnership_id_indiv_display, 'partnership_tax_id', 'Partnership Tax ID', row.partnership_id_name, row.partnership_id_format)
+  add(row.vat_id_corp_display,         row.vat_id_indiv_display,         'vat_gst_sst_id',     'VAT/GST/SST ID',     row.vat_id_name,         row.vat_id_format)
+  return result
+}
 
 const COUNTRY_OPTIONS = Array.from(new Set([
   ...getCountryOptions().map(country => country.name),
@@ -53,6 +76,7 @@ interface PaymentDetails {
   generic_tax_id?: string
   individual_tax_id?: string
   business_tax_id?: string
+  partnership_tax_id?: string
   vat_gst_sst_id?: string
   company_registration_number?: string
   company_formation_date?: string
@@ -133,6 +157,7 @@ const DEFAULT_PAYMENT_DETAILS: PaymentDetails = {
   generic_tax_id: '',
   individual_tax_id: '',
   business_tax_id: '',
+  partnership_tax_id: '',
   vat_gst_sst_id: '',
   company_registration_number: '',
   company_formation_date: '',
@@ -198,10 +223,37 @@ export function ArtistPaymentsManager() {
   const [officialNoticeOpen, setOfficialNoticeOpen] = useState(true)
   const [paymentFlowsOpen, setPaymentFlowsOpen] = useState(true)
   const [legalEntityErrors, setLegalEntityErrors] = useState<LegalEntityErrors>({})
+  const [dbTaxProfile, setDbTaxProfile] = useState<CountryTaxIdRow | null>(null)
+  const [loadingTaxProfile, setLoadingTaxProfile] = useState(false)
 
   useEffect(() => {
     loadPaymentDetails()
   }, [user])
+
+  // Fetch tax ID data from the database whenever the selected country changes
+  useEffect(() => {
+    const entityType = paymentDetails.entity_type || ''
+    const isCorp = corporateEntityTypes.includes(entityType as EntityType)
+    const country = isCorp ? paymentDetails.country_of_incorporation : paymentDetails.country_of_tax_residence
+
+    if (!country?.trim()) {
+      setDbTaxProfile(null)
+      return
+    }
+
+    let cancelled = false
+    setLoadingTaxProfile(true)
+    fetch(`/api/country-tax-ids?name=${encodeURIComponent(country.trim())}`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(json => {
+        if (cancelled) return
+        setDbTaxProfile(json?.data ?? null)
+      })
+      .catch(() => { if (!cancelled) setDbTaxProfile(null) })
+      .finally(() => { if (!cancelled) setLoadingTaxProfile(false) })
+
+    return () => { cancelled = true }
+  }, [paymentDetails.country_of_incorporation, paymentDetails.country_of_tax_residence, paymentDetails.entity_type])
 
   const loadPaymentDetails = async () => {
     try {
@@ -233,6 +285,7 @@ export function ArtistPaymentsManager() {
           generic_tax_id: (data.generic_tax_id as string | null) ?? '',
           individual_tax_id: (data.individual_tax_id as string | null) ?? '',
           business_tax_id: (data.business_tax_id as string | null) ?? '',
+          partnership_tax_id: (data.partnership_tax_id as string | null) ?? '',
           vat_gst_sst_id: (data.vat_gst_sst_id as string | null) ?? '',
           company_registration_number: (data.company_registration_number as string | null) ?? '',
           company_formation_date: (data.company_formation_date as string | null) ?? '',
@@ -330,7 +383,19 @@ export function ArtistPaymentsManager() {
   const entityType = paymentDetails.entity_type || ''
   const isCorporateEntity = corporateEntityTypes.includes(entityType as EntityType)
   const selectedTaxCountry = isCorporateEntity ? paymentDetails.country_of_incorporation : paymentDetails.country_of_tax_residence
-  const selectedTaxProfile = entityType && selectedTaxCountry ? getArtistTaxIdProfile(selectedTaxCountry) : null
+
+  // DB is the source of truth; static TS file is the fallback when DB hasn't responded yet
+  const staticTaxProfile = entityType && selectedTaxCountry ? getArtistTaxIdProfile(selectedTaxCountry) : null
+  const selectedTaxProfile = dbTaxProfile
+    ? { countryName: dbTaxProfile.country_name, authority: dbTaxProfile.tax_authority ?? 'Local Tax Authority', isUnverifiable: dbTaxProfile.is_unverifiable }
+    : staticTaxProfile
+
+  // DB row → correct field list for this entity type; fall back to static TS profile
+  const activeTaxFields = dbTaxProfile
+    ? buildFieldsFromDbRow(dbTaxProfile, isCorporateEntity)
+    : staticTaxProfile
+      ? (isCorporateEntity ? staticTaxProfile.corporateFields : staticTaxProfile.individualFields)
+      : null
   const currentMembers = legalMembers.filter(member => member.metadata?.isCurrentMember !== false)
   const previousMembers = legalMembers.filter(member => member.metadata?.isCurrentMember === false)
 
@@ -354,9 +419,15 @@ export function ArtistPaymentsManager() {
     const resolvedEntityType = details.entity_type || ''
     const resolvedIsCorporate = corporateEntityTypes.includes(resolvedEntityType as EntityType)
     const country = resolvedIsCorporate ? details.country_of_incorporation : details.country_of_tax_residence
-    const countryProfile = country ? getArtistTaxIdProfile(country) : null
-    const visibleTaxIdKeys = countryProfile?.fields.map(field => field.key) ?? ARTIST_TAX_ID_FIELD_KEYS
-    const hasVisibleTaxId = visibleTaxIdKeys.some(key => details[key]?.trim())
+    // Use DB data if available, fall back to static TS profile
+    const entityFields = dbTaxProfile
+      ? buildFieldsFromDbRow(dbTaxProfile, resolvedIsCorporate)
+      : (() => {
+          const countryProfile = country ? getArtistTaxIdProfile(country) : null
+          return countryProfile ? (resolvedIsCorporate ? countryProfile.corporateFields : countryProfile.individualFields) : null
+        })()
+    const visibleTaxIdKeys = entityFields?.map(field => field.key) ?? ARTIST_TAX_ID_FIELD_KEYS
+    const hasVisibleTaxId = visibleTaxIdKeys.some(key => details[key as keyof typeof details]?.toString().trim())
 
     if (!resolvedEntityType) {
       errors.entity_type = 'Select an entity type'
@@ -581,23 +652,41 @@ export function ArtistPaymentsManager() {
                 {legalEntityErrors.country && <p className="text-xs text-red-600">{legalEntityErrors.country}</p>}
               </div>
 
-              {selectedTaxProfile && (
+              {loadingTaxProfile && (
+                <div className="flex items-center gap-2 text-sm text-blue-600">
+                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                  Loading tax ID requirements…
+                </div>
+              )}
+
+              {!loadingTaxProfile && selectedTaxProfile && activeTaxFields && (
                 <div className="space-y-3">
                   <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                    <p className="text-sm font-semibold text-gray-950">{selectedTaxProfile.countryName} - {selectedTaxProfile.authority}</p>
-                    <p className="text-xs text-gray-500">Provide at least one valid ID Number.</p>
+                    <p className="text-sm font-semibold text-gray-950">{selectedTaxProfile.countryName} — {selectedTaxProfile.authority}</p>
+                    {selectedTaxProfile.isUnverifiable ? (
+                      <p className="text-xs text-amber-600 mt-1">Official tax IDs for this country are unverifiable. Enter your ID details below if known.</p>
+                    ) : (
+                      <p className="text-xs text-gray-500">Provide at least one valid ID Number.</p>
+                    )}
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {selectedTaxProfile.fields.map(field => (
-                      <TaxIdInput
-                        key={field.key}
-                        field={field}
-                        value={paymentDetails[field.key]}
-                        error={legalEntityErrors.tax_ids}
-                        onChange={(value) => updatePaymentDetails(field.key, value)}
-                      />
-                    ))}
-                  </div>
+                  {activeTaxFields.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {activeTaxFields.map(field => (
+                        <TaxIdInput
+                          key={field.key}
+                          field={field}
+                          value={paymentDetails[field.key as keyof PaymentDetails] as string | undefined}
+                          error={legalEntityErrors.tax_ids}
+                          onChange={(value) => updatePaymentDetails(field.key as keyof PaymentDetails, value)}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500">No specific tax ID fields defined for this country and entity type.</p>
+                  )}
                   {legalEntityErrors.tax_ids && <p className="text-xs text-red-600">{legalEntityErrors.tax_ids}</p>}
                 </div>
               )}
@@ -631,25 +720,44 @@ export function ArtistPaymentsManager() {
 
       <Card id="artist-payments-legal-members" className="scroll-mt-28">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-purple-900"><Users2 className="w-5 h-5" /> Artist Legal Members</CardTitle>
-          <p className="text-sm text-gray-600">Twinned with Artist Crew &gt; Performers for audit-proof accounting and accurate royalty/payment routing.</p>
+          <CardTitle className="flex items-center gap-2 text-purple-900">
+            <Users2 className="w-5 h-5" /> Artist Legal Members
+            <Badge className="ml-1 bg-yellow-400 text-yellow-900 border-yellow-500 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5">NEW</Badge>
+          </CardTitle>
+          <p className="text-sm text-gray-600">Gives us accurate audit-proof accounting &amp; ensures we don&apos;t pay the wrong people Royalties. Twinned with Artist Crew &gt; Performers.</p>
         </CardHeader>
         <CardContent className="space-y-6">
-          <LegalMemberSection title="Current Artist Members & IDs" members={currentMembers} emptyText="No current performer members have been added yet." />
-          <LegalMemberSection title="Previous Artist Members & IDs" members={previousMembers} emptyText="No previous performer members have been recorded yet." previous />
-          <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-gray-500">Manage legal member records from Artist Crew.</p>
-            <div className="flex flex-wrap gap-3">
-              <Button variant="outline" size="sm" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=owner'}>
-                <Pencil className="w-4 h-4" />
-                Update shareholders
-              </Button>
-              <Button size="sm" className="bg-purple-600 text-white hover:bg-purple-700" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=add-members'}>
-                <UserPlus className="w-4 h-4" />
-                Add shareholder
-              </Button>
-            </div>
-          </div>
+          <LegalMemberSection
+            title="Current Artist Members & IDs"
+            members={currentMembers}
+            emptyText="No current performer members have been added yet."
+            footer={
+              <div className="flex flex-wrap gap-3 border-t border-gray-100 pt-4 mt-2">
+                <Button variant="outline" size="sm" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=owner'}>
+                  <Pencil className="w-4 h-4" />
+                  Confirm / Update Shareholder Details
+                </Button>
+                <Button size="sm" className="bg-purple-600 text-white hover:bg-purple-700" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=add-members'}>
+                  <UserPlus className="w-4 h-4" />
+                  Add a New Artist Shareholder
+                </Button>
+              </div>
+            }
+          />
+          <LegalMemberSection
+            title="Previous Artist Members & IDs"
+            members={previousMembers}
+            emptyText="No previous performer members have been recorded yet."
+            previous
+            footer={
+              <div className="border-t border-gray-100 pt-4 mt-2">
+                <Button variant="outline" size="sm" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=add-members'}>
+                  <UserPlus className="w-4 h-4" />
+                  Reinstate Shareholder
+                </Button>
+              </div>
+            }
+          />
         </CardContent>
       </Card>
 
@@ -748,7 +856,47 @@ function TaxIdInput({
   )
 }
 
-function LegalMemberSection({ title, members, emptyText, previous = false }: { title: string; members: LegalMember[]; emptyText: string; previous?: boolean }) {
+// Support roles come from the management categories in ROLE_CATEGORIES (management-independent + management-label)
+const SUPPORT_ROLE_STRINGS = new Set([
+  'All Management - Independent', 'Artist Manager', 'Booking Agent',
+  'Finance & Accounts Manager', 'Marketing Manager', 'Personal Assistant', 'Tour Manager',
+  'All Management - Label-based', 'A&R (Artists & Repertoire) Representative - Label',
+  'Artist Manager - Label', 'Brand Manager - Label', 'Business Manager - Label',
+  'Distribution Manager - Label', 'Label Manager - Label', 'Music Publicist - Label',
+  'Personal Assistant - Label', 'Radio Plugger / Promoter - Label',
+  'Social Media Manager - Label', 'Sync & Licensing Agent - Label',
+  'Talent Agent - Label', 'Tour Manager - Label', 'Tour Support Staff - Label',
+])
+
+function splitRoles(roles?: string[]) {
+  const all = roles ?? []
+  const performer = all.filter(r => !SUPPORT_ROLE_STRINGS.has(r))
+  const support = all.filter(r => SUPPORT_ROLE_STRINGS.has(r))
+  return { performer, support }
+}
+
+function RoleChips({ roles, empty = 'None' }: { roles: string[]; empty?: string }) {
+  const labels = formatRoleLabels(roles)
+  return labels.length > 0 ? (
+    <div className="flex flex-wrap gap-2">
+      {labels.map(role => (
+        <Badge key={role} variant="outline" className="border-gray-200 bg-gray-50 text-gray-700">{role}</Badge>
+      ))}
+    </div>
+  ) : (
+    <p className="text-sm text-gray-400">{empty}</p>
+  )
+}
+
+function LegalMemberSection({
+  title, members, emptyText, previous = false, footer
+}: {
+  title: string
+  members: LegalMember[]
+  emptyText: string
+  previous?: boolean
+  footer?: React.ReactNode
+}) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -764,9 +912,10 @@ function LegalMemberSection({ title, members, emptyText, previous = false }: { t
           {members.map(member => {
             const metadata = member.metadata ?? {}
             const displayName = [metadata.firstName, metadata.nickname ? `"${metadata.nickname}"` : '', metadata.lastName].filter(Boolean).join(' ') || member.name || member.email || 'Unnamed performer'
-            const roleLabels = formatRoleLabels(member.roles)
+            const { performer: performerRoles, support: supportRoles } = splitRoles(member.roles)
             return (
               <div key={member.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                {/* Header: name + status badges */}
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <p className="truncate text-base font-semibold text-gray-950">{displayName}</p>
@@ -780,6 +929,7 @@ function LegalMemberSection({ title, members, emptyText, previous = false }: { t
                   </div>
                 </div>
 
+                {/* Registration IDs + dates */}
                 <div className="mt-4 grid grid-cols-1 overflow-hidden rounded-lg border border-gray-200 sm:grid-cols-2 lg:grid-cols-5">
                   <MemberFact label="Individual ISNI" value={metadata.performerIsni} />
                   <MemberFact label="Performer IPN" value={metadata.performerIpn} />
@@ -788,31 +938,29 @@ function LegalMemberSection({ title, members, emptyText, previous = false }: { t
                   <MemberFact label="Date Left" value={metadata.dateLeft} />
                 </div>
 
-                <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="min-w-0 space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Roles</p>
-                    {roleLabels.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {roleLabels.map(role => (
-                          <Badge key={role} variant="outline" className="border-gray-200 bg-gray-50 text-gray-700">
-                            {role}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500">No roles assigned</p>
-                    )}
+                {/* Performer Roles + Support Roles (separate rows) */}
+                <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Performer Roles</p>
+                    <RoleChips roles={performerRoles} empty="No performer roles assigned" />
                   </div>
-                  <Button variant="outline" size="sm" className="self-start lg:self-center" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=owner'}>
-                    <Pencil className="w-4 h-4" />
-                    {previous ? 'Reinstate' : 'Update'}
-                  </Button>
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Support Roles</p>
+                    <RoleChips roles={supportRoles} empty="No support roles assigned" />
+                  </div>
+                  <div className="flex justify-end pt-1">
+                    <Button variant="outline" size="sm" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=owner'}>
+                      <Pencil className="w-4 h-4" />
+                      {previous ? 'Reinstate' : 'Update'}
+                    </Button>
+                  </div>
                 </div>
               </div>
             )
           })}
         </div>
       )}
+      {footer}
     </div>
   )
 }
