@@ -186,6 +186,31 @@ const validateAudioFile = (file: File): { valid: boolean; error?: string } => {
   return { valid: true }
 }
 
+// Extract duration (in seconds) from a local audio File using the browser's
+// HTMLAudioElement. Returns 0 on any error so it never blocks the upload.
+const getAudioDuration = (file: File): Promise<number> =>
+  new Promise((resolve) => {
+    const url = URL.createObjectURL(file)
+    const audio = new Audio()
+    const cleanup = (value: number) => {
+      URL.revokeObjectURL(url)
+      audio.src = ''
+      resolve(value)
+    }
+    audio.addEventListener('loadedmetadata', () => {
+      const secs = Number.isFinite(audio.duration) && audio.duration > 0
+        ? Math.round(audio.duration)
+        : 0
+      cleanup(secs)
+    })
+    audio.addEventListener('error', () => cleanup(0))
+    // Some browsers need a timeout fallback if metadata never fires
+    const timeout = window.setTimeout(() => cleanup(0), 8000)
+    audio.addEventListener('loadedmetadata', () => window.clearTimeout(timeout), { once: true })
+    audio.preload = 'metadata'
+    audio.src = url
+  })
+
 // ISRC validation (CC-XXX-YY-NNNNN format)
 const validateISRC = (isrc: string): { valid: boolean; error?: string } => {
   if (!isrc.trim()) return { valid: false, error: 'ISRC is required' }
@@ -598,6 +623,14 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
     setUploadingTrackIndex(index)
     setUploadProgress(prev => ({ ...prev, [index]: 0 }))
 
+    // Read duration from local file now, before the upload occupies the thread.
+    // We pass it explicitly to saveTrackSilently rather than relying on a state
+    // update propagating in time.
+    const durationSeconds = await getAudioDuration(file)
+    if (durationSeconds > 0) {
+      updateTrack(index, 'durationSeconds', durationSeconds)
+    }
+
     try {
       const formData = new FormData()
       formData.append('file', file)
@@ -654,7 +687,8 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
           audioFileUrl: result.url,
           audioFileSize,
           audioFormat,
-          uploaded: true
+          uploaded: true,
+          ...(durationSeconds > 0 ? { durationSeconds } : {}),
         })
         showNotification(
           'Upload Complete',

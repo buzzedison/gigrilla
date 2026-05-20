@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { NowPlayingModal } from "./NowPlayingModal"
+import { usePlayer } from "@/lib/player-context"
 import { formatDateDDMMMyyyy } from "@/lib/date-format"
 
 interface PublishedRelease {
@@ -15,26 +15,11 @@ interface PublishedRelease {
   artist_profiles?: { stage_name?: string } | { stage_name?: string }[] | null
 }
 
-interface PublishedTrack {
-  id: string
-  release_id: string
-  release_title: string
-  cover_artwork_url: string | null
-  artist_name: string
-  track_number: number
-  track_title: string
-  audio_file_url: string
-  duration_seconds: number
-  published_at: string
-}
-
 type SortOption = "newest" | "oldest" | "artist-az" | "title-az"
 
 export function FanMusicContent() {
-  const [isPlayerOpen, setIsPlayerOpen] = useState(false)
+  const { tracks, openModal } = usePlayer()
   const [releases, setReleases] = useState<PublishedRelease[]>([])
-  const [tracks, setTracks] = useState<PublishedTrack[]>([])
-  const [playerTrackId, setPlayerTrackId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<SortOption>("newest")
@@ -46,25 +31,15 @@ export function FanMusicContent() {
       try {
         setIsLoading(true)
         setError(null)
-        const [releasesResponse, tracksResponse] = await Promise.all([
-          fetch("/api/music-releases/published?limit=48"),
-          fetch("/api/music-releases/published-tracks?limit=160")
-        ])
-        const [releasesResult, tracksResult] = await Promise.all([
-          releasesResponse.json(),
-          tracksResponse.json()
-        ])
+        const releasesResponse = await fetch("/api/music-releases/published?limit=48")
+        const releasesResult = await releasesResponse.json()
 
         if (!releasesResponse.ok || !releasesResult.success) {
           throw new Error(releasesResult.error || "Failed to load published releases")
         }
-        if (!tracksResponse.ok || !tracksResult.success) {
-          throw new Error(tracksResult.error || "Failed to load published tracks")
-        }
 
         if (!isMounted) return
         setReleases(releasesResult.data || [])
-        setTracks(tracksResult.data || [])
       } catch (fetchError) {
         if (!isMounted) return
         setError(fetchError instanceof Error ? fetchError.message : "Failed to load published releases")
@@ -127,12 +102,12 @@ export function FanMusicContent() {
   const featuredTrack = tracks[0]
 
   const openPlayer = (trackId?: string | null) => {
-    setPlayerTrackId(trackId || tracks[0]?.id || null)
-    setIsPlayerOpen(true)
+    openModal(trackId ?? tracks[0]?.id ?? null)
   }
 
   const findReleaseTrack = (releaseId: string) => {
-    return tracks.find((track) => track.release_id === releaseId) || null
+    // context tracks use camelCase `releaseId`
+    return tracks.find((track) => track.releaseId === releaseId) || null
   }
 
   return (
@@ -219,7 +194,7 @@ export function FanMusicContent() {
               <svg className="h-5 w-5 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z" />
               </svg>
-              <span className="text-sm font-medium text-gray-300">Now Playing</span>
+              <span className="text-sm font-medium text-gray-300">Featured Track</span>
             </div>
             <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -237,11 +212,11 @@ export function FanMusicContent() {
               <div className="h-16 w-16 flex-shrink-0 rounded bg-gradient-to-br from-purple-900/50 to-pink-900/50" />
             )}
             <div className="flex-1">
-              <h3 className="font-semibold text-white">{featuredTrack?.track_title || featuredRelease?.release_title || "No track selected"}</h3>
-              <p className="text-sm text-gray-400">{featuredTrack?.artist_name || (featuredRelease ? getArtistName(featuredRelease) : "Published releases appear here")}</p>
+              <h3 className="font-semibold text-white">{featuredTrack?.title || featuredRelease?.release_title || "No track selected"}</h3>
+              <p className="text-sm text-gray-400">{featuredTrack?.artist || (featuredRelease ? getArtistName(featuredRelease) : "Published releases appear here")}</p>
               <p className="text-xs text-gray-500">
                 {featuredTrack
-                  ? `${featuredTrack.release_title} • Track ${featuredTrack.track_number}`
+                  ? `${featuredTrack.releaseTitle}`
                   : featuredRelease
                     ? `${formatType(featuredRelease.release_type)} • ${featuredRelease.track_count || 0} track${featuredRelease.track_count === 1 ? "" : "s"}`
                     : "Upload and publish from Artist Dashboard"}
@@ -251,21 +226,7 @@ export function FanMusicContent() {
         </div>
       </div>
 
-      <NowPlayingModal
-        isOpen={isPlayerOpen}
-        onClose={() => setIsPlayerOpen(false)}
-        tracks={tracks.map((track) => ({
-          id: track.id,
-          releaseId: track.release_id,
-          title: track.track_title,
-          artist: track.artist_name,
-          releaseTitle: track.release_title,
-          coverArtworkUrl: track.cover_artwork_url,
-          audioUrl: track.audio_file_url,
-          durationSeconds: track.duration_seconds || 0
-        }))}
-        initialTrackId={playerTrackId}
-      />
+      {/* NowPlayingModal is rendered globally via layout — controlled through PlayerContext */}
     </>
   )
 }

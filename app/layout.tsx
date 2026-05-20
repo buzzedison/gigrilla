@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Lexend, Rajdhani } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../lib/auth-context";
+import { PlayerProvider } from "../lib/player-context";
 import PasswordProtection from './components/PasswordProtection';
 import { GlobalMusicPlayerDock } from "./components/GlobalMusicPlayerDock";
+import { NowPlayingModal } from "./fan-dashboard/components/NowPlayingModal";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -66,10 +68,13 @@ export default function RootLayout({
     >
       <body className="antialiased">
         <AuthProvider>
-          <PasswordProtection>
-            {children}
-            <GlobalMusicPlayerDock />
-          </PasswordProtection>
+          <PlayerProvider>
+            <PasswordProtection>
+              {children}
+              <GlobalMusicPlayerDock />
+              <NowPlayingModal />
+            </PasswordProtection>
+          </PlayerProvider>
         </AuthProvider>
       </body>
     </html>
