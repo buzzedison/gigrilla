@@ -41,10 +41,13 @@ export async function GET(request: NextRequest) {
     const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(rawLimit, 300)) : 100
 
     const serviceSupabase = createServiceClient()
+    const nowIso = new Date().toISOString()
     const { data: releases, error: releasesError } = await serviceSupabase
       .from('music_releases')
       .select('id, user_id, release_title, cover_artwork_url, published_at, created_at')
-      .in('status', ['published', 'approved'])
+      .eq('status', 'published')
+      .not('published_at', 'is', null)
+      .lte('published_at', nowIso)
       .order('published_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
       .limit(limit)
