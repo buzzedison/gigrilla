@@ -1,6 +1,7 @@
 "use client"
 
 import { X, Play, Pause, SkipBack, SkipForward, Volume2 } from "lucide-react"
+import { usePathname } from "next/navigation"
 import { usePlayer } from "../../../lib/player-context"
 
 const formatTime = (seconds: number) => {
@@ -11,6 +12,7 @@ const formatTime = (seconds: number) => {
 }
 
 export function NowPlayingModal() {
+  const pathname = usePathname()
   const {
     tracks,
     currentTrack,
@@ -28,7 +30,7 @@ export function NowPlayingModal() {
     closeModal,
   } = usePlayer()
 
-  if (!isModalOpen) return null
+  if (!isModalOpen || pathname?.startsWith("/artist-dashboard")) return null
 
   const upNext = tracks
     .filter((t) => t.id !== currentTrack?.id)

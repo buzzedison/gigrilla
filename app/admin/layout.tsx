@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode, useState } from 'react'
+import { ReactNode, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -66,6 +66,33 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     const pathname = usePathname()
     const router = useRouter()
     const [collapsed, setCollapsed] = useState(false)
+    const [authChecked, setAuthChecked] = useState(false)
+
+    // Gate: verify the caller has admin/super_admin role before rendering anything.
+    // The individual API routes also enforce this, but doing it here prevents non-admins
+    // from even seeing the admin UI skeleton.
+    useEffect(() => {
+        fetch('/api/admin/stats')
+            .then((res) => {
+                if (res.status === 401 || res.status === 403) {
+                    router.replace('/')
+                } else {
+                    setAuthChecked(true)
+                }
+            })
+            .catch(() => router.replace('/'))
+    }, [router])
+
+    if (!authChecked) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-3 text-gray-500">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-purple-600" />
+                    <span className="text-sm">Verifying access…</span>
+                </div>
+            </div>
+        )
+    }
 
     const isActive = (item: typeof sidebarItems[0]) => {
         if (item.href === '/admin/releases' && pathname.startsWith('/admin/releases/published-recent')) {

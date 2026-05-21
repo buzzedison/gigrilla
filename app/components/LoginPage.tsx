@@ -43,11 +43,14 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
         const artistResponse = await fetch("/api/artist-profile");
         if (artistResponse.ok) {
           const artistResult = await artistResponse.json();
-          if (artistResult.data?.onboarding_completed) {
+          if (artistResult.data) {
+            // Any user with an artist profile goes to the artist dashboard —
+            // whether onboarding is complete or still in progress.
+            if (!artistResult.data.onboarding_completed && onboardingMemberType === "artist") {
+              window.location.href = `/signup?onboarding=artist`;
+              return;
+            }
             onNavigate("artist-dashboard");
-            return;
-          } else if (onboardingMemberType === "artist") {
-            window.location.href = `/signup?onboarding=artist`;
             return;
           }
         }

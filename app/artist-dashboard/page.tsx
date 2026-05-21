@@ -533,8 +533,8 @@ export default function ArtistDashboard() {
           fetch(`/api/artist-gigs?view=calendar&status=pending,confirmed&date_from=${encodeURIComponent(new Date().toISOString())}&limit=1`, { cache: 'no-store' }),
           fetch(`/api/artist-gigs?view=calendar&date_from=${encodeURIComponent(now)}&limit=1`, { cache: 'no-store' }),
           fetch(`/api/artist-gigs?view=calendar&status=completed&date_to=${encodeURIComponent(now)}&limit=1`, { cache: 'no-store' }),
-          fetch('/api/music-releases/published?limit=100', { cache: 'no-store' }),
-          fetch('/api/music-releases/published-tracks?limit=300', { cache: 'no-store' })
+          fetch('/api/music-releases/published?limit=100&mine=true', { cache: 'no-store' }),
+          fetch('/api/music-releases/published-tracks?limit=300&mine=true', { cache: 'no-store' })
         ])
 
         const gigsPayload = await gigsResponse.json().catch(() => null)

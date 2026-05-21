@@ -39,10 +39,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const rawLimit = Number.parseInt(searchParams.get('limit') || '30', 10)
     const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(rawLimit, 100)) : 30
+    const mineOnly = searchParams.get('mine') === 'true'
 
     const serviceSupabase = createServiceClient()
     const nowIso = new Date().toISOString()
-    const { data: releases, error } = await serviceSupabase
+    let query = serviceSupabase
       .from('music_releases')
       .select(`
         id,
@@ -57,6 +58,12 @@ export async function GET(request: NextRequest) {
       .eq('status', 'published')
       .not('published_at', 'is', null)
       .lte('published_at', nowIso)
+
+    if (mineOnly) {
+      query = query.eq('user_id', user.id)
+    }
+
+    const { data: releases, error } = await query
       .order('published_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
       .limit(limit)

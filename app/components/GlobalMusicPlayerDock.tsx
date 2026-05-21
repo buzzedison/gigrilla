@@ -38,7 +38,10 @@ export function GlobalMusicPlayerDock() {
   } = usePlayer()
 
   const shouldHideDock =
-    pathname === "/" || pathname === "/login" || pathname === "/signup"
+    pathname === "/" ||
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname?.startsWith("/artist-dashboard")
 
   if (shouldHideDock) return null
 

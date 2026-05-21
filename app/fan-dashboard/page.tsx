@@ -17,18 +17,29 @@ export default function FanDashboardPage() {
       return;
     }
 
-    // Check if user has completed onboarding
     const checkOnboardingStatus = async () => {
       if (!user) return;
 
       try {
+        // Artists belong on the artist dashboard — redirect them away from the fan feed.
+        const artistResponse = await fetch('/api/artist-profile');
+        if (artistResponse.ok) {
+          const artistResult = await artistResponse.json();
+          if (artistResult.data) {
+            router.replace('/artist-dashboard');
+            return;
+          }
+        }
+      } catch {
+        // If the check fails, fall through to the fan dashboard.
+      }
+
+      try {
         const response = await fetch('/api/fan-profile');
         const result = await response.json();
-        
         setOnboardingCompleted(result.data?.onboarding_completed || false);
       } catch (error) {
         console.error('Error checking onboarding status:', error);
-        // On error, assume not completed to show profile setup
         setOnboardingCompleted(false);
       }
     };
