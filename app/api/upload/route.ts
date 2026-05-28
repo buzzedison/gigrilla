@@ -328,12 +328,22 @@ export async function POST(request: NextRequest) {
 
     console.log('Upload API: Uploading file for user:', user.id, 'type:', type, 'key:', r2Key)
 
-    let uploadBody: Buffer | Readable
-    let uploadedSize = parsed.fileSize
+    // Decide whether to buffer or stream.
+    //
+    // Images are always buffered — they're small (≤ 15 MB), need to be
+    // validated, and must send an exact Content-Length to R2.
+    //
+    // Audio / document types stream directly to R2 (no Content-Length header
+    // is sent, so the AWS SDK uses chunked transfer encoding).  This is the
+    // path that handles large WAV files without buffering them in memory.
+    const isImageType = (config.allowedTypes as readonly string[]).some(t => t.startsWith('image/'))
 
-    if (shouldValidateImage(config)) {
-      // For images that need dimension / DPI checks we still need a Buffer.
-      // These are small files (< 15 MB) so buffering is acceptable.
+    let uploadBody: Buffer | Readable
+    let uploadedSize: number | undefined
+
+    if (isImageType) {
+      // Buffer the image so we can validate its size (and dimensions/DPI if
+      // the config requires it), and send an exact Content-Length to R2.
       const chunks: Buffer[] = []
       await new Promise<void>((resolve, reject) => {
         fileStream.on('data', (c: Buffer) => chunks.push(c))
@@ -343,52 +353,56 @@ export async function POST(request: NextRequest) {
       const buffer = Buffer.concat(chunks)
       uploadedSize = buffer.length
 
-      // File-size guard (applied after buffering so we have the real size).
+      // File-size guard (uses the real buffered size, not the multipart body size).
       if (buffer.length > config.maxSize) {
         const maxSizeMB = config.maxSize / (1024 * 1024)
         return NextResponse.json({ error: `File size must be less than ${maxSizeMB}MB` }, { status: 400 })
       }
 
-      const metadata = readImageMetadata(new Uint8Array(buffer), fileMimeType)
-      if (!metadata) {
-        return NextResponse.json({ error: 'Unable to read image dimensions from upload' }, { status: 400 })
-      }
+      if (shouldValidateImage(config)) {
+        const metadata = readImageMetadata(new Uint8Array(buffer), fileMimeType)
+        if (!metadata) {
+          return NextResponse.json({ error: 'Unable to read image dimensions from upload' }, { status: 400 })
+        }
 
-      if (config.requireSquare && metadata.width !== metadata.height) {
-        return NextResponse.json({ error: 'Image must be square (1:1 ratio)' }, { status: 400 })
-      }
-      if (typeof config.minWidth === 'number' && metadata.width < config.minWidth) {
-        return NextResponse.json({ error: `Image width must be at least ${config.minWidth}px` }, { status: 400 })
-      }
-      if (typeof config.minHeight === 'number' && metadata.height < config.minHeight) {
-        return NextResponse.json({ error: `Image height must be at least ${config.minHeight}px` }, { status: 400 })
-      }
-      if (typeof config.maxWidth === 'number' && metadata.width > config.maxWidth) {
-        return NextResponse.json({ error: `Image width must be no more than ${config.maxWidth}px` }, { status: 400 })
-      }
-      if (typeof config.maxHeight === 'number' && metadata.height > config.maxHeight) {
-        return NextResponse.json({ error: `Image height must be no more than ${config.maxHeight}px` }, { status: 400 })
-      }
+        if (config.requireSquare && metadata.width !== metadata.height) {
+          return NextResponse.json({ error: 'Image must be square (1:1 ratio)' }, { status: 400 })
+        }
+        if (typeof config.minWidth === 'number' && metadata.width < config.minWidth) {
+          return NextResponse.json({ error: `Image width must be at least ${config.minWidth}px` }, { status: 400 })
+        }
+        if (typeof config.minHeight === 'number' && metadata.height < config.minHeight) {
+          return NextResponse.json({ error: `Image height must be at least ${config.minHeight}px` }, { status: 400 })
+        }
+        if (typeof config.maxWidth === 'number' && metadata.width > config.maxWidth) {
+          return NextResponse.json({ error: `Image width must be no more than ${config.maxWidth}px` }, { status: 400 })
+        }
+        if (typeof config.maxHeight === 'number' && metadata.height > config.maxHeight) {
+          return NextResponse.json({ error: `Image height must be no more than ${config.maxHeight}px` }, { status: 400 })
+        }
 
-      const dpiValues = [metadata.dpiX, metadata.dpiY].filter((value): value is number => typeof value === 'number')
-      if (config.requireDpiMetadata && dpiValues.length !== 2) {
-        return NextResponse.json({ error: 'Image must include DPI metadata (72-300 DPI)' }, { status: 400 })
-      }
-      const minDpi = typeof config.minDpi === 'number' ? config.minDpi : null
-      if (minDpi !== null && dpiValues.some(value => value < minDpi)) {
-        return NextResponse.json({ error: `Image DPI must be at least ${minDpi}` }, { status: 400 })
-      }
-      const maxDpi = typeof config.maxDpi === 'number' ? config.maxDpi : null
-      if (maxDpi !== null && dpiValues.some(value => value > maxDpi)) {
-        return NextResponse.json({ error: `Image DPI must be no more than ${maxDpi}` }, { status: 400 })
+        const dpiValues = [metadata.dpiX, metadata.dpiY].filter((value): value is number => typeof value === 'number')
+        if (config.requireDpiMetadata && dpiValues.length !== 2) {
+          return NextResponse.json({ error: 'Image must include DPI metadata (72-300 DPI)' }, { status: 400 })
+        }
+        const minDpi = typeof config.minDpi === 'number' ? config.minDpi : null
+        if (minDpi !== null && dpiValues.some(value => value < minDpi)) {
+          return NextResponse.json({ error: `Image DPI must be at least ${minDpi}` }, { status: 400 })
+        }
+        const maxDpi = typeof config.maxDpi === 'number' ? config.maxDpi : null
+        if (maxDpi !== null && dpiValues.some(value => value > maxDpi)) {
+          return NextResponse.json({ error: `Image DPI must be no more than ${maxDpi}` }, { status: 400 })
+        }
       }
 
       uploadBody = buffer
     } else {
-      // For audio and other non-image types, stream directly to R2.
-      // The busboy fileStream is already piped through a PassThrough,
-      // so we hand it to the AWS SDK and it streams straight to R2.
+      // Non-image types (audio, documents): stream directly to R2 with no
+      // Content-Length header.  The multipart body Content-Length is NOT
+      // the file size (it includes boundary overhead), so passing it would
+      // cause a content-length mismatch error from R2.
       uploadBody = fileStream
+      uploadedSize = undefined
     }
 
     // Upload to Cloudflare R2
@@ -396,7 +410,7 @@ export async function POST(request: NextRequest) {
       uploadBody,
       r2Key,
       fileMimeType || 'application/octet-stream',
-      uploadedSize || undefined
+      uploadedSize
     )
 
     if (!uploadResult.success || !uploadResult.url) {
