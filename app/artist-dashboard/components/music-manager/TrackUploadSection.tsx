@@ -636,16 +636,43 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
     }
 
     try {
-      const formData = new FormData()
-      formData.append('type', 'track-audio')
-      formData.append('entityId', releaseId)
-      formData.append('file', file)  // file must come last so busboy receives type/entityId first
+      // ----------------------------------------------------------------
+      // Step 1: Ask our server for a pre-signed R2 PUT URL.
+      // This is a tiny JSON request — no file bytes sent here — so it is
+      // never blocked by any body-size limit.
+      // ----------------------------------------------------------------
+      const signRes = await fetch('/api/upload/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'track-audio',
+          entityId: releaseId,
+          filename: file.name,
+          contentType: file.type || 'audio/wav',
+          fileSize: file.size,
+        }),
+      })
 
-      // Use XMLHttpRequest for upload progress tracking
-      const result = await new Promise<{ success: boolean; url?: string; size?: number; error?: string }>((resolve, reject) => {
+      if (!signRes.ok) {
+        let errMsg = 'Could not prepare upload'
+        try {
+          const errData = await signRes.json()
+          errMsg = errData.error || errMsg
+        } catch {}
+        showNotification('Upload Failed', errMsg, 'error')
+        return
+      }
+
+      const { uploadUrl, publicUrl } = await signRes.json() as { uploadUrl: string; publicUrl: string }
+
+      // ----------------------------------------------------------------
+      // Step 2: PUT the file bytes DIRECTLY to R2 via the pre-signed URL.
+      // The bytes never pass through our Next.js server, so there is no
+      // server-side body-size limit to hit.
+      // ----------------------------------------------------------------
+      const directUrl = await new Promise<string>((resolve, reject) => {
         const xhr = new XMLHttpRequest()
 
-        // Track upload progress
         xhr.upload.addEventListener('progress', (event) => {
           if (event.lengthComputable) {
             const percentComplete = Math.round((event.loaded / event.total) * 100)
@@ -654,63 +681,57 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
         })
 
         xhr.addEventListener('load', () => {
+          // R2 returns 200 on success for pre-signed PUT
           if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              const response = JSON.parse(xhr.responseText)
-              resolve(response)
-            } catch {
-              resolve(parseUploadFailure(xhr))
-            }
+            resolve(publicUrl)
           } else {
-            resolve(parseUploadFailure(xhr))
+            const statusText = xhr.statusText || String(xhr.status)
+            reject(new Error(`Upload to storage failed (${statusText}). Please try again.`))
           }
         })
 
         xhr.addEventListener('error', () => {
-          reject(new Error('Network error during upload'))
+          reject(new Error('Network error during upload. Please check your connection and try again.'))
         })
 
         xhr.addEventListener('abort', () => {
           reject(new Error('Upload cancelled'))
         })
 
-        xhr.open('POST', '/api/upload')
-        xhr.send(formData)
+        xhr.open('PUT', uploadUrl)
+        xhr.setRequestHeader('Content-Type', file.type || 'audio/wav')
+        xhr.send(file)
       })
 
-      if (result.success && result.url) {
-        const audioFormat = file.name.split('.').pop()?.toUpperCase() || 'WAV'
-        const audioFileSize = result.size || file.size
-        updateTrack(index, 'audioFileUrl', result.url)
-        updateTrack(index, 'audioFileSize', audioFileSize)
-        updateTrack(index, 'audioFormat', audioFormat)
-        updateTrack(index, 'uploaded', true)
+      // ----------------------------------------------------------------
+      // Step 3: Record the result in state and persist to DB.
+      // ----------------------------------------------------------------
+      const audioFormat = file.name.split('.').pop()?.toUpperCase() || 'WAV'
+      const audioFileSize = file.size
+      updateTrack(index, 'audioFileUrl', directUrl)
+      updateTrack(index, 'audioFileSize', audioFileSize)
+      updateTrack(index, 'audioFormat', audioFormat)
+      updateTrack(index, 'uploaded', true)
 
-        // Persist immediately with the uploaded file values to avoid race conditions on navigation.
-        await saveTrackSilently(index, {
-          audioFileUrl: result.url,
-          audioFileSize,
-          audioFormat,
-          uploaded: true,
-          ...(durationSeconds > 0 ? { durationSeconds } : {}),
-        })
-        showNotification(
-          'Upload Complete',
-          'Your audio file has been uploaded and saved as a draft. You can add ISRC/title details anytime.',
-          'success'
-        )
-      } else {
-        updateTrack(index, 'audioFileUrl', '')
-        updateTrack(index, 'audioFileSize', 0)
-        updateTrack(index, 'uploaded', false)
-        showNotification('Upload Failed', result.error || 'Failed to upload audio file. Please try again.', 'error')
-      }
+      await saveTrackSilently(index, {
+        audioFileUrl: directUrl,
+        audioFileSize,
+        audioFormat,
+        uploaded: true,
+        ...(durationSeconds > 0 ? { durationSeconds } : {}),
+      })
+      showNotification(
+        'Upload Complete',
+        'Your audio file has been uploaded and saved as a draft. You can add ISRC/title details anytime.',
+        'success'
+      )
     } catch (error) {
       console.error('Error uploading audio:', error)
       updateTrack(index, 'audioFileUrl', '')
       updateTrack(index, 'audioFileSize', 0)
       updateTrack(index, 'uploaded', false)
-      showNotification('Upload Error', 'Failed to upload audio file. Please check your connection and try again.', 'error')
+      const msg = error instanceof Error ? error.message : 'Failed to upload audio file. Please check your connection and try again.'
+      showNotification('Upload Error', msg, 'error')
     } finally {
       setUploadingTrackIndex(null)
       setUploadProgress(prev => {
@@ -2080,22 +2101,34 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                                     return
                                   }
                                   try {
-                                    const formData = new FormData()
-                                    formData.append('type', 'track-audio')
-                                    formData.append('entityId', releaseId)
-                                    formData.append('file', file)
-                                    const response = await fetch('/api/upload', { method: 'POST', body: formData })
-                                    if (!response.ok) {
-                                      const errorData = await response.json().catch(() => ({ error: 'Unknown server error' }))
-                                      showNotification('Upload Failed', errorData.error || 'Failed to upload Dolby Atmos file.', 'error')
+                                    // Get pre-signed URL then upload directly to R2
+                                    const signRes = await fetch('/api/upload/sign', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        type: 'track-audio',
+                                        entityId: releaseId,
+                                        filename: file.name,
+                                        contentType: file.type || 'audio/wav',
+                                        fileSize: file.size,
+                                      }),
+                                    })
+                                    if (!signRes.ok) {
+                                      const errData = await signRes.json().catch(() => ({ error: 'Unknown error' }))
+                                      showNotification('Upload Failed', errData.error || 'Failed to prepare Dolby Atmos upload.', 'error')
                                       return
                                     }
-                                    const result = await response.json()
-                                    if (result.success) {
-                                      updateTrack(index, 'dolbyAtmosFileUrl', result.url)
+                                    const { uploadUrl, publicUrl } = await signRes.json() as { uploadUrl: string; publicUrl: string }
+                                    const putRes = await fetch(uploadUrl, {
+                                      method: 'PUT',
+                                      headers: { 'Content-Type': file.type || 'audio/wav' },
+                                      body: file,
+                                    })
+                                    if (putRes.ok) {
+                                      updateTrack(index, 'dolbyAtmosFileUrl', publicUrl)
                                       showNotification('Success', 'Dolby Atmos file uploaded successfully!', 'success')
                                     } else {
-                                      showNotification('Upload Failed', result.error || 'Failed to upload Dolby Atmos file.', 'error')
+                                      showNotification('Upload Failed', `Upload to storage failed (${putRes.status}). Please try again.`, 'error')
                                     }
                                   } catch (error) {
                                     console.error('Dolby upload error:', error)
