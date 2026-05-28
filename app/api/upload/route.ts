@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { Readable, PassThrough } from 'node:stream'
+import { createReadStream, createWriteStream } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { Readable, PassThrough, Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 // Busboy is bundled inside Next.js — no separate install needed.
 // We use require() to avoid the missing type declaration file error.
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
@@ -151,6 +156,34 @@ function shouldValidateImage(config: UploadConfig) {
   )
 }
 
+async function spoolStreamToTempFile(
+  fileStream: Readable,
+  maxSize: number
+): Promise<{ filePath: string; fileSize: number }> {
+  const dir = await mkdtemp(path.join(tmpdir(), 'gigrilla-upload-'))
+  const filePath = path.join(dir, 'upload')
+  let fileSize = 0
+
+  const byteCounter = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      fileSize += chunk.length
+      if (fileSize > maxSize) {
+        callback(new Error('FILE_TOO_LARGE'))
+        return
+      }
+      callback(null, chunk)
+    },
+  })
+
+  try {
+    await pipeline(fileStream, byteCounter, createWriteStream(filePath))
+    return { filePath, fileSize }
+  } catch (error) {
+    await rm(dir, { recursive: true, force: true })
+    throw error
+  }
+}
+
 // Parse a multipart/form-data request as a stream using busboy so the file
 // is never fully buffered in memory. Returns the parsed fields and a promise
 // that resolves with the upload body (Buffer for images that need dimension
@@ -163,7 +196,8 @@ async function parseMultipartStream(request: NextRequest): Promise<{
   fileStream: PassThrough
 }> {
   const contentType = request.headers.get('content-type') ?? ''
-  // The Content-Length header gives us the declared file size (may not always be present).
+  // Multipart Content-Length includes boundary overhead; it is only a fallback
+  // estimate when older callers do not send the file's own size field.
   const contentLength = parseInt(request.headers.get('content-length') ?? '0', 10) || 0
 
   return new Promise((resolve, reject) => {
@@ -199,7 +233,7 @@ async function parseMultipartStream(request: NextRequest): Promise<{
         fields,
         fileName: filename || 'upload',
         fileMimeType: mimeType || 'application/octet-stream',
-        fileSize: contentLength,  // best estimate; real size tracked via bytesStreamed above
+        fileSize: contentLength,
         fileStream: passThrough,
       })
 
@@ -291,6 +325,8 @@ export async function POST(request: NextRequest) {
     const { fields, fileName, fileMimeType, fileStream } = parsed
     const type     = fields['type']     ?? ''
     const entityId = fields['entityId'] ?? null
+    const declaredFileSize = Number.parseInt(request.headers.get('x-file-size') ?? fields['fileSize'] ?? '', 10)
+    const hasDeclaredFileSize = Number.isSafeInteger(declaredFileSize) && declaredFileSize >= 0
 
     if (!type || !(type in UPLOAD_CONFIGS)) {
       fileStream.destroy()
@@ -303,7 +339,7 @@ export async function POST(request: NextRequest) {
     const config = UPLOAD_CONFIGS[type as UploadType] as UploadConfig
 
     // Validate MIME type / extension.
-    const mockFile = { type: fileMimeType, name: fileName, size: parsed.fileSize } as File
+    const mockFile = { type: fileMimeType, name: fileName, size: hasDeclaredFileSize ? declaredFileSize : parsed.fileSize } as File
     if (!isAllowedFile(config, mockFile)) {
       fileStream.destroy()
       return NextResponse.json({
@@ -333,13 +369,14 @@ export async function POST(request: NextRequest) {
     // Images are always buffered — they're small (≤ 15 MB), need to be
     // validated, and must send an exact Content-Length to R2.
     //
-    // Audio / document types stream directly to R2 (no Content-Length header
-    // is sent, so the AWS SDK uses chunked transfer encoding).  This is the
-    // path that handles large WAV files without buffering them in memory.
+    // Audio / document types stream directly to R2 with the browser-declared
+    // file size as Content-Length. R2 rejects chunked PutObject requests with
+    // unknown body lengths.
     const isImageType = (config.allowedTypes as readonly string[]).some(t => t.startsWith('image/'))
 
     let uploadBody: Buffer | Readable
     let uploadedSize: number | undefined
+    let tempUploadPath: string | null = null
 
     if (isImageType) {
       // Buffer the image so we can validate its size (and dimensions/DPI if
@@ -397,12 +434,32 @@ export async function POST(request: NextRequest) {
 
       uploadBody = buffer
     } else {
-      // Non-image types (audio, documents): stream directly to R2 with no
-      // Content-Length header.  The multipart body Content-Length is NOT
-      // the file size (it includes boundary overhead), so passing it would
-      // cause a content-length mismatch error from R2.
-      uploadBody = fileStream
-      uploadedSize = undefined
+      // Non-image types (audio, documents): stream directly to R2 when the
+      // client sends the file's own size. If an older client omits it, spool
+      // to disk first so we can still provide R2 an exact Content-Length.
+      if (hasDeclaredFileSize && declaredFileSize > config.maxSize) {
+        const maxSizeMB = config.maxSize / (1024 * 1024)
+        fileStream.destroy()
+        return NextResponse.json({ error: `File size must be less than ${maxSizeMB}MB` }, { status: 400 })
+      }
+
+      if (hasDeclaredFileSize) {
+        uploadBody = fileStream
+        uploadedSize = declaredFileSize
+      } else {
+        try {
+          const spooled = await spoolStreamToTempFile(fileStream, config.maxSize)
+          tempUploadPath = spooled.filePath
+          uploadBody = createReadStream(spooled.filePath)
+          uploadedSize = spooled.fileSize
+        } catch (error) {
+          const maxSizeMB = config.maxSize / (1024 * 1024)
+          if (error instanceof Error && error.message === 'FILE_TOO_LARGE') {
+            return NextResponse.json({ error: `File size must be less than ${maxSizeMB}MB` }, { status: 400 })
+          }
+          throw error
+        }
+      }
     }
 
     // Upload to Cloudflare R2
@@ -414,11 +471,18 @@ export async function POST(request: NextRequest) {
     )
 
     if (!uploadResult.success || !uploadResult.url) {
+      if (tempUploadPath) {
+        await rm(path.dirname(tempUploadPath), { recursive: true, force: true })
+      }
       console.error('Upload API: R2 upload error:', uploadResult.error)
       return NextResponse.json({
         error: 'Failed to upload file',
         details: uploadResult.error || 'Unknown upload error'
       }, { status: 500 })
+    }
+
+    if (tempUploadPath) {
+      await rm(path.dirname(tempUploadPath), { recursive: true, force: true })
     }
 
     console.log('Upload API: Successfully uploaded file:', r2Key)

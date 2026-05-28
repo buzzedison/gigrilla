@@ -618,10 +618,64 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
     }
   }
 
+  const uploadThroughApi = async (
+    type: string,
+    file: File,
+    entityId?: string,
+    onProgress?: (percent: number) => void
+  ): Promise<string> => {
+    const formData = new FormData()
+    formData.append('type', type)
+    if (entityId) formData.append('entityId', entityId)
+    formData.append('fileSize', String(file.size))
+    formData.append('file', file)
+
+    return new Promise<string>((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          onProgress?.(Math.round((event.loaded / event.total) * 100))
+        }
+      })
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const parsed = JSON.parse(xhr.responseText || '{}') as { url?: string; error?: string; details?: string }
+            if (parsed.url) {
+              resolve(parsed.url)
+              return
+            }
+            reject(new Error(parsed.error || parsed.details || 'Upload completed without a file URL. Please try again.'))
+          } catch {
+            reject(new Error('Upload completed but Gigrilla could not read the response. Please try again.'))
+          }
+          return
+        }
+
+        reject(new Error(parseUploadFailure(xhr).error))
+      })
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Network error during upload. Please check your connection and try again.'))
+      })
+
+      xhr.addEventListener('abort', () => {
+        reject(new Error('Upload cancelled'))
+      })
+
+      xhr.open('POST', '/api/upload')
+      xhr.setRequestHeader('X-File-Size', String(file.size))
+      xhr.send(formData)
+    })
+  }
+
   /**
    * Generic helper: get a pre-signed R2 PUT URL from /api/upload/sign, then
    * PUT the file bytes directly to R2 (bypassing Vercel's 4.5 MB body limit).
-   * Returns the permanent public URL on success; throws on failure.
+   * If the browser cannot complete the cross-origin PUT, retry through the
+   * same-origin streaming API route so CORS does not block the upload.
    */
   const presignedUpload = async (type: string, file: File, entityId?: string): Promise<string> => {
     const signRes = await fetch('/api/upload/sign', {
@@ -647,17 +701,22 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
 
     const { uploadUrl, publicUrl } = await signRes.json() as { uploadUrl: string; publicUrl: string }
 
-    const putRes = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': file.type || 'application/octet-stream' },
-      body: file,
-    })
+    try {
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file,
+      })
 
-    if (!putRes.ok) {
-      throw new Error(`Upload to storage failed (${putRes.status}). Please try again.`)
+      if (!putRes.ok) {
+        throw new Error(`Upload to storage failed (${putRes.status}). Please try again.`)
+      }
+
+      return publicUrl
+    } catch (error) {
+      console.warn('Direct R2 upload failed; retrying through API upload route.', error)
+      return uploadThroughApi(type, file, entityId)
     }
-
-    return publicUrl
   }
 
   const uploadAudioFile = async (index: number, file: File) => {
@@ -708,42 +767,50 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
       const { uploadUrl, publicUrl } = await signRes.json() as { uploadUrl: string; publicUrl: string }
 
       // ----------------------------------------------------------------
-      // Step 2: PUT the file bytes DIRECTLY to R2 via the pre-signed URL.
-      // The bytes never pass through our Next.js server, so there is no
-      // server-side body-size limit to hit.
+      // Step 2: PUT the file bytes directly to R2 via the pre-signed URL.
+      // If the browser cannot complete that cross-origin request, retry
+      // through our same-origin streaming upload route.
       // ----------------------------------------------------------------
-      const directUrl = await new Promise<string>((resolve, reject) => {
-        const xhr = new XMLHttpRequest()
+      let directUrl: string
+      try {
+        directUrl = await new Promise<string>((resolve, reject) => {
+          const xhr = new XMLHttpRequest()
 
-        xhr.upload.addEventListener('progress', (event) => {
-          if (event.lengthComputable) {
-            const percentComplete = Math.round((event.loaded / event.total) * 100)
-            setUploadProgress(prev => ({ ...prev, [index]: percentComplete }))
-          }
+          xhr.upload.addEventListener('progress', (event) => {
+            if (event.lengthComputable) {
+              const percentComplete = Math.round((event.loaded / event.total) * 100)
+              setUploadProgress(prev => ({ ...prev, [index]: percentComplete }))
+            }
+          })
+
+          xhr.addEventListener('load', () => {
+            // R2 returns 200 on success for pre-signed PUT
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(publicUrl)
+            } else {
+              reject(new Error(parseUploadFailure(xhr).error))
+            }
+          })
+
+          xhr.addEventListener('error', () => {
+            reject(new Error('Network error during upload. Please check your connection and try again.'))
+          })
+
+          xhr.addEventListener('abort', () => {
+            reject(new Error('Upload cancelled'))
+          })
+
+          xhr.open('PUT', uploadUrl)
+          xhr.setRequestHeader('Content-Type', file.type || 'audio/wav')
+          xhr.send(file)
         })
-
-        xhr.addEventListener('load', () => {
-          // R2 returns 200 on success for pre-signed PUT
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve(publicUrl)
-          } else {
-            const statusText = xhr.statusText || String(xhr.status)
-            reject(new Error(`Upload to storage failed (${statusText}). Please try again.`))
-          }
+      } catch (directUploadError) {
+        console.warn('Direct R2 audio upload failed; retrying through API upload route.', directUploadError)
+        setUploadProgress(prev => ({ ...prev, [index]: 0 }))
+        directUrl = await uploadThroughApi('track-audio', file, releaseId, (percent) => {
+          setUploadProgress(prev => ({ ...prev, [index]: percent }))
         })
-
-        xhr.addEventListener('error', () => {
-          reject(new Error('Network error during upload. Please check your connection and try again.'))
-        })
-
-        xhr.addEventListener('abort', () => {
-          reject(new Error('Upload cancelled'))
-        })
-
-        xhr.open('PUT', uploadUrl)
-        xhr.setRequestHeader('Content-Type', file.type || 'audio/wav')
-        xhr.send(file)
-      })
+      }
 
       // ----------------------------------------------------------------
       // Step 3: Record the result in state and persist to DB.

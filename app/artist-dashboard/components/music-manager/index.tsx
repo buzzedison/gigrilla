@@ -444,6 +444,19 @@ export function ArtistMusicManager({
   const [draftTracks, setDraftTracks] = useState<TrackData[]>([])
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
 
+  const upsertDraftRelease = useCallback((release?: DbRelease | null) => {
+    if (!release || release.status !== 'draft') return
+
+    setDraftReleases((prev) => {
+      const next = [release, ...prev.filter((item) => item.id !== release.id)]
+      return next.sort((a, b) => {
+        const aTime = new Date(a.updated_at || a.created_at || 0).getTime()
+        const bTime = new Date(b.updated_at || b.created_at || 0).getTime()
+        return bTime - aTime
+      })
+    })
+  }, [])
+
   // Load existing draft release on mount
   const loadDraftRelease = useCallback(async () => {
     try {
@@ -526,6 +539,12 @@ export function ArtistMusicManager({
     loadDraftRelease()
     loadPublishedReleases()
   }, [loadDraftRelease, loadPublishedReleases])
+
+  useEffect(() => {
+    if (forcedSubSection === 'drafts' && !isLoading) {
+      void loadDraftRelease()
+    }
+  }, [forcedSubSection, isLoading, loadDraftRelease])
 
   useEffect(() => {
     setMusicView(defaultView)
@@ -854,6 +873,7 @@ export function ArtistMusicManager({
         if (!releaseId && result.data?.id) {
           setReleaseId(result.data.id)
         }
+        upsertDraftRelease(result.data as DbRelease | undefined)
         setAutoSaveStatus('saved')
         // Reset to idle after 2 seconds
         setTimeout(() => setAutoSaveStatus('idle'), 2000)
@@ -864,7 +884,7 @@ export function ArtistMusicManager({
       console.error('Auto-save error:', error)
       setAutoSaveStatus('idle')
     }
-  }, [releaseData, uploadGuideConfirmed, currentStep, releaseId, isSaving, isSavingAndProceeding])
+  }, [releaseData, uploadGuideConfirmed, currentStep, releaseId, isSaving, isSavingAndProceeding, upsertDraftRelease])
 
   // Auto-save when releaseData changes (debounced)
   useEffect(() => {
@@ -975,6 +995,7 @@ export function ArtistMusicManager({
         if (!releaseId && result.data?.id) {
           setReleaseId(result.data.id)
         }
+        upsertDraftRelease(result.data as DbRelease | undefined)
         await persistTrackDrafts(activeReleaseId)
         setSaveMessage({ type: 'success', text: 'Progress saved successfully!' })
       } else {
@@ -1019,6 +1040,9 @@ export function ArtistMusicManager({
         const finalStatus = result?.data?.status as string | undefined
         const isPublished = finalStatus === 'published'
         const isPending = finalStatus === 'pending_review'
+        if (activeReleaseId && (isPublished || isPending)) {
+          setDraftReleases((prev) => prev.filter((release) => release.id !== activeReleaseId))
+        }
         await loadPublishedReleases()
         setSaveMessage({
           type: 'success',
@@ -1072,7 +1096,7 @@ export function ArtistMusicManager({
     setCurrentStep(nextStep)
     setReleaseData({ ...initialReleaseData, ...dbToReleaseData(release) })
     setMusicView('upload')
-    if (isEmbeddedDashboardSubPage && forcedSubSection === 'library') {
+    if (isEmbeddedDashboardSubPage && (forcedSubSection === 'library' || forcedSubSection === 'drafts')) {
       navigateMusicSubSection('workflow')
     }
     if (typeof window !== 'undefined') {
@@ -1151,6 +1175,7 @@ export function ArtistMusicManager({
     : isCatalogueLibrary
       ? 'Completed uploads only, filtered by release status and type.'
       : `Approval mode: ${approvalMode === 'auto' ? 'Auto Publish' : 'Manual Review'}`
+  const isLibraryLoading = isDraftLibrary ? false : isLoadingPublished
 
   const renderLibraryCard = (
     release: DbRelease,
@@ -1526,7 +1551,7 @@ export function ArtistMusicManager({
             {isDraftLibrary && (
               <Button
                 variant="outline"
-                onClick={() => setMusicView('upload')}
+                onClick={() => navigateMusicSubSection('workflow')}
                 className="border-purple-200 text-purple-700 hover:bg-purple-50"
               >
                 Continue Draft Upload Flow
@@ -1535,7 +1560,7 @@ export function ArtistMusicManager({
           </div>
         </div>
 
-        {isLoadingPublished ? (
+        {isLibraryLoading ? (
           <p className="mt-4 text-sm text-gray-500">Loading music releases...</p>
         ) : (
           <div className="mt-4 space-y-4">
