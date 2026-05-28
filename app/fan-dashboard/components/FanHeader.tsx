@@ -136,29 +136,39 @@ export function FanHeader({ onOpenSidebar, onOpenMessages, unreadMessages = 0 }:
     if (!file) return
     setUploading(true)
     try {
-      // Upload to Cloudflare R2 via API
-      const formData = new FormData()
-      formData.append('type', 'avatar')
-      formData.append('file', file)
-
-      const uploadResponse = await fetch('/api/upload', {
+      // Get a pre-signed R2 PUT URL so the bytes never pass through the
+      // Vercel serverless function (which has a 4.5 MB body limit).
+      const signRes = await fetch('/api/upload/sign', {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'avatar',
+          filename: file.name,
+          contentType: file.type,
+          fileSize: file.size,
+        })
       })
 
-      if (!uploadResponse.ok) {
+      if (!signRes.ok) {
         let errMsg = 'Upload failed'
         try {
-          const errorData = await uploadResponse.json()
-          errMsg = errorData.error || errMsg
-        } catch {
-          errMsg = `Upload failed (status ${uploadResponse.status}). Please try again.`
-        }
+          const errData = await signRes.json()
+          errMsg = errData.error || errMsg
+        } catch {}
         throw new Error(errMsg)
       }
 
-      const result = await uploadResponse.json()
-      const publicUrl = result.url
+      const { uploadUrl, publicUrl } = await signRes.json() as { uploadUrl: string; publicUrl: string }
+
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      })
+
+      if (!putRes.ok) {
+        throw new Error(`Upload failed (status ${putRes.status}). Please try again.`)
+      }
 
       if (publicUrl) {
         // Update fan_profiles via API

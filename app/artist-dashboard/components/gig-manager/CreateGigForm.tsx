@@ -910,18 +910,37 @@ export function CreateGigForm({
                 ? form.artworkPreview
                 : null
             if (form.artworkFile) {
-                const artworkFormData = new FormData()
-                artworkFormData.append('file', form.artworkFile)
-                artworkFormData.append('type', 'gig-artwork')
-                const uploadRes = await fetch('/api/upload', { method: 'POST', body: artworkFormData })
-                const uploadData = await uploadRes.json()
-                if (!uploadRes.ok) {
-                    const uploadError = uploadData?.error || 'Gig artwork upload failed'
+                // Use pre-signed URL upload to bypass Vercel's 4.5 MB body limit.
+                const signRes = await fetch('/api/upload/sign', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'gig-artwork',
+                        filename: form.artworkFile.name,
+                        contentType: form.artworkFile.type,
+                        fileSize: form.artworkFile.size,
+                    }),
+                })
+                if (!signRes.ok) {
+                    const errData = await signRes.json().catch(() => ({})) as { error?: string }
+                    const uploadError = errData.error || 'Gig artwork upload failed'
                     setArtworkValidationError(uploadError)
                     setArtworkFailedRequirement(mapArtworkRequirementFromError(uploadError))
                     throw new Error(uploadError)
                 }
-                artworkUrl = uploadData.url || null
+                const { uploadUrl, publicUrl } = await signRes.json() as { uploadUrl: string; publicUrl: string }
+                const putRes = await fetch(uploadUrl, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': form.artworkFile.type },
+                    body: form.artworkFile,
+                })
+                if (!putRes.ok) {
+                    const uploadError = `Artwork upload to storage failed (${putRes.status}). Please try again.`
+                    setArtworkValidationError(uploadError)
+                    setArtworkFailedRequirement(mapArtworkRequirementFromError(uploadError))
+                    throw new Error(uploadError)
+                }
+                artworkUrl = publicUrl
             } else if (isEditMode) {
                 artworkUrl = existingArtworkUrl
             }

@@ -76,37 +76,44 @@ export function CoverArtworkSection({ releaseData, onUpdate }: CoverArtworkSecti
     setError(null)
 
     try {
-      // Upload to Cloudflare R2 via API
-      const formData = new FormData()
-      formData.append('type', 'release-artwork')
-      formData.append('file', file)
-
-      const response = await fetch('/api/upload', {
+      // Step 1: Get a pre-signed R2 PUT URL (tiny JSON request — no file bytes).
+      // This bypasses Vercel's 4.5 MB serverless body limit entirely.
+      const signRes = await fetch('/api/upload/sign', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'release-artwork',
+          filename: file.name,
+          contentType: file.type,
+          fileSize: file.size,
+        }),
       })
 
-      if (!response.ok) {
+      if (!signRes.ok) {
         let errorMessage = 'Upload failed'
         try {
-          const errorData = await response.json()
-          errorMessage = errorData.error || errorMessage
-        } catch {
-          // Response wasn't JSON (e.g. a 413 "Request Entity Too Large" from the proxy)
-          if (response.status === 413) {
-            errorMessage = 'File is too large. Artwork must be JPG or PNG under 10MB.'
-          } else {
-            errorMessage = `Upload failed (status ${response.status}). Please try again.`
-          }
-        }
+          const errData = await signRes.json()
+          errorMessage = errData.error || errorMessage
+        } catch {}
         throw new Error(errorMessage)
       }
 
-      const result = await response.json()
-      
-      // Store the URL in release data instead of the File object
-      onUpdate('coverArtwork', result.url)
-      onUpdate('coverArtworkUrl', result.url)
+      const { uploadUrl, publicUrl } = await signRes.json() as { uploadUrl: string; publicUrl: string }
+
+      // Step 2: PUT the file directly to R2 — bytes never pass through our server.
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      })
+
+      if (!putRes.ok) {
+        throw new Error(`Upload to storage failed (${putRes.status}). Please try again.`)
+      }
+
+      // Store the permanent public URL in release data.
+      onUpdate('coverArtwork', publicUrl)
+      onUpdate('coverArtworkUrl', publicUrl)
     } catch (err) {
       console.error('Cover artwork upload failed:', err)
       setError(err instanceof Error ? err.message : 'Failed to upload artwork. Please try again.')

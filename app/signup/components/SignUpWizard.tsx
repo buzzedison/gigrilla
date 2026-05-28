@@ -2341,23 +2341,30 @@ export function SignUpWizard() {
         throw new Error("User must be authenticated to upload profile picture");
       }
       
-      // Upload to Cloudflare R2 via API
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("type", "avatar");
-
-      const response = await fetch("/api/upload", {
+      // Use pre-signed URL upload to bypass Vercel's 4.5 MB body limit.
+      const signRes = await fetch("/api/upload/sign", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "avatar",
+          filename: file.name,
+          contentType: file.type,
+          fileSize: file.size,
+        }),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Upload failed");
+      if (!signRes.ok) {
+        const errData = await signRes.json().catch(() => ({})) as { error?: string };
+        throw new Error(errData.error || "Upload failed");
       }
-
-      const result = await response.json();
-      const publicUrl = result.url;
+      const { uploadUrl, publicUrl } = await signRes.json() as { uploadUrl: string; publicUrl: string };
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!putRes.ok) {
+        throw new Error(`Upload to storage failed (${putRes.status}). Please try again.`);
+      }
 
       setFanProfile((prev) => ({
         ...prev,
@@ -2415,23 +2422,30 @@ export function SignUpWizard() {
 
     for (const file of Array.from(fileList)) {
       try {
-        // Upload to Cloudflare R2 via API
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("type", "fan-gallery");
-
-        const response = await fetch("/api/upload", {
+        // Use pre-signed URL upload to bypass Vercel's 4.5 MB body limit.
+        const signRes = await fetch("/api/upload/sign", {
           method: "POST",
-          body: formData,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "fan-gallery",
+            filename: file.name,
+            contentType: file.type,
+            fileSize: file.size,
+          }),
         });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Upload failed");
+        if (!signRes.ok) {
+          const errData = await signRes.json().catch(() => ({})) as { error?: string };
+          throw new Error(errData.error || "Upload failed");
         }
-
-        const result = await response.json();
-        const publicUrl = result.url;
+        const { uploadUrl, publicUrl } = await signRes.json() as { uploadUrl: string; publicUrl: string };
+        const putRes = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": file.type },
+          body: file,
+        });
+        if (!putRes.ok) {
+          throw new Error(`Upload to storage failed (${putRes.status}). Please try again.`);
+        }
 
         if (publicUrl) {
           newPhotos.push({ name: file.name, url: publicUrl });

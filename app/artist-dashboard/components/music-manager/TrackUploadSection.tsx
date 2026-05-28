@@ -618,6 +618,48 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
     }
   }
 
+  /**
+   * Generic helper: get a pre-signed R2 PUT URL from /api/upload/sign, then
+   * PUT the file bytes directly to R2 (bypassing Vercel's 4.5 MB body limit).
+   * Returns the permanent public URL on success; throws on failure.
+   */
+  const presignedUpload = async (type: string, file: File, entityId?: string): Promise<string> => {
+    const signRes = await fetch('/api/upload/sign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type,
+        entityId,
+        filename: file.name,
+        contentType: file.type || 'application/octet-stream',
+        fileSize: file.size,
+      }),
+    })
+
+    if (!signRes.ok) {
+      let errMsg = 'Could not prepare upload'
+      try {
+        const errData = await signRes.json()
+        errMsg = errData.error || errMsg
+      } catch {}
+      throw new Error(errMsg)
+    }
+
+    const { uploadUrl, publicUrl } = await signRes.json() as { uploadUrl: string; publicUrl: string }
+
+    const putRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      body: file,
+    })
+
+    if (!putRes.ok) {
+      throw new Error(`Upload to storage failed (${putRes.status}). Please try again.`)
+    }
+
+    return publicUrl
+  }
+
   const uploadAudioFile = async (index: number, file: File) => {
     if (!releaseId) {
       showNotification('Release Not Saved', 'Please save the release first before uploading tracks.', 'warning')
@@ -751,42 +793,22 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
     }
 
     try {
-      const formData = new FormData()
-      formData.append('type', 'track-lyrics')
-      formData.append('entityId', releaseId)
-      formData.append('file', file)
+      const lyricsUrl = await presignedUpload('track-lyrics', file, releaseId)
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData
+      // Read lyrics file content locally (file is already in memory)
+      const text = await file.text()
+      updateTrack(index, 'hasNoLyrics', false)
+      updateTrack(index, 'lyricsInputMode', 'upload')
+      updateTrack(index, 'lyrics', text)
+      updateTrack(index, 'lyricsFileUrl', lyricsUrl)
+      updateTrack(index, 'lyricsConfirmed', false)
+      await saveTrackSilently(index, {
+        hasNoLyrics: false,
+        lyricsInputMode: 'upload',
+        lyrics: text,
+        lyricsFileUrl: lyricsUrl,
+        lyricsConfirmed: false
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown server error' }))
-        showNotification('Upload Failed', errorData.error || 'Failed to upload lyrics file. Please try again.', 'error')
-        return
-      }
-
-      const result = await response.json()
-
-      if (result.success && result.url) {
-        // Read lyrics file content
-        const text = await file.text()
-        updateTrack(index, 'hasNoLyrics', false)
-        updateTrack(index, 'lyricsInputMode', 'upload')
-        updateTrack(index, 'lyrics', text)
-        updateTrack(index, 'lyricsFileUrl', result.url)
-        updateTrack(index, 'lyricsConfirmed', false)
-        await saveTrackSilently(index, {
-          hasNoLyrics: false,
-          lyricsInputMode: 'upload',
-          lyrics: text,
-          lyricsFileUrl: result.url,
-          lyricsConfirmed: false
-        })
-      } else {
-        showNotification('Upload Failed', result.error || 'Failed to upload lyrics file. Please try again.', 'error')
-      }
     } catch (error) {
       console.error('Error uploading lyrics:', error)
       showNotification('Upload Error', 'Failed to upload lyrics file. Please check your connection and try again.', 'error')
@@ -1775,27 +1797,12 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                                 if (!file || !releaseId) return
 
                                 try {
-                                  const formData = new FormData()
-                                  formData.append('type', 'cover-license')
-                                  formData.append('entityId', releaseId)
-                                  formData.append('file', file)
-
-                                  const response = await fetch('/api/upload', { method: 'POST', body: formData })
-                                  if (!response.ok) {
-                                    const errorData = await response.json().catch(() => ({ error: 'Unknown server error' }))
-                                    showNotification('Upload Failed', errorData.error || 'Failed to upload license file.', 'error')
-                                    return
-                                  }
-                                  const result = await response.json()
-                                  if (result.success) {
-                                    updateTrack(index, 'coverLicenseUrl', result.url)
-                                    showNotification('Success', 'Cover license uploaded successfully!', 'success')
-                                  } else {
-                                    showNotification('Upload Failed', result.error || 'Failed to upload license.', 'error')
-                                  }
+                                  const url = await presignedUpload('cover-license', file, releaseId)
+                                  updateTrack(index, 'coverLicenseUrl', url)
+                                  showNotification('Success', 'Cover license uploaded successfully!', 'success')
                                 } catch (error) {
                                   console.error('License upload error:', error)
-                                  showNotification('Upload Error', 'Failed to upload license. Please try again.', 'error')
+                                  showNotification('Upload Error', error instanceof Error ? error.message : 'Failed to upload license. Please try again.', 'error')
                                 }
                               }}
                               className="hidden"
@@ -1842,27 +1849,12 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                                 if (!file || !releaseId) return
 
                                 try {
-                                  const formData = new FormData()
-                                  formData.append('type', 'remix-authorization')
-                                  formData.append('entityId', releaseId)
-                                  formData.append('file', file)
-
-                                  const response = await fetch('/api/upload', { method: 'POST', body: formData })
-                                  if (!response.ok) {
-                                    const errorData = await response.json().catch(() => ({ error: 'Unknown server error' }))
-                                    showNotification('Upload Failed', errorData.error || 'Failed to upload authorisation file.', 'error')
-                                    return
-                                  }
-                                  const result = await response.json()
-                                  if (result.success) {
-                                    updateTrack(index, 'remixAuthorizationUrl', result.url)
-                                    showNotification('Success', 'Remix authorization uploaded successfully!', 'success')
-                                  } else {
-                                    showNotification('Upload Failed', result.error || 'Failed to upload authorisation.', 'error')
-                                  }
+                                  const url = await presignedUpload('remix-authorization', file, releaseId)
+                                  updateTrack(index, 'remixAuthorizationUrl', url)
+                                  showNotification('Success', 'Remix authorization uploaded successfully!', 'success')
                                 } catch (error) {
                                   console.error('Remix upload error:', error)
-                                  showNotification('Upload Error', 'Failed to upload authorisation. Please try again.', 'error')
+                                  showNotification('Upload Error', error instanceof Error ? error.message : 'Failed to upload authorisation. Please try again.', 'error')
                                 }
                               }}
                               className="hidden"
@@ -1909,27 +1901,12 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                                 if (!file || !releaseId) return
 
                                 try {
-                                  const formData = new FormData()
-                                  formData.append('type', 'samples-clearance')
-                                  formData.append('entityId', releaseId)
-                                  formData.append('file', file)
-
-                                  const response = await fetch('/api/upload', { method: 'POST', body: formData })
-                                  if (!response.ok) {
-                                    const errorData = await response.json().catch(() => ({ error: 'Unknown server error' }))
-                                    showNotification('Upload Failed', errorData.error || 'Failed to upload clearance file.', 'error')
-                                    return
-                                  }
-                                  const result = await response.json()
-                                  if (result.success) {
-                                    updateTrack(index, 'samplesClearanceUrl', result.url)
-                                    showNotification('Success', 'Samples clearance uploaded successfully!', 'success')
-                                  } else {
-                                    showNotification('Upload Failed', result.error || 'Failed to upload clearance.', 'error')
-                                  }
+                                  const url = await presignedUpload('samples-clearance', file, releaseId)
+                                  updateTrack(index, 'samplesClearanceUrl', url)
+                                  showNotification('Success', 'Samples clearance uploaded successfully!', 'success')
                                 } catch (error) {
                                   console.error('Sample upload error:', error)
-                                  showNotification('Upload Error', 'Failed to upload clearance. Please try again.', 'error')
+                                  showNotification('Upload Error', error instanceof Error ? error.message : 'Failed to upload clearance. Please try again.', 'error')
                                 }
                               }}
                               className="hidden"
