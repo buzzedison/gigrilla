@@ -438,7 +438,7 @@ export function ReleaseRightsSection({
                 {releaseData.recordLabels.map((label, index) => (
                   <div key={label.id} className="border rounded-2xl p-4 space-y-4">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-gray-800">Track [{index + 1}] Record Label Name</p>
+                      <p className="text-sm font-semibold text-gray-800">Record Label {index + 1} Name</p>
                       {releaseData.recordLabels.length > 1 && (
                         <Button variant="ghost" size="sm" onClick={() => removeRecordLabel(label.id)} className="text-red-500">
                           Remove Record Label
@@ -574,7 +574,7 @@ export function ReleaseRightsSection({
                 {releaseData.publishers.map((publisher, index) => (
                   <div key={publisher.id} className="border rounded-2xl p-4 space-y-4">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-gray-800">Track [{index + 1}] Music Publisher Name</p>
+                      <p className="text-sm font-semibold text-gray-800">Music Publisher {index + 1} Name</p>
                       {releaseData.publishers.length > 1 && (
                         <Button variant="ghost" size="sm" onClick={() => removePublisher(publisher.id)} className="text-red-500">
                           Remove Music Publisher

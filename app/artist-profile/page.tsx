@@ -11,6 +11,7 @@ import { useAuth } from '../../lib/auth-context'
 import { ArtistSidebar } from '../artist-dashboard/components/ArtistSidebar'
 import { getArtistSubTypeLabels } from '../../lib/artist-subtype-utils'
 import { getArtistTypeConfig, type ArtistTypeCapabilities } from '../../data/artist-types'
+import { formatDateDDMMMyyyy } from '../../lib/date-format'
 import {
   ArrowLeft,
   Bell,
@@ -112,12 +113,7 @@ type GenreFamily = NonNullable<NonNullable<GenreApiResponse['data']>['families']
 
 const formatEstablishedDate = (value?: string | null) => {
   if (!value) return 'Not added yet'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('en-GB', {
-    month: 'long',
-    year: 'numeric',
-  }).format(date)
+  return formatDateDDMMMyyyy(value, value)
 }
 
 const buildPublicLocation = (profile?: ArtistProfileData | null) => {

@@ -1,4 +1,4 @@
-const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 type DateInput = string | number | Date | null | undefined
 
@@ -42,7 +42,7 @@ export function formatDateDDMMMyyyy(value: DateInput, fallback = 'Unknown date')
   const day = String(date.getDate()).padStart(2, '0')
   const month = MONTHS[date.getMonth()]
   const year = String(date.getFullYear())
-  return `${day}/${month}/${year}`
+  return `${day} ${month} ${year}`
 }
 
 export function formatTimeHHmm(value: DateInput, fallback = '--:--') {

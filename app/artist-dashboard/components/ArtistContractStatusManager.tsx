@@ -464,14 +464,14 @@ export function ArtistContractStatusManager() {
                       placeholder="contact@company.com"
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 sm:col-span-2">
                     <label className="text-sm font-medium text-gray-700">Record Label Contact Phone</label>
-                    <div className="flex gap-2">
+                    <div className="grid gap-2">
                       <Select
                         value={getDialCodeChoiceValue(formData.record_label_phone_code)}
                         onValueChange={(value) => handleInputChange('record_label_phone_code', getDialCodeFromChoiceValue(value))}
                       >
-                        <SelectTrigger className="w-[120px] shrink-0">
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Code" />
                         </SelectTrigger>
                         <SelectContent className="max-h-64 min-w-[320px]">
@@ -487,7 +487,7 @@ export function ArtistContractStatusManager() {
                         value={formData.record_label_phone_number}
                         onChange={(e) => handleInputChange('record_label_phone_number', e.target.value)}
                         placeholder="Phone number…"
-                        className="flex-1"
+                        className="w-full"
                       />
                     </div>
                   </div>
@@ -564,14 +564,14 @@ export function ArtistContractStatusManager() {
                       placeholder="contact@company.com"
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 sm:col-span-2">
                     <label className="text-sm font-medium text-gray-700">Music Publisher Contact Phone</label>
-                    <div className="flex gap-2">
+                    <div className="grid gap-2">
                       <Select
                         value={getDialCodeChoiceValue(formData.music_publisher_phone_code)}
                         onValueChange={(value) => handleInputChange('music_publisher_phone_code', getDialCodeFromChoiceValue(value))}
                       >
-                        <SelectTrigger className="w-[120px] shrink-0">
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Code" />
                         </SelectTrigger>
                         <SelectContent className="max-h-64 min-w-[320px]">
@@ -587,7 +587,7 @@ export function ArtistContractStatusManager() {
                         value={formData.music_publisher_phone_number}
                         onChange={(e) => handleInputChange('music_publisher_phone_number', e.target.value)}
                         placeholder="Phone number…"
-                        className="flex-1"
+                        className="w-full"
                       />
                     </div>
                   </div>
@@ -663,14 +663,14 @@ export function ArtistContractStatusManager() {
                       placeholder="contact@company.com"
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 sm:col-span-2">
                     <label className="text-sm font-medium text-gray-700">Artist Manager Contact Phone</label>
-                    <div className="flex gap-2">
+                    <div className="grid gap-2">
                       <Select
                         value={getDialCodeChoiceValue(formData.artist_manager_phone_code)}
                         onValueChange={(value) => handleInputChange('artist_manager_phone_code', getDialCodeFromChoiceValue(value))}
                       >
-                        <SelectTrigger className="w-[120px] shrink-0">
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Code" />
                         </SelectTrigger>
                         <SelectContent className="max-h-64 min-w-[320px]">
@@ -686,7 +686,7 @@ export function ArtistContractStatusManager() {
                         value={formData.artist_manager_phone_number}
                         onChange={(e) => handleInputChange('artist_manager_phone_number', e.target.value)}
                         placeholder="Phone number…"
-                        className="flex-1"
+                        className="w-full"
                       />
                     </div>
                   </div>
@@ -762,14 +762,14 @@ export function ArtistContractStatusManager() {
                       placeholder="contact@company.com"
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 sm:col-span-2">
                     <label className="text-sm font-medium text-gray-700">Booking Agent Contact Phone</label>
-                    <div className="flex gap-2">
+                    <div className="grid gap-2">
                       <Select
                         value={getDialCodeChoiceValue(formData.booking_agent_phone_code)}
                         onValueChange={(value) => handleInputChange('booking_agent_phone_code', getDialCodeFromChoiceValue(value))}
                       >
-                        <SelectTrigger className="w-[120px] shrink-0">
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Code" />
                         </SelectTrigger>
                         <SelectContent className="max-h-64 min-w-[320px]">
@@ -785,7 +785,7 @@ export function ArtistContractStatusManager() {
                         value={formData.booking_agent_phone_number}
                         onChange={(e) => handleInputChange('booking_agent_phone_number', e.target.value)}
                         placeholder="Phone number…"
-                        className="flex-1"
+                        className="w-full"
                       />
                     </div>
                   </div>

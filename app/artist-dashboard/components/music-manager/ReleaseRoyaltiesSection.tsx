@@ -49,7 +49,7 @@ export function ReleaseRoyaltiesSection({
       title="Release Royalties"
       subtitle="Gigrilla will only pay your Royalties to the organisations you confirm below."
     >
-      <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
+      <div className="space-y-6">
         {blockers.length > 0 && (
           <InfoBox title="Next is still locked" variant="warning">
             <ul className="list-disc list-inside space-y-1">

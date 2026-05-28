@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { Readable } from 'node:stream'
+import { Readable, PassThrough } from 'node:stream'
+// Busboy is bundled inside Next.js — no separate install needed.
+// We use require() to avoid the missing type declaration file error.
+// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+const Busboy = require('next/dist/compiled/busboy') as (opts: Record<string, any>) => import('node:stream').Writable & { on(event: 'field', cb: (name: string, val: string) => void): void; on(event: 'file', cb: (fieldname: string, stream: import('node:stream').Readable, info: { filename: string; mimeType: string }) => void): void; on(event: 'finish' | 'error', cb: (err?: Error) => void): void }
 import { uploadToR2, isR2Configured, R2_CONFIG } from '@/lib/cloudflare/r2'
 import { readImageMetadata } from '@/lib/image-metadata'
 
@@ -147,6 +151,82 @@ function shouldValidateImage(config: UploadConfig) {
   )
 }
 
+// Parse a multipart/form-data request as a stream using busboy so the file
+// is never fully buffered in memory. Returns the parsed fields and a promise
+// that resolves with the upload body (Buffer for images that need dimension
+// validation, Readable stream for everything else) along with file metadata.
+async function parseMultipartStream(request: NextRequest): Promise<{
+  fields: Record<string, string>
+  fileName: string
+  fileMimeType: string
+  fileSize: number
+  fileStream: PassThrough
+}> {
+  const contentType = request.headers.get('content-type') ?? ''
+  // The Content-Length header gives us the declared file size (may not always be present).
+  const contentLength = parseInt(request.headers.get('content-length') ?? '0', 10) || 0
+
+  return new Promise((resolve, reject) => {
+    let bb: ReturnType<typeof Busboy>
+    try {
+      bb = Busboy({
+        headers: { 'content-type': contentType },
+        limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2 GB hard cap
+      })
+    } catch (err) {
+      return reject(new Error(`Could not parse upload: ${err instanceof Error ? err.message : String(err)}`))
+    }
+
+    const fields: Record<string, string> = {}
+    let resolved = false
+
+    bb.on('field', (name: string, val: string) => {
+      fields[name] = val
+    })
+
+    bb.on('file', (_fieldname: string, fileStream: Readable, info: { filename: string; mimeType: string }) => {
+      const { filename, mimeType } = info
+      const passThrough = new PassThrough()
+      // Track how many bytes actually flow through so we can surface the real file size.
+      let bytesStreamed = 0
+      fileStream.on('data', (chunk: Buffer) => { bytesStreamed += chunk.length })
+
+      fileStream.pipe(passThrough)
+
+      // Resolve as soon as we have the stream reference — the caller drives it.
+      resolved = true
+      resolve({
+        fields,
+        fileName: filename || 'upload',
+        fileMimeType: mimeType || 'application/octet-stream',
+        fileSize: contentLength,  // best estimate; real size tracked via bytesStreamed above
+        fileStream: passThrough,
+      })
+
+      // Surface busboy truncation as a stream error so callers can detect it.
+      fileStream.on('limit', () => {
+        passThrough.destroy(new Error('FILE_TOO_LARGE'))
+      })
+    })
+
+    bb.on('error', (err: Error) => {
+      if (!resolved) reject(err)
+    })
+
+    bb.on('finish', () => {
+      if (!resolved) reject(new Error('No file found in upload'))
+    })
+
+    // Pipe the Web ReadableStream into busboy.
+    if (!request.body) {
+      return reject(new Error('Request body is empty'))
+    }
+    const nodeStream = Readable.fromWeb(request.body as Parameters<typeof Readable.fromWeb>[0])
+    nodeStream.on('error', (err) => { if (!resolved) reject(err) })
+    nodeStream.pipe(bb)
+  })
+}
+
 export async function POST(request: NextRequest) {
   try {
     const cookieStore = await cookies()
@@ -192,35 +272,28 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
 
-    let formData: FormData
+    // ------------------------------------------------------------------
+    // Parse the multipart body as a stream.  We intentionally avoid
+    // request.formData() here because it buffers the entire file in the
+    // Next.js process memory before we can inspect it, which means a 26 MB
+    // WAV file causes a spike that can hit the dev-server body-clone limit.
+    // Busboy streams the file bytes directly into the pipeline below.
+    // ------------------------------------------------------------------
+    let parsed: Awaited<ReturnType<typeof parseMultipartStream>>
     try {
-      formData = await request.formData()
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown form parsing error'
-      const exceededBodyLimit =
-        /formdata/i.test(message) ||
-        /request body exceeded/i.test(message) ||
-        /body.*10mb/i.test(message) ||
-        /too large/i.test(message)
-
-      if (exceededBodyLimit) {
-        return NextResponse.json({
-          error: 'Upload request too large',
-          details: 'The file did not reach Gigrilla in full. Restart the dev server after the body-size config change, then try the upload again.'
-        }, { status: 413 })
-      }
-
-      throw error
+      parsed = await parseMultipartStream(request)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('Upload API: multipart parse error:', msg)
+      return NextResponse.json({ error: 'Could not read upload', details: msg }, { status: 400 })
     }
-    const file = formData.get('file') as File
-    const type = formData.get('type') as string
-    const entityId = formData.get('entityId') as string | null // For release/venue specific uploads
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
-    }
+    const { fields, fileName, fileMimeType, fileStream } = parsed
+    const type     = fields['type']     ?? ''
+    const entityId = fields['entityId'] ?? null
 
     if (!type || !(type in UPLOAD_CONFIGS)) {
+      fileStream.destroy()
       return NextResponse.json({
         error: 'Invalid upload type',
         validTypes: Object.keys(UPLOAD_CONFIGS)
@@ -229,9 +302,10 @@ export async function POST(request: NextRequest) {
 
     const config = UPLOAD_CONFIGS[type as UploadType] as UploadConfig
 
-    // Validate file type. Audio uploads can arrive with a blank or generic MIME type
-    // depending on browser/OS, so those are also checked by extension.
-    if (!isAllowedFile(config, file)) {
+    // Validate MIME type / extension.
+    const mockFile = { type: fileMimeType, name: fileName, size: parsed.fileSize } as File
+    if (!isAllowedFile(config, mockFile)) {
+      fileStream.destroy()
       return NextResponse.json({
         error: 'Invalid file type',
         allowed: config.allowedTypes,
@@ -239,20 +313,43 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Validate file size
-    if (file.size > config.maxSize) {
-      const maxSizeMB = config.maxSize / (1024 * 1024)
-      return NextResponse.json({
-        error: `File size must be less than ${maxSizeMB}MB`
-      }, { status: 400 })
+    // Generate R2 key.
+    const fileExt  = getFileExtension(fileName) || 'bin'
+    const timestamp = Date.now()
+
+    let r2Key: string
+    if ('subfolder' in config && config.subfolder) {
+      r2Key = `${config.folder}/${user.id}/${config.subfolder}/${timestamp}.${fileExt}`
+    } else if (entityId) {
+      r2Key = `${config.folder}/${user.id}/${entityId}/${timestamp}.${fileExt}`
+    } else {
+      r2Key = `${config.folder}/${user.id}/${timestamp}.${fileExt}`
     }
 
+    console.log('Upload API: Uploading file for user:', user.id, 'type:', type, 'key:', r2Key)
+
     let uploadBody: Buffer | Readable
+    let uploadedSize = parsed.fileSize
 
     if (shouldValidateImage(config)) {
-      const arrayBuffer = await file.arrayBuffer()
-      const buffer = Buffer.from(arrayBuffer)
-      const metadata = readImageMetadata(new Uint8Array(buffer), file.type)
+      // For images that need dimension / DPI checks we still need a Buffer.
+      // These are small files (< 15 MB) so buffering is acceptable.
+      const chunks: Buffer[] = []
+      await new Promise<void>((resolve, reject) => {
+        fileStream.on('data', (c: Buffer) => chunks.push(c))
+        fileStream.on('end', resolve)
+        fileStream.on('error', reject)
+      })
+      const buffer = Buffer.concat(chunks)
+      uploadedSize = buffer.length
+
+      // File-size guard (applied after buffering so we have the real size).
+      if (buffer.length > config.maxSize) {
+        const maxSizeMB = config.maxSize / (1024 * 1024)
+        return NextResponse.json({ error: `File size must be less than ${maxSizeMB}MB` }, { status: 400 })
+      }
+
+      const metadata = readImageMetadata(new Uint8Array(buffer), fileMimeType)
       if (!metadata) {
         return NextResponse.json({ error: 'Unable to read image dimensions from upload' }, { status: 400 })
       }
@@ -288,26 +385,19 @@ export async function POST(request: NextRequest) {
 
       uploadBody = buffer
     } else {
-      uploadBody = Readable.fromWeb(file.stream() as unknown as Parameters<typeof Readable.fromWeb>[0])
+      // For audio and other non-image types, stream directly to R2.
+      // The busboy fileStream is already piped through a PassThrough,
+      // so we hand it to the AWS SDK and it streams straight to R2.
+      uploadBody = fileStream
     }
-
-    // Generate R2 key based on type
-    const fileExt = getFileExtension(file.name) || 'bin'
-    const timestamp = Date.now()
-
-    let r2Key: string
-    if ('subfolder' in config && config.subfolder) {
-      r2Key = `${config.folder}/${user.id}/${config.subfolder}/${timestamp}.${fileExt}`
-    } else if (entityId) {
-      r2Key = `${config.folder}/${user.id}/${entityId}/${timestamp}.${fileExt}`
-    } else {
-      r2Key = `${config.folder}/${user.id}/${timestamp}.${fileExt}`
-    }
-
-    console.log('Upload API: Uploading file for user:', user.id, 'type:', type, 'key:', r2Key)
 
     // Upload to Cloudflare R2
-    const uploadResult = await uploadToR2(uploadBody, r2Key, file.type || 'application/octet-stream', file.size)
+    const uploadResult = await uploadToR2(
+      uploadBody,
+      r2Key,
+      fileMimeType || 'application/octet-stream',
+      uploadedSize || undefined
+    )
 
     if (!uploadResult.success || !uploadResult.url) {
       console.error('Upload API: R2 upload error:', uploadResult.error)
@@ -324,9 +414,9 @@ export async function POST(request: NextRequest) {
       url: uploadResult.url,
       key: r2Key,
       type: type,
-      filename: file.name,
-      size: file.size,
-      contentType: file.type
+      filename: fileName,
+      size: uploadedSize,
+      contentType: fileMimeType
     })
 
   } catch (error) {

@@ -78,8 +78,8 @@ export function CoverArtworkSection({ releaseData, onUpdate }: CoverArtworkSecti
     try {
       // Upload to Cloudflare R2 via API
       const formData = new FormData()
-      formData.append('file', file)
       formData.append('type', 'release-artwork')
+      formData.append('file', file)
 
       const response = await fetch('/api/upload', {
         method: 'POST',
@@ -87,8 +87,19 @@ export function CoverArtworkSection({ releaseData, onUpdate }: CoverArtworkSecti
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Upload failed')
+        let errorMessage = 'Upload failed'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          // Response wasn't JSON (e.g. a 413 "Request Entity Too Large" from the proxy)
+          if (response.status === 413) {
+            errorMessage = 'File is too large. Artwork must be JPG or PNG under 10MB.'
+          } else {
+            errorMessage = `Upload failed (status ${response.status}). Please try again.`
+          }
+        }
+        throw new Error(errorMessage)
       }
 
       const result = await response.json()

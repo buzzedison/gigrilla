@@ -281,7 +281,9 @@ const buildTrackPayload = (track: TrackData, releaseId: string, releaseVersion: 
   hasNoVideo: track.hasNoVideo,
   videoUrl: track.videoUrl,
   videoUrlConfirmed: track.videoUrlConfirmed,
-  durationSeconds: track.durationSeconds
+  durationSeconds: track.durationSeconds,
+  aiUsed: track.aiUsed,
+  aiType: track.aiType
 })
 
 export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksUpdate }: TrackUploadSectionProps) {
@@ -428,6 +430,8 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                 videoUrl: dbTrack.video_url || '',
                 videoUrlConfirmed: dbTrack.video_url_confirmed || false,
                 durationSeconds: dbTrack.duration_seconds || 0,
+                aiUsed: dbTrack.ai_used || false,
+                aiType: dbTrack.ai_type || '',
                 uploaded: !!dbTrack.audio_file_url
               }))
 
@@ -633,9 +637,9 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
 
     try {
       const formData = new FormData()
-      formData.append('file', file)
       formData.append('type', 'track-audio')
       formData.append('entityId', releaseId)
+      formData.append('file', file)  // file must come last so busboy receives type/entityId first
 
       // Use XMLHttpRequest for upload progress tracking
       const result = await new Promise<{ success: boolean; url?: string; size?: number; error?: string }>((resolve, reject) => {
@@ -727,9 +731,9 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
 
     try {
       const formData = new FormData()
-      formData.append('file', file)
       formData.append('type', 'track-lyrics')
       formData.append('entityId', releaseId)
+      formData.append('file', file)
 
       const response = await fetch('/api/upload', {
         method: 'POST',
@@ -1751,9 +1755,9 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
 
                                 try {
                                   const formData = new FormData()
-                                  formData.append('file', file)
                                   formData.append('type', 'cover-license')
                                   formData.append('entityId', releaseId)
+                                  formData.append('file', file)
 
                                   const response = await fetch('/api/upload', { method: 'POST', body: formData })
                                   if (!response.ok) {
@@ -1818,9 +1822,9 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
 
                                 try {
                                   const formData = new FormData()
-                                  formData.append('file', file)
                                   formData.append('type', 'remix-authorization')
                                   formData.append('entityId', releaseId)
+                                  formData.append('file', file)
 
                                   const response = await fetch('/api/upload', { method: 'POST', body: formData })
                                   if (!response.ok) {
@@ -1885,9 +1889,9 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
 
                                 try {
                                   const formData = new FormData()
-                                  formData.append('file', file)
                                   formData.append('type', 'samples-clearance')
                                   formData.append('entityId', releaseId)
+                                  formData.append('file', file)
 
                                   const response = await fetch('/api/upload', { method: 'POST', body: formData })
                                   if (!response.ok) {
@@ -2077,9 +2081,9 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                                   }
                                   try {
                                     const formData = new FormData()
-                                    formData.append('file', file)
                                     formData.append('type', 'track-audio')
                                     formData.append('entityId', releaseId)
+                                    formData.append('file', file)
                                     const response = await fetch('/api/upload', { method: 'POST', body: formData })
                                     if (!response.ok) {
                                       const errorData = await response.json().catch(() => ({ error: 'Unknown server error' }))

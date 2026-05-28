@@ -12,6 +12,13 @@ type AuditionAdvertRow = {
   archived_at?: string | null
 }
 
+type SupabaseMutationError = {
+  code?: string
+  message?: string
+  details?: string
+  hint?: string
+} | null
+
 function isAdvertStatus(value: unknown): value is AdvertStatus {
   return typeof value === 'string' && (ADVERT_STATUSES as readonly string[]).includes(value)
 }
@@ -40,6 +47,26 @@ function buildAdvertCounts(rows: AuditionAdvertRow[]) {
   })
 
   return counts
+}
+
+function isSchemaColumnError(error: SupabaseMutationError) {
+  if (!error) return false
+  const message = [error.code, error.message, error.details, error.hint]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  return error.code === 'PGRST204' ||
+    (message.includes('column') && (message.includes('not found') || message.includes('could not find')))
+}
+
+function firstStringValue(value: unknown) {
+  if (Array.isArray(value)) {
+    const first = value.find((entry) => typeof entry === 'string' && entry.trim().length > 0)
+    return typeof first === 'string' ? first.trim() : null
+  }
+
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
 }
 
 function validateAdvertPayload(body: Record<string, unknown>, targetStatus: AdvertStatus) {
@@ -249,47 +276,97 @@ export async function POST(request: NextRequest) {
       updated_at: now
     }
 
-    let result
-    if (isEdit) {
-      // Update existing advert
-      const { data, error } = await supabase
-        .from('artist_audition_adverts')
-        .update({
-          ...advertData,
-          edited_at: now
-        })
-        .eq('id', body.id)
-        .eq('artist_profile_id', profile.id)
-        .select()
-        .single()
+    const legacyAdvertData = {
+      artist_profile_id: profile.id,
+      advert_type: advertData.advert_type,
+      instrument: firstStringValue(body.instruments),
+      vocalist_type: firstStringValue(body.vocalist_types),
+      vocalist_sound_descriptor: firstStringValue(body.vocalist_sound_descriptors),
+      vocalist_genre_descriptor: firstStringValue(body.vocalist_genre_descriptors),
+      producer_type: advertData.producer_type,
+      lyricist_type: advertData.lyricist_type,
+      composer_type: advertData.composer_type,
+      collaboration_direction: advertData.collaboration_direction,
+      genre_selection: advertData.genre_selection,
+      genres: advertData.genres,
+      headline: advertData.headline,
+      description: advertData.description,
+      includes_fixed_fee: advertData.includes_fixed_fee,
+      includes_royalty_share: advertData.includes_royalty_share,
+      deadline_type: advertData.deadline_type,
+      deadline_date: advertData.deadline_date,
+      expiry_date: advertData.expiry_date,
+      expiry_time: advertData.expiry_time,
+      published_at: targetStatus === 'published' ? now : null,
+      updated_at: now
+    }
+    const baseLegacyAdvertData = {
+      ...legacyAdvertData
+    } as Record<string, unknown>
+    delete baseLegacyAdvertData.vocalist_sound_descriptor
+    delete baseLegacyAdvertData.vocalist_genre_descriptor
+    const modernNoStatusAdvertData = {
+      ...advertData,
+      published_at: targetStatus === 'published' ? now : null
+    } as Record<string, unknown>
+    delete modernNoStatusAdvertData.status
+    delete modernNoStatusAdvertData.unpublished_at
+    delete modernNoStatusAdvertData.archived_at
 
-      if (error) {
-        console.error('API: Database error:', error)
-        return NextResponse.json({
-          error: 'Failed to update advert',
-          details: error.message
-        }, { status: 500 })
+    const persistAdvert = async (payload: Record<string, unknown>) => {
+      if (isEdit) {
+        return supabase
+          .from('artist_audition_adverts')
+          .update({
+            ...payload,
+            edited_at: now
+          })
+          .eq('id', body.id)
+          .eq('artist_profile_id', profile.id)
+          .select()
+          .single()
       }
-      result = data
-    } else {
-      // Insert new advert
-      const { data, error } = await supabase
+
+      return supabase
         .from('artist_audition_adverts')
         .insert({
-          ...advertData,
+          ...payload,
           created_at: now
         })
         .select()
         .single()
+    }
 
-      if (error) {
-        console.error('API: Database error:', error)
-        return NextResponse.json({
-          error: 'Failed to create advert',
-          details: error.message
-        }, { status: 500 })
+    let { data: result, error } = await persistAdvert(advertData)
+
+    if (error && targetStatus === 'published' && isSchemaColumnError(error)) {
+      console.warn('API: Modern audition advert schema rejected publish; retrying compatibility payload', {
+        code: error.code,
+        message: error.message
+      })
+      const retry = await persistAdvert(modernNoStatusAdvertData)
+      result = retry.data
+      error = retry.error
+
+      if (error && isSchemaColumnError(error)) {
+        const legacyRetry = await persistAdvert(legacyAdvertData)
+        result = legacyRetry.data
+        error = legacyRetry.error
+
+        if (error && isSchemaColumnError(error)) {
+          const baseLegacyRetry = await persistAdvert(baseLegacyAdvertData)
+          result = baseLegacyRetry.data
+          error = baseLegacyRetry.error
+        }
       }
-      result = data
+    }
+
+    if (error) {
+      console.error('API: Database error:', error)
+      return NextResponse.json({
+        error: isEdit ? 'Failed to update advert' : 'Failed to create advert',
+        details: error.message
+      }, { status: 500 })
     }
 
     return NextResponse.json({

@@ -313,7 +313,7 @@ export function ArtistSidebar({
       { id: 'theme-mode', label: colourMode === 'dark' ? 'Light Mode' : 'Dark Mode', icon: SunMoon, action: 'theme' },
       { id: 'switch-profile', label: 'Switch/Add Profile', icon: RefreshCw, path: '/profile-setup' },
       { id: 'account-settings', label: 'Account Settings', icon: Settings, section: 'settings' },
-      { id: 'billing-payments', label: 'Billing & Payments', icon: CreditCard, section: 'payments', subSection: 'out' },
+      { id: 'billing-payments', label: 'Billing & Payments', icon: CreditCard, section: 'payments', subSection: 'legal-entity' },
       { id: 'logout', label: 'Log Out of Gigrilla', icon: LogOut, action: 'logout', path: '/login' },
     ]
 
@@ -350,6 +350,7 @@ export function ArtistSidebar({
           { id: 'add-support-crew', label: '+Add Support Crew Role', section: 'crew', subSection: 'add-members' },
           { id: 'view-performers', label: 'View Performers', section: 'crew', subSection: 'view-performers' },
           { id: 'view-support-crew', label: 'View Support Crew', section: 'crew', subSection: 'view-support-crew' },
+          { id: 'view-shareholders', label: 'View Shareholders', section: 'crew', subSection: 'view-shareholders' },
           { id: 'manage-admins', label: 'Manage Admins', section: 'crew', subSection: 'manage-admins' },
           { id: 'historic-members', label: 'Historic Members', section: 'crew', subSection: 'historic-members' },
         ]

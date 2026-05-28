@@ -121,6 +121,27 @@ interface ArtistCompletionCardProps {
   refreshKey?: number
 }
 
+const COMPLETION_DASHBOARD_DESTINATIONS: Record<string, { section: string; subSection?: string }> = {
+  stage_name: { section: 'profile', subSection: 'artist-stage-name' },
+  artist_type: { section: 'type', subSection: 'selector' },
+  artist_sub_types: { section: 'type', subSection: 'selector' },
+  established_date: { section: 'profile', subSection: 'artist-formed' },
+  genres: { section: 'genres', subSection: 'selector' },
+  payments: { section: 'payments', subSection: 'legal-entity' },
+  crew: { section: 'crew', subSection: 'owner' },
+  royalty_splits: { section: 'royalty', subSection: 'splits' },
+  gig_ability: { section: 'gigability', subSection: 'base' },
+  bio: { section: 'bio', subSection: 'editor' },
+  record_label: { section: 'contract', subSection: 'label' },
+  music_publisher: { section: 'contract', subSection: 'publisher' },
+  artist_manager: { section: 'contract', subSection: 'manager' },
+  booking_agent: { section: 'contract', subSection: 'booking' },
+  gig_fee: { section: 'gigability', subSection: 'fees' },
+  logo_artwork: { section: 'logo', subSection: 'logo' },
+  photos: { section: 'photos', subSection: 'gallery' },
+  videos: { section: 'videos', subSection: 'upload' },
+}
+
 export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }: ArtistCompletionCardProps) {
   const { user } = useAuth()
   const searchParams = useSearchParams()
@@ -139,24 +160,24 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
   const [dismissConfirmOpen, setDismissConfirmOpen] = useState(false)
 
   const completionDefinitions = useMemo<CompletionItemDefinition[]>(() => ([
-    { id: 'stage_name', label: 'Artist Stage Name', required: true, section: 'profile' },
     { id: 'artist_type', label: 'Artist Type', required: true, section: 'type' },
     { id: 'artist_sub_types', label: 'Artist Sub-Type', required: true, dependsOn: ['artist_type'], section: 'type' },
+    { id: 'stage_name', label: 'Artist Stage Name', required: true, section: 'profile' },
     { id: 'established_date', label: 'Artist Formed', required: true, section: 'profile' },
-    { id: 'genres', label: 'Artist Genre(s)', required: true, section: 'genres' },
-    { id: 'payments', label: 'Artist Payments', section: 'payments' },
-    { id: 'crew', label: 'Artist Crew', section: 'crew' },
-    { id: 'royalty_splits', label: 'Gig Money Splits', section: 'royalty' },
-    { id: 'gig_ability', label: 'Artist Gig-Ability', section: 'gigability' },
-    { id: 'bio', label: 'Artist Biography', section: 'bio' },
     { id: 'record_label', label: 'Record Label', section: 'contract' },
     { id: 'music_publisher', label: 'Music Publisher', section: 'contract' },
     { id: 'artist_manager', label: 'Artist Manager', section: 'contract' },
     { id: 'booking_agent', label: 'Booking Agent', section: 'contract' },
-    { id: 'gig_fee', label: 'Basic Gig Fee', required: true, section: 'gigability' },
+    { id: 'genres', label: 'Artist Genre(s)', required: true, section: 'genres' },
+    { id: 'bio', label: 'Artist Biography', section: 'bio' },
+    { id: 'crew', label: 'Artist Crew', section: 'crew' },
+    { id: 'royalty_splits', label: 'Gig Money Splits', section: 'royalty' },
+    { id: 'payments', label: 'Artist Payments', section: 'payments' },
     { id: 'logo_artwork', label: 'Logo/Profile Artwork', required: true, section: 'logo' },
     { id: 'photos', label: 'Photos', required: true, section: 'photos' },
-    { id: 'videos', label: 'Videos', required: true, section: 'videos' }
+    { id: 'videos', label: 'Videos', required: true, section: 'videos' },
+    { id: 'gig_ability', label: 'Artist Gig-Ability', section: 'gigability' },
+    { id: 'gig_fee', label: 'Basic Gig Fee', required: true, section: 'gigability' },
   ]), [])
 
   const evaluatedItems = useMemo<CompletionItemState[]>(() => {
@@ -290,6 +311,10 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
   const requiredItems = useMemo(() => evaluatedItems.filter(item => item.required), [evaluatedItems])
   const requiredCompletedCount = useMemo(() => requiredItems.filter(item => item.completed).length, [requiredItems])
   const allRequiredComplete = requiredCompletedCount === requiredItems.length && requiredItems.length > 0
+  const nextIncompleteItem = useMemo(
+    () => evaluatedItems.find((item) => !item.completed) ?? null,
+    [evaluatedItems]
+  )
 
   const loadCompletionStatus = useCallback(async () => {
     if (!user) return
@@ -328,7 +353,10 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
       const crewResult = await crewResponse.json()
       const invitationMembers = Array.isArray(crewResult.invitations) ? crewResult.invitations : []
       const activeMembers = Array.isArray(crewResult.activeMembers) ? crewResult.activeMembers : []
-      const combinedCrewMembers = [...invitationMembers, ...activeMembers]
+      const ownerMember = profileResult.data?.id
+        ? [{ id: `owner:${profileResult.data.id}`, name: profileResult.data.stage_name || 'Profile Owner' }]
+        : []
+      const combinedCrewMembers = [...ownerMember, ...invitationMembers, ...activeMembers]
       setCrewMembers(combinedCrewMembers)
 
       const paymentsResult = await paymentsResponse.json()
@@ -418,35 +446,23 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [percentage, onboardingCompleted, loading, isMarkingComplete, allRequiredComplete])
 
-  const sectionToDashboardQuery: Record<CompletionSection, string | null> = {
-    profile: null,
-    payments: 'payments',
-    crew: 'crew',
-    royalty: 'royalty',
-    gigability: 'gigability',
-    bio: 'bio',
-    genres: 'genres',
-    maps: 'gigability',
-    logo: 'logo',
-    photos: 'photos',
-    videos: 'videos',
-    type: 'type',
-    contract: 'contract'
-  }
-
   const navigateToItemSection = (item: CompletionItemState) => {
-    const section = sectionToDashboardQuery[item.section]
-    if (!section) {
-      router.push(pathname)
-      return
-    }
+    const destination = COMPLETION_DASHBOARD_DESTINATIONS[item.id] ?? { section: item.section }
 
     const params = new URLSearchParams(searchParams?.toString() || '')
-    params.set('section', section)
-    if (section !== 'messages') {
-      params.delete('folder')
+    params.set('section', destination.section)
+    if (destination.subSection) {
+      params.set('subSection', destination.subSection)
+    } else {
+      params.delete('subSection')
     }
+    params.delete('folder')
     router.push(`${pathname}?${params.toString()}`)
+  }
+
+  const handleContinueSetup = () => {
+    if (!nextIncompleteItem) return
+    navigateToItemSection(nextIncompleteItem)
   }
 
   const persistDismissedState = () => {
@@ -484,6 +500,20 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
               <p className="text-sm text-gray-600">
                 {completedCount} of {totalCount} items completed
               </p>
+              {nextIncompleteItem && percentage < 100 && (
+                <div className="mt-4 space-y-2">
+                  <Button
+                    type="button"
+                    onClick={handleContinueSetup}
+                    className="w-full bg-[#3b1b4d] text-white hover:bg-[#30163f]"
+                  >
+                    Continue Setup
+                  </Button>
+                  <p className="text-xs font-medium text-purple-700">
+                    Next: {nextIncompleteItem.label}
+                  </p>
+                </div>
+              )}
               {lastCompletedLabel && (
                 <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs">
                   Nice! You just completed {lastCompletedLabel}
@@ -557,6 +587,16 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
                       <p className="text-sm text-green-600 font-medium">
                         All required fields complete!
                       </p>
+                      {nextIncompleteItem && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleContinueSetup}
+                          className="w-full border-purple-200 text-purple-700 hover:bg-purple-50"
+                        >
+                          Continue Setup
+                        </Button>
+                      )}
                       <Button
                         onClick={handleCompleteOnboarding}
                         disabled={isMarkingComplete}
@@ -566,9 +606,19 @@ export function ArtistCompletionCard({ onCompletionStateChange, refreshKey = 0 }
                       </Button>
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-600 leading-relaxed">
-                      Complete all required fields to finish onboarding
-                    </p>
+                    <div className="space-y-2">
+                      <Button
+                        type="button"
+                        onClick={handleContinueSetup}
+                        disabled={!nextIncompleteItem}
+                        className="w-full bg-[#3b1b4d] text-white hover:bg-[#30163f]"
+                      >
+                        Continue Setup
+                      </Button>
+                      <p className="text-sm text-gray-600 leading-relaxed">
+                        Complete all required fields to finish onboarding
+                      </p>
+                    </div>
                   )}
                 </>
               )}

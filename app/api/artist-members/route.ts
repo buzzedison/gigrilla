@@ -4,6 +4,112 @@ import { randomUUID } from 'crypto'
 import { getAuthenticatedUser, getArtistProfile } from './utils'
 import { sendArtistMemberInviteEmail } from '../../../lib/send-member-invite'
 
+type SupabaseClient = Awaited<ReturnType<typeof getAuthenticatedUser>>['supabase']
+
+const asRecord = (value: unknown): Record<string, unknown> => (
+  value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+)
+
+async function clearOtherMainContacts(
+  supabase: SupabaseClient,
+  userId: string,
+  artistProfileId: string,
+  targetMemberId: string
+) {
+  const clearRequests: PromiseLike<unknown>[] = []
+
+  const { data: profileRow, error: profileFetchError } = await supabase
+    .from('user_profiles')
+    .select('location_details')
+    .eq('id', artistProfileId)
+    .eq('user_id', userId)
+    .eq('profile_type', 'artist')
+    .maybeSingle()
+
+  if (profileFetchError) {
+    throw profileFetchError
+  }
+
+  const locationDetails = asRecord(profileRow?.location_details)
+  if (locationDetails.artist_owner_is_main_contact === true && targetMemberId !== `owner:${userId}`) {
+    clearRequests.push(
+      supabase
+        .from('user_profiles')
+        .update({
+          location_details: {
+            ...locationDetails,
+            artist_owner_is_main_contact: false
+          }
+        })
+        .eq('id', artistProfileId)
+        .eq('user_id', userId)
+    )
+  }
+
+  const { data: invitations, error: invitationsError } = await supabase
+    .from('artist_member_invitations')
+    .select('id, metadata')
+    .eq('user_id', userId)
+    .eq('artist_profile_id', artistProfileId)
+
+  if (invitationsError) {
+    throw invitationsError
+  }
+
+  for (const invitation of invitations ?? []) {
+    const metadata = asRecord(invitation.metadata)
+    if (invitation.id !== targetMemberId && metadata.isMainContact === true) {
+      clearRequests.push(
+        supabase
+          .from('artist_member_invitations')
+          .update({ metadata: { ...metadata, isMainContact: false } })
+          .eq('id', invitation.id)
+          .eq('user_id', userId)
+          .eq('artist_profile_id', artistProfileId)
+      )
+    }
+  }
+
+  const { data: activeMembers, error: activeMembersError } = await supabase
+    .from('artist_members_active')
+    .select('id, metadata')
+    .eq('artist_profile_id', artistProfileId)
+
+  if (activeMembersError) {
+    throw activeMembersError
+  }
+
+  for (const activeMember of activeMembers ?? []) {
+    const metadata = asRecord(activeMember.metadata)
+    if (activeMember.id !== targetMemberId && metadata.isMainContact === true) {
+      clearRequests.push(
+        supabase
+          .from('artist_members_active')
+          .update({
+            metadata: { ...metadata, isMainContact: false },
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', activeMember.id)
+          .eq('artist_profile_id', artistProfileId)
+      )
+    }
+  }
+
+  const results = await Promise.all(clearRequests)
+  const failed = results.find((result) => {
+    return Boolean(
+      result &&
+      typeof result === 'object' &&
+      'error' in result &&
+      (result as { error?: unknown }).error
+    )
+  })
+
+  if (failed && typeof failed === 'object' && 'error' in failed) {
+    throw (failed as { error: unknown }).error
+  }
+}
+
 export async function GET() {
   const { supabase, user, error: authError } = await getAuthenticatedUser()
 
@@ -95,6 +201,7 @@ export async function POST(request: NextRequest) {
     performerIsni,
     performerIpn,
     creatorIpiCae,
+    isPerformer,
     isShareholder,
     isMainContact,
     memberSince,
@@ -122,6 +229,11 @@ export async function POST(request: NextRequest) {
   if (typeof phoneCountryCode === 'string' && phoneCountryCode.trim().length > 0) metadata.phoneCountryCode = phoneCountryCode.trim()
   if (dateOfBirth) metadata.dateOfBirth = dateOfBirth
   if (memberType === 'performer' || memberType === 'support') metadata.memberType = memberType
+  if (isPerformer !== undefined) {
+    metadata.isPerformer = !!isPerformer
+  } else if (memberType === 'performer') {
+    metadata.isPerformer = true
+  }
   if (typeof performerIsni === 'string' && performerIsni.trim().length > 0) metadata.performerIsni = performerIsni.trim()
   if (typeof performerIpn === 'string' && performerIpn.trim().length > 0) metadata.performerIpn = performerIpn.trim()
   if (typeof creatorIpiCae === 'string' && creatorIpiCae.trim().length > 0) metadata.creatorIpiCae = creatorIpiCae.trim()
@@ -194,6 +306,15 @@ export async function POST(request: NextRequest) {
   if (error) {
     console.error('Artist members POST: failed to create invitation', error)
     return NextResponse.json({ error: 'Failed to create member invitation' }, { status: 500 })
+  }
+
+  if (metadata.isMainContact === true) {
+    try {
+      await clearOtherMainContacts(supabase, user.id, profile.id, data.id)
+    } catch (mainContactError) {
+      console.error('Artist members POST: failed to enforce single main contact', mainContactError)
+      return NextResponse.json({ error: 'Failed to switch main contact' }, { status: 500 })
+    }
   }
 
   const ownerRoles = Array.isArray(profile.artist_primary_roles)
@@ -407,6 +528,7 @@ export async function PUT(request: NextRequest) {
     performerIsni,
     performerIpn,
     creatorIpiCae,
+    isPerformer,
     isShareholder,
     isMainContact,
     memberSince,
@@ -470,6 +592,7 @@ export async function PUT(request: NextRequest) {
       if (typeof performerIsni === 'string') updatedMetadata.performerIsni = performerIsni.trim()
       if (typeof performerIpn === 'string') updatedMetadata.performerIpn = performerIpn.trim()
       if (typeof creatorIpiCae === 'string') updatedMetadata.creatorIpiCae = creatorIpiCae.trim()
+      if (isPerformer !== undefined) updatedMetadata.isPerformer = !!isPerformer
       if (isShareholder !== undefined) updatedMetadata.isShareholder = !!isShareholder
       if (isMainContact !== undefined) updatedMetadata.isMainContact = !!isMainContact
       if (typeof memberSince === 'string') updatedMetadata.memberSince = memberSince.trim()
@@ -493,6 +616,15 @@ export async function PUT(request: NextRequest) {
       if (error) {
         console.error('Artist members PUT: failed to update invitation', error)
         return NextResponse.json({ error: 'Failed to update member royalty splits' }, { status: 500 })
+      }
+
+      if (updatedMetadata.isMainContact === true) {
+        try {
+          await clearOtherMainContacts(supabase, user.id, profile.id, memberId)
+        } catch (mainContactError) {
+          console.error('Artist members PUT: failed to enforce single main contact for invitation', mainContactError)
+          return NextResponse.json({ error: 'Failed to switch main contact' }, { status: 500 })
+        }
       }
 
       return NextResponse.json({ success: true, data })
@@ -548,6 +680,7 @@ export async function PUT(request: NextRequest) {
       if (typeof performerIsni === 'string') updatedMetadata.performerIsni = performerIsni.trim()
       if (typeof performerIpn === 'string') updatedMetadata.performerIpn = performerIpn.trim()
       if (typeof creatorIpiCae === 'string') updatedMetadata.creatorIpiCae = creatorIpiCae.trim()
+      if (isPerformer !== undefined) updatedMetadata.isPerformer = !!isPerformer
       if (isShareholder !== undefined) updatedMetadata.isShareholder = !!isShareholder
       if (isMainContact !== undefined) updatedMetadata.isMainContact = !!isMainContact
       if (typeof memberSince === 'string') updatedMetadata.memberSince = memberSince.trim()
@@ -570,6 +703,15 @@ export async function PUT(request: NextRequest) {
       if (error) {
         console.error('Artist members PUT: failed to update active member', error)
         return NextResponse.json({ error: 'Failed to update member royalty splits' }, { status: 500 })
+      }
+
+      if (updatedMetadata.isMainContact === true) {
+        try {
+          await clearOtherMainContacts(supabase, user.id, profile.id, memberId)
+        } catch (mainContactError) {
+          console.error('Artist members PUT: failed to enforce single main contact for active member', mainContactError)
+          return NextResponse.json({ error: 'Failed to switch main contact' }, { status: 500 })
+        }
       }
 
       return NextResponse.json({ success: true, data })

@@ -5,7 +5,6 @@ import { ArrowRight, Building2, CalendarPlus, Check, ChevronsUpDown, Loader2, Ma
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../../components/ui/command'
 import { cn } from '../../components/ui/utils'
@@ -129,171 +128,175 @@ export function ArtistBookNewGigManager({ onBookVenue, onAddManualGig }: ArtistB
   return (
     <div className="space-y-6">
       <Card className="border-white/10 bg-[linear-gradient(180deg,_rgba(255,255,255,0.92)_0%,_rgba(250,243,252,0.95)_100%)] shadow-[0_24px_60px_rgba(12,6,20,0.28)]">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-3 text-3xl text-slate-900">
-            <CalendarPlus className="h-8 w-8 text-[#b33b86]" />
-            Book a New Gig
-          </CardTitle>
-          <p className="max-w-3xl text-base text-slate-600">
-            Gigrilla Booking System - Venue Gigs & Other Member Gigs. Search verified venues, narrow the list with filters,
-            then carry your selected venue straight into the gig booking form, or add a gig manually.
-          </p>
+        <CardHeader className="relative gap-5 lg:min-h-[148px] lg:pr-64">
+          <div className="space-y-3">
+            <CardTitle className="flex items-center gap-3 text-3xl text-slate-900">
+              <CalendarPlus className="h-8 w-8 text-[#b33b86]" />
+              Book a New Gig
+            </CardTitle>
+            <p className="max-w-3xl text-base text-slate-600">
+              Gigrilla Booking System - Venue Gigs & Other Member Gigs. Search verified venues, narrow the list with filters,
+              then carry your selected venue straight into the gig booking form.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="self-start border-slate-300 bg-white text-slate-700 hover:bg-slate-50 lg:absolute lg:right-6 lg:top-6"
+            onClick={onAddManualGig}
+          >
+            Add Gig Manually
+          </Button>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid gap-4 lg:grid-cols-[1.3fr_220px_220px_auto] lg:items-end">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                Search Venues
-              </label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search by venue name"
-                  className="bg-white pl-10"
-                />
+          <div className="overflow-hidden rounded-3xl border border-emerald-200 bg-white/90 shadow-[0_18px_44px_rgba(16,185,129,0.16)]">
+            <div className="h-2 bg-[#16a34a]" />
+            <div className="grid gap-4 p-4 md:p-5 lg:grid-cols-[minmax(0,1fr)_220px_220px] lg:items-end">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700">
+                  Search Venues
+                </label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" />
+                  <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search by venue name"
+                    className="border-emerald-200 bg-white pl-10 focus-visible:ring-emerald-500"
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                Country
-              </label>
-              <Popover open={countryFilterOpen} onOpenChange={setCountryFilterOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={countryFilterOpen}
-                    className="w-full justify-between border-slate-200 bg-white text-slate-900 hover:bg-white"
-                  >
-                    <span className="truncate">
-                      {countryFilter === 'all' ? 'All countries' : countryFilter}
-                    </span>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[220px] p-0" align="start">
-                  <Command>
-                    <CommandInput placeholder="Search countries..." />
-                    <CommandList>
-                      <CommandEmpty>No countries found.</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          value="All countries"
-                          onSelect={() => {
-                            setCountryFilter('all')
-                            setCountryFilterOpen(false)
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              'mr-2 h-4 w-4',
-                              countryFilter === 'all' ? 'opacity-100' : 'opacity-0'
-                            )}
-                          />
-                          All countries
-                        </CommandItem>
-                        {countryOptions.map((country) => (
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700">
+                  Country
+                </label>
+                <Popover open={countryFilterOpen} onOpenChange={setCountryFilterOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={countryFilterOpen}
+                      className="w-full justify-between border-emerald-200 bg-white text-slate-900 hover:bg-white"
+                    >
+                      <span className="truncate">
+                        {countryFilter === 'all' ? 'All countries' : countryFilter}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-emerald-600" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[220px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search countries..." />
+                      <CommandList>
+                        <CommandEmpty>No countries found.</CommandEmpty>
+                        <CommandGroup>
                           <CommandItem
-                            key={country}
-                            value={country}
+                            value="All countries"
                             onSelect={() => {
-                              setCountryFilter(country)
+                              setCountryFilter('all')
                               setCountryFilterOpen(false)
                             }}
                           >
                             <Check
                               className={cn(
                                 'mr-2 h-4 w-4',
-                                countryFilter === country ? 'opacity-100' : 'opacity-0'
+                                countryFilter === 'all' ? 'opacity-100' : 'opacity-0'
                               )}
                             />
-                            {country}
+                            All countries
                           </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
+                          {countryOptions.map((country) => (
+                            <CommandItem
+                              key={country}
+                              value={country}
+                              onSelect={() => {
+                                setCountryFilter(country)
+                                setCountryFilterOpen(false)
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  'mr-2 h-4 w-4',
+                                  countryFilter === country ? 'opacity-100' : 'opacity-0'
+                                )}
+                              />
+                              {country}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                City
-              </label>
-              <Popover open={cityFilterOpen} onOpenChange={setCityFilterOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={cityFilterOpen}
-                    className="w-full justify-between border-slate-200 bg-white text-slate-900 hover:bg-white"
-                  >
-                    <span className="truncate">
-                      {cityFilter === 'all' ? 'All cities' : cityFilter}
-                    </span>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[220px] p-0" align="start">
-                  <Command>
-                    <CommandInput placeholder="Search cities..." />
-                    <CommandList>
-                      <CommandEmpty>No cities found.</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          value="All cities"
-                          onSelect={() => {
-                            setCityFilter('all')
-                            setCityFilterOpen(false)
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              'mr-2 h-4 w-4',
-                              cityFilter === 'all' ? 'opacity-100' : 'opacity-0'
-                            )}
-                          />
-                          All cities
-                        </CommandItem>
-                        {cityOptions.map((city) => (
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700">
+                  City
+                </label>
+                <Popover open={cityFilterOpen} onOpenChange={setCityFilterOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={cityFilterOpen}
+                      className="w-full justify-between border-emerald-200 bg-white text-slate-900 hover:bg-white"
+                    >
+                      <span className="truncate">
+                        {cityFilter === 'all' ? 'All cities' : cityFilter}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-emerald-600" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[220px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search cities..." />
+                      <CommandList>
+                        <CommandEmpty>No cities found.</CommandEmpty>
+                        <CommandGroup>
                           <CommandItem
-                            key={city}
-                            value={city}
+                            value="All cities"
                             onSelect={() => {
-                              setCityFilter(city)
+                              setCityFilter('all')
                               setCityFilterOpen(false)
                             }}
                           >
                             <Check
                               className={cn(
                                 'mr-2 h-4 w-4',
-                                cityFilter === city ? 'opacity-100' : 'opacity-0'
+                                cityFilter === 'all' ? 'opacity-100' : 'opacity-0'
                               )}
                             />
-                            {city}
+                            All cities
                           </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+                          {cityOptions.map((city) => (
+                            <CommandItem
+                              key={city}
+                              value={city}
+                              onSelect={() => {
+                                setCityFilter(city)
+                                setCityFilterOpen(false)
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  'mr-2 h-4 w-4',
+                                  cityFilter === city ? 'opacity-100' : 'opacity-0'
+                                )}
+                              />
+                              {city}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              className="border-slate-300 bg-white"
-              onClick={onAddManualGig}
-            >
-              Add Gig Manually
-            </Button>
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
@@ -322,7 +325,7 @@ export function ArtistBookNewGigManager({ onBookVenue, onAddManualGig }: ArtistB
 
           {loading && (
             <div className="rounded-2xl border border-slate-200 bg-white/80 px-6 py-10 text-center text-slate-600">
-              <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-[#b33b86]" />
+              <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-emerald-600" />
               Searching venues...
             </div>
           )}
@@ -379,7 +382,7 @@ export function ArtistBookNewGigManager({ onBookVenue, onAddManualGig }: ArtistB
                   <div className="mt-5 flex flex-wrap gap-3">
                     <Button
                       type="button"
-                      className="bg-[#b33b86] hover:bg-[#9d3376] text-white"
+                      className="bg-[#16a34a] text-white hover:bg-[#15803d]"
                       onClick={() => useVenueForBooking(venue)}
                     >
                       Use This Venue

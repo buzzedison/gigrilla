@@ -543,7 +543,7 @@ export function ArtistGigAbilityManager() {
                   href="/artist-dashboard?section=profile&subSection=details"
                   className="font-semibold text-purple-700 hover:text-purple-800 underline underline-offset-2"
                 >
-                  Basic Artist Details
+                  Artist Basics
                 </Link>{' '}
                 and edit your profile information.
               </p>

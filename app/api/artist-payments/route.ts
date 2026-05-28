@@ -37,6 +37,57 @@ const getRecordBoolean = (record: unknown, key: string, fallback = false) => {
   return typeof value === 'boolean' ? value : fallback
 }
 
+type LegalMemberConfirmation = {
+  confirmed: true
+  confirmed_at: string
+  confirmed_by: string
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+const normalizeLegalMemberConfirmations = (value: unknown) => {
+  const confirmations: Record<string, LegalMemberConfirmation> = {}
+  if (!isRecord(value)) return confirmations
+
+  Object.entries(value).forEach(([rawMemberId, rawConfirmation]) => {
+    const memberId = rawMemberId.trim()
+    if (!memberId) return
+
+    if (rawConfirmation === true) {
+      confirmations[memberId] = { confirmed: true, confirmed_at: '', confirmed_by: '' }
+      return
+    }
+
+    if (!isRecord(rawConfirmation) || rawConfirmation.confirmed !== true) return
+
+    confirmations[memberId] = {
+      confirmed: true,
+      confirmed_at: typeof rawConfirmation.confirmed_at === 'string' ? rawConfirmation.confirmed_at.trim() : '',
+      confirmed_by: typeof rawConfirmation.confirmed_by === 'string' ? rawConfirmation.confirmed_by.trim() : ''
+    }
+  })
+
+  return confirmations
+}
+
+const mergeLegalMemberConfirmations = (existing: unknown, incoming: unknown, userId: string) => {
+  const nowIso = new Date().toISOString()
+  const merged = normalizeLegalMemberConfirmations(existing)
+  const incomingConfirmations = normalizeLegalMemberConfirmations(incoming)
+
+  Object.entries(incomingConfirmations).forEach(([memberId, confirmation]) => {
+    const existingConfirmation = merged[memberId]
+    merged[memberId] = {
+      confirmed: true,
+      confirmed_at: existingConfirmation?.confirmed_at || confirmation.confirmed_at || nowIso,
+      confirmed_by: existingConfirmation?.confirmed_by || confirmation.confirmed_by || userId
+    }
+  })
+
+  return merged
+}
+
 async function ensureUserRecord(
   supabase: ReturnType<typeof createServerClient>,
   user: { id: string; email?: string | null; user_metadata?: Record<string, unknown> }
@@ -192,6 +243,7 @@ export async function GET() {
         lastName: ownerLastName,
         nickname: ownerNickname,
         memberType: 'performer',
+        isPerformer: getRecordBoolean(locationDetails, 'artist_owner_is_performer', true),
         performerIsni: artistProfile?.performer_isni || '',
         performerIpn: getRecordString(locationDetails, 'artist_owner_performer_ipn'),
         creatorIpiCae: artistProfile?.creator_ipi_cae || '',
@@ -287,6 +339,20 @@ export async function POST(request: NextRequest) {
         ? paymentOutMethod
         : (toPaymentMethod(body.payment_in_method) ?? 'direct_debit')
 
+    const { data: existing, error: existingError } = await supabase
+      .from('artist_payment_details')
+      .select('id, legal_member_confirmations')
+      .eq('artist_profile_id', profileId)
+      .maybeSingle()
+
+    if (existingError) {
+      console.error('API: Database error:', existingError)
+      return NextResponse.json({
+        error: 'Failed to load existing payment details',
+        details: existingError.message
+      }, { status: 500 })
+    }
+
     const updateData = {
       artist_profile_id: profileId,
       official_ids_acknowledged: !!body.official_ids_acknowledged,
@@ -328,15 +394,9 @@ export async function POST(request: NextRequest) {
       payment_in_card_number: toNullableString(body.payment_in_card_number),
       payment_in_card_expiry: toNullableString(body.payment_in_card_expiry),
       payment_in_card_cvv: toNullableString(body.payment_in_card_cvv),
+      legal_member_confirmations: mergeLegalMemberConfirmations(existing?.legal_member_confirmations, body.legal_member_confirmations, user.id),
       updated_at: new Date().toISOString()
     }
-
-    // Check if record exists
-    const { data: existing } = await supabase
-      .from('artist_payment_details')
-      .select('id')
-      .eq('artist_profile_id', profileId)
-      .maybeSingle()
 
     let result
     if (existing) {

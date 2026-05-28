@@ -2,8 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Activity, CalendarRange, Globe2, Loader2, MapPinned, Mic2, PoundSterling, RadioTower, Building2, Wallet, Clock3 } from 'lucide-react'
+import { formatDateTimeDDMMMyyyy } from '@/lib/date-format'
 import { fetchArtistGigView } from './gig-manager/api'
 import type { ArtistGigRecord } from './gig-manager/types'
+
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 function parseVenueCountry(address: string | null | undefined): string | null {
   if (!address) return null
@@ -36,32 +39,33 @@ function formatCurrencyAmount(amount: number, currency: string) {
   }
 }
 
-function formatDateLabel(value: string | null | undefined) {
-  if (!value) return 'Date unavailable'
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return 'Date unavailable'
-  return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(parsed)
-}
-
 function formatDateTimeLabel(value: string | null | undefined, timezone?: string | null) {
   if (!value) return 'Time unavailable'
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return 'Time unavailable'
+
+  if (!timezone) {
+    return formatDateTimeDDMMMyyyy(value, 'Time unavailable')
+  }
+
   try {
-    return new Intl.DateTimeFormat('en-GB', {
+    const parts = new Intl.DateTimeFormat('en-GB', {
       day: '2-digit',
-      month: 'short',
+      month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-      timeZone: timezone || 'UTC',
-    }).format(parsed)
+      hour12: false,
+      timeZone: timezone,
+    }).formatToParts(parsed)
+
+    const getPart = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || ''
+    const monthIndex = Number(getPart('month')) - 1
+    const month = MONTH_LABELS[monthIndex] || getPart('month')
+
+    return `${getPart('day')} ${month} ${getPart('year')} ${getPart('hour')}:${getPart('minute')}`
   } catch {
-    return formatDateLabel(value)
+    return formatDateTimeDDMMMyyyy(value, 'Time unavailable')
   }
 }
 

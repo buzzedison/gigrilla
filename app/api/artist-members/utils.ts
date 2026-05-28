@@ -5,6 +5,7 @@ export interface ArtistProfileRecord {
   id: string
   stage_name: string | null
   artist_primary_roles: string[] | null
+  location_details: Record<string, unknown> | null
 }
 
 export async function createSupabaseClient() {
@@ -49,7 +50,7 @@ export async function getArtistProfile(
 ) {
   const { data, error } = await supabase
     .from('user_profiles')
-    .select('id, stage_name, artist_primary_roles')
+    .select('id, stage_name, artist_primary_roles, location_details')
     .eq('user_id', userId)
     .eq('profile_type', 'artist')
     .maybeSingle()
@@ -60,5 +61,4 @@ export async function getArtistProfile(
 
   return { profile: (data as ArtistProfileRecord | null) ?? null, error: null }
 }
-
 

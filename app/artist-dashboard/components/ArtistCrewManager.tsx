@@ -10,7 +10,7 @@ import { Switch } from '../../components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
 // Separator import removed - not used
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../components/ui/collapsible'
-import { ChevronDown, ChevronUp, Plus, User, Users2, Music, Mic, Guitar, Briefcase, Settings, ExternalLink, CheckCircle2, XCircle, AlertCircle, Loader2, Info } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, User, Users2, Music, Mic, Guitar, Briefcase, Settings, ExternalLink, CheckCircle2, XCircle, AlertCircle, Loader2, Info, Landmark } from 'lucide-react'
 import { useAuth } from '../../../lib/auth-context'
 import { cn } from '../../../lib/utils'
 import { ISNIHelperModal } from '../../signup/components/ISNIHelperModal'
@@ -100,6 +100,7 @@ interface CrewMember {
   creatorIpiCae?: string
   isShareholder?: boolean
   isMainContact?: boolean
+  isPerformer?: boolean
   memberSince?: string
   memberType?: 'performer' | 'support'
   isCurrentMember?: boolean
@@ -130,6 +131,7 @@ interface InvitationData {
     memberType?: 'performer' | 'support'
     isShareholder?: boolean
     isMainContact?: boolean
+    isPerformer?: boolean
     memberSince?: string
     isCurrentMember?: boolean
     dateLeft?: string
@@ -159,6 +161,7 @@ interface MemberData {
     memberType?: 'performer' | 'support'
     isShareholder?: boolean
     isMainContact?: boolean
+    isPerformer?: boolean
     memberSince?: string
     isCurrentMember?: boolean
     dateLeft?: string
@@ -425,6 +428,7 @@ export function ArtistCrewManager() {
     creatorIpiCae: string
     isShareholder: boolean
     isMainContact: boolean
+    isPerformer: boolean
     memberSince: string
     isCurrentMember: boolean
     dateLeft: string
@@ -441,6 +445,7 @@ export function ArtistCrewManager() {
     creatorIpiCae: '',
     isShareholder: false,
     isMainContact: false,
+    isPerformer: false,
     memberSince: '',
     isCurrentMember: true,
     dateLeft: '',
@@ -462,6 +467,7 @@ export function ArtistCrewManager() {
     isAdmin: false,
     isShareholder: false,
     isMainContact: false,
+    isPerformer: true,
     isCurrentMember: true,
     memberSince: '',
     dateLeft: '',
@@ -761,6 +767,7 @@ export function ArtistCrewManager() {
             phone: getStringDetail(existingLocationDetails, 'artist_owner_phone', getStringDetail(fanContactDetails, 'phone')),
             isShareholder: getBooleanDetail(existingLocationDetails, 'artist_owner_is_shareholder', false),
             isMainContact: getBooleanDetail(existingLocationDetails, 'artist_owner_is_main_contact', false),
+            isPerformer: getBooleanDetail(existingLocationDetails, 'artist_owner_is_performer', true),
             memberSince: getStringDetail(existingLocationDetails, 'artist_owner_member_since'),
             performerIsni: profileData?.performer_isni || '',
             performerIpn: getStringDetail(existingLocationDetails, 'artist_owner_performer_ipn'),
@@ -786,6 +793,7 @@ export function ArtistCrewManager() {
             creatorIpiCae: inv.metadata?.creatorIpiCae || '',
             isShareholder: inv.metadata?.isShareholder || false,
             isMainContact: inv.metadata?.isMainContact || false,
+            isPerformer: inv.metadata?.isPerformer ?? inv.metadata?.memberType !== 'support',
             memberSince: inv.metadata?.memberSince || '',
             isCurrentMember: inv.metadata?.isCurrentMember !== false,
             dateLeft: inv.metadata?.dateLeft || '',
@@ -816,6 +824,7 @@ export function ArtistCrewManager() {
             creatorIpiCae: member.metadata?.creatorIpiCae || '',
             isShareholder: member.metadata?.isShareholder || false,
             isMainContact: member.metadata?.isMainContact || false,
+            isPerformer: member.metadata?.isPerformer ?? member.metadata?.memberType !== 'support',
             memberSince: member.metadata?.memberSince || '',
             isCurrentMember: member.metadata?.isCurrentMember !== false,
             dateLeft: member.metadata?.dateLeft || '',
@@ -853,6 +862,7 @@ export function ArtistCrewManager() {
             phone: '',
             isShareholder: false,
             isMainContact: false,
+            isPerformer: true,
             memberSince: '',
             performerIpn: ''
           }
@@ -888,6 +898,75 @@ export function ArtistCrewManager() {
     ))
   }
 
+  const getMemberLabel = (member?: CrewMember | null) => {
+    if (!member) return 'this person'
+    return getDisplayName(member)
+  }
+
+  const confirmMainContactChange = (targetId: string, targetLabel: string) => {
+    const existingMainContact = crewMembers.find(member => member.isMainContact && member.id !== targetId)
+    if (!existingMainContact) return true
+
+    if (typeof window === 'undefined') return true
+
+    return window.confirm(
+      `${getMemberLabel(existingMainContact)} is currently the main contact for this Artist Entity. Make ${targetLabel} the only main contact instead?`
+    )
+  }
+
+  const markOnlyMainContactLocally = (targetId: string) => {
+    setCrewMembers(prev => prev.map(member => ({
+      ...member,
+      isMainContact: member.id === targetId
+    })))
+    setProfileOwner(prev => prev ? { ...prev, isMainContact: prev.id === targetId } : prev)
+  }
+
+  const setOwnerAsMainContact = () => {
+    if (!profileOwner) return
+    if (!confirmMainContactChange(profileOwner.id, getMemberLabel(profileOwner))) return
+    updateProfileOwner({ isMainContact: true, isShareholder: true })
+  }
+
+  const clearPersistedMainContactsExcept = async (targetId: string) => {
+    const updateRequests: Promise<Response>[] = []
+
+    if (profileOwner?.id !== targetId && profileOwner?.isMainContact) {
+      const nextLocationDetails = {
+        ...profileOwnerLocationDetails,
+        artist_owner_is_main_contact: false
+      }
+
+      setProfileOwnerLocationDetails(nextLocationDetails)
+      updateRequests.push(fetch('/api/artist-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location_details: nextLocationDetails })
+      }))
+    }
+
+    crewMembers
+      .filter(member => !member.isProfileOwner && member.id !== targetId && member.isMainContact)
+      .forEach(member => {
+        updateRequests.push(fetch('/api/artist-members', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            memberId: member.id,
+            isMainContact: false
+          })
+        }))
+      })
+
+    if (updateRequests.length > 0) {
+      const responses = await Promise.all(updateRequests)
+      const failed = responses.find(response => !response.ok)
+      if (failed) {
+        throw new Error('Failed to clear the previous main contact')
+      }
+    }
+  }
+
   const ownerHasPerformerOrWriterRole = () => {
     if (!profileOwner) return false
     const ownerRoles = nonInstrumentRoles(profileOwner.roles)
@@ -913,6 +992,15 @@ export function ArtistCrewManager() {
     return hasWriterRole || hasPerformerRole
   }
 
+  const isPerformerMember = (member: Pick<CrewMember, 'isPerformer' | 'memberType'>) => {
+    return member.isPerformer ?? member.memberType !== 'support'
+  }
+
+  const goToArtistBankingLegalMembers = () => {
+    if (typeof window === 'undefined') return
+    window.location.href = '/artist-dashboard?section=payments&subSection=legal-members'
+  }
+
   const resetEditingMemberFields = () => {
     setEditingMemberFields({
       firstName: '',
@@ -925,6 +1013,7 @@ export function ArtistCrewManager() {
       creatorIpiCae: '',
       isShareholder: false,
       isMainContact: false,
+      isPerformer: false,
       memberSince: '',
       isCurrentMember: true,
       dateLeft: '',
@@ -945,6 +1034,7 @@ export function ArtistCrewManager() {
       isAdmin: false,
       isShareholder: false,
       isMainContact: false,
+      isPerformer: newMemberType === 'performer',
       isCurrentMember: true,
       memberSince: '',
       dateLeft: '',
@@ -973,6 +1063,11 @@ export function ArtistCrewManager() {
 
     if (profileOwner.isShareholder && !ownerHasPerformerOrWriterRole()) {
       showNotification('error', 'A shareholder must have at least one performer or writer role selected.')
+      return
+    }
+
+    if (profileOwner.isMainContact && !profileOwner.isShareholder) {
+      showNotification('error', 'The main contact must also be marked as a shareholder.')
       return
     }
 
@@ -1010,6 +1105,7 @@ export function ArtistCrewManager() {
             artist_owner_phone: profileOwner.phone?.trim() || null,
             artist_owner_is_shareholder: Boolean(profileOwner.isShareholder),
             artist_owner_is_main_contact: Boolean(profileOwner.isMainContact && profileOwner.isShareholder),
+            artist_owner_is_performer: Boolean(profileOwner.isPerformer),
             artist_owner_performer_ipn: profileOwner.performerIpn?.trim() || null,
             artist_owner_member_since: profileOwner.memberSince || null,
             artist_owner_status: 'current',
@@ -1033,6 +1129,11 @@ export function ArtistCrewManager() {
         console.error('Failed to save profile owner info:', result)
         showNotification('error', `Failed to save your roles and info: ${result?.error || 'Unknown error'}`)
         return
+      }
+
+      if (profileOwner.isMainContact) {
+        await clearPersistedMainContactsExcept(profileOwner.id)
+        markOnlyMainContactLocally(profileOwner.id)
       }
 
       setOwnerNicknameError(null)
@@ -1078,6 +1179,7 @@ export function ArtistCrewManager() {
         creatorIpiCae: member.creatorIpiCae ?? '',
         isShareholder: Boolean(member.isShareholder),
         isMainContact: Boolean(member.isMainContact),
+        isPerformer: isPerformerMember(member),
         memberSince: member.memberSince ?? '',
         isCurrentMember: member.isCurrentMember !== false,
         dateLeft: member.dateLeft ?? '',
@@ -1104,15 +1206,42 @@ export function ArtistCrewManager() {
   const saveMember = async (memberId: string) => {
     setSavingMemberId(memberId)
     try {
+      const nextRoles = [
+        ...nonInstrumentRoles(editingMemberFields.roles),
+        ...instrumentsToRoleStrings(editingMemberFields.instruments3tier),
+      ]
+      const nextIsPerformer = Boolean(editingMemberFields.isPerformer)
+      const nextIsShareholder = nextIsPerformer && Boolean(editingMemberFields.isShareholder)
+      const nextIsMainContact = nextIsShareholder && Boolean(editingMemberFields.isMainContact)
+
+      const professionalIds = [
+        editingMemberFields.performerIsni,
+        editingMemberFields.performerIpn,
+        editingMemberFields.creatorIpiCae
+      ].filter(value => value.trim().length > 0)
+
+      if (nextIsPerformer && professionalIds.length === 0) {
+        throw new Error('Please add at least one performer ID: Individual ISNI, Performer IPN, or Writer IPI.')
+      }
+
+      if (nextIsShareholder && !memberHasPerformerOrWriterRole(nextRoles, editingMemberFields.instruments3tier)) {
+        throw new Error('A shareholder must have at least one performer or writer role selected.')
+      }
+
+      if (!editingMemberFields.isCurrentMember && !editingMemberFields.dateLeft) {
+        throw new Error('Please add the date left for a previous member.')
+      }
+
+      if (nextIsMainContact) {
+        await clearPersistedMainContactsExcept(memberId)
+      }
+
       const response = await fetch('/api/artist-members', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           memberId,
-          roles: [
-            ...nonInstrumentRoles(editingMemberFields.roles),
-            ...instrumentsToRoleStrings(editingMemberFields.instruments3tier),
-          ],
+          roles: nextRoles,
           firstName: editingMemberFields.firstName.trim() || undefined,
           lastName: editingMemberFields.lastName.trim() || undefined,
           nickname: editingMemberFields.nickname.trim() || undefined,
@@ -1121,8 +1250,9 @@ export function ArtistCrewManager() {
           performerIsni: editingMemberFields.performerIsni.trim() || undefined,
           performerIpn: editingMemberFields.performerIpn.trim() || undefined,
           creatorIpiCae: editingMemberFields.creatorIpiCae.trim() || undefined,
-          isShareholder: editingMemberFields.isShareholder,
-          isMainContact: editingMemberFields.isMainContact && editingMemberFields.isShareholder,
+          isPerformer: nextIsPerformer,
+          isShareholder: nextIsShareholder,
+          isMainContact: nextIsMainContact,
           memberSince: editingMemberFields.memberSince || undefined,
           isCurrentMember: editingMemberFields.isCurrentMember,
           dateLeft: editingMemberFields.isCurrentMember ? undefined : editingMemberFields.dateLeft || undefined,
@@ -1131,14 +1261,14 @@ export function ArtistCrewManager() {
       const result = await response.json()
       if (!response.ok || result?.error) throw new Error(result?.error || 'Failed to update')
 
-      const mergedRoles = [
-        ...nonInstrumentRoles(editingMemberFields.roles),
-        ...instrumentsToRoleStrings(editingMemberFields.instruments3tier),
-      ]
-      setCrewMembers(prev => prev.map(m =>
-        m.id === memberId ? {
+      setCrewMembers(prev => prev.map(m => {
+        if (nextIsMainContact && m.id !== memberId) {
+          return { ...m, isMainContact: false }
+        }
+
+        return m.id === memberId ? {
           ...m,
-          roles: mergedRoles,
+          roles: nextRoles,
           firstName: editingMemberFields.firstName.trim() || m.firstName,
           lastName: editingMemberFields.lastName.trim() || m.lastName,
           nickname: editingMemberFields.nickname.trim() || m.nickname,
@@ -1147,18 +1277,22 @@ export function ArtistCrewManager() {
           performerIsni: editingMemberFields.performerIsni.trim() || m.performerIsni,
           performerIpn: editingMemberFields.performerIpn.trim() || m.performerIpn,
           creatorIpiCae: editingMemberFields.creatorIpiCae.trim() || m.creatorIpiCae,
-          isShareholder: editingMemberFields.isShareholder,
-          isMainContact: editingMemberFields.isMainContact && editingMemberFields.isShareholder,
+          isPerformer: nextIsPerformer,
+          isShareholder: nextIsShareholder,
+          isMainContact: nextIsMainContact,
           memberSince: editingMemberFields.memberSince || m.memberSince,
           isCurrentMember: editingMemberFields.isCurrentMember,
           dateLeft: editingMemberFields.isCurrentMember ? '' : editingMemberFields.dateLeft,
         } : m
-      ))
+      }))
+      if (nextIsMainContact) {
+        setProfileOwner(prev => prev ? { ...prev, isMainContact: false } : prev)
+      }
       closeEditingMember()
       showNotification('success', 'Member updated successfully')
       notifyProfileUpdated('crew-member-update')
-    } catch {
-      showNotification('error', 'Failed to update member. Please try again.')
+    } catch (error) {
+      showNotification('error', error instanceof Error ? error.message : 'Failed to update member. Please try again.')
     } finally {
       setSavingMemberId(null)
     }
@@ -1168,6 +1302,10 @@ export function ArtistCrewManager() {
     setNewMemberType(type)
     setShowAddMember(true)
     resetNewMember()
+    setNewMember(prev => ({
+      ...prev,
+      isPerformer: type === 'performer'
+    }))
   }
 
   const handleAddMember = async () => {
@@ -1185,6 +1323,9 @@ export function ArtistCrewManager() {
       ...(newMember.roles || []),
       ...instrumentsToRoleStrings(newMemberInstruments),
     ]
+    const newMemberIsPerformer = newMemberType === 'performer' || Boolean(newMember.isPerformer)
+    const newMemberIsShareholder = newMemberIsPerformer && Boolean(newMember.isShareholder)
+    const newMemberIsMainContact = newMemberIsShareholder && Boolean(newMember.isMainContact)
 
     const nextErrors: Partial<Record<'firstName' | 'lastName' | 'email' | 'phone', string>> = {}
     if (!firstName) nextErrors.firstName = 'First name is required.'
@@ -1200,17 +1341,17 @@ export function ArtistCrewManager() {
       return
     }
 
-    if (newMemberType === 'performer' && professionalIds.length === 0) {
+    if (newMemberIsPerformer && professionalIds.length === 0) {
       setNewMemberErrorSummary('Please add at least one performer ID: Individual ISNI, Performer IPN, or Writer IPI.')
       return
     }
 
-    if (newMember.isShareholder && !memberHasPerformerOrWriterRole(combinedRoles, newMemberInstruments)) {
+    if (newMemberIsShareholder && !memberHasPerformerOrWriterRole(combinedRoles, newMemberInstruments)) {
       setNewMemberErrorSummary('A shareholder must have at least one performer or writer role selected.')
       return
     }
 
-    if (newMember.isMainContact && !newMember.isShareholder) {
+    if (newMember.isMainContact && !newMemberIsShareholder) {
       setNewMemberErrorSummary('The main contact must also be marked as a shareholder.')
       return
     }
@@ -1239,11 +1380,12 @@ export function ArtistCrewManager() {
           roles: combinedRoles,
           isAdmin: newMember.isAdmin || false,
           memberType: newMemberType,
+          isPerformer: newMemberIsPerformer,
           performerIsni: newMember.performerIsni || '',
           performerIpn: newMember.performerIpn || '',
           creatorIpiCae: newMember.creatorIpiCae || '',
-          isShareholder: newMemberType === 'performer' ? Boolean(newMember.isShareholder) : false,
-          isMainContact: newMemberType === 'performer' ? Boolean(newMember.isMainContact && newMember.isShareholder) : false,
+          isShareholder: newMemberIsShareholder,
+          isMainContact: newMemberIsMainContact,
           memberSince: newMember.memberSince || '',
           isCurrentMember: newMember.isCurrentMember !== false,
           dateLeft: newMember.isCurrentMember === false ? newMember.dateLeft || '' : ''
@@ -1256,6 +1398,10 @@ export function ArtistCrewManager() {
         console.error('Failed to add member:', result)
         showNotification('error', `Failed to send invitation: ${result.error || 'Unknown error'}`)
         return
+      }
+
+      if (newMemberIsMainContact) {
+        await clearPersistedMainContactsExcept(result.data.id)
       }
 
       // Add the member to local state with the returned data
@@ -1271,11 +1417,12 @@ export function ArtistCrewManager() {
         roles: combinedRoles,
         isAdmin: newMember.isAdmin || false,
         memberType: newMemberType,
+        isPerformer: newMemberIsPerformer,
         performerIsni: newMember.performerIsni || '',
         performerIpn: newMember.performerIpn || '',
         creatorIpiCae: newMember.creatorIpiCae || '',
-        isShareholder: newMemberType === 'performer' ? Boolean(newMember.isShareholder) : false,
-        isMainContact: newMemberType === 'performer' ? Boolean(newMember.isMainContact && newMember.isShareholder) : false,
+        isShareholder: newMemberIsShareholder,
+        isMainContact: newMemberIsMainContact,
         memberSince: newMember.memberSince || '',
         isCurrentMember: newMember.isCurrentMember !== false,
         dateLeft: newMember.isCurrentMember === false ? newMember.dateLeft || '' : '',
@@ -1288,7 +1435,13 @@ export function ArtistCrewManager() {
         isProfileOwner: false
       }
 
-      setCrewMembers(prev => [...prev, member])
+      setCrewMembers(prev => [
+        ...(newMemberIsMainContact ? prev.map(existing => ({ ...existing, isMainContact: false })) : prev),
+        member
+      ])
+      if (newMemberIsMainContact) {
+        setProfileOwner(prev => prev ? { ...prev, isMainContact: false } : prev)
+      }
       resetNewMember()
       setShowAddMember(false)
 
@@ -1625,7 +1778,30 @@ export function ArtistCrewManager() {
                   <p className="text-xs text-gray-500">Private. Used for contracts, profile ownership, and account verification.</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2 rounded-lg border border-purple-200 bg-white p-3">
+                    <Label className="text-sm font-semibold text-gray-700">Is a Performer?</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={profileOwner.isPerformer !== false ? 'default' : 'outline'}
+                        className={profileOwner.isPerformer !== false ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                        onClick={() => updateProfileOwner({ isPerformer: true })}
+                      >
+                        Yes
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={profileOwner.isPerformer === false ? 'default' : 'outline'}
+                        className={profileOwner.isPerformer === false ? 'bg-purple-600 hover:bg-purple-700' : ''}
+                        onClick={() => updateProfileOwner({ isPerformer: false })}
+                      >
+                        No
+                      </Button>
+                    </div>
+                    <p className="text-xs text-gray-500">Explicitly marks whether the profile owner performs for this Artist.</p>
+                  </div>
+
                   <div className="space-y-2 rounded-lg border border-purple-200 bg-white p-3">
                     <Label className="text-sm font-semibold text-gray-700">Shareholder of Artist Entity?</Label>
                     <div className="flex gap-2">
@@ -1656,7 +1832,7 @@ export function ArtistCrewManager() {
                         type="button"
                         variant={profileOwner.isMainContact ? 'default' : 'outline'}
                         className={profileOwner.isMainContact ? 'bg-purple-600 hover:bg-purple-700' : ''}
-                        onClick={() => updateProfileOwner({ isMainContact: true, isShareholder: true })}
+                        onClick={setOwnerAsMainContact}
                       >
                         Yes
                       </Button>
@@ -2177,7 +2353,29 @@ export function ArtistCrewManager() {
                   <p className="text-xs text-gray-500">Twinned - Private. Used to securely match members to Profiles and invite non-members.</p>
                 </div>
 
-                {newMemberType === 'performer' && (
+                <div className="space-y-2 rounded-lg border border-purple-200 bg-white p-3">
+                  <Label className="text-sm font-semibold text-gray-700">Is a Performer?</Label>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={newMemberType === 'performer' || Boolean(newMember.isPerformer)}
+                      disabled={newMemberType === 'performer'}
+                      onCheckedChange={(checked) => setNewMember(prev => ({
+                        ...prev,
+                        isPerformer: checked,
+                        isShareholder: checked ? prev.isShareholder : false,
+                        isMainContact: checked ? prev.isMainContact : false
+                      }))}
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      {newMemberType === 'performer' || Boolean(newMember.isPerformer) ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Performer records appear in Artist Banking and can be included in splits.
+                  </p>
+                </div>
+
+                {(newMemberType === 'performer' || Boolean(newMember.isPerformer)) && (
                   <>
                     <div className="space-y-2 rounded-lg border border-purple-200 bg-white p-3">
                       <Label className="text-sm font-semibold text-gray-700">Shareholder of Artist Entity?</Label>
@@ -2209,7 +2407,11 @@ export function ArtistCrewManager() {
                           type="button"
                           variant={newMember.isMainContact ? 'default' : 'outline'}
                           className={newMember.isMainContact ? 'bg-purple-600 hover:bg-purple-700' : ''}
-                          onClick={() => setNewMember(prev => ({ ...prev, isMainContact: true, isShareholder: true }))}
+                          onClick={() => {
+                            const label = [newMember.firstName, newMember.lastName].filter(Boolean).join(' ') || 'this new member'
+                            if (!confirmMainContactChange('__new_member__', label)) return
+                            setNewMember(prev => ({ ...prev, isMainContact: true, isShareholder: true, isPerformer: true }))
+                          }}
                         >
                           Yes
                         </Button>
@@ -2229,7 +2431,7 @@ export function ArtistCrewManager() {
 
                 <div className="space-y-3 md:col-span-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
                   <Label className="text-sm font-semibold text-blue-900">
-                    {newMemberType === 'performer' ? 'Performer Registrations?' : 'Optional Registrations?'}
+                    {newMemberType === 'performer' || Boolean(newMember.isPerformer) ? 'Performer Registrations?' : 'Optional Registrations?'}
                   </Label>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <Input
@@ -2252,7 +2454,7 @@ export function ArtistCrewManager() {
                     />
                   </div>
                   <p className="text-xs text-blue-700">
-                    {newMemberType === 'performer'
+                    {newMemberType === 'performer' || Boolean(newMember.isPerformer)
                       ? 'At least one ID is required for performers.'
                       : 'Optional for support crew, useful where they also perform or write.'}
                   </p>
@@ -2280,7 +2482,7 @@ export function ArtistCrewManager() {
                       className={newMember.isCurrentMember !== false ? 'bg-purple-600 hover:bg-purple-700' : ''}
                       onClick={() => setNewMember(prev => ({ ...prev, isCurrentMember: true, dateLeft: '' }))}
                     >
-                      Is Current {newMemberType === 'performer' ? 'Member' : 'Crew'}
+                      Is Current {newMemberType === 'performer' || Boolean(newMember.isPerformer) ? 'Member' : 'Crew'}
                     </Button>
                     <Input
                       type="month"
@@ -2295,7 +2497,7 @@ export function ArtistCrewManager() {
 
                 <div className="space-y-2 md:col-span-2">
                   <Label className="text-sm font-semibold text-gray-700">
-                    {newMemberType === 'performer' ? 'Performer Roles?' : 'Support Roles?'}
+                    {newMemberType === 'performer' || Boolean(newMember.isPerformer) ? 'Performer Roles?' : 'Support Roles?'}
                   </Label>
                   <div className="bg-white border border-purple-200 rounded-lg p-3">
                     <div className="flex flex-wrap gap-2 mb-3">
@@ -2322,7 +2524,7 @@ export function ArtistCrewManager() {
                         <span className="text-sm text-gray-500 italic">No roles selected yet</span>
                       )}
                     </div>
-                    {newMemberType === 'performer' && (
+                    {(newMemberType === 'performer' || Boolean(newMember.isPerformer)) && (
                       <Collapsible open={newMemberPerformerRolePickerOpen} onOpenChange={setNewMemberPerformerRolePickerOpen}>
                       <CollapsibleTrigger className="w-full" type="button">
                         <div className="flex items-center justify-between p-2.5 rounded-lg bg-purple-50 border border-purple-200 hover:bg-purple-100 transition-colors">
@@ -2406,7 +2608,7 @@ export function ArtistCrewManager() {
                 </div>
 
                 {/* Instruments (3-tier multi-select) */}
-                {newMemberType === 'performer' && (
+                {(newMemberType === 'performer' || Boolean(newMember.isPerformer)) && (
                   <div className="space-y-2 md:col-span-2">
                     <Label className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
                       <Guitar className="w-4 h-4 text-purple-600" />
@@ -2450,11 +2652,11 @@ export function ArtistCrewManager() {
             {/* Manage Team Section */}
             <div className="space-y-4">
               <h4 className="font-semibold text-sm text-purple-900">Manage Team</h4>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
                 <div id="artist-crew-view-performers" className="scroll-mt-28 rounded-lg border border-purple-200 bg-purple-50 px-3 py-2">
                   <p className="text-xs font-bold uppercase tracking-wide text-purple-800">View Performers</p>
                   <p className="text-sm text-gray-700">
-                    {crewMembers.filter(member => !member.isProfileOwner && member.memberType !== 'support' && member.isCurrentMember !== false).length} current
+                    {crewMembers.filter(member => isPerformerMember(member) && member.isCurrentMember !== false).length} current
                   </p>
                 </div>
                 <div id="artist-crew-view-support-crew" className="scroll-mt-28 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
@@ -2469,6 +2671,12 @@ export function ArtistCrewManager() {
                     {crewMembers.filter(member => !member.isProfileOwner && member.isAdmin).length} admins
                   </p>
                 </div>
+                <div id="artist-crew-view-shareholders" className="scroll-mt-28 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-amber-800">Shareholders</p>
+                  <p className="text-sm text-gray-700">
+                    {crewMembers.filter(member => member.isShareholder && member.isCurrentMember !== false).length} current
+                  </p>
+                </div>
                 <div id="artist-crew-historic-members" className="scroll-mt-28 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
                   <p className="text-xs font-bold uppercase tracking-wide text-gray-800">Historic Members</p>
                   <p className="text-sm text-gray-700">
@@ -2476,15 +2684,53 @@ export function ArtistCrewManager() {
                   </p>
                 </div>
               </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-amber-300 text-amber-800 hover:bg-amber-50"
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      window.location.href = '/artist-dashboard?section=crew&subSection=owner'
+                    }
+                  }}
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  Confirm / Update Shareholder Details
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-purple-200 text-purple-700 hover:bg-purple-50"
+                  onClick={goToArtistBankingLegalMembers}
+                >
+                  <Landmark className="w-4 h-4 mr-2" />
+                  Open Artist Banking
+                </Button>
+              </div>
+              {crewMembers.some(member => member.isShareholder && member.isCurrentMember !== false) && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-amber-800">Current Shareholders</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {crewMembers
+                      .filter(member => member.isShareholder && member.isCurrentMember !== false)
+                      .map(member => (
+                        <Badge key={`shareholder-${member.id}`} variant="secondary" className="bg-white text-amber-800 border-amber-200">
+                          {getDisplayName(member)}
+                        </Badge>
+                      ))}
+                  </div>
+                </div>
+              )}
               {crewMembers.filter(member => !member.isProfileOwner).length > 0 && (
                 <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
                   Existing team members and invitations have been loaded from this artist profile.
                   Use <span className="font-semibold">Manage</span> to review them or <span className="font-semibold">Remove</span> if they no longer belong to this profile.
                 </div>
               )}
-              {crewMembers.filter(member => !member.isProfileOwner).length > 0 ? (
+              {crewMembers.length > 0 ? (
                 <div className="space-y-3">
-                  {crewMembers.filter(member => !member.isProfileOwner).map((member) => (
+                  {crewMembers.map((member) => (
                     <div key={member.id} className="p-4 border border-purple-200 rounded-lg bg-white">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -2493,8 +2739,18 @@ export function ArtistCrewManager() {
                           </h5>
                           <div className="mt-1 flex flex-wrap gap-2 text-xs">
                             <Badge variant="secondary" className={member.memberType === 'support' ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-purple-100 text-purple-800 border-purple-200'}>
-                              {member.memberType === 'support' ? 'Support Crew' : 'Performer'}
+                              {member.isProfileOwner ? 'Profile Owner' : member.memberType === 'support' ? 'Support Crew' : 'Performer'}
                             </Badge>
+                            {member.isProfileOwner ? (
+                              <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200">
+                                Auto-Included
+                              </Badge>
+                            ) : null}
+                            {isPerformerMember(member) ? (
+                              <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200">
+                                Is a Performer
+                              </Badge>
+                            ) : null}
                             {member.isCurrentMember === false ? (
                               <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200">
                                 Previous{member.dateLeft ? ` - left ${member.dateLeft}` : ''}
@@ -2529,7 +2785,7 @@ export function ArtistCrewManager() {
                             <select
                               value={member.isAdmin ? 'Yes' : 'No'}
                               onChange={(e) => updateMemberAdmin(member.id, e.target.value === 'Yes')}
-                              disabled={updatingAdminMemberId === member.id}
+                              disabled={member.isProfileOwner || updatingAdminMemberId === member.id}
                               className="text-sm border border-gray-300 rounded px-2 py-1 text-gray-800 focus:border-purple-400 focus:outline-none"
                             >
                               <option value="No">No</option>
@@ -2541,24 +2797,32 @@ export function ArtistCrewManager() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => startEditingMember(member)}
+                            onClick={() => {
+                              if (member.isProfileOwner) {
+                                document.getElementById('artist-crew-owner')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                return
+                              }
+                              startEditingMember(member)
+                            }}
                             className={editingMemberId === member.id ? "text-white bg-purple-600 border-purple-600 hover:bg-purple-700" : "text-purple-700 border-purple-200 hover:bg-purple-50"}
                           >
-                            {editingMemberId === member.id ? 'Close' : 'Manage'}
+                            {member.isProfileOwner ? 'Edit Owner' : editingMemberId === member.id ? 'Close' : 'Manage'}
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => removeMember(member.id)}
-                            className="text-red-600 border-red-200 hover:bg-red-50"
-                          >
-                            Remove
-                          </Button>
+                          {!member.isProfileOwner && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => removeMember(member.id)}
+                              className="text-red-600 border-red-200 hover:bg-red-50"
+                            >
+                              Remove
+                            </Button>
+                          )}
                         </div>
                       </div>
 
                       {/* Inline member editor */}
-                      {editingMemberId === member.id && (
+                      {!member.isProfileOwner && editingMemberId === member.id && (
                         <div className="mt-4 pt-4 border-t border-purple-100 space-y-4">
                           {/* Name fields */}
                           <div>
@@ -2650,13 +2914,26 @@ export function ArtistCrewManager() {
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                            <div className="space-y-2 rounded-lg border border-purple-200 bg-white p-3">
+                              <Label className="text-sm font-semibold text-gray-700">Is a Performer?</Label>
+                              <Switch
+                                checked={editingMemberFields.isPerformer}
+                                onCheckedChange={(checked) => setEditingMemberFields(prev => ({
+                                  ...prev,
+                                  isPerformer: checked,
+                                  isShareholder: checked ? prev.isShareholder : false,
+                                  isMainContact: checked ? prev.isMainContact : false
+                                }))}
+                              />
+                            </div>
                             <div className="space-y-2 rounded-lg border border-purple-200 bg-white p-3">
                               <Label className="text-sm font-semibold text-gray-700">Shareholder?</Label>
                               <Switch
-                                checked={editingMemberFields.isShareholder}
+                                checked={editingMemberFields.isPerformer && editingMemberFields.isShareholder}
                                 onCheckedChange={(checked) => setEditingMemberFields(prev => ({
                                   ...prev,
+                                  isPerformer: checked ? true : prev.isPerformer,
                                   isShareholder: checked,
                                   isMainContact: checked ? prev.isMainContact : false
                                 }))}
@@ -2665,12 +2942,16 @@ export function ArtistCrewManager() {
                             <div className="space-y-2 rounded-lg border border-purple-200 bg-white p-3">
                               <Label className="text-sm font-semibold text-gray-700">Main Contact?</Label>
                               <Switch
-                                checked={editingMemberFields.isMainContact}
-                                onCheckedChange={(checked) => setEditingMemberFields(prev => ({
-                                  ...prev,
-                                  isMainContact: checked,
-                                  isShareholder: checked ? true : prev.isShareholder
-                                }))}
+                                checked={editingMemberFields.isPerformer && editingMemberFields.isMainContact}
+                                onCheckedChange={(checked) => {
+                                  if (checked && !confirmMainContactChange(member.id, getMemberLabel(member))) return
+                                  setEditingMemberFields(prev => ({
+                                    ...prev,
+                                    isPerformer: checked ? true : prev.isPerformer,
+                                    isMainContact: checked,
+                                    isShareholder: checked ? true : prev.isShareholder
+                                  }))
+                                }}
                               />
                             </div>
                             <div className="space-y-2 rounded-lg border border-purple-200 bg-white p-3">

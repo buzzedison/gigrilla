@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
+import { Button } from '../../components/ui/button'
+import { Badge } from '../../components/ui/badge'
 import { useAuth } from '../../../lib/auth-context'
 import { cn } from '../../../lib/utils'
 
@@ -19,6 +21,12 @@ interface TeamMember {
   gigRoyaltyShare?: number
   merchRoyaltyShare?: number
   isProfileOwner?: boolean
+  memberType?: 'performer' | 'support'
+  isPerformer?: boolean
+  isShareholder?: boolean
+  isMainContact?: boolean
+  isCurrentMember?: boolean
+  dateLeft?: string
 }
 
 interface InvitationResponse {
@@ -33,6 +41,12 @@ interface InvitationResponse {
     email?: string
     gigRoyaltyShare?: number
     merchRoyaltyShare?: number
+    memberType?: 'performer' | 'support'
+    isPerformer?: boolean
+    isShareholder?: boolean
+    isMainContact?: boolean
+    isCurrentMember?: boolean
+    dateLeft?: string
   }
   roles?: string[]
 }
@@ -48,6 +62,12 @@ interface MemberResponse {
     email?: string
     gigRoyaltyShare?: number
     merchRoyaltyShare?: number
+    memberType?: 'performer' | 'support'
+    isPerformer?: boolean
+    isShareholder?: boolean
+    isMainContact?: boolean
+    isCurrentMember?: boolean
+    dateLeft?: string
   }
   roles?: string[]
 }
@@ -75,9 +95,6 @@ export function ArtistRoyaltySplitsManager() {
       if (profileResponse.ok) {
         const profileResult = await profileResponse.json()
         const profile = profileResult?.data
-        const stageName = typeof profile?.stage_name === 'string' && profile.stage_name.trim().length > 0
-          ? profile.stage_name.trim()
-          : 'Profile Owner'
         const profileId = typeof profile?.user_id === 'string' ? profile.user_id : user?.id
         const locationDetails = profile?.location_details && typeof profile.location_details === 'object' && !Array.isArray(profile.location_details)
           ? profile.location_details as Record<string, unknown>
@@ -96,19 +113,44 @@ export function ArtistRoyaltySplitsManager() {
         const ownerMerchShare = typeof ownerMerchShareRaw === 'number'
           ? ownerMerchShareRaw
           : Number.parseFloat(String(ownerMerchShareRaw ?? '0'))
+        const getOwnerString = (key: string) => {
+          const value = locationDetails[key]
+          return typeof value === 'string' ? value : ''
+        }
+        const getUserMetadataString = (key: string) => {
+          const value = user?.user_metadata?.[key]
+          return typeof value === 'string' ? value.trim() : ''
+        }
+        const getOwnerBoolean = (key: string, fallback = false) => {
+          const value = locationDetails[key]
+          return typeof value === 'boolean' ? value : fallback
+        }
+        const ownerFirstName = getOwnerString('artist_owner_first_name') || getUserMetadataString('first_name')
+        const ownerLastName = getOwnerString('artist_owner_last_name') || getUserMetadataString('last_name')
+        const ownerNickname = getOwnerString('artist_owner_nickname')
+        const ownerEmail = getOwnerString('artist_owner_email') || user?.email || ''
+        const ownerDisplayName = [ownerFirstName, ownerNickname ? `"${ownerNickname}"` : '', ownerLastName]
+          .filter(Boolean)
+          .join(' ')
+          .trim()
 
         ownerMember = {
           id: `owner:${profileId || user?.id || 'self'}`,
-          name: stageName,
-          nickname: '',
-          firstName: '',
-          lastName: '',
-          email: user?.email || '',
+          name: ownerDisplayName || ownerEmail || 'Profile Owner',
+          nickname: ownerNickname,
+          firstName: ownerFirstName,
+          lastName: ownerLastName,
+          email: ownerEmail,
           roles: ['Artist Profile Owner'],
           status: 'joined',
           gigRoyaltyShare: Number.isFinite(ownerShare) ? ownerShare : 0,
           merchRoyaltyShare: Number.isFinite(ownerMerchShare) ? ownerMerchShare : 0,
-          isProfileOwner: true
+          isProfileOwner: true,
+          memberType: 'performer',
+          isPerformer: getOwnerBoolean('artist_owner_is_performer', true),
+          isShareholder: getOwnerBoolean('artist_owner_is_shareholder', false),
+          isMainContact: getOwnerBoolean('artist_owner_is_main_contact', false),
+          isCurrentMember: true
         }
       }
 
@@ -131,7 +173,13 @@ export function ArtistRoyaltySplitsManager() {
               roles: inv.roles || [],
               status: inv.status === 'pending' ? 'invited' : inv.status === 'accepted' ? 'joined' : 'invited',
               gigRoyaltyShare: inv.metadata?.gigRoyaltyShare || 0,
-              merchRoyaltyShare: inv.metadata?.merchRoyaltyShare || 0
+              merchRoyaltyShare: inv.metadata?.merchRoyaltyShare || 0,
+              memberType: inv.metadata?.memberType || 'performer',
+              isPerformer: inv.metadata?.isPerformer ?? inv.metadata?.memberType !== 'support',
+              isShareholder: Boolean(inv.metadata?.isShareholder),
+              isMainContact: Boolean(inv.metadata?.isMainContact),
+              isCurrentMember: inv.metadata?.isCurrentMember !== false,
+              dateLeft: inv.metadata?.dateLeft || ''
             })
           })
         }
@@ -149,12 +197,19 @@ export function ArtistRoyaltySplitsManager() {
               roles: member.roles || [],
               status: 'joined',
               gigRoyaltyShare: member.metadata?.gigRoyaltyShare || 0,
-              merchRoyaltyShare: member.metadata?.merchRoyaltyShare || 0
+              merchRoyaltyShare: member.metadata?.merchRoyaltyShare || 0,
+              memberType: member.metadata?.memberType || 'performer',
+              isPerformer: member.metadata?.isPerformer ?? member.metadata?.memberType !== 'support',
+              isShareholder: Boolean(member.metadata?.isShareholder),
+              isMainContact: Boolean(member.metadata?.isMainContact),
+              isCurrentMember: member.metadata?.isCurrentMember !== false,
+              dateLeft: member.metadata?.dateLeft || ''
             })
           })
         }
         
-        setTeamMembers(ownerMember ? [ownerMember, ...allMembers] : allMembers)
+        const currentMembers = allMembers.filter(member => member.isCurrentMember !== false)
+        setTeamMembers(ownerMember ? [ownerMember, ...currentMembers] : currentMembers)
       } else {
         setTeamMembers(ownerMember ? [ownerMember] : [])
       }
@@ -195,6 +250,41 @@ export function ArtistRoyaltySplitsManager() {
     } else {
       return member.name || 'Unknown'
     }
+  }
+
+  const isPerformerMember = (member: TeamMember) => {
+    return member.isPerformer ?? member.memberType !== 'support'
+  }
+
+  const renderMemberBadges = (member: TeamMember) => (
+    <div className="flex flex-wrap items-center gap-2 mt-1">
+      <span className={cn(
+        "text-xs px-2 py-1 rounded",
+        member.status === 'joined' ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+      )}>
+        {member.status === 'joined' ? 'Joined' : 'Invited'}
+      </span>
+      {member.isProfileOwner ? (
+        <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200">Owner</Badge>
+      ) : null}
+      {isPerformerMember(member) ? (
+        <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200">Performer</Badge>
+      ) : null}
+      {member.memberType === 'support' ? (
+        <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200">Support Crew</Badge>
+      ) : null}
+      {member.isShareholder ? (
+        <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-200">Shareholder</Badge>
+      ) : null}
+      {member.isMainContact ? (
+        <Badge variant="secondary" className="bg-cyan-100 text-cyan-800 border-cyan-200">Main Contact</Badge>
+      ) : null}
+    </div>
+  )
+
+  const goToShareholders = () => {
+    if (typeof window === 'undefined') return
+    window.location.href = '/artist-dashboard?section=crew&subSection=view-shareholders'
   }
 
   const saveMoneySplits = async (splitType: SplitType) => {
@@ -308,12 +398,25 @@ export function ArtistRoyaltySplitsManager() {
       {/* Header */}
       <Card id="artist-royalty-overview" className="scroll-mt-28">
         <CardHeader>
-          <CardTitle className="text-purple-900">Money Splits</CardTitle>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <CardTitle className="text-purple-900">Money Splits</CardTitle>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-fit border-amber-300 text-amber-800 hover:bg-amber-50"
+              onClick={goToShareholders}
+            >
+              Confirm / Update Shareholder Details
+            </Button>
+          </div>
           <p className="text-sm text-gray-600">
             Set the default split of Artist income for gigs and merch. These defaults can use different people and percentages.
           </p>
           <p className="text-sm text-gray-600">
             Ignore other Rights Holders here - this is purely for the Artist-share of income, and how that is divided among Artist Members (and your Artist Support Team, if they get a share).
+          </p>
+          <p className="text-sm font-medium text-gray-700">
+            Only individual people are listed below. The Artist Entity itself is not a default split line item.
           </p>
           <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
             <p className="text-sm text-purple-800">
@@ -364,14 +467,7 @@ export function ArtistRoyaltySplitsManager() {
                       <p className="text-sm text-purple-700">
                         {member.roles.length > 0 ? member.roles.join('; ') : 'No roles assigned'}
                       </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={cn(
-                          "text-xs px-2 py-1 rounded",
-                          member.status === 'joined' ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
-                        )}>
-                          {member.status === 'joined' ? 'Joined' : 'Invited'}
-                        </span>
-                      </div>
+                      {renderMemberBadges(member)}
                     </div>
                     <div className="flex items-center gap-3">
                       <Label className="text-sm font-medium text-purple-700">
@@ -450,14 +546,7 @@ export function ArtistRoyaltySplitsManager() {
                       <p className="text-sm text-purple-700">
                         {member.roles.length > 0 ? member.roles.join('; ') : 'No roles assigned'}
                       </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={cn(
-                          "text-xs px-2 py-1 rounded",
-                          member.status === 'joined' ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
-                        )}>
-                          {member.status === 'joined' ? 'Joined' : 'Invited'}
-                        </span>
-                      </div>
+                      {renderMemberBadges(member)}
                     </div>
                     <div className="flex items-center gap-3">
                       <Label className="text-sm font-medium text-purple-700">

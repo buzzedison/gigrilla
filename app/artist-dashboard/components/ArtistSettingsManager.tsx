@@ -17,6 +17,7 @@ import {
   Waves,
 } from 'lucide-react'
 import { useAuth } from '../../../lib/auth-context'
+import { formatDateDDMMMyyyy } from '../../../lib/date-format'
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
@@ -40,14 +41,7 @@ type FanStatusResponse = {
 }
 
 const formatMemberSince = (value?: string) => {
-  if (!value) return 'Unknown'
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return 'Unknown'
-  return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(parsed)
+  return formatDateDDMMMyyyy(value, 'Unknown')
 }
 
 export function ArtistSettingsManager() {

@@ -456,7 +456,9 @@ export function ArtistAuditionsManager({ initialView = 'published' }: ArtistAudi
       })
 
       if (!response.ok) {
-        throw new Error('Failed to save advert')
+        const errorPayload = await response.json().catch(() => ({}))
+        const details = errorPayload?.details || errorPayload?.error || 'Failed to save advert'
+        throw new Error(String(details))
       }
 
       showNotification('success', targetStatus === 'draft'
@@ -467,7 +469,7 @@ export function ArtistAuditionsManager({ initialView = 'published' }: ArtistAudi
       notifyAdvertCountsChanged()
     } catch (error) {
       console.error('Error saving advert:', error)
-      showNotification('error', 'Failed to save advert')
+      showNotification('error', error instanceof Error ? error.message : 'Failed to save advert')
     } finally {
       setSaving(false)
     }

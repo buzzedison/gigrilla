@@ -5919,22 +5919,16 @@ export function SignUpWizard() {
       </div>
 
       <div className="space-y-6">
-        {/* Artist Details */}
-        <Card className="border-2 border-border/40 shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader className="bg-gradient-to-r from-primary/5 to-transparent pb-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">✨</span>
-              <h4 className="text-lg font-bold text-foreground">Artist Details</h4>
-            </div>
-            <p className="text-xs text-foreground/60 mt-1">Basic information about your artist identity</p>
-          </CardHeader>
-          <CardContent className="space-y-5 pt-6">
+        {/* Artist Basics */}
+        <Card className="border-0 bg-gray-50 shadow-none">
+          <CardContent className="space-y-4 p-4">
+            <h4 className="text-xl font-semibold text-gray-900">Artist Basics</h4>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="stageName" className="font-semibold">
+                <Label htmlFor="stageName" className="block text-sm font-medium text-gray-700">
                   Artist Stage Name <span className="text-red-500">*</span>
                 </Label>
-                <p className="min-h-[1rem] text-xs text-foreground/60">
+                <p className="text-xs leading-5 text-gray-500">
                   This is the name of your band/group/collective entity or your performing name if this Artist only has 1 member.
                 </p>
                 <Input
@@ -5942,15 +5936,36 @@ export function SignUpWizard() {
                   placeholder="The name you perform under..."
                   value={artistProfile.stageName}
                   onChange={(e) => setArtistProfile(prev => ({ ...prev, stageName: e.target.value }))}
-                  className="font-ui h-11 border-2 focus:border-primary"
+                  className="font-ui h-11"
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="artistEntityIsni" className="font-semibold">
-                  Artist Entity ISNI
-                </Label>
-                <p className="min-h-[1rem] text-xs text-foreground/60">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <Label htmlFor="artistEntityIsni" className="block text-sm font-medium text-gray-700">
+                    Artist Entity ISNI (Artist Entity, not Individual, unless the two are one)
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <ISNIHelperModal
+                      initialTab="get"
+                      trigger={
+                        <button type="button" className="text-xs font-medium text-purple-600 hover:underline">
+                          Get an ISNI
+                        </button>
+                      }
+                    />
+                    <span className="text-xs text-gray-300">|</span>
+                    <ISNIHelperModal
+                      initialTab="find"
+                      trigger={
+                        <button type="button" className="text-xs font-medium text-purple-600 hover:underline">
+                          Find an ISNI
+                        </button>
+                      }
+                    />
+                  </div>
+                </div>
+                <p className="text-xs leading-5 text-gray-500">
                   This is the ISNI for your band/group/collective entity or your performing name if this Artist only has 1 member.
                 </p>
                 <Input
@@ -5958,14 +5973,14 @@ export function SignUpWizard() {
                   placeholder="e.g. 0000 0001 2103 2164"
                   value={artistProfile.artistEntityIsni}
                   onChange={(e) => setArtistProfile(prev => ({ ...prev, artistEntityIsni: e.target.value }))}
-                  className="font-mono h-11 border-2 focus:border-primary"
+                  className="font-mono h-11"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="formedDate" className="font-semibold flex items-center gap-2">
+                <Label htmlFor="formedDate" className="flex items-center gap-2 text-sm font-medium text-gray-700">
                   Artist Formed <span className="text-lg">🗓️</span>
                 </Label>
-                <p className="min-h-[1rem] text-xs italic text-foreground/60">
+                <p className="text-xs italic leading-5 text-gray-500">
                   Select the month and year when you started performing together
                 </p>
                 <MonthYearPicker
@@ -5974,8 +5989,8 @@ export function SignUpWizard() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="performingMembers" className="font-semibold">Number of Performers</Label>
-                <p className="min-h-[1rem] text-xs text-transparent select-none" aria-hidden="true">
+                <Label htmlFor="performingMembers" className="block text-sm font-medium text-gray-700">Number of Performers</Label>
+                <p className="text-xs leading-5 text-transparent select-none" aria-hidden="true">
                   It pays to be honest - used for gig stats
                 </p>
                 <Input
@@ -5989,62 +6004,66 @@ export function SignUpWizard() {
                     const parsed = Number.parseInt(e.target.value, 10)
                     setArtistProfile(prev => ({ ...prev, performingMembers: Number.isFinite(parsed) && parsed > 0 ? parsed : 1 }))
                   }}
-                  className="font-ui h-11 border-2 focus:border-primary"
+                  className="font-ui h-11"
                 />
               </div>
-              {artistCapabilities?.needsGigsPerformed && (
-              <div className="space-y-2">
-                <Label htmlFor="publicGigsPerformed" className="font-semibold">Public Gigs Performed Without Gigrilla (Adds to System Gig Count)</Label>
-                <p className="min-h-[1rem] text-xs text-foreground/60">It pays to be honest - used for gig stats</p>
-                <Input
-                  id="publicGigsPerformed"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={artistProfile.publicGigsPerformed}
-                  onChange={(e) => setArtistProfile(prev => ({ ...prev, publicGigsPerformed: parseInt(e.target.value) || 0 }))}
-                  className="font-ui h-11 border-2 focus:border-primary"
-                />
-              </div>
-              )}
-              {artistCapabilities?.hasSessionGigs && (
-              <div className="space-y-2">
-                <Label htmlFor="recordingSessionGigs" className="font-semibold">Recording Session Gigs</Label>
-                <p className="min-h-[1rem] text-xs text-foreground/60">It pays to be honest - used for gig stats</p>
-                <Input
-                  id="recordingSessionGigs"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={artistProfile.recordingSessionGigs}
-                  onChange={(e) => setArtistProfile(prev => ({ ...prev, recordingSessionGigs: parseInt(e.target.value) || 0 }))}
-                  className="font-ui h-11 border-2 focus:border-primary"
-                />
-              </div>
-              )}
-              {artistCapabilities?.hasSongwritingCollaborations && (
-              <div className="space-y-2">
-                <Label htmlFor="songwritingCollaborations" className="font-semibold">Songwriting Collaborations Before Joining Gigrilla</Label>
-                <p className="text-xs text-foreground/60">It pays to be honest - used for stats</p>
-                <Input
-                  id="songwritingCollaborations"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={artistProfile.songwritingCollaborations}
-                  onChange={(e) => setArtistProfile(prev => ({ ...prev, songwritingCollaborations: parseInt(e.target.value) || 0 }))}
-                  className="font-ui h-11 border-2 focus:border-primary"
-                />
-              </div>
-              )}
             </div>
+            {(artistCapabilities?.needsGigsPerformed || artistCapabilities?.hasSessionGigs || artistCapabilities?.hasSongwritingCollaborations) && (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {artistCapabilities?.needsGigsPerformed && (
+                  <div className="space-y-2">
+                    <Label htmlFor="publicGigsPerformed" className="block text-sm font-medium text-gray-700">Public Gigs Performed Without Gigrilla (Adds to System Gig Count)</Label>
+                    <p className="text-xs leading-5 text-gray-500">It pays to be honest - used for gig stats</p>
+                    <Input
+                      id="publicGigsPerformed"
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={artistProfile.publicGigsPerformed}
+                      onChange={(e) => setArtistProfile(prev => ({ ...prev, publicGigsPerformed: parseInt(e.target.value) || 0 }))}
+                      className="font-ui h-11"
+                    />
+                  </div>
+                )}
+                {artistCapabilities?.hasSessionGigs && (
+                  <div className="space-y-2">
+                    <Label htmlFor="recordingSessionGigs" className="block text-sm font-medium text-gray-700">Recording Session Gigs</Label>
+                    <p className="text-xs leading-5 text-gray-500">It pays to be honest - used for gig stats</p>
+                    <Input
+                      id="recordingSessionGigs"
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={artistProfile.recordingSessionGigs}
+                      onChange={(e) => setArtistProfile(prev => ({ ...prev, recordingSessionGigs: parseInt(e.target.value) || 0 }))}
+                      className="font-ui h-11"
+                    />
+                  </div>
+                )}
+                {artistCapabilities?.hasSongwritingCollaborations && (
+                  <div className="space-y-2">
+                    <Label htmlFor="songwritingCollaborations" className="block text-sm font-medium text-gray-700">Collaborations with Other Artists Before Joining Gigrilla</Label>
+                    <p className="text-xs leading-5 text-gray-500">It pays to be honest - used for stats</p>
+                    <Input
+                      id="songwritingCollaborations"
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={artistProfile.songwritingCollaborations}
+                      onChange={(e) => setArtistProfile(prev => ({ ...prev, songwritingCollaborations: parseInt(e.target.value) || 0 }))}
+                      className="font-ui h-11"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
             <div className="space-y-2">
-              <Label htmlFor="baseLocation" className="font-semibold">Artist Hometown</Label>
+              <Label htmlFor="baseLocation" className="block text-sm font-medium text-gray-700">Artist Hometown</Label>
               <LocationAutocompleteInput
                 value={artistProfile.baseLocation}
                 placeholder="Start typing town, city, or postcode…"
                 minQueryLength={2}
-                inputClassName="font-ui h-11 border-2 focus:border-primary"
+                inputClassName="font-ui h-11"
                 onInputChange={(v) =>
                   setArtistProfile(prev => ({ ...prev, baseLocation: v }))
                 }
@@ -6061,7 +6080,7 @@ export function SignUpWizard() {
                   }))
                 }}
               />
-              <p className="text-xs text-foreground/60 italic flex items-start gap-1">
+              <p className="flex items-start gap-1 text-xs italic leading-5 text-gray-500">
                 <span>ℹ️</span>
                 <span>
                   {(() => {
@@ -6304,14 +6323,14 @@ export function SignUpWizard() {
                         className="font-ui"
                       />
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:col-span-2">
                       <Label htmlFor="recordLabelContactPhoneNumber">Record Label Contact Phone</Label>
-                      <div className="flex gap-2">
+                      <div className="grid gap-2">
                         <Select
                           value={getDialCodeChoiceValue(artistProfile.recordLabelContactPhoneCode)}
                           onValueChange={(v) => setArtistProfile(prev => ({ ...prev, recordLabelContactPhoneCode: getDialCodeFromChoiceValue(v) }))}
                         >
-                          <SelectTrigger className="font-ui w-[280px] shrink-0">
+                          <SelectTrigger className="font-ui w-full">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="max-h-80 min-w-[320px]">
@@ -6328,7 +6347,7 @@ export function SignUpWizard() {
                           placeholder="Local number"
                           value={artistProfile.recordLabelContactPhoneNumber}
                           onChange={(e) => setArtistProfile(prev => ({ ...prev, recordLabelContactPhoneNumber: e.target.value }))}
-                          className="font-ui flex-1"
+                          className="font-ui w-full"
                         />
                       </div>
                     </div>
@@ -6438,14 +6457,14 @@ export function SignUpWizard() {
                         className="font-ui"
                       />
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:col-span-2">
                       <Label htmlFor="musicPublisherContactPhoneNumber">Music Publisher Contact Phone</Label>
-                      <div className="flex gap-2">
+                      <div className="grid gap-2">
                         <Select
                           value={getDialCodeChoiceValue(artistProfile.musicPublisherContactPhoneCode)}
                           onValueChange={(v) => setArtistProfile(prev => ({ ...prev, musicPublisherContactPhoneCode: getDialCodeFromChoiceValue(v) }))}
                         >
-                          <SelectTrigger className="font-ui w-[280px] shrink-0">
+                          <SelectTrigger className="font-ui w-full">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="max-h-80 min-w-[320px]">
@@ -6462,7 +6481,7 @@ export function SignUpWizard() {
                           placeholder="Local number"
                           value={artistProfile.musicPublisherContactPhoneNumber}
                           onChange={(e) => setArtistProfile(prev => ({ ...prev, musicPublisherContactPhoneNumber: e.target.value }))}
-                          className="font-ui flex-1"
+                          className="font-ui w-full"
                         />
                       </div>
                     </div>
@@ -6539,14 +6558,14 @@ export function SignUpWizard() {
                         className="font-ui"
                       />
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:col-span-2">
                       <Label htmlFor="artistManagerContactPhoneNumber">Artist Manager Contact Phone</Label>
-                      <div className="flex gap-2">
+                      <div className="grid gap-2">
                         <Select
                           value={getDialCodeChoiceValue(artistProfile.artistManagerContactPhoneCode)}
                           onValueChange={(v) => setArtistProfile(prev => ({ ...prev, artistManagerContactPhoneCode: getDialCodeFromChoiceValue(v) }))}
                         >
-                          <SelectTrigger className="font-ui w-[280px] shrink-0">
+                          <SelectTrigger className="font-ui w-full">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="max-h-80 min-w-[320px]">
@@ -6563,7 +6582,7 @@ export function SignUpWizard() {
                           placeholder="Local number"
                           value={artistProfile.artistManagerContactPhoneNumber}
                           onChange={(e) => setArtistProfile(prev => ({ ...prev, artistManagerContactPhoneNumber: e.target.value }))}
-                          className="font-ui flex-1"
+                          className="font-ui w-full"
                         />
                       </div>
                     </div>
@@ -6640,14 +6659,14 @@ export function SignUpWizard() {
                         className="font-ui"
                       />
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:col-span-2">
                       <Label htmlFor="bookingAgentContactPhoneNumber">Booking Agent Contact Phone</Label>
-                      <div className="flex gap-2">
+                      <div className="grid gap-2">
                         <Select
                           value={getDialCodeChoiceValue(artistProfile.bookingAgentContactPhoneCode)}
                           onValueChange={(v) => setArtistProfile(prev => ({ ...prev, bookingAgentContactPhoneCode: getDialCodeFromChoiceValue(v) }))}
                         >
-                          <SelectTrigger className="font-ui w-[280px] shrink-0">
+                          <SelectTrigger className="font-ui w-full">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="max-h-80 min-w-[320px]">
@@ -6664,7 +6683,7 @@ export function SignUpWizard() {
                           placeholder="Local number"
                           value={artistProfile.bookingAgentContactPhoneNumber}
                           onChange={(e) => setArtistProfile(prev => ({ ...prev, bookingAgentContactPhoneNumber: e.target.value }))}
-                          className="font-ui flex-1"
+                          className="font-ui w-full"
                         />
                       </div>
                     </div>
@@ -6683,7 +6702,7 @@ export function SignUpWizard() {
           <CardHeader className="bg-gradient-to-r from-blue-500/5 to-transparent pb-4">
             <div className="flex items-center gap-2">
               <span className="text-xl">🆔</span>
-              <h4 className="text-lg font-bold text-foreground">Professional Identification</h4>
+              <h4 className="text-lg font-bold text-foreground">Professional Individual Identification</h4>
             </div>
             <p className="text-xs text-foreground/60 mt-1">Industry-standard IDs for proper crediting and royalty payments</p>
           </CardHeader>
@@ -6692,7 +6711,7 @@ export function SignUpWizard() {
             {artistCapabilities.requiresISNI && (
             <div className="space-y-2">
               <Label htmlFor="performerIsni">
-                Artist Performer ISNI <span className="text-red-500">*</span>
+                Artist Performer ISNI (Individual, not Artist Entity, unless the two are one) <span className="text-red-500">*</span>
               </Label>
               <p className="text-xs text-foreground/60 mb-1">
                 ℹ️ This is your Natural Person ISNI, not your Artist Entity ISNI, unless all members operate under one Artist Entity ISNI. Your unique digital ID prevents name confusion, ensures correct crediting, and tracks all your work across platforms.

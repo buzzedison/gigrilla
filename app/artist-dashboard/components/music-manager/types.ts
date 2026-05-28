@@ -350,6 +350,9 @@ export interface TrackData {
   videoUrl: string
   videoUrlConfirmed: boolean
   durationSeconds: number
+  // AI usage
+  aiUsed: boolean
+  aiType: 'wholly-ai' | 'ai-vocals' | 'ai-contributions' | ''
   uploaded: boolean
 }
 
@@ -400,6 +403,8 @@ export const createTrackData = (trackNumber: number): TrackData => ({
   videoUrl: '',
   videoUrlConfirmed: false,
   durationSeconds: 0,
+  aiUsed: false,
+  aiType: '',
   uploaded: false
 })
 

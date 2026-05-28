@@ -9,6 +9,7 @@ import { LocationAutocompleteInput, type LocationSuggestion } from "../../compon
 import { ChevronDown, ChevronUp, Plus, RefreshCw, Save, Rocket, Loader2, Users, MapPin, Globe } from "lucide-react"
 import { getArtistSubTypeLabels } from "../../../lib/artist-subtype-utils"
 import { getArtistTypeConfig } from "../../../data/artist-types"
+import { ISNIHelperModal } from "../../signup/components/ISNIHelperModal"
 
 interface ArtistProfileFormProps {
   onProfileSaved?: () => void
@@ -28,6 +29,8 @@ interface ArtistProfileData {
   hometown_state?: string | null
   hometown_country?: string | null
   gigs_performed?: number | null
+  recording_session_gigs?: number | null
+  songwriting_collaborations?: number | null
   website?: string | null
   facebook_url?: string | null
   instagram_url?: string | null
@@ -51,6 +54,8 @@ interface FormData {
   hometown_state: string
   hometown_country: string
   gigs_performed: string
+  recording_session_gigs: string
+  songwriting_collaborations: string
   website: string
   social_facebook: string
   social_instagram: string
@@ -150,6 +155,8 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
     hometown_state: "",
     hometown_country: "",
     gigs_performed: "",
+    recording_session_gigs: "",
+    songwriting_collaborations: "",
     website: "",
     social_facebook: "",
     social_instagram: "",
@@ -213,6 +220,8 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
           hometown_state: profile.hometown_state ?? locationBits.state,
           hometown_country: profile.hometown_country ?? locationBits.country,
           gigs_performed: profile.gigs_performed ? String(profile.gigs_performed) : "",
+          recording_session_gigs: profile.recording_session_gigs ? String(profile.recording_session_gigs) : "",
+          songwriting_collaborations: profile.songwriting_collaborations ? String(profile.songwriting_collaborations) : "",
           website: profile.website ?? "",
           social_facebook: profile.facebook_url ?? socialLinks.facebook ?? "",
           social_instagram: profile.instagram_url ?? socialLinks.instagram ?? "",
@@ -310,6 +319,8 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
     hometown_state: formData.hometown_state.trim() || null,
     hometown_country: formData.hometown_country.trim() || null,
     gigs_performed: formData.gigs_performed.trim() || null,
+    recording_session_gigs: formData.recording_session_gigs.trim() || null,
+    songwriting_collaborations: formData.songwriting_collaborations.trim() || null,
     website: formData.website.trim() || null,
     facebook_url: formData.social_facebook.trim() || null,
     instagram_url: formData.social_instagram.trim() || null,
@@ -425,6 +436,8 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
         .map(line => line.trim())
         .filter(Boolean)
     : []
+  const selectedArtistTypeConfig = artistTypeId ? getArtistTypeConfig(artistTypeId) : undefined
+  const artistCapabilities = selectedArtistTypeConfig?.capabilities
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100">
@@ -544,7 +557,30 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
             </div>
 
             <div id="artist-entity-isni" className="space-y-2 scroll-mt-28">
-              <label className="block text-sm font-medium text-gray-700">Artist Entity ISNI</label>
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  Artist Entity ISNI (Artist Entity, not Individual, unless the two are one)
+                </label>
+                <div className="flex items-center gap-2">
+                  <ISNIHelperModal
+                    initialTab="get"
+                    trigger={
+                      <button type="button" className="text-xs font-medium text-purple-600 hover:underline">
+                        Get an ISNI
+                      </button>
+                    }
+                  />
+                  <span className="text-xs text-gray-300">|</span>
+                  <ISNIHelperModal
+                    initialTab="find"
+                    trigger={
+                      <button type="button" className="text-xs font-medium text-purple-600 hover:underline">
+                        Find an ISNI
+                      </button>
+                    }
+                  />
+                </div>
+              </div>
               <p className="text-xs leading-5 text-gray-500">
                 This is the ISNI for your band/group/collective entity or your performing name if this Artist only has 1 member.
               </p>
@@ -608,18 +644,45 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
 
           {/* ── Optional: Public Gigs Performed ───────────────────────── */}
           <div id="artist-gig-counter" className="bg-gray-50 rounded-lg p-4 space-y-4 scroll-mt-28">
-            <h2 className="text-xl font-semibold text-gray-900">Public Gigs Performed</h2>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Gigs Performed Without Gigrilla (Adds to System Gig Count)</label>
-              <Input
-                type="number"
-                min="0"
-                step="1"
-                value={formData.gigs_performed}
-                onChange={(e) => handleInputChange('gigs_performed', e.target.value)}
-                placeholder="It pays to be honest…"
-                className="max-w-xs"
-              />
+            <h2 className="text-xl font-semibold text-gray-900">Gig & Collaboration Counters</h2>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Gigs Performed Without Gigrilla (Adds to System Gig Count)</label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formData.gigs_performed}
+                  onChange={(e) => handleInputChange('gigs_performed', e.target.value)}
+                  placeholder="It pays to be honest…"
+                />
+              </div>
+              {artistCapabilities?.hasSessionGigs && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Recording Session Gigs</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={formData.recording_session_gigs}
+                    onChange={(e) => handleInputChange('recording_session_gigs', e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+              )}
+              {artistCapabilities?.hasSongwritingCollaborations && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Collaborations with Other Artists Before Joining Gigrilla</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={formData.songwriting_collaborations}
+                    onChange={(e) => handleInputChange('songwriting_collaborations', e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+              )}
             </div>
           </div>
 
@@ -738,7 +801,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                 className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-8 py-3 rounded-lg font-medium shadow-sm transition-all duration-200 flex items-center gap-2"
               >
                 <Save className="w-4 h-4" />
-                {loading ? 'Saving...' : 'Save Artist Details'}
+                {loading ? 'Saving...' : 'Save Artist Basics'}
               </Button>
               <Button
                 type="button"
@@ -747,7 +810,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                 className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-8 py-3 rounded-lg font-medium shadow-sm transition-all duration-200 flex items-center gap-2"
               >
                 <Rocket className="w-4 h-4" />
-                {loading ? 'Publishing...' : 'Publish Artist Details'}
+                {loading ? 'Publishing...' : 'Publish Artist Basics'}
               </Button>
             </div>
           </div>

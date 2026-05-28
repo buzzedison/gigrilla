@@ -138,8 +138,8 @@ export function FanHeader({ onOpenSidebar, onOpenMessages, unreadMessages = 0 }:
     try {
       // Upload to Cloudflare R2 via API
       const formData = new FormData()
-      formData.append('file', file)
       formData.append('type', 'avatar')
+      formData.append('file', file)
 
       const uploadResponse = await fetch('/api/upload', {
         method: 'POST',
@@ -147,8 +147,14 @@ export function FanHeader({ onOpenSidebar, onOpenMessages, unreadMessages = 0 }:
       })
 
       if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json()
-        throw new Error(errorData.error || 'Upload failed')
+        let errMsg = 'Upload failed'
+        try {
+          const errorData = await uploadResponse.json()
+          errMsg = errorData.error || errMsg
+        } catch {
+          errMsg = `Upload failed (status ${uploadResponse.status}). Please try again.`
+        }
+        throw new Error(errMsg)
       }
 
       const result = await uploadResponse.json()

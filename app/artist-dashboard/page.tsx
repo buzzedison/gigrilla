@@ -34,9 +34,15 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../components/ui/s
 import { Music, Info, Menu, AlertCircle, ArrowRight, CalendarDays, Disc3, FolderKanban, Inbox, LayoutDashboard, BarChart3, Search, Bell, MapPin, Clock3, Radio, ChevronDown, ChevronUp, PlayCircle, CheckCircle2 } from "lucide-react"
 import { getArtistTypeConfig, ArtistTypeCapabilities } from "../../data/artist-types"
 import { normalizeArtistSubTypeSelections } from "../../lib/artist-subtype-utils"
+import { formatDateDDMMMyyyy, formatTimeHHmm } from "../../lib/date-format"
 
 const DESKTOP_SIDEBAR_COLLAPSED_KEY = 'gigrilla-artist-dashboard-sidebar-collapsed:v1'
-const ONBOARDING_DISMISSED_KEY = 'gigrilla-artist-onboarding-dismissed:v1'
+const LEGACY_ONBOARDING_DISMISSED_KEY = 'gigrilla-artist-onboarding-dismissed:v1'
+const ONBOARDING_DISMISSED_KEY_PREFIX = 'gigrilla-artist-onboarding-dismissed:v2'
+
+const getOnboardingDismissedStorageKey = (userId?: string | null) => (
+  userId ? `${ONBOARDING_DISMISSED_KEY_PREFIX}:${userId}` : null
+)
 
 interface ArtistProfileResponse {
   data: {
@@ -145,6 +151,11 @@ type DashboardSection =
   | 'contract'
   | 'settings'
 
+type DashboardDestination = {
+  section: DashboardSection
+  subSection?: string
+}
+
 const DASHBOARD_SECTIONS: DashboardSection[] = [
   'home',
   'profile',
@@ -180,6 +191,27 @@ const DASHBOARD_SECTIONS: DashboardSection[] = [
   'settings',
 ]
 
+const COMPLETION_FLOW_DESTINATIONS: Record<string, DashboardDestination> = {
+  stage_name: { section: 'profile', subSection: 'artist-stage-name' },
+  artist_type: { section: 'type', subSection: 'selector' },
+  artist_sub_types: { section: 'type', subSection: 'selector' },
+  established_date: { section: 'profile', subSection: 'artist-formed' },
+  genres: { section: 'genres', subSection: 'selector' },
+  payments: { section: 'payments', subSection: 'legal-entity' },
+  crew: { section: 'crew', subSection: 'owner' },
+  royalty_splits: { section: 'royalty', subSection: 'splits' },
+  gig_ability: { section: 'gigability', subSection: 'base' },
+  bio: { section: 'bio', subSection: 'editor' },
+  record_label: { section: 'contract', subSection: 'label' },
+  music_publisher: { section: 'contract', subSection: 'publisher' },
+  artist_manager: { section: 'contract', subSection: 'manager' },
+  booking_agent: { section: 'contract', subSection: 'booking' },
+  gig_fee: { section: 'gigability', subSection: 'fees' },
+  logo_artwork: { section: 'logo', subSection: 'logo' },
+  photos: { section: 'photos', subSection: 'gallery' },
+  videos: { section: 'videos', subSection: 'upload' },
+}
+
 function isDashboardSection(value: string | null): value is DashboardSection {
   return Boolean(value && (DASHBOARD_SECTIONS as string[]).includes(value))
 }
@@ -196,7 +228,7 @@ function normalizeDashboardLocation(
     case 'admins':
       return { section: 'crew', subSection: 'manage-team' }
     case 'billing':
-      return { section: 'payments', subSection: 'out' }
+      return { section: 'payments', subSection: 'legal-entity' }
     default:
       return { section: isDashboardSection(section) ? section : null, subSection }
   }
@@ -223,10 +255,7 @@ export default function ArtistDashboard() {
   const [auditionAdvertCounts, setAuditionAdvertCounts] = useState<Record<string, number>>({})
   const [missingArtistSubtype, setMissingArtistSubtype] = useState(false)
   const [isHomeOnboardingOpen, setIsHomeOnboardingOpen] = useState(true)
-  const [isOnboardingPermanentlyDismissed, setIsOnboardingPermanentlyDismissed] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem(ONBOARDING_DISMISSED_KEY) === 'true'
-  })
+  const [isOnboardingPermanentlyDismissed, setIsOnboardingPermanentlyDismissed] = useState(false)
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.localStorage.getItem(DESKTOP_SIDEBAR_COLLAPSED_KEY) === 'true'
@@ -249,6 +278,17 @@ export default function ArtistDashboard() {
     },
   })
   const deepLinkedMessageFolder = searchParams?.get('folder') || null
+  const setupProgress = useMemo(() => {
+    const completedItems = completionState.filter((item) => item.completed).length
+    const totalItems = completionState.length || 18
+    const completionPercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0
+
+    return {
+      completedItems,
+      totalItems,
+      completionPercent
+    }
+  }, [completionState])
   const supportedInboxFolders: Record<string, string> = {
     gig_invites: 'gig_invites',
     gig_requests: 'gig_requests',
@@ -268,6 +308,31 @@ export default function ArtistDashboard() {
     if (typeof window === 'undefined') return
     window.localStorage.setItem(DESKTOP_SIDEBAR_COLLAPSED_KEY, String(isDesktopSidebarCollapsed))
   }, [isDesktopSidebarCollapsed])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const storageKey = getOnboardingDismissedStorageKey(user?.id)
+    if (!storageKey) {
+      setIsOnboardingPermanentlyDismissed(false)
+      return
+    }
+
+    setIsOnboardingPermanentlyDismissed(window.localStorage.getItem(storageKey) === 'true')
+  }, [user?.id])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (completionState.length === 0 || setupProgress.completionPercent === 100) return
+
+    const storageKey = getOnboardingDismissedStorageKey(user?.id)
+    if (storageKey) {
+      window.localStorage.removeItem(storageKey)
+    }
+    window.localStorage.removeItem(LEGACY_ONBOARDING_DISMISSED_KEY)
+    setIsOnboardingPermanentlyDismissed(false)
+    setIsHomeOnboardingOpen(true)
+  }, [completionState.length, setupProgress.completionPercent, user?.id])
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _selectedTypeConfig = useMemo(() => {
@@ -354,14 +419,20 @@ export default function ArtistDashboard() {
     const [section, subSection] = activeSubSectionKey.split(':')
     if (!section || !subSection || section !== activeSection) return
 
-    const targetId = `artist-${section}-${subSection}`
+    const targetIds = [
+      `artist-${section}-${subSection}`,
+      subSection,
+      subSection.startsWith('artist-') ? subSection : `artist-${subSection}`,
+    ]
     let cancelled = false
     let attempts = 0
     let timer: ReturnType<typeof setTimeout> | null = null
 
     const tryScroll = () => {
       if (cancelled) return
-      const target = document.getElementById(targetId)
+      const target = targetIds
+        .map((id) => document.getElementById(id))
+        .find((element): element is HTMLElement => Boolean(element))
       if (target) {
         target.scrollIntoView({ behavior: 'smooth', block: 'start' })
         return
@@ -619,9 +690,32 @@ export default function ArtistDashboard() {
     replaceDashboardQuery(section, { subSection })
     // Scroll to matching element if it exists (used by profile field sub-links)
     setTimeout(() => {
-      const el = document.getElementById(subSection)
+      const targetIds = [
+        `artist-${section}-${subSection}`,
+        subSection,
+        subSection.startsWith('artist-') ? subSection : `artist-${subSection}`,
+      ]
+      const el = targetIds
+        .map((id) => document.getElementById(id))
+        .find((element): element is HTMLElement => Boolean(element))
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 120)
+  }
+
+  const navigateToCompletionItem = (item?: CompletionItemState | null) => {
+    const destination = item ? COMPLETION_FLOW_DESTINATIONS[item.id] : undefined
+
+    if (destination?.subSection) {
+      handleSubSectionChange(destination.section, destination.subSection)
+      return
+    }
+
+    if (destination) {
+      handleSectionChange(destination.section)
+      return
+    }
+
+    handleSubSectionChange('profile', 'details')
   }
 
   const handleArtistTypeChange = async (selection: ArtistTypeSelection) => {
@@ -756,7 +850,7 @@ export default function ArtistDashboard() {
             <p className="max-w-2xl text-sm text-slate-600">{description}</p>
           </div>
           <Badge variant="secondary" className="border-slate-200 bg-slate-100 text-slate-700">
-            {options?.status || 'Screen scaffolded'}
+            {options?.status || 'Coming soon'}
           </Badge>
         </div>
 
@@ -780,25 +874,11 @@ export default function ArtistDashboard() {
   }
 
   const formatHomeDate = (value: string | null | undefined) => {
-    if (!value) return 'TBC'
-    const parsed = new Date(value)
-    if (Number.isNaN(parsed.getTime())) return 'TBC'
-    return new Intl.DateTimeFormat('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    }).format(parsed)
+    return formatDateDDMMMyyyy(value, 'TBC')
   }
 
   const formatHomeTime = (value: string | null | undefined) => {
-    if (!value) return 'Time TBC'
-    const parsed = new Date(value)
-    if (Number.isNaN(parsed.getTime())) return 'Time TBC'
-    return new Intl.DateTimeFormat('en-GB', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).format(parsed)
+    return formatTimeHHmm(value, 'Time TBC')
   }
 
   const formatTrackDuration = (seconds: number | undefined) => {
@@ -815,9 +895,7 @@ export default function ArtistDashboard() {
 
     switch (section) {
       case 'home': {
-        const completedItems = completionState.filter((item) => item.completed).length
-        const totalItems = completionState.length || 18
-        const completionPercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0
+        const { completedItems, totalItems, completionPercent } = setupProgress
         const dashboardMenuColumns: Array<{
           key: string
           eyebrow: string
@@ -835,7 +913,7 @@ export default function ArtistDashboard() {
             items: [
               { label: 'Basics', section: 'profile', subSection: 'details' },
               { label: 'Crew', section: 'crew', subSection: 'owner' },
-              { label: 'Banking', section: 'payments', subSection: 'out' },
+              { label: 'Banking', section: 'payments', subSection: 'legal-members' },
               { label: 'Media', section: 'logo', subSection: 'logo' },
             ],
           },
@@ -976,7 +1054,11 @@ export default function ArtistDashboard() {
         const handleOnboardingCollapse = () => {
           if (completionPercent === 100) {
             // Permanently dismiss when fully complete
-            localStorage.setItem(ONBOARDING_DISMISSED_KEY, 'true')
+            const storageKey = getOnboardingDismissedStorageKey(user?.id)
+            if (storageKey) {
+              localStorage.setItem(storageKey, 'true')
+            }
+            localStorage.removeItem(LEGACY_ONBOARDING_DISMISSED_KEY)
             setIsOnboardingPermanentlyDismissed(true)
           } else {
             setIsHomeOnboardingOpen((prev) => !prev)
@@ -1017,6 +1099,21 @@ export default function ArtistDashboard() {
                   </div>
                 </button>
 
+                {!isHomeOnboardingOpen && completionPercent < 100 && (
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] border border-white/40 bg-white/35 px-4 py-3">
+                    <div className="text-sm font-semibold text-[#3d4f6a]">
+                      {completedItems} of {totalItems} setup items completed
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigateToCompletionItem(completionState.find((item) => !item.completed))}
+                      className="rounded-full bg-[#3b1b4d] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#30163f]"
+                    >
+                      Continue setup
+                    </button>
+                  </div>
+                )}
+
                 {isHomeOnboardingOpen && (
                   <div className="mt-5 rounded-[1.5rem] border border-white/45 bg-[linear-gradient(180deg,_rgba(253,249,254,0.82),_rgba(248,241,251,0.78))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
                     <div className="flex flex-wrap items-center justify-between gap-4">
@@ -1026,7 +1123,7 @@ export default function ArtistDashboard() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => router.push('/signup?onboarding=artist')}
+                        onClick={() => navigateToCompletionItem(completionState.find((item) => !item.completed))}
                         className="rounded-full bg-[#3b1b4d] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#30163f]"
                       >
                         Continue setup
@@ -1312,6 +1409,10 @@ export default function ArtistDashboard() {
         return renderWithCompletion(<ArtistPhotosManager mode="photos" />)
       case 'videos':
         return renderWithCompletion(<ArtistVideosManager />)
+      case 'profile':
+        return renderWithCompletion(
+          <ArtistProfileForm onProfileSaved={() => setCompletionRefreshKey(prev => prev + 1)} />
+        )
       case 'type':
         return renderWithCompletion(
           <div className="space-y-4">
@@ -1389,9 +1490,9 @@ export default function ArtistDashboard() {
                 ? renderWithCompletion(<ArtistGigCalendarManager defaultView="past" />)
                 : renderScaffoldSection(
                     'Gig Bookings',
-                    'This menu branch is scaffolded so you can create dedicated screens for booking-system gigs, draft gigs, and scheduled-hidden gigs without dead menu links.',
+                    'This view is being prepared for booking-system gigs, draft gigs, and scheduled-hidden gigs. Use Upcoming Gigs for active bookings today.',
                     {
-                      status: currentSubSection ? `Sub-section: ${currentSubSection}` : 'Scaffold ready',
+                      status: currentSubSection ? `View: ${currentSubSection.replace(/[-_]/g, ' ')}` : 'Coming soon',
                       nextAction: { label: 'Open Upcoming Gigs', section: 'gig-bookings', subSection: 'upcoming' }
                     }
                   )
@@ -1498,7 +1599,7 @@ export default function ArtistDashboard() {
         return renderGuardedSection('music-statistics', (
           renderScaffoldSection(
             'Music Statistics',
-            'This area is ready for dedicated stream, download, and earnings dashboards. The navigation tree is in place so those analytic screens can now be built under stable URLs.'
+            'Stream, download, and earnings dashboards will appear here once analytics are connected.'
           )
         ))
       case 'music-upload':
@@ -1538,9 +1639,9 @@ export default function ArtistDashboard() {
         if (selectedMessageFolder && !inboxFolderId) {
           return renderScaffoldSection(
             'Message Folder',
-            'This message folder is scaffolded so a dedicated screen can be created for that conversation type. The core inbox folders already live under Gig Invites, Gig Requests, Venue Messages, and System Messages.',
+            'This message folder is not available yet. Use the live inbox folders for gig invites, gig requests, confirmations, and user messages.',
             {
-              status: `Folder: ${selectedMessageFolder}`
+              status: 'Folder unavailable'
             }
           )
         }

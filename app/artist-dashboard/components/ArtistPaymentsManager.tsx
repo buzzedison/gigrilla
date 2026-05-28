@@ -10,7 +10,7 @@ import { Checkbox } from '../../components/ui/checkbox'
 import { Badge } from '../../components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
 import { useAuth } from '../../../lib/auth-context'
-import { CreditCard, Building2, CheckCircle, X, ShieldCheck, Users2, WalletCards, ArrowDownCircle, ArrowUpCircle, ChevronDown, ChevronUp, Landmark, Pencil, UserPlus } from 'lucide-react'
+import { CreditCard, Building2, CheckCircle, X, ShieldCheck, Users2, WalletCards, ArrowDownCircle, ArrowUpCircle, ChevronDown, ChevronUp, Landmark, UserPlus } from 'lucide-react'
 import { COUNTRY_DIAL_CODE_CHOICES, DEFAULT_COUNTRY_DIAL_CODE, getDialCodeChoiceValue, getDialCodeFromChoiceValue } from '../../../lib/country-dial-codes'
 import { getCountryOptions } from '../../../lib/country-list'
 import { cn } from '../../../lib/utils'
@@ -60,6 +60,12 @@ const ENTITY_TYPES = [
 type EntityType = typeof ENTITY_TYPES[number]
 
 type PaymentMethod = 'direct_debit' | 'card'
+type LegalMemberConfirmation = {
+  confirmed?: boolean
+  confirmed_at?: string
+  confirmed_by?: string
+}
+type LegalMemberConfirmations = Record<string, LegalMemberConfirmation>
 
 interface PaymentDetails {
   official_ids_acknowledged?: boolean
@@ -101,6 +107,7 @@ interface PaymentDetails {
   payment_in_card_number?: string
   payment_in_card_expiry?: string
   payment_in_card_cvv?: string
+  legal_member_confirmations?: LegalMemberConfirmations
 }
 
 interface LegalMember {
@@ -113,6 +120,7 @@ interface LegalMember {
     lastName?: string
     nickname?: string
     memberType?: 'performer' | 'support'
+    isPerformer?: boolean
     performerIsni?: string
     performerIpn?: string
     creatorIpiCae?: string
@@ -181,10 +189,48 @@ const DEFAULT_PAYMENT_DETAILS: PaymentDetails = {
   payment_in_card_name: '',
   payment_in_card_number: '',
   payment_in_card_expiry: '',
-  payment_in_card_cvv: ''
+  payment_in_card_cvv: '',
+  legal_member_confirmations: {}
 }
 
 const corporateEntityTypes: EntityType[] = ['Incorporated Company', 'Incorporated Partnership']
+const OFFICIAL_NOTICE_OPEN_KEY = 'gigrilla-artist-banking-official-notice-open:v1'
+const PAYMENT_FLOWS_OPEN_KEY = 'gigrilla-artist-banking-payment-flows-open:v1'
+
+const readStoredBoolean = (key: string, fallback: boolean) => {
+  if (typeof window === 'undefined') return fallback
+  const value = window.localStorage.getItem(key)
+  if (value === null) return fallback
+  return value === 'true'
+}
+
+const writeStoredBoolean = (key: string, value: boolean) => {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(key, String(value))
+}
+
+const normalizeLegalMemberConfirmations = (value: unknown): LegalMemberConfirmations => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const confirmations: LegalMemberConfirmations = {}
+
+  Object.entries(value as Record<string, unknown>).forEach(([memberId, rawConfirmation]) => {
+    if (!memberId.trim()) return
+    if (rawConfirmation === true) {
+      confirmations[memberId] = { confirmed: true }
+      return
+    }
+    if (!rawConfirmation || typeof rawConfirmation !== 'object' || Array.isArray(rawConfirmation)) return
+    const confirmation = rawConfirmation as Record<string, unknown>
+    if (confirmation.confirmed !== true) return
+    confirmations[memberId] = {
+      confirmed: true,
+      confirmed_at: typeof confirmation.confirmed_at === 'string' ? confirmation.confirmed_at : undefined,
+      confirmed_by: typeof confirmation.confirmed_by === 'string' ? confirmation.confirmed_by : undefined
+    }
+  })
+
+  return confirmations
+}
 
 const titleCaseToken = (value: string) =>
   value
@@ -218,13 +264,14 @@ export function ArtistPaymentsManager() {
   const [artistStageName, setArtistStageName] = useState('')
   const [legalMembers, setLegalMembers] = useState<LegalMember[]>([])
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [savingSection, setSavingSection] = useState<string | null>(null)
   const [notification, setNotification] = useState<Notification | null>(null)
   const [officialNoticeOpen, setOfficialNoticeOpen] = useState(true)
   const [paymentFlowsOpen, setPaymentFlowsOpen] = useState(true)
   const [legalEntityErrors, setLegalEntityErrors] = useState<LegalEntityErrors>({})
   const [dbTaxProfile, setDbTaxProfile] = useState<CountryTaxIdRow | null>(null)
   const [loadingTaxProfile, setLoadingTaxProfile] = useState(false)
+  const saving = savingSection !== null
 
   useEffect(() => {
     loadPaymentDetails()
@@ -265,7 +312,10 @@ export function ArtistPaymentsManager() {
         setArtistStageName(result.artistProfile.stage_name)
       }
 
-      setLegalMembers((result.legalMembers ?? []).filter((member: LegalMember) => member.metadata?.memberType !== 'support'))
+      setLegalMembers((result.legalMembers ?? []).filter((member: LegalMember) => {
+        const metadata = member.metadata ?? {}
+        return metadata.memberType !== 'support' || metadata.isPerformer || metadata.isShareholder
+      }))
 
       if (result.data) {
         const data = result.data as Record<string, unknown>
@@ -309,10 +359,13 @@ export function ArtistPaymentsManager() {
           payment_in_card_name: (data.payment_in_card_name as string | null) ?? '',
           payment_in_card_number: (data.payment_in_card_number as string | null) ?? '',
           payment_in_card_expiry: (data.payment_in_card_expiry as string | null) ?? '',
-          payment_in_card_cvv: (data.payment_in_card_cvv as string | null) ?? ''
+          payment_in_card_cvv: (data.payment_in_card_cvv as string | null) ?? '',
+          legal_member_confirmations: normalizeLegalMemberConfirmations(data.legal_member_confirmations)
         })
-        setOfficialNoticeOpen(!data.official_ids_acknowledged)
-        setPaymentFlowsOpen(!data.payment_flows_acknowledged)
+        const officialIdsAcknowledged = Boolean(data.official_ids_acknowledged)
+        const paymentFlowsAcknowledged = Boolean(data.payment_flows_acknowledged)
+        setOfficialNoticeOpen(!officialIdsAcknowledged || readStoredBoolean(OFFICIAL_NOTICE_OPEN_KEY, false))
+        setPaymentFlowsOpen(!paymentFlowsAcknowledged || readStoredBoolean(PAYMENT_FLOWS_OPEN_KEY, false))
       } else {
         setPaymentDetails(DEFAULT_PAYMENT_DETAILS)
         setOfficialNoticeOpen(true)
@@ -326,19 +379,62 @@ export function ArtistPaymentsManager() {
     }
   }
 
-  const handleSave = async () => {
-    try {
-      const errors = validateLegalEntityDetails()
-      setLegalEntityErrors(errors)
+  const updateOfficialNoticeOpen = (value: boolean | ((previous: boolean) => boolean)) => {
+    setOfficialNoticeOpen(previous => {
+      const next = typeof value === 'function' ? value(previous) : value
+      writeStoredBoolean(OFFICIAL_NOTICE_OPEN_KEY, next)
+      return next
+    })
+  }
 
-      if (Object.keys(errors).length > 0) {
-        const firstError = Object.values(errors)[0] || 'Complete Artist Legal Entity before saving'
-        showNotification('error', firstError)
-        return
+  const updatePaymentFlowsOpen = (value: boolean | ((previous: boolean) => boolean)) => {
+    setPaymentFlowsOpen(previous => {
+      const next = typeof value === 'function' ? value(previous) : value
+      writeStoredBoolean(PAYMENT_FLOWS_OPEN_KEY, next)
+      return next
+    })
+  }
+
+  const confirmLegalMember = (memberId: string) => {
+    const nextDetails = {
+      ...paymentDetails,
+      legal_member_confirmations: {
+        ...(paymentDetails.legal_member_confirmations ?? {}),
+        [memberId]: {
+          confirmed: true,
+          confirmed_at: new Date().toISOString()
+        }
+      }
+    }
+
+    setPaymentDetails(nextDetails)
+    void handleSave('Legal member confirmation', {
+      validateLegalEntity: false,
+      collapseAcknowledgedNotices: false,
+      detailsOverride: nextDetails
+    })
+  }
+
+  const handleSave = async (
+    sectionLabel = 'Artist Banking details',
+    options: { validateLegalEntity?: boolean; collapseAcknowledgedNotices?: boolean; detailsOverride?: PaymentDetails } = {}
+  ) => {
+    try {
+      const detailsToSave = options.detailsOverride ?? paymentDetails
+
+      if (options.validateLegalEntity ?? true) {
+        const errors = validateLegalEntityDetails(detailsToSave)
+        setLegalEntityErrors(errors)
+
+        if (Object.keys(errors).length > 0) {
+          const firstError = Object.values(errors)[0] || 'Complete Artist Legal Entity before saving'
+          showNotification('error', firstError)
+          return
+        }
       }
 
-      setSaving(true)
-      const payload = buildPaymentPayload()
+      setSavingSection(sectionLabel)
+      const payload = buildPaymentPayload(detailsToSave)
       const response = await fetch('/api/artist-payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -351,9 +447,19 @@ export function ArtistPaymentsManager() {
         throw new Error(details)
       }
 
-      showNotification('success', 'Artist Banking details saved successfully')
-      setOfficialNoticeOpen(!paymentDetails.official_ids_acknowledged)
-      setPaymentFlowsOpen(!paymentDetails.payment_flows_acknowledged)
+      showNotification('success', `${sectionLabel} saved successfully`)
+      if (result?.data && typeof result.data === 'object' && 'legal_member_confirmations' in result.data) {
+        setPaymentDetails(prev => ({
+          ...prev,
+          legal_member_confirmations: normalizeLegalMemberConfirmations(result.data.legal_member_confirmations)
+        }))
+      }
+      if (options.collapseAcknowledgedNotices !== false) {
+        const nextOfficialOpen = !detailsToSave.official_ids_acknowledged
+        const nextPaymentFlowsOpen = !detailsToSave.payment_flows_acknowledged
+        updateOfficialNoticeOpen(nextOfficialOpen)
+        updatePaymentFlowsOpen(nextPaymentFlowsOpen)
+      }
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source: 'payments' } }))
       }
@@ -361,7 +467,7 @@ export function ArtistPaymentsManager() {
       console.error('Error saving payment details:', error)
       showNotification('error', error instanceof Error ? error.message : 'Failed to save Artist Banking details')
     } finally {
-      setSaving(false)
+      setSavingSection(null)
     }
   }
 
@@ -398,11 +504,16 @@ export function ArtistPaymentsManager() {
       : null
   const currentMembers = legalMembers.filter(member => member.metadata?.isCurrentMember !== false)
   const previousMembers = legalMembers.filter(member => member.metadata?.isCurrentMember === false)
+  const confirmedLegalMemberIds = Object.entries(paymentDetails.legal_member_confirmations ?? {})
+    .filter(([, confirmation]) => confirmation.confirmed === true)
+    .map(([memberId]) => memberId)
 
-  function buildPaymentPayload(): PaymentDetails {
-    const payload = { ...paymentDetails }
+  function buildPaymentPayload(details = paymentDetails): PaymentDetails {
+    const payload = { ...details }
+    const payloadEntityType = details.entity_type || ''
+    const payloadIsCorporate = corporateEntityTypes.includes(payloadEntityType as EntityType)
 
-    if (isCorporateEntity) {
+    if (payloadIsCorporate) {
       payload.country_of_tax_residence = ''
       payload.legal_entity_date_of_birth = ''
     } else {
@@ -496,12 +607,51 @@ export function ArtistPaymentsManager() {
         </div>
       )}
 
+      <Card id="artist-payments-preference" className="scroll-mt-28 border-emerald-200 bg-emerald-50/40">
+        <CardHeader>
+          <CardTitle className="flex flex-wrap items-center gap-2 text-emerald-950">
+            <Badge className="bg-emerald-600 text-white border-emerald-700">Step 1</Badge>
+            Use Fan Banking Details?
+          </CardTitle>
+          <p className="text-sm text-emerald-900">
+            Choose this first. If you use your Fan Profile banking details, Artist Money In and Money Out forms stay hidden.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <RadioGroup value={paymentDetails.use_fan_banking ? 'same' : 'different'} onValueChange={(value) => updatePaymentDetails('use_fan_banking', value === 'same')}>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="same" id="same-banking" />
+              <Label htmlFor="same-banking" className="font-normal cursor-pointer">Use the same Banking Details as Fan Profile for Artist Profile</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="different" id="different-banking" />
+              <Label htmlFor="different-banking" className="font-normal cursor-pointer">Use different Banking Details for Artist Profile</Label>
+            </div>
+          </RadioGroup>
+          {paymentDetails.use_fan_banking && (
+            <div className="rounded-lg border border-emerald-200 bg-white p-3 text-sm text-emerald-900">
+              Money In and Money Out are hidden because this Artist Profile will use your Fan Profile banking details.
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              onClick={() => handleSave('Banking preference', { validateLegalEntity: false, collapseAcknowledgedNotices: false })}
+              disabled={saving}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {savingSection === 'Banking preference' ? 'Saving...' : 'Save Step 1'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card id="artist-banking-official-ids" className="scroll-mt-28 border-amber-200 bg-amber-50/50">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center justify-between gap-3 text-amber-950">
             <span className="flex items-center gap-2"><ShieldCheck className="w-5 h-5" /> Official ID Numbers</span>
             {paymentDetails.official_ids_acknowledged && (
-              <Button variant="outline" size="sm" onClick={() => setOfficialNoticeOpen(prev => !prev)}>
+              <Button variant="outline" size="sm" onClick={() => updateOfficialNoticeOpen(prev => !prev)}>
                 {officialNoticeOpen ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
                 {officialNoticeOpen ? 'Hide' : 'Review'}
               </Button>
@@ -520,6 +670,16 @@ export function ArtistPaymentsManager() {
               />
               <span>I confirm that I have read and understood the Official ID Numbers notification.</span>
             </label>
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                onClick={() => handleSave('Official ID acknowledgement', { validateLegalEntity: false })}
+                disabled={saving}
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                {savingSection === 'Official ID acknowledgement' ? 'Saving...' : 'Save Official ID Section'}
+              </Button>
+            </div>
           </CardContent>
         )}
       </Card>
@@ -529,7 +689,7 @@ export function ArtistPaymentsManager() {
           <CardTitle className="flex items-center justify-between gap-3 text-blue-950">
             <span className="flex items-center gap-2"><WalletCards className="w-5 h-5" /> Payment Flows</span>
             {paymentDetails.payment_flows_acknowledged && (
-              <Button variant="outline" size="sm" onClick={() => setPaymentFlowsOpen(prev => !prev)}>
+              <Button variant="outline" size="sm" onClick={() => updatePaymentFlowsOpen(prev => !prev)}>
                 {paymentFlowsOpen ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
                 {paymentFlowsOpen ? 'Hide' : 'Review'}
               </Button>
@@ -552,6 +712,16 @@ export function ArtistPaymentsManager() {
               />
               <span>I confirm that I have read and understood the Payment Flows notification.</span>
             </label>
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                onClick={() => handleSave('Payment flows acknowledgement', { validateLegalEntity: false })}
+                disabled={saving}
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                {savingSection === 'Payment flows acknowledgement' ? 'Saving...' : 'Save Payment Flows'}
+              </Button>
+            </div>
           </CardContent>
         )}
       </Card>
@@ -700,7 +870,7 @@ export function ArtistPaymentsManager() {
                   <div className="space-y-2">
                     <Label>Company Formation Date</Label>
                     <Input type="date" value={paymentDetails.company_formation_date} onChange={(event) => updatePaymentDetails('company_formation_date', event.target.value)} className={legalEntityErrors.company_formation_date ? 'border-red-400' : undefined} />
-                    <p className="text-xs text-gray-500">Use DD/MMM/YYYY when reading this back in documents.</p>
+                    <p className="text-xs text-gray-500">Use DD MMM YYYY when reading this back in documents.</p>
                     {legalEntityErrors.company_formation_date && <p className="text-xs text-red-600">{legalEntityErrors.company_formation_date}</p>}
                   </div>
                 </div>
@@ -708,12 +878,22 @@ export function ArtistPaymentsManager() {
                 <div className="space-y-2 pt-2">
                   <Label>Your Date of Birth</Label>
                   <Input type="date" value={paymentDetails.legal_entity_date_of_birth} onChange={(event) => updatePaymentDetails('legal_entity_date_of_birth', event.target.value)} className={legalEntityErrors.legal_entity_date_of_birth ? 'border-red-400' : undefined} />
-                  <p className="text-xs text-gray-500">Use DD/MMM/YYYY when reading this back in documents.</p>
+                  <p className="text-xs text-gray-500">Use DD MMM YYYY when reading this back in documents.</p>
                   {legalEntityErrors.legal_entity_date_of_birth && <p className="text-xs text-red-600">{legalEntityErrors.legal_entity_date_of_birth}</p>}
                 </div>
               )}
               </>
             )}
+            <div className="flex justify-end border-t border-purple-100 pt-4">
+              <Button
+                type="button"
+                onClick={() => handleSave('Legal entity')}
+                disabled={saving}
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                {savingSection === 'Legal entity' ? 'Saving...' : 'Save Legal Entity'}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -731,15 +911,22 @@ export function ArtistPaymentsManager() {
             title="Current Artist Members & IDs"
             members={currentMembers}
             emptyText="No current performer members have been added yet."
+            confirmedMemberIds={confirmedLegalMemberIds}
+            onConfirmMember={confirmLegalMember}
             footer={
               <div className="flex flex-wrap gap-3 border-t border-gray-100 pt-4 mt-2">
-                <Button variant="outline" size="sm" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=owner'}>
-                  <Pencil className="w-4 h-4" />
-                  Confirm / Update Shareholder Details
-                </Button>
                 <Button size="sm" className="bg-purple-600 text-white hover:bg-purple-700" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=add-members'}>
                   <UserPlus className="w-4 h-4" />
                   Add a New Artist Shareholder
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleSave('Legal members', { validateLegalEntity: false, collapseAcknowledgedNotices: false })}
+                  disabled={saving}
+                >
+                  {savingSection === 'Legal members' ? 'Saving...' : 'Save Legal Members'}
                 </Button>
               </div>
             }
@@ -749,6 +936,8 @@ export function ArtistPaymentsManager() {
             members={previousMembers}
             emptyText="No previous performer members have been recorded yet."
             previous
+            confirmedMemberIds={confirmedLegalMemberIds}
+            onConfirmMember={confirmLegalMember}
             footer={
               <div className="border-t border-gray-100 pt-4 mt-2">
                 <Button variant="outline" size="sm" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=add-members'}>
@@ -783,6 +972,8 @@ export function ArtistPaymentsManager() {
               cardCvv: paymentDetails.payment_in_card_cvv || ''
             }}
             onFieldChange={(field, value) => updatePaymentDetails(`payment_in_${field}` as keyof PaymentDetails, value as never)}
+            onSave={() => handleSave('Money In', { validateLegalEntity: false, collapseAcknowledgedNotices: false })}
+            saving={savingSection === 'Money In'}
           />
           <BankingSection
             id="artist-payments-out"
@@ -802,29 +993,15 @@ export function ArtistPaymentsManager() {
               cardCvv: paymentDetails.payment_out_card_cvv || ''
             }}
             onFieldChange={(field, value) => updatePaymentDetails(`payment_out_${field}` as keyof PaymentDetails, value as never)}
+            onSave={() => handleSave('Money Out', { validateLegalEntity: false, collapseAcknowledgedNotices: false })}
+            saving={savingSection === 'Money Out'}
           />
         </>
       )}
 
-      <Card id="artist-payments-preference" className="scroll-mt-28">
-        <CardContent className="p-5 space-y-4">
-          <Label className="text-base font-medium">Should we use the same Banking Details for this Artist Profile payments as your Fan Profile?</Label>
-          <RadioGroup value={paymentDetails.use_fan_banking ? 'same' : 'different'} onValueChange={(value) => updatePaymentDetails('use_fan_banking', value === 'same')}>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="same" id="same-banking" />
-              <Label htmlFor="same-banking" className="font-normal cursor-pointer">Use the same Banking Details as Fan Profile for Artist Profile</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="different" id="different-banking" />
-              <Label htmlFor="different-banking" className="font-normal cursor-pointer">Use different Banking Details for Artist Profile</Label>
-            </div>
-          </RadioGroup>
-        </CardContent>
-      </Card>
-
       <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={saving} className="bg-purple-600 hover:bg-purple-700 text-white">
-          {saving ? 'Saving...' : 'Save Artist Banking Details'}
+        <Button onClick={() => handleSave()} disabled={saving} className="bg-purple-600 hover:bg-purple-700 text-white">
+          {savingSection === 'Artist Banking details' ? 'Saving...' : 'Save All Artist Banking Details'}
         </Button>
       </div>
     </div>
@@ -889,13 +1066,15 @@ function RoleChips({ roles, empty = 'None' }: { roles: string[]; empty?: string 
 }
 
 function LegalMemberSection({
-  title, members, emptyText, previous = false, footer
+  title, members, emptyText, previous = false, footer, confirmedMemberIds = [], onConfirmMember
 }: {
   title: string
   members: LegalMember[]
   emptyText: string
   previous?: boolean
   footer?: React.ReactNode
+  confirmedMemberIds?: string[]
+  onConfirmMember?: (memberId: string) => void
 }) {
   return (
     <div className="space-y-3">
@@ -913,6 +1092,7 @@ function LegalMemberSection({
             const metadata = member.metadata ?? {}
             const displayName = [metadata.firstName, metadata.nickname ? `"${metadata.nickname}"` : '', metadata.lastName].filter(Boolean).join(' ') || member.name || member.email || 'Unnamed performer'
             const { performer: performerRoles, support: supportRoles } = splitRoles(member.roles)
+            const isConfirmed = confirmedMemberIds.includes(member.id)
             return (
               <div key={member.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                 {/* Header: name + status badges */}
@@ -923,9 +1103,12 @@ function LegalMemberSection({
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge className={previous ? 'border-gray-200 bg-gray-100 text-gray-700' : 'border-teal-200 bg-teal-100 text-teal-800'}>{previous ? 'Previous' : 'Current'}</Badge>
+                    {metadata.isPerformer && <Badge className="border-purple-200 bg-purple-50 text-purple-800">Performer</Badge>}
+                    {metadata.memberType === 'support' && <Badge className="border-blue-200 bg-blue-50 text-blue-800">Support Crew</Badge>}
                     {metadata.isShareholder && <Badge className="border-green-200 bg-green-50 text-green-800">Shareholder</Badge>}
                     {metadata.isMainContact && <Badge className="border-blue-200 bg-blue-50 text-blue-800">Main Contact</Badge>}
                     {metadata.isAdmin && <Badge className="border-purple-200 bg-purple-50 text-purple-800">Admin</Badge>}
+                    {isConfirmed && <Badge className="border-emerald-200 bg-emerald-50 text-emerald-800">Confirmed in Banking</Badge>}
                   </div>
                 </div>
 
@@ -948,11 +1131,22 @@ function LegalMemberSection({
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Support Roles</p>
                     <RoleChips roles={supportRoles} empty="No support roles assigned" />
                   </div>
-                  <div className="flex justify-end pt-1">
-                    <Button variant="outline" size="sm" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=owner'}>
-                      <Pencil className="w-4 h-4" />
-                      {previous ? 'Reinstate' : 'Update'}
-                    </Button>
+                  <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 p-3 text-sm text-emerald-950">
+                    Review this member’s shareholder, main contact, role, and ID details here. Use the button below to confirm the details inline for Artist Banking.
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2 pt-1">
+                    {onConfirmMember && (
+                      <Button
+                        type="button"
+                        variant={isConfirmed ? 'outline' : 'default'}
+                        size="sm"
+                        className={isConfirmed ? 'border-emerald-200 bg-white text-emerald-800' : 'bg-emerald-600 text-white hover:bg-emerald-700'}
+                        onClick={() => onConfirmMember(member.id)}
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        {isConfirmed ? 'Confirmed' : previous ? 'Confirm Previous Details' : 'Confirm Details'}
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -984,7 +1178,9 @@ function BankingSection({
   fields,
   onFieldChange,
   sameAsOut,
-  onSameAsOutChange
+  onSameAsOutChange,
+  onSave,
+  saving = false
 }: {
   id: string
   title: string
@@ -996,6 +1192,8 @@ function BankingSection({
   onFieldChange: (field: string, value: string) => void
   sameAsOut?: boolean
   onSameAsOutChange?: (value: boolean) => void
+  onSave?: () => void
+  saving?: boolean
 }) {
   const isDisabled = sameAsOut === true
   return (
@@ -1047,6 +1245,13 @@ function BankingSection({
               </div>
             )}
           </>
+        )}
+        {onSave && (
+          <div className="flex justify-end border-t border-gray-100 pt-4">
+            <Button type="button" onClick={onSave} disabled={saving} className="bg-purple-600 hover:bg-purple-700 text-white">
+              {saving ? `Saving ${title}...` : `Save ${title}`}
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>
