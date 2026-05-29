@@ -157,6 +157,12 @@ interface TrackUploadSectionProps {
 }
 
 const TRACK_UPLOAD_INTRO_COLLAPSED_STORAGE_KEY = 'artist-music-manager:track-upload-intro-collapsed:v1'
+const API_UPLOAD_FALLBACK_MAX_BYTES = 4 * 1024 * 1024
+
+const getDirectUploadBlockedMessage = (file: File) => {
+  const sizeMb = (file.size / (1024 * 1024)).toFixed(1)
+  return `Direct storage upload is blocked by the R2 CORS policy, and this ${sizeMb}MB file is too large for the app server fallback. Cloudflare R2 must allow PUT uploads from this website before production music uploads can work.`
+}
 
 // Audio file validation
 const validateAudioFile = (file: File): { valid: boolean; error?: string } => {
@@ -595,7 +601,7 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
     if (xhr.status === 413 || /payload too large/i.test(rawText)) {
       return {
         success: false,
-        error: 'Upload failed before Gigrilla could process the file. The file is still only selected locally and has not been uploaded.'
+        error: 'This file is too large for the app server fallback. Configure Cloudflare R2 CORS so direct browser uploads can complete.'
       }
     }
 
@@ -714,6 +720,9 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
 
       return publicUrl
     } catch (error) {
+      if (file.size > API_UPLOAD_FALLBACK_MAX_BYTES) {
+        throw new Error(getDirectUploadBlockedMessage(file))
+      }
       console.warn('Direct R2 upload failed; retrying through API upload route.', error)
       return uploadThroughApi(type, file, entityId)
     }
@@ -805,6 +814,9 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
           xhr.send(file)
         })
       } catch (directUploadError) {
+        if (file.size > API_UPLOAD_FALLBACK_MAX_BYTES) {
+          throw new Error(getDirectUploadBlockedMessage(file))
+        }
         console.warn('Direct R2 audio upload failed; retrying through API upload route.', directUploadError)
         setUploadProgress(prev => ({ ...prev, [index]: 0 }))
         directUrl = await uploadThroughApi('track-audio', file, releaseId, (percent) => {
