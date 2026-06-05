@@ -10,6 +10,19 @@ import dynamic from 'next/dynamic'
 import { DrawingControls } from './DrawingControls'
 import { getCountryOptions } from '../../../lib/country-list'
 
+// Dynamically import WorldChoroplethMap to avoid SSR issues
+const WorldChoroplethMap = dynamic(
+  () => import('./WorldChoroplethMap').then((m) => m.WorldChoroplethMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-48 items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
+        <span className="text-sm text-slate-500">Loading map…</span>
+      </div>
+    ),
+  }
+)
+
 // Dynamically import map components to avoid SSR issues
 const MapContainer = dynamic(
   () => import('react-leaflet').then((mod) => mod.MapContainer),
@@ -397,7 +410,7 @@ export function GigAbilityMap({
       {mode === 'polygon' && (
         <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
           <span className="text-sm text-green-800">
-            ✏️ Click the drawing tools on the map to draw your custom gig zone. Use the polygon tool to create your coverage area.
+            ✏️ Draw-a-Zone is selected. Click the map to start your custom area, add points around the zone, then press Finish.
           </span>
         </div>
       )}
@@ -536,8 +549,16 @@ export function GigAbilityMap({
         </div>
       )}
 
+      {/* Country choropleth — shown when countries are selected */}
+      {allowCountrySelection && mode === 'country' && selectedCountries.length > 0 && (
+        <WorldChoroplethMap
+          selectedCodes={selectedCountries}
+          label="Coverage Map — Selected Countries Highlighted"
+        />
+      )}
+
       {/* Map Display */}
-      <div className="relative h-96 rounded-lg overflow-hidden border border-gray-300">
+      <div className={`relative rounded-lg overflow-hidden border border-gray-300 ${mode === 'country' && selectedCountries.length > 0 ? 'h-48' : 'h-96'}`}>
         {baseLocation ? (
           <MapContainer
             key={mapId}
