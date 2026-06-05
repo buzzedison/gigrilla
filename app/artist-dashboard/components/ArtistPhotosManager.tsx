@@ -47,6 +47,8 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
   const [logoCaption, setLogoCaption] = useState('')
   const [headerCaption, setHeaderCaption] = useState('')
   const [photoCaption, setPhotoCaption] = useState('')
+  const [editingCaptionId, setEditingCaptionId] = useState<string | null>(null)
+  const [editingCaptionValue, setEditingCaptionValue] = useState('')
   const [uploadingType, setUploadingType] = useState<'logo' | 'header' | 'photo' | null>(null)
   const [dragOverType, setDragOverType] = useState<'logo' | 'header' | 'photo' | null>(null)
   const uploadLockRef = useRef(false)
@@ -559,20 +561,37 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                           />
                         </div>
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900">{logo.caption || 'Artist Logo'}</p>
-                          <p className="text-sm text-gray-500">
-                            Uploaded {formatDateDDMMMyyyy(logo.created_at)}
-                          </p>
+                          {editingCaptionId === logo.id ? (
+                            <div className="flex items-center gap-2">
+                              <Input
+                                autoFocus
+                                value={editingCaptionValue}
+                                onChange={(e) => setEditingCaptionValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') { updatePhotoCaption(logo.id, editingCaptionValue); setEditingCaptionId(null) }
+                                  if (e.key === 'Escape') setEditingCaptionId(null)
+                                }}
+                                className="h-8 text-sm"
+                              />
+                              <Button size="sm" className="h-8 bg-purple-600 hover:bg-purple-700 text-white" onClick={() => { updatePhotoCaption(logo.id, editingCaptionValue); setEditingCaptionId(null) }}>Save</Button>
+                              <Button size="sm" variant="outline" className="h-8" onClick={() => setEditingCaptionId(null)}>Cancel</Button>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="font-medium text-gray-900">{logo.caption || 'Artist Logo'}</p>
+                              <p className="text-sm text-gray-500">
+                                Uploaded {formatDateDDMMMyyyy(logo.created_at)}
+                              </p>
+                            </>
+                          )}
                         </div>
                         <div className="flex gap-2">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                              const newCaption = prompt('Edit caption:', logo.caption)
-                              if (newCaption !== null) {
-                                updatePhotoCaption(logo.id, newCaption)
-                              }
+                              setEditingCaptionValue(logo.caption || '')
+                              setEditingCaptionId(logo.id)
                             }}
                           >
                             <Edit3 className="w-4 h-4" />
@@ -782,18 +801,33 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                           >
                             Save framing
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const newCaption = prompt('Edit caption:', headerImage.caption)
-                              if (newCaption !== null) {
-                                updatePhotoCaption(headerImage.id, newCaption)
-                              }
-                            }}
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </Button>
+                          {editingCaptionId === headerImage.id ? (
+                            <>
+                              <Input
+                                autoFocus
+                                value={editingCaptionValue}
+                                onChange={(e) => setEditingCaptionValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') { updatePhotoCaption(headerImage.id, editingCaptionValue); setEditingCaptionId(null) }
+                                  if (e.key === 'Escape') setEditingCaptionId(null)
+                                }}
+                                className="h-8 text-sm w-48"
+                              />
+                              <Button size="sm" className="h-8 bg-purple-600 hover:bg-purple-700 text-white" onClick={() => { updatePhotoCaption(headerImage.id, editingCaptionValue); setEditingCaptionId(null) }}>Save</Button>
+                              <Button size="sm" variant="outline" className="h-8" onClick={() => setEditingCaptionId(null)}>Cancel</Button>
+                            </>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setEditingCaptionValue(headerImage.caption || '')
+                                setEditingCaptionId(headerImage.id)
+                              }}
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="outline"
                             size="sm"
@@ -893,19 +927,38 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                           className="w-full h-40 object-cover rounded-lg border-2 border-gray-200"
                         />
                       </div>
-                      <p className="font-medium text-gray-900 text-sm mb-1">{photo.caption || 'Profile Photo'}</p>
-                      <p className="text-xs text-gray-500 mb-3">
-                        {formatDateDDMMMyyyy(photo.created_at)}
-                      </p>
+                      {editingCaptionId === photo.id ? (
+                        <div className="mb-2 space-y-1.5">
+                          <Input
+                            autoFocus
+                            value={editingCaptionValue}
+                            onChange={(e) => setEditingCaptionValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') { updatePhotoCaption(photo.id, editingCaptionValue); setEditingCaptionId(null) }
+                              if (e.key === 'Escape') setEditingCaptionId(null)
+                            }}
+                            className="h-8 text-sm"
+                          />
+                          <div className="flex gap-1.5">
+                            <Button size="sm" className="h-7 flex-1 bg-purple-600 hover:bg-purple-700 text-white text-xs" onClick={() => { updatePhotoCaption(photo.id, editingCaptionValue); setEditingCaptionId(null) }}>Save</Button>
+                            <Button size="sm" variant="outline" className="h-7 flex-1 text-xs" onClick={() => setEditingCaptionId(null)}>Cancel</Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="font-medium text-gray-900 text-sm mb-1">{photo.caption || 'Profile Photo'}</p>
+                          <p className="text-xs text-gray-500 mb-3">
+                            {formatDateDDMMMyyyy(photo.created_at)}
+                          </p>
+                        </>
+                      )}
                       <div className="flex gap-2">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            const newCaption = prompt('Edit caption:', photo.caption)
-                            if (newCaption !== null) {
-                              updatePhotoCaption(photo.id, newCaption)
-                            }
+                            setEditingCaptionValue(photo.caption || '')
+                            setEditingCaptionId(photo.id)
                           }}
                           className="flex-1"
                         >
