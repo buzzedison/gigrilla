@@ -56,8 +56,19 @@ function isSchemaColumnError(error: SupabaseMutationError) {
     .join(' ')
     .toLowerCase()
 
+  // PGRST204: PostgREST schema cache miss
+  // 42703: PostgreSQL "column does not exist"
+  // 42P01: PostgreSQL "undefined table"
   return error.code === 'PGRST204' ||
-    (message.includes('column') && (message.includes('not found') || message.includes('could not find')))
+    error.code === '42703' ||
+    error.code === '42P01' ||
+    (message.includes('column') && (
+      message.includes('not found') ||
+      message.includes('could not find') ||
+      message.includes('does not exist') ||
+      message.includes('undefined')
+    )) ||
+    message.includes('relation') && message.includes('does not exist')
 }
 
 function firstStringValue(value: unknown) {
@@ -339,8 +350,13 @@ export async function POST(request: NextRequest) {
 
     let { data: result, error } = await persistAdvert(advertData)
 
-    if (error && targetStatus === 'published' && isSchemaColumnError(error)) {
-      console.warn('API: Modern audition advert schema rejected publish; retrying compatibility payload', {
+    // Retry with progressively simpler payloads when unknown columns are rejected.
+    // This handles DBs where migrations 048/059 have not yet been applied.
+    // The gate was previously `targetStatus === 'published'` which silently broke
+    // draft saves and published saves on older schemas (PostgreSQL returns code
+    // 42703 "column does not exist", which the old check missed entirely).
+    if (error && isSchemaColumnError(error)) {
+      console.warn('API: Modern audition schema rejected; retrying without status columns', {
         code: error.code,
         message: error.message
       })
@@ -349,11 +365,19 @@ export async function POST(request: NextRequest) {
       error = retry.error
 
       if (error && isSchemaColumnError(error)) {
+        console.warn('API: Retrying with legacy singular-field payload', {
+          code: error.code,
+          message: error.message
+        })
         const legacyRetry = await persistAdvert(legacyAdvertData)
         result = legacyRetry.data
         error = legacyRetry.error
 
         if (error && isSchemaColumnError(error)) {
+          console.warn('API: Retrying with base legacy payload (no descriptor fields)', {
+            code: error.code,
+            message: error.message
+          })
           const baseLegacyRetry = await persistAdvert(baseLegacyAdvertData)
           result = baseLegacyRetry.data
           error = baseLegacyRetry.error
