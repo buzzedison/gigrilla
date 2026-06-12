@@ -21,6 +21,20 @@ interface DrawingControlsProps {
   onZoneCreated: (zone: ZoneValue | null) => void
 }
 
+type DrawToolbarHandler = {
+  enable?: () => void
+  disable?: () => void
+  enabled?: () => boolean
+}
+
+type DrawControlWithToolbars = L.Control.Draw & {
+  _toolbars?: Record<string, {
+    _modes?: Record<string, {
+      handler?: DrawToolbarHandler
+    }>
+  }>
+}
+
 const SHAPE_OPTIONS = {
   color: '#7c3aed',
   fillColor: '#7c3aed',
@@ -136,7 +150,20 @@ function DrawingControlsInner({ mode, baseLocation, value, onZoneCreated }: Draw
           map.on('draw:created', onCreated)
           map.on('draw:edited', onEdited)
           map.on('draw:deleted', onDeleted)
+
+          const activatePolygonTool = window.setTimeout(() => {
+            const drawToolbar = (drawControlRef.current as DrawControlWithToolbars | null)?._toolbars?.draw
+            const polygonHandler = drawToolbar?._modes?.polygon?.handler
+            if (!polygonHandler) return
+            if (typeof polygonHandler.enabled === 'function' && polygonHandler.enabled()) return
+            polygonHandler.enable?.()
+          }, 0)
+
           cleanupFns.push(() => {
+            window.clearTimeout(activatePolygonTool)
+            const drawToolbar = (drawControlRef.current as DrawControlWithToolbars | null)?._toolbars?.draw
+            const polygonHandler = drawToolbar?._modes?.polygon?.handler
+            polygonHandler?.disable?.()
             map.off('draw:created', onCreated)
             map.off('draw:edited', onEdited)
             map.off('draw:deleted', onDeleted)

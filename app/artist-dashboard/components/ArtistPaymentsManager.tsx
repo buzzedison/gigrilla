@@ -112,13 +112,17 @@ interface PaymentDetails {
 
 interface LegalMember {
   id: string
+  invitation_id?: string | null
   name?: string
   email?: string
+  status?: string
   roles?: string[]
   metadata?: {
     firstName?: string
     lastName?: string
     nickname?: string
+    phone?: string
+    phoneCountryCode?: string
     memberType?: 'performer' | 'support'
     isPerformer?: boolean
     performerIsni?: string
@@ -131,6 +135,26 @@ interface LegalMember {
     dateLeft?: string
     isAdmin?: boolean
   }
+}
+
+interface LegalMemberDraft {
+  firstName: string
+  lastName: string
+  nickname: string
+  email: string
+  phoneCountryCode: string
+  phone: string
+  performerIsni: string
+  performerIpn: string
+  creatorIpiCae: string
+  memberSince: string
+  dateLeft: string
+  isPerformer: boolean
+  isShareholder: boolean
+  isMainContact: boolean
+  isCurrentMember: boolean
+  isAdmin: boolean
+  rolesText: string
 }
 
 interface Notification {
@@ -194,20 +218,6 @@ const DEFAULT_PAYMENT_DETAILS: PaymentDetails = {
 }
 
 const corporateEntityTypes: EntityType[] = ['Incorporated Company', 'Incorporated Partnership']
-const OFFICIAL_NOTICE_OPEN_KEY = 'gigrilla-artist-banking-official-notice-open:v1'
-const PAYMENT_FLOWS_OPEN_KEY = 'gigrilla-artist-banking-payment-flows-open:v1'
-
-const readStoredBoolean = (key: string, fallback: boolean) => {
-  if (typeof window === 'undefined') return fallback
-  const value = window.localStorage.getItem(key)
-  if (value === null) return fallback
-  return value === 'true'
-}
-
-const writeStoredBoolean = (key: string, value: boolean) => {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(key, String(value))
-}
 
 const normalizeLegalMemberConfirmations = (value: unknown): LegalMemberConfirmations => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
@@ -258,6 +268,91 @@ const formatRoleLabel = (role: string) => {
 const formatRoleLabels = (roles?: string[]) =>
   Array.from(new Set((roles ?? []).map(formatRoleLabel).filter(Boolean)))
 
+const EMPTY_LEGAL_MEMBER_DRAFT: LegalMemberDraft = {
+  firstName: '',
+  lastName: '',
+  nickname: '',
+  email: '',
+  phoneCountryCode: DEFAULT_COUNTRY_DIAL_CODE,
+  phone: '',
+  performerIsni: '',
+  performerIpn: '',
+  creatorIpiCae: '',
+  memberSince: '',
+  dateLeft: '',
+  isPerformer: true,
+  isShareholder: true,
+  isMainContact: false,
+  isCurrentMember: true,
+  isAdmin: false,
+  rolesText: ''
+}
+
+const parseLegalMemberRoles = (rolesText: string) =>
+  Array.from(new Set(
+    rolesText
+      .split(/[\n,;]+/)
+      .map(role => role.trim())
+      .filter(Boolean)
+  ))
+
+const buildLegalMemberDisplayName = (draft: Pick<LegalMemberDraft, 'firstName' | 'lastName' | 'nickname' | 'email'>) =>
+  [draft.firstName.trim(), draft.nickname.trim() ? `"${draft.nickname.trim()}"` : '', draft.lastName.trim()]
+    .filter(Boolean)
+    .join(' ')
+    .trim() || draft.email.trim() || 'Unnamed performer'
+
+const createLegalMemberDraft = (member?: LegalMember): LegalMemberDraft => {
+  if (!member) return { ...EMPTY_LEGAL_MEMBER_DRAFT }
+  const metadata = member.metadata ?? {}
+
+  return {
+    firstName: metadata.firstName || '',
+    lastName: metadata.lastName || '',
+    nickname: metadata.nickname || '',
+    email: member.email || '',
+    phoneCountryCode: metadata.phoneCountryCode || DEFAULT_COUNTRY_DIAL_CODE,
+    phone: metadata.phone || '',
+    performerIsni: metadata.performerIsni || '',
+    performerIpn: metadata.performerIpn || '',
+    creatorIpiCae: metadata.creatorIpiCae || '',
+    memberSince: metadata.memberSince || '',
+    dateLeft: metadata.dateLeft || '',
+    isPerformer: metadata.isPerformer ?? metadata.memberType !== 'support',
+    isShareholder: Boolean(metadata.isShareholder),
+    isMainContact: Boolean(metadata.isMainContact),
+    isCurrentMember: metadata.isCurrentMember !== false,
+    isAdmin: Boolean(metadata.isAdmin),
+    rolesText: (member.roles || []).join('\n')
+  }
+}
+
+const applyLegalMemberDraft = (member: LegalMember, draft: LegalMemberDraft): LegalMember => ({
+  ...member,
+  name: buildLegalMemberDisplayName(draft),
+  email: draft.email.trim(),
+  roles: parseLegalMemberRoles(draft.rolesText),
+  metadata: {
+    ...(member.metadata ?? {}),
+    firstName: draft.firstName.trim(),
+    lastName: draft.lastName.trim(),
+    nickname: draft.nickname.trim(),
+    phoneCountryCode: draft.phoneCountryCode,
+    phone: draft.phone.trim(),
+    memberType: 'performer',
+    isPerformer: draft.isPerformer,
+    performerIsni: draft.performerIsni.trim(),
+    performerIpn: draft.performerIpn.trim(),
+    creatorIpiCae: draft.creatorIpiCae.trim(),
+    isShareholder: draft.isShareholder,
+    isMainContact: draft.isMainContact,
+    memberSince: draft.memberSince,
+    isCurrentMember: draft.isCurrentMember,
+    dateLeft: draft.isCurrentMember ? '' : draft.dateLeft,
+    isAdmin: draft.isAdmin
+  }
+})
+
 export function ArtistPaymentsManager() {
   const { user } = useAuth()
   const [paymentDetails, setPaymentDetails] = useState<PaymentDetails>(DEFAULT_PAYMENT_DETAILS)
@@ -269,6 +364,11 @@ export function ArtistPaymentsManager() {
   const [officialNoticeOpen, setOfficialNoticeOpen] = useState(true)
   const [paymentFlowsOpen, setPaymentFlowsOpen] = useState(true)
   const [legalEntityErrors, setLegalEntityErrors] = useState<LegalEntityErrors>({})
+  const [editingLegalMemberId, setEditingLegalMemberId] = useState<string | null>(null)
+  const [legalMemberDrafts, setLegalMemberDrafts] = useState<Record<string, LegalMemberDraft>>({})
+  const [newLegalMemberDraft, setNewLegalMemberDraft] = useState<LegalMemberDraft>({ ...EMPTY_LEGAL_MEMBER_DRAFT })
+  const [showNewLegalMemberForm, setShowNewLegalMemberForm] = useState(false)
+  const [savingLegalMemberId, setSavingLegalMemberId] = useState<string | null>(null)
   const [dbTaxProfile, setDbTaxProfile] = useState<CountryTaxIdRow | null>(null)
   const [loadingTaxProfile, setLoadingTaxProfile] = useState(false)
   const saving = savingSection !== null
@@ -362,10 +462,8 @@ export function ArtistPaymentsManager() {
           payment_in_card_cvv: (data.payment_in_card_cvv as string | null) ?? '',
           legal_member_confirmations: normalizeLegalMemberConfirmations(data.legal_member_confirmations)
         })
-        const officialIdsAcknowledged = Boolean(data.official_ids_acknowledged)
-        const paymentFlowsAcknowledged = Boolean(data.payment_flows_acknowledged)
-        setOfficialNoticeOpen(!officialIdsAcknowledged || readStoredBoolean(OFFICIAL_NOTICE_OPEN_KEY, false))
-        setPaymentFlowsOpen(!paymentFlowsAcknowledged || readStoredBoolean(PAYMENT_FLOWS_OPEN_KEY, false))
+        setOfficialNoticeOpen(true)
+        setPaymentFlowsOpen(true)
       } else {
         setPaymentDetails(DEFAULT_PAYMENT_DETAILS)
         setOfficialNoticeOpen(true)
@@ -377,22 +475,6 @@ export function ArtistPaymentsManager() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const updateOfficialNoticeOpen = (value: boolean | ((previous: boolean) => boolean)) => {
-    setOfficialNoticeOpen(previous => {
-      const next = typeof value === 'function' ? value(previous) : value
-      writeStoredBoolean(OFFICIAL_NOTICE_OPEN_KEY, next)
-      return next
-    })
-  }
-
-  const updatePaymentFlowsOpen = (value: boolean | ((previous: boolean) => boolean)) => {
-    setPaymentFlowsOpen(previous => {
-      const next = typeof value === 'function' ? value(previous) : value
-      writeStoredBoolean(PAYMENT_FLOWS_OPEN_KEY, next)
-      return next
-    })
   }
 
   const confirmLegalMember = (memberId: string) => {
@@ -410,14 +492,186 @@ export function ArtistPaymentsManager() {
     setPaymentDetails(nextDetails)
     void handleSave('Legal member confirmation', {
       validateLegalEntity: false,
-      collapseAcknowledgedNotices: false,
       detailsOverride: nextDetails
     })
   }
 
+  const beginEditLegalMember = (member: LegalMember, override?: Partial<LegalMemberDraft>) => {
+    setLegalMemberDrafts(prev => ({
+      ...prev,
+      [member.id]: {
+        ...createLegalMemberDraft(member),
+        ...override
+      }
+    }))
+    setEditingLegalMemberId(member.id)
+  }
+
+  const updateLegalMemberDraft = (memberId: string, updates: Partial<LegalMemberDraft>) => {
+    setLegalMemberDrafts(prev => ({
+      ...prev,
+      [memberId]: {
+        ...(prev[memberId] || createLegalMemberDraft(legalMembers.find(member => member.id === memberId))),
+        ...updates
+      }
+    }))
+  }
+
+  const validateLegalMemberDraft = (draft: LegalMemberDraft, isNew = false) => {
+    if (!draft.firstName.trim() || !draft.lastName.trim()) {
+      return 'Add the member given name and family name.'
+    }
+    if (!draft.email.trim()) {
+      return 'Add the member email address.'
+    }
+    if (draft.isShareholder && !draft.isPerformer) {
+      return 'A shareholder must also be a performer/writer legal member.'
+    }
+    if (draft.isMainContact && !draft.isShareholder) {
+      return 'The main contact must also be marked as a shareholder.'
+    }
+    if (!draft.isCurrentMember && !draft.dateLeft) {
+      return 'Add a date left for a previous legal member.'
+    }
+    if (isNew && parseLegalMemberRoles(draft.rolesText).length === 0) {
+      return 'Add at least one role for the new legal member.'
+    }
+    return null
+  }
+
+  const buildLegalMemberRequestBody = (draft: LegalMemberDraft) => ({
+    firstName: draft.firstName.trim(),
+    lastName: draft.lastName.trim(),
+    nickname: draft.nickname.trim(),
+    email: draft.email.trim(),
+    phoneCountryCode: draft.phoneCountryCode,
+    phone: draft.phone.trim(),
+    roles: parseLegalMemberRoles(draft.rolesText),
+    memberType: 'performer',
+    isPerformer: draft.isPerformer,
+    performerIsni: draft.performerIsni.trim(),
+    performerIpn: draft.performerIpn.trim(),
+    creatorIpiCae: draft.creatorIpiCae.trim(),
+    isShareholder: draft.isShareholder,
+    isMainContact: draft.isMainContact,
+    memberSince: draft.memberSince,
+    isCurrentMember: draft.isCurrentMember,
+    dateLeft: draft.isCurrentMember ? '' : draft.dateLeft,
+    isAdmin: draft.isAdmin
+  })
+
+  const saveLegalMemberDraft = async (member: LegalMember) => {
+    const draft = legalMemberDrafts[member.id] || createLegalMemberDraft(member)
+    const validationError = validateLegalMemberDraft(draft)
+    if (validationError) {
+      showNotification('error', validationError)
+      return
+    }
+
+    try {
+      setSavingLegalMemberId(member.id)
+      const response = await fetch('/api/artist-members', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          memberId: member.id,
+          ...buildLegalMemberRequestBody(draft)
+        })
+      })
+      const result = await response.json().catch(() => ({}))
+
+      if (!response.ok || result?.error) {
+        throw new Error(result?.error || 'Failed to update legal member')
+      }
+
+      setLegalMembers(prev => prev.map(existing => {
+        const updatedMember = existing.id === member.id
+          ? applyLegalMemberDraft({ ...existing, ...(result?.data || {}) }, draft)
+          : existing
+
+        if (draft.isMainContact && existing.id !== member.id) {
+          return {
+            ...updatedMember,
+            metadata: {
+              ...(updatedMember.metadata ?? {}),
+              isMainContact: false
+            }
+          }
+        }
+
+        return updatedMember
+      }))
+      setEditingLegalMemberId(null)
+      showNotification('success', 'Legal member details saved successfully')
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source: 'legal-member' } }))
+      }
+    } catch (error) {
+      showNotification('error', error instanceof Error ? error.message : 'Failed to update legal member')
+    } finally {
+      setSavingLegalMemberId(null)
+    }
+  }
+
+  const addLegalMember = async () => {
+    const draft = newLegalMemberDraft
+    const validationError = validateLegalMemberDraft(draft, true)
+    if (validationError) {
+      showNotification('error', validationError)
+      return
+    }
+
+    try {
+      setSavingLegalMemberId('new')
+      const response = await fetch('/api/artist-members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildLegalMemberRequestBody(draft))
+      })
+      const result = await response.json().catch(() => ({}))
+
+      if (!response.ok || result?.error) {
+        throw new Error(result?.error || 'Failed to add legal member')
+      }
+
+      const newMember: LegalMember = applyLegalMemberDraft({
+        id: result?.data?.id || `new-${Date.now()}`,
+        invitation_id: result?.data?.id || null,
+        name: result?.data?.name || buildLegalMemberDisplayName(draft),
+        email: result?.data?.email || draft.email.trim(),
+        status: result?.data?.status || 'pending',
+        roles: Array.isArray(result?.data?.roles) ? result.data.roles : parseLegalMemberRoles(draft.rolesText),
+        metadata: result?.data?.metadata || {}
+      }, draft)
+
+      setLegalMembers(prev => [
+        ...(draft.isMainContact
+          ? prev.map(existing => ({
+              ...existing,
+              metadata: {
+                ...(existing.metadata ?? {}),
+                isMainContact: false
+              }
+            }))
+          : prev),
+        newMember
+      ])
+      setNewLegalMemberDraft({ ...EMPTY_LEGAL_MEMBER_DRAFT })
+      setShowNewLegalMemberForm(false)
+      showNotification('success', result?.warning || 'Legal member added successfully')
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source: 'legal-member' } }))
+      }
+    } catch (error) {
+      showNotification('error', error instanceof Error ? error.message : 'Failed to add legal member')
+    } finally {
+      setSavingLegalMemberId(null)
+    }
+  }
+
   const handleSave = async (
     sectionLabel = 'Artist Banking details',
-    options: { validateLegalEntity?: boolean; collapseAcknowledgedNotices?: boolean; detailsOverride?: PaymentDetails } = {}
+    options: { validateLegalEntity?: boolean; detailsOverride?: PaymentDetails } = {}
   ) => {
     try {
       const detailsToSave = options.detailsOverride ?? paymentDetails
@@ -453,12 +707,6 @@ export function ArtistPaymentsManager() {
           ...prev,
           legal_member_confirmations: normalizeLegalMemberConfirmations(result.data.legal_member_confirmations)
         }))
-      }
-      if (options.collapseAcknowledgedNotices !== false) {
-        const nextOfficialOpen = !detailsToSave.official_ids_acknowledged
-        const nextPaymentFlowsOpen = !detailsToSave.payment_flows_acknowledged
-        updateOfficialNoticeOpen(nextOfficialOpen)
-        updatePaymentFlowsOpen(nextPaymentFlowsOpen)
       }
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source: 'payments' } }))
@@ -636,7 +884,7 @@ export function ArtistPaymentsManager() {
           <div className="flex justify-end">
             <Button
               type="button"
-              onClick={() => handleSave('Banking preference', { validateLegalEntity: false, collapseAcknowledgedNotices: false })}
+              onClick={() => handleSave('Banking preference', { validateLegalEntity: false })}
               disabled={saving}
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
@@ -651,7 +899,7 @@ export function ArtistPaymentsManager() {
           <CardTitle className="flex items-center justify-between gap-3 text-amber-950">
             <span className="flex items-center gap-2"><ShieldCheck className="w-5 h-5" /> Official ID Numbers</span>
             {paymentDetails.official_ids_acknowledged && (
-              <Button variant="outline" size="sm" onClick={() => updateOfficialNoticeOpen(prev => !prev)}>
+              <Button variant="outline" size="sm" onClick={() => setOfficialNoticeOpen(prev => !prev)}>
                 {officialNoticeOpen ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
                 {officialNoticeOpen ? 'Hide' : 'Review'}
               </Button>
@@ -689,7 +937,7 @@ export function ArtistPaymentsManager() {
           <CardTitle className="flex items-center justify-between gap-3 text-blue-950">
             <span className="flex items-center gap-2"><WalletCards className="w-5 h-5" /> Payment Flows</span>
             {paymentDetails.payment_flows_acknowledged && (
-              <Button variant="outline" size="sm" onClick={() => updatePaymentFlowsOpen(prev => !prev)}>
+              <Button variant="outline" size="sm" onClick={() => setPaymentFlowsOpen(prev => !prev)}>
                 {paymentFlowsOpen ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
                 {paymentFlowsOpen ? 'Hide' : 'Review'}
               </Button>
@@ -867,20 +1115,18 @@ export function ArtistPaymentsManager() {
                     <Label>Company Registration Number (if issued)</Label>
                     <Input value={paymentDetails.company_registration_number} onChange={(event) => updatePaymentDetails('company_registration_number', event.target.value)} placeholder="Your Artist Company ID" />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Company Formation Date</Label>
-                    <Input type="date" value={paymentDetails.company_formation_date} onChange={(event) => updatePaymentDetails('company_formation_date', event.target.value)} className={legalEntityErrors.company_formation_date ? 'border-red-400' : undefined} />
-                    <p className="text-xs text-gray-500">Use DD MMM YYYY when reading this back in documents.</p>
-                    {legalEntityErrors.company_formation_date && <p className="text-xs text-red-600">{legalEntityErrors.company_formation_date}</p>}
-                  </div>
+	                  <div className="space-y-2">
+	                    <Label>Company Formation Date</Label>
+	                    <Input type="date" value={paymentDetails.company_formation_date} onChange={(event) => updatePaymentDetails('company_formation_date', event.target.value)} className={legalEntityErrors.company_formation_date ? 'border-red-400' : undefined} />
+	                    {legalEntityErrors.company_formation_date && <p className="text-xs text-red-600">{legalEntityErrors.company_formation_date}</p>}
+	                  </div>
                 </div>
               ) : (
-                <div className="space-y-2 pt-2">
-                  <Label>Your Date of Birth</Label>
-                  <Input type="date" value={paymentDetails.legal_entity_date_of_birth} onChange={(event) => updatePaymentDetails('legal_entity_date_of_birth', event.target.value)} className={legalEntityErrors.legal_entity_date_of_birth ? 'border-red-400' : undefined} />
-                  <p className="text-xs text-gray-500">Use DD MMM YYYY when reading this back in documents.</p>
-                  {legalEntityErrors.legal_entity_date_of_birth && <p className="text-xs text-red-600">{legalEntityErrors.legal_entity_date_of_birth}</p>}
-                </div>
+	                <div className="space-y-2 pt-2">
+	                  <Label>Your Date of Birth</Label>
+	                  <Input type="date" value={paymentDetails.legal_entity_date_of_birth} onChange={(event) => updatePaymentDetails('legal_entity_date_of_birth', event.target.value)} className={legalEntityErrors.legal_entity_date_of_birth ? 'border-red-400' : undefined} />
+	                  {legalEntityErrors.legal_entity_date_of_birth && <p className="text-xs text-red-600">{legalEntityErrors.legal_entity_date_of_birth}</p>}
+	                </div>
               )}
               </>
             )}
@@ -913,21 +1159,44 @@ export function ArtistPaymentsManager() {
             emptyText="No current performer members have been added yet."
             confirmedMemberIds={confirmedLegalMemberIds}
             onConfirmMember={confirmLegalMember}
+            editingMemberId={editingLegalMemberId}
+            memberDrafts={legalMemberDrafts}
+            savingMemberId={savingLegalMemberId}
+            onBeginEditMember={beginEditLegalMember}
+            onCancelEditMember={() => setEditingLegalMemberId(null)}
+            onDraftChange={updateLegalMemberDraft}
+            onSaveDraft={saveLegalMemberDraft}
             footer={
-              <div className="flex flex-wrap gap-3 border-t border-gray-100 pt-4 mt-2">
-                <Button size="sm" className="bg-purple-600 text-white hover:bg-purple-700" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=add-members'}>
-                  <UserPlus className="w-4 h-4" />
-                  Add a New Artist Shareholder
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleSave('Legal members', { validateLegalEntity: false, collapseAcknowledgedNotices: false })}
-                  disabled={saving}
-                >
-                  {savingSection === 'Legal members' ? 'Saving...' : 'Save Legal Members'}
-                </Button>
+              <div className="space-y-4 border-t border-gray-100 pt-4 mt-2">
+                {showNewLegalMemberForm && (
+                  <LegalMemberInlineForm
+                    title="Add New Artist Shareholder"
+                    draft={newLegalMemberDraft}
+                    onChange={(updates) => setNewLegalMemberDraft(prev => ({ ...prev, ...updates }))}
+                    onSave={addLegalMember}
+                    onCancel={() => {
+                      setShowNewLegalMemberForm(false)
+                      setNewLegalMemberDraft({ ...EMPTY_LEGAL_MEMBER_DRAFT })
+                    }}
+                    saving={savingLegalMemberId === 'new'}
+                    saveLabel="Save & Invite Legal Member"
+                  />
+                )}
+                <div className="flex flex-wrap gap-3">
+                  <Button size="sm" className="bg-purple-600 text-white hover:bg-purple-700" onClick={() => setShowNewLegalMemberForm(prev => !prev)}>
+                    <UserPlus className="w-4 h-4" />
+                    {showNewLegalMemberForm ? 'Hide New Shareholder Form' : 'Add a New Artist Shareholder'}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleSave('Legal members', { validateLegalEntity: false })}
+                    disabled={saving}
+                  >
+                    {savingSection === 'Legal members' ? 'Saving...' : 'Save Legal Members'}
+                  </Button>
+                </div>
               </div>
             }
           />
@@ -938,11 +1207,26 @@ export function ArtistPaymentsManager() {
             previous
             confirmedMemberIds={confirmedLegalMemberIds}
             onConfirmMember={confirmLegalMember}
+            editingMemberId={editingLegalMemberId}
+            memberDrafts={legalMemberDrafts}
+            savingMemberId={savingLegalMemberId}
+            onBeginEditMember={beginEditLegalMember}
+            onCancelEditMember={() => setEditingLegalMemberId(null)}
+            onDraftChange={updateLegalMemberDraft}
+            onSaveDraft={saveLegalMemberDraft}
             footer={
               <div className="border-t border-gray-100 pt-4 mt-2">
-                <Button variant="outline" size="sm" onClick={() => window.location.href = '/artist-dashboard?section=crew&subSection=add-members'}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={previousMembers.length === 0}
+                  onClick={() => {
+                    const previousMember = previousMembers[0]
+                    if (previousMember) beginEditLegalMember(previousMember, { isCurrentMember: true, dateLeft: '' })
+                  }}
+                >
                   <UserPlus className="w-4 h-4" />
-                  Reinstate Shareholder
+                  {previousMembers.length === 0 ? 'No Previous Shareholders to Reinstate' : 'Reinstate Shareholder'}
                 </Button>
               </div>
             }
@@ -972,7 +1256,7 @@ export function ArtistPaymentsManager() {
               cardCvv: paymentDetails.payment_in_card_cvv || ''
             }}
             onFieldChange={(field, value) => updatePaymentDetails(`payment_in_${field}` as keyof PaymentDetails, value as never)}
-            onSave={() => handleSave('Money In', { validateLegalEntity: false, collapseAcknowledgedNotices: false })}
+            onSave={() => handleSave('Money In', { validateLegalEntity: false })}
             saving={savingSection === 'Money In'}
           />
           <BankingSection
@@ -993,7 +1277,7 @@ export function ArtistPaymentsManager() {
               cardCvv: paymentDetails.payment_out_card_cvv || ''
             }}
             onFieldChange={(field, value) => updatePaymentDetails(`payment_out_${field}` as keyof PaymentDetails, value as never)}
-            onSave={() => handleSave('Money Out', { validateLegalEntity: false, collapseAcknowledgedNotices: false })}
+            onSave={() => handleSave('Money Out', { validateLegalEntity: false })}
             saving={savingSection === 'Money Out'}
           />
         </>
@@ -1065,8 +1349,164 @@ function RoleChips({ roles, empty = 'None' }: { roles: string[]; empty?: string 
   )
 }
 
+function LegalMemberInlineForm({
+  title,
+  draft,
+  onChange,
+  onSave,
+  onCancel,
+  saving,
+  saveLabel
+}: {
+  title: string
+  draft: LegalMemberDraft
+  onChange: (updates: Partial<LegalMemberDraft>) => void
+  onSave: () => void
+  onCancel: () => void
+  saving: boolean
+  saveLabel: string
+}) {
+  return (
+    <div className="rounded-lg border border-purple-200 bg-purple-50/40 p-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h4 className="text-sm font-semibold text-purple-950">{title}</h4>
+        <Badge variant="outline" className="border-purple-200 bg-white text-purple-800">Inline Legal Member Details</Badge>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Given Name</Label>
+          <Input value={draft.firstName} onChange={(event) => onChange({ firstName: event.target.value })} placeholder="First/Given Name" />
+        </div>
+        <div className="space-y-2">
+          <Label>Family Name</Label>
+          <Input value={draft.lastName} onChange={(event) => onChange({ lastName: event.target.value })} placeholder="Last/Family Name" />
+        </div>
+        <div className="space-y-2">
+          <Label>Nickname / Stage Name</Label>
+          <Input value={draft.nickname} onChange={(event) => onChange({ nickname: event.target.value })} placeholder="Optional" />
+        </div>
+        <div className="space-y-2">
+          <Label>Email</Label>
+          <Input type="email" value={draft.email} onChange={(event) => onChange({ email: event.target.value })} placeholder="member@example.com" />
+        </div>
+        <div className="space-y-2">
+          <Label>Phone Country Code</Label>
+          <Select value={getDialCodeChoiceValue(draft.phoneCountryCode)} onValueChange={(value) => onChange({ phoneCountryCode: getDialCodeFromChoiceValue(value) })}>
+            <SelectTrigger><SelectValue placeholder="Country Code" /></SelectTrigger>
+            <SelectContent className="max-h-72">
+              {COUNTRY_DIAL_CODE_CHOICES.map(choice => <SelectItem key={`legal-member-phone-${choice.value}`} value={choice.value}>{choice.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Phone</Label>
+          <Input value={draft.phone} onChange={(event) => onChange({ phone: event.target.value })} placeholder="Phone number" />
+        </div>
+        <div className="space-y-2">
+          <Label>Individual ISNI</Label>
+          <Input value={draft.performerIsni} onChange={(event) => onChange({ performerIsni: event.target.value })} placeholder="0000000000000000" />
+        </div>
+        <div className="space-y-2">
+          <Label>Performer IPN</Label>
+          <Input value={draft.performerIpn} onChange={(event) => onChange({ performerIpn: event.target.value })} placeholder="Performer IPN" />
+        </div>
+        <div className="space-y-2">
+          <Label>Writer IPI</Label>
+          <Input value={draft.creatorIpiCae} onChange={(event) => onChange({ creatorIpiCae: event.target.value })} placeholder="Writer IPI/CAE" />
+        </div>
+        <div className="space-y-2">
+          <Label>Member Since</Label>
+          <Input type="month" value={draft.memberSince} onChange={(event) => onChange({ memberSince: event.target.value })} />
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        <Label>Roles</Label>
+        <textarea
+          value={draft.rolesText}
+          onChange={(event) => onChange({ rolesText: event.target.value })}
+          placeholder="Enter one or more roles, separated by commas or new lines"
+          className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <label className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 text-sm">
+          <Checkbox
+            checked={draft.isPerformer}
+            onCheckedChange={(checked) => onChange({
+              isPerformer: checked === true,
+              isShareholder: checked === true ? draft.isShareholder : false,
+              isMainContact: checked === true ? draft.isMainContact : false
+            })}
+          />
+          Performer / Writer
+        </label>
+        <label className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 text-sm">
+          <Checkbox
+            checked={draft.isShareholder}
+            onCheckedChange={(checked) => onChange({
+              isShareholder: checked === true,
+              isPerformer: checked === true ? true : draft.isPerformer,
+              isMainContact: checked === true ? draft.isMainContact : false
+            })}
+          />
+          Shareholder
+        </label>
+        <label className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 text-sm">
+          <Checkbox
+            checked={draft.isMainContact}
+            onCheckedChange={(checked) => onChange({
+              isMainContact: checked === true,
+              isShareholder: checked === true ? true : draft.isShareholder,
+              isPerformer: checked === true ? true : draft.isPerformer
+            })}
+          />
+          Main Contact
+        </label>
+        <label className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 text-sm">
+          <Checkbox checked={draft.isAdmin} onCheckedChange={(checked) => onChange({ isAdmin: checked === true })} />
+          Admin
+        </label>
+        <label className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 text-sm">
+          <Checkbox checked={draft.isCurrentMember} onCheckedChange={(checked) => onChange({ isCurrentMember: checked === true, dateLeft: checked === true ? '' : draft.dateLeft })} />
+          Current Member
+        </label>
+      </div>
+
+      {!draft.isCurrentMember && (
+        <div className="mt-4 max-w-xs space-y-2">
+          <Label>Date Left</Label>
+          <Input type="date" value={draft.dateLeft} onChange={(event) => onChange({ dateLeft: event.target.value })} />
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-purple-100 pt-4">
+        <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>Cancel</Button>
+        <Button type="button" onClick={onSave} disabled={saving} className="bg-purple-600 hover:bg-purple-700 text-white">
+          {saving ? 'Saving...' : saveLabel}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function LegalMemberSection({
-  title, members, emptyText, previous = false, footer, confirmedMemberIds = [], onConfirmMember
+  title,
+  members,
+  emptyText,
+  previous = false,
+  footer,
+  confirmedMemberIds = [],
+  onConfirmMember,
+  editingMemberId = null,
+  memberDrafts = {},
+  savingMemberId = null,
+  onBeginEditMember,
+  onCancelEditMember,
+  onDraftChange,
+  onSaveDraft
 }: {
   title: string
   members: LegalMember[]
@@ -1075,6 +1515,13 @@ function LegalMemberSection({
   footer?: React.ReactNode
   confirmedMemberIds?: string[]
   onConfirmMember?: (memberId: string) => void
+  editingMemberId?: string | null
+  memberDrafts?: Record<string, LegalMemberDraft>
+  savingMemberId?: string | null
+  onBeginEditMember?: (member: LegalMember) => void
+  onCancelEditMember?: () => void
+  onDraftChange?: (memberId: string, updates: Partial<LegalMemberDraft>) => void
+  onSaveDraft?: (member: LegalMember) => void
 }) {
   return (
     <div className="space-y-3">
@@ -1093,6 +1540,8 @@ function LegalMemberSection({
             const displayName = [metadata.firstName, metadata.nickname ? `"${metadata.nickname}"` : '', metadata.lastName].filter(Boolean).join(' ') || member.name || member.email || 'Unnamed performer'
             const { performer: performerRoles, support: supportRoles } = splitRoles(member.roles)
             const isConfirmed = confirmedMemberIds.includes(member.id)
+            const isEditing = editingMemberId === member.id
+            const draft = memberDrafts[member.id] || createLegalMemberDraft(member)
             return (
               <div key={member.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                 {/* Header: name + status badges */}
@@ -1103,6 +1552,9 @@ function LegalMemberSection({
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge className={previous ? 'border-gray-200 bg-gray-100 text-gray-700' : 'border-teal-200 bg-teal-100 text-teal-800'}>{previous ? 'Previous' : 'Current'}</Badge>
+                    {member.status && member.status !== 'active' && (
+                      <Badge className="border-amber-200 bg-amber-50 text-amber-800">{formatRoleLabel(member.status)} Invite</Badge>
+                    )}
                     {metadata.isPerformer && <Badge className="border-purple-200 bg-purple-50 text-purple-800">Performer</Badge>}
                     {metadata.memberType === 'support' && <Badge className="border-blue-200 bg-blue-50 text-blue-800">Support Crew</Badge>}
                     {metadata.isShareholder && <Badge className="border-green-200 bg-green-50 text-green-800">Shareholder</Badge>}
@@ -1131,23 +1583,47 @@ function LegalMemberSection({
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Support Roles</p>
                     <RoleChips roles={supportRoles} empty="No support roles assigned" />
                   </div>
-                  <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 p-3 text-sm text-emerald-950">
-                    Review this member’s shareholder, main contact, role, and ID details here. Use the button below to confirm the details inline for Artist Banking.
-                  </div>
-                  <div className="flex flex-wrap justify-end gap-2 pt-1">
-                    {onConfirmMember && (
-                      <Button
-                        type="button"
-                        variant={isConfirmed ? 'outline' : 'default'}
-                        size="sm"
-                        className={isConfirmed ? 'border-emerald-200 bg-white text-emerald-800' : 'bg-emerald-600 text-white hover:bg-emerald-700'}
-                        onClick={() => onConfirmMember(member.id)}
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        {isConfirmed ? 'Confirmed' : previous ? 'Confirm Previous Details' : 'Confirm Details'}
-                      </Button>
-                    )}
-                  </div>
+                  {isEditing && onDraftChange && onSaveDraft && onCancelEditMember ? (
+                    <LegalMemberInlineForm
+                      title={`Review / Update ${displayName}`}
+                      draft={draft}
+                      onChange={(updates) => onDraftChange(member.id, updates)}
+                      onSave={() => onSaveDraft(member)}
+                      onCancel={onCancelEditMember}
+                      saving={savingMemberId === member.id}
+                      saveLabel="Save Legal Member Details"
+                    />
+                  ) : (
+                    <>
+                      <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 p-3 text-sm text-emerald-950">
+                        Review this member’s shareholder, main contact, role, and ID details here. Update details inline or confirm them for Artist Banking.
+                      </div>
+                      <div className="flex flex-wrap justify-end gap-2 pt-1">
+                        {onBeginEditMember && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onBeginEditMember(member)}
+                          >
+                            Update Details
+                          </Button>
+                        )}
+                        {onConfirmMember && (
+                          <Button
+                            type="button"
+                            variant={isConfirmed ? 'outline' : 'default'}
+                            size="sm"
+                            className={isConfirmed ? 'border-emerald-200 bg-white text-emerald-800' : 'bg-emerald-600 text-white hover:bg-emerald-700'}
+                            onClick={() => onConfirmMember(member.id)}
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            {isConfirmed ? 'Confirmed' : previous ? 'Confirm Previous Details' : 'Confirm Details'}
+                          </Button>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )

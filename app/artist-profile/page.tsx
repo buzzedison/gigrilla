@@ -198,6 +198,7 @@ function ArtistProfilePage() {
   const [videos, setVideos] = useState<ArtistVideo[]>([])
   const [membersSummary, setMembersSummary] = useState<ArtistMembersResponse | null>(null)
   const [genreFamilies, setGenreFamilies] = useState<GenreFamily[]>([])
+  const [gigrillaGigCount, setGigrillaGigCount] = useState<number>(0)
 
   useEffect(() => {
     if (!user) return
@@ -205,12 +206,13 @@ function ArtistProfilePage() {
     const loadPage = async () => {
       setLoading(true)
       try {
-        const [profileRes, photosRes, videosRes, membersRes, genresRes] = await Promise.all([
+        const [profileRes, photosRes, videosRes, membersRes, genresRes, gigSummaryRes] = await Promise.all([
           fetch('/api/artist-profile'),
           fetch('/api/artist-photos'),
           fetch('/api/artist-videos'),
           fetch('/api/artist-members'),
           fetch('/api/genres'),
+          fetch('/api/artist-gigs?summary=true', { cache: 'no-store' }),
         ])
 
         const profileJson: ArtistProfileResponse = await profileRes.json()
@@ -218,6 +220,7 @@ function ArtistProfilePage() {
         const videosJson = await videosRes.json()
         const membersJson: ArtistMembersResponse = await membersRes.json()
         const genresJson: GenreApiResponse = await genresRes.json()
+        const gigSummaryJson = await gigSummaryRes.json().catch(() => null)
 
         const nextProfile = profileJson?.data ?? null
         setProfile(nextProfile)
@@ -225,6 +228,11 @@ function ArtistProfilePage() {
         setVideos(Array.isArray(videosJson?.data) ? videosJson.data : [])
         setMembersSummary(membersJson)
         setGenreFamilies(genresJson?.data?.families ?? [])
+        setGigrillaGigCount(
+          typeof gigSummaryJson?.data?.statuses?.completed === 'number'
+            ? gigSummaryJson.data.statuses.completed
+            : 0
+        )
 
         if (nextProfile?.artist_type_id) {
           setCapabilities(getArtistTypeConfig(nextProfile.artist_type_id)?.capabilities ?? null)
@@ -253,6 +261,10 @@ function ArtistProfilePage() {
   const genreLabels = useMemo(() => resolveGenreLabels(profile?.preferred_genre_ids, genreFamilies), [profile, genreFamilies])
   const activeMembersCount = membersSummary?.activeMembers?.length ?? 0
   const pendingInvitesCount = (membersSummary?.invitations ?? []).filter((invite) => invite.status !== 'accepted').length
+  const manualGigCount = typeof profile?.gigs_performed === 'number' && Number.isFinite(profile.gigs_performed)
+    ? Math.max(0, profile.gigs_performed)
+    : 0
+  const totalGigPerformances = manualGigCount + gigrillaGigCount
 
   const routeToDashboard = (section: string, subSection?: string) => {
     const query = subSection
@@ -326,8 +338,8 @@ function ArtistProfilePage() {
             <dd className="mt-1 text-white">{profile?.base_location?.trim() || 'Not added yet'}</dd>
           </div>
           <div>
-            <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-[#bfc0de]">Public Gigs Performed</dt>
-            <dd className="mt-1 text-white">{typeof profile?.gigs_performed === 'number' ? profile.gigs_performed : 'Not added yet'}</dd>
+            <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-[#bfc0de]">Total Gig Performances</dt>
+            <dd className="mt-1 text-white">{totalGigPerformances > 0 ? totalGigPerformances : 'Not added yet'}</dd>
           </div>
           <div>
             <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-[#bfc0de]">Performing Members</dt>

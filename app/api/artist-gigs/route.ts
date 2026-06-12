@@ -278,6 +278,12 @@ function getScheduledPublishAt(metadata: Record<string, unknown> | null | undefi
   return parsed
 }
 
+function isScheduledHiddenGig(gigStatus: string | null | undefined, metadata: Record<string, unknown> | null | undefined, nowMs: number) {
+  if (gigStatus !== 'draft') return false
+  const publishAt = getScheduledPublishAt(metadata)
+  return Boolean(publishAt && publishAt.getTime() > nowMs)
+}
+
 function formatDateInTimezone(date: Date, timezone: string) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
@@ -699,6 +705,7 @@ export async function GET(request: NextRequest) {
                 gig_requests: 0,
                 confirmations: 0,
                 draft_gigs: 0,
+                scheduled_hidden_gigs: 0,
                 upcoming_gigs: 0,
                 total_gig_bookings: 0,
               },
@@ -920,10 +927,12 @@ export async function GET(request: NextRequest) {
       const gigInvites = enriched.filter((row) => row.isInvite)
       const gigRequests = enriched.filter((row) => row.isRequest)
       const confirmations = enriched.filter((row) => row.bookingStatus === 'confirmed')
-      const draftGigs = enriched.filter((row) => row.gigStatus === 'draft')
+      const scheduledHiddenGigs = enriched.filter((row) => isScheduledHiddenGig(row.gigStatus, row.metadata, nowMs))
+      const draftGigs = enriched.filter((row) => row.gigStatus === 'draft' && !isScheduledHiddenGig(row.gigStatus, row.metadata, nowMs))
       const upcomingGigs = enriched.filter((row) => {
         if (!row.startDatetime) return false
         if (row.bookingStatus === 'cancelled' || row.bookingStatus === 'completed') return false
+        if (row.gigStatus === 'draft') return false
         const startDate = new Date(row.startDatetime)
         if (Number.isNaN(startDate.getTime())) return false
         return startDate.getTime() >= nowMs
@@ -933,6 +942,7 @@ export async function GET(request: NextRequest) {
         gig_requests: gigRequests.length,
         confirmations: confirmations.length,
         draft_gigs: draftGigs.length,
+        scheduled_hidden_gigs: scheduledHiddenGigs.length,
         upcoming_gigs: upcomingGigs.length,
         total_gig_bookings: enriched.length,
       }
@@ -947,6 +957,7 @@ export async function GET(request: NextRequest) {
             { id: 'gig_requests', label: 'Gig Requests (to Others)', total: counts.gig_requests },
             { id: 'confirmations', label: 'Confirmations (Contracts)', total: counts.confirmations },
             { id: 'draft_gigs', label: 'Draft Gigs', total: counts.draft_gigs },
+            { id: 'scheduled_hidden_gigs', label: 'Scheduled/Hidden', total: counts.scheduled_hidden_gigs },
             { id: 'upcoming_gigs', label: 'Upcoming Gigs', total: counts.upcoming_gigs },
             { id: 'total_gig_bookings', label: 'Gig Bookings', total: counts.total_gig_bookings },
           ],
@@ -1609,7 +1620,6 @@ export async function POST(request: NextRequest) {
     const venueAddress = toOptionalTrimmedString(body.venue_address)
     const venueCity = toOptionalTrimmedString(body.venue_city)
     const venueCountry = toOptionalTrimmedString(body.venue_country)
-    const bookingFee = normalizeFee(body.booking_fee)
     const currency = normalizeCurrency(body.currency)
     const specialRequests = toOptionalTrimmedString(body.special_requests)
     const metadata = safeObject(body.metadata)
@@ -1827,7 +1837,7 @@ export async function POST(request: NextRequest) {
         artist_id: user.id,
         venue_id: venueId,
         booking_status: 'confirmed',
-        booking_fee: bookingFee,
+        booking_fee: null,
         currency,
         special_requests: specialRequests,
         booked_by: user.id,

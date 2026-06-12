@@ -123,8 +123,17 @@ const clampNonNegativeNumber = (value: unknown, fallback = 0) => {
   return parsed < 0 ? 0 : parsed
 }
 
-export function ArtistGigAbilityManager() {
+interface ArtistGigAbilityManagerProps {
+  mode?: 'gig' | 'collab'
+}
+
+export function ArtistGigAbilityManager({ mode = 'gig' }: ArtistGigAbilityManagerProps) {
   const { user } = useAuth()
+  const isCollabMode = mode === 'collab'
+  const abilityTerm = isCollabMode ? 'Collab' : 'Gig'
+  const abilityTermLower = abilityTerm.toLowerCase()
+  const sectionPrefix = isCollabMode ? 'collabability' : 'gigability'
+  const profileAreaTerm = isCollabMode ? 'Collab Area' : 'Gig Area'
   const [artistProfile, setArtistProfile] = useState<ArtistProfile | null>(null)
   const [locationDetails, setLocationDetails] = useState<LocationDetails>({})
   const [loading, setLoading] = useState(true)
@@ -415,9 +424,9 @@ export function ArtistGigAbilityManager() {
       }))
       const successMessages = {
         'set-lengths': 'Set length settings saved successfully!',
-        fees: 'Gig fee settings saved successfully!',
-        'local-zone': 'Local gig area saved successfully!',
-        'wider-zone': 'Wider gig area saved successfully!'
+        fees: `${abilityTerm} fee settings saved successfully!`,
+        'local-zone': `Local ${abilityTermLower} area saved successfully!`,
+        'wider-zone': `Wider ${abilityTermLower} area saved successfully!`
       } satisfies Record<'set-lengths' | 'fees' | 'local-zone' | 'wider-zone', string>
       showNotification('success', successMessages[section])
       window.dispatchEvent(new CustomEvent('artist-profile-updated', { detail: { source: 'gigability' } }))
@@ -425,9 +434,9 @@ export function ArtistGigAbilityManager() {
       console.error('Error saving gig ability:', error)
       const errorMessages = {
         'set-lengths': 'Failed to save set lengths. Please try again.',
-        fees: 'Failed to save gig fee settings. Please try again.',
-        'local-zone': 'Failed to save local gig area. Please try again.',
-        'wider-zone': 'Failed to save wider gig area. Please try again.'
+        fees: `Failed to save ${abilityTermLower} fee settings. Please try again.`,
+        'local-zone': `Failed to save local ${abilityTermLower} area. Please try again.`,
+        'wider-zone': `Failed to save wider ${abilityTermLower} area. Please try again.`
       } satisfies Record<'set-lengths' | 'fees' | 'local-zone' | 'wider-zone', string>
       showNotification('error', errorMessages[section])
     } finally {
@@ -501,14 +510,14 @@ export function ArtistGigAbilityManager() {
       )}
 
       {/* Artist Base Location */}
-      <Card id="artist-gigability-base" className="scroll-mt-28">
+      <Card id={`artist-${sectionPrefix}-base`} className="scroll-mt-28">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-purple-900">
             <MapPin className="w-5 h-5" />
             Artist Base Location
           </CardTitle>
           <p className="text-sm text-gray-600">
-            This location is used to determine your gig availability and travel preferences.
+            This location is used to determine your {abilityTermLower} availability and travel preferences.
           </p>
         </CardHeader>
         <CardContent>
@@ -553,7 +562,7 @@ export function ArtistGigAbilityManager() {
       </Card>
 
       {/* Artist Set Lengths */}
-      <Card id="artist-gigability-sets" className="scroll-mt-28">
+      <Card id={`artist-${sectionPrefix}-sets`} className="scroll-mt-28">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-purple-900">
             <Clock className="w-5 h-5" />
@@ -651,15 +660,15 @@ export function ArtistGigAbilityManager() {
         </CardContent>
       </Card>
 
-      {/* Artist Local Gig Area */}
-      <Card id="artist-gigability-fees" className="scroll-mt-28">
+      {/* Artist Local Ability Area */}
+      <Card id={`artist-${sectionPrefix}-fees`} className="scroll-mt-28">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-purple-900">
             <Clock className="w-5 h-5" />
-            Gig Fees
+            {abilityTerm} Fees
           </CardTitle>
           <p className="text-sm text-gray-600">
-            Set your baseline performance fee once. Local and wider gig sections use this same base fee.
+            Set your baseline performance fee once. Local and wider {abilityTermLower} sections use this same base fee.
           </p>
         </CardHeader>
         <CardContent>
@@ -723,21 +732,21 @@ export function ArtistGigAbilityManager() {
                 disabled={saving}
                 className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
               >
-                {savingSection === 'fees' ? 'Saving...' : 'Save Gig Fee Settings'}
+                {savingSection === 'fees' ? 'Saving...' : `Save ${abilityTerm} Fee Settings`}
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card id="artist-gigability-local" className="scroll-mt-28">
+      <Card id={`artist-${sectionPrefix}-local`} className="scroll-mt-28">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-purple-900">
             <MapPin className="w-5 h-5" />
-            Artist Local Gig Area
+            Artist Local {abilityTerm} Area
           </CardTitle>
           <p className="text-sm text-gray-600">
-            Your Local Gig Fee:
+            Your Local {abilityTerm} Fee:
           </p>
           <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm text-blue-800">
@@ -748,19 +757,19 @@ export function ArtistGigAbilityManager() {
         <CardContent>
           <div className="space-y-6">
             <div className="rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm text-purple-800">
-              Local gigs use your base fee: <strong>{getCurrencySymbol(baseGigCurrency)}{baseGigFee.toFixed(2)} per {GIG_TIME_OPTIONS.find(opt => opt.value === baseGigTimescale)?.label} set.</strong>
+              Local {abilityTermLower}s use your base fee: <strong>{getCurrencySymbol(baseGigCurrency)}{baseGigFee.toFixed(2)} per {GIG_TIME_OPTIONS.find(opt => opt.value === baseGigTimescale)?.label} set.</strong>
             </div>
 
             {/* Local Map */}
             <GigAbilityMap
-              mapId="local-gig-map"
+              mapId={`local-${abilityTermLower}-map`}
               title="Local Map: Draw-a-Zone, or Create a Radius from your Artist Base Location:"
-              description="This is where you're willing to perform a Gig within a set fee, without charging additional fees to cover travel, freight, accommodation and meals."
+              description={`This is where you're willing to perform a ${abilityTerm} within a set fee, without charging additional fees to cover travel, freight, accommodation and meals.`}
               value={localGigZone}
               onChange={setLocalGigZone}
               baseLocation={baseLocationCoords || undefined}
               allowCountrySelection={false}
-              profileAreaLabel="Local Gig Area"
+              profileAreaLabel={`Local ${profileAreaTerm}`}
             />
 
             <div className="pt-2">
@@ -769,7 +778,7 @@ export function ArtistGigAbilityManager() {
                 disabled={saving}
                 className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
               >
-                {savingSection === 'local-zone' ? 'Saving...' : 'Save Local Gig Area'}
+                {savingSection === 'local-zone' ? 'Saving...' : `Save Local ${abilityTerm} Area`}
               </Button>
             </div>
           </div>
@@ -777,14 +786,14 @@ export function ArtistGigAbilityManager() {
       </Card>
 
       {/* Artist Wider Gig Area */}
-      <Card id="artist-gigability-wider" className="scroll-mt-28">
+      <Card id={`artist-${sectionPrefix}-wider`} className="scroll-mt-28">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-purple-900">
             <MapPin className="w-5 h-5" />
-            Artist Wider Gig Area
+            Artist Wider {abilityTerm} Area
           </CardTitle>
           <p className="text-sm text-gray-600">
-            Your Wider Gig Fee:
+            Your Wider {abilityTerm} Fee:
           </p>
           <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm text-blue-800">
@@ -795,7 +804,7 @@ export function ArtistGigAbilityManager() {
         <CardContent>
           <div className="space-y-6">
             <div className="rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm text-purple-800">
-              Wider gigs use your base fee: <strong>{getCurrencySymbol(baseGigCurrency)}{baseGigFee.toFixed(2)} per {GIG_TIME_OPTIONS.find(opt => opt.value === baseGigTimescale)?.label} set</strong>, with optional logistics below.
+              Wider {abilityTermLower}s use your base fee: <strong>{getCurrencySymbol(baseGigCurrency)}{baseGigFee.toFixed(2)} per {GIG_TIME_OPTIONS.find(opt => opt.value === baseGigTimescale)?.label} set</strong>, with optional logistics below.
             </div>
 
             {/* Logistics Fees */}
@@ -846,7 +855,7 @@ export function ArtistGigAbilityManager() {
                         className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-100 disabled:text-gray-400"
                       />
                     </div>
-                    <span className="text-gray-600">Per-Gig Fixed Logistics Fee - covers travel, freight, accommodation, meals.</span>
+                    <span className="text-gray-600">Per-{abilityTerm} Fixed Logistics Fee - covers travel, freight, accommodation, meals.</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 px-1">
@@ -866,7 +875,7 @@ export function ArtistGigAbilityManager() {
                     Negotiated logistics fee
                   </label>
                   <p className="pl-6 text-sm text-gray-600">
-                    Fees are agreed Gig-by-Gig for travel, freight, accommodation, and meals.
+                    Fees are agreed {abilityTerm}-by-{abilityTerm} for travel, freight, accommodation, and meals.
                   </p>
                 </div>
               </div>
@@ -874,14 +883,14 @@ export function ArtistGigAbilityManager() {
 
             {/* Wider Map */}
             <GigAbilityMap
-              mapId="wider-gig-map"
+              mapId={`wider-${abilityTermLower}-map`}
               title="Wider Map: Draw-a-Zone, or Create a Radius from your Artist Base Location, or Select Entire Countries:"
-              description="This is where you're willing to perform a Gig for a set fee, plus an additional fee to cover your travel, freight, accommodation and food & drink."
+              description={`This is where you're willing to perform a ${abilityTerm} for a set fee, plus an additional fee to cover your travel, freight, accommodation and food & drink.`}
               value={widerGigZone}
               onChange={setWiderGigZone}
               baseLocation={baseLocationCoords || undefined}
               allowCountrySelection
-              profileAreaLabel="Wider Gig Area"
+              profileAreaLabel={`Wider ${profileAreaTerm}`}
             />
 
             <div className="pt-2">
@@ -890,7 +899,7 @@ export function ArtistGigAbilityManager() {
                 disabled={saving}
                 className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
               >
-                {savingSection === 'wider-zone' ? 'Saving...' : 'Save Wider Gig Area'}
+                {savingSection === 'wider-zone' ? 'Saving...' : `Save Wider ${abilityTerm} Area`}
               </Button>
             </div>
           </div>

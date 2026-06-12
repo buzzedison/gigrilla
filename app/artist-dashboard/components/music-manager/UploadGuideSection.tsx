@@ -111,12 +111,13 @@ export function UploadGuideSection({
   return (
     <>
       <SectionWrapper
-        title="Upload Guide for Pre-Registered Music"
-        subtitle="Review the guide here. It is separate from the main upload workflow."
+        title="Must-Read Music Upload Guide"
+        subtitle="To upload music, first read this guide."
       >
-        <p className="text-xs text-gray-500">
-          This guide lives on its own page so the release workflow stays focused on metadata, rights, artwork, and tracks.
-        </p>
+        <div className="flex gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          <span aria-hidden="true">ℹ️</span>
+          <p>You will not be able to upload any music before confirming that you have read and understood this Upload Guide.</p>
+        </div>
 
         <div className="mt-6 rounded-2xl border border-gray-100 bg-white shadow-inner">
           <div className="p-4 md:p-6 space-y-6">

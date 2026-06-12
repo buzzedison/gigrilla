@@ -410,7 +410,7 @@ export function ArtistRoyaltySplitsManager() {
             </Button>
           </div>
           <p className="text-sm text-gray-600">
-            Set the default split of Artist income for gigs and merch. These defaults can use different people and percentages.
+            Set the default split of Artist income for gigs, collabs, and MyStore. These defaults can use different people and percentages.
           </p>
           <p className="text-sm text-gray-600">
             Ignore other Rights Holders here - this is purely for the Artist-share of income, and how that is divided among Artist Members (and your Artist Support Team, if they get a share).
@@ -427,11 +427,11 @@ export function ArtistRoyaltySplitsManager() {
           <div className="mt-3 space-y-2">
             <div className="flex items-center gap-2 text-xs text-blue-700">
               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <span>ℹ️ Gig Money Splits can be adjusted on an individual gig basis from your Control Panel later.</span>
+              <span>ℹ️ Gig & Collab Money Splits can be adjusted on an individual booking basis from your Control Panel later.</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-blue-700">
               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <span>ℹ️ Merch Money Splits can use a different set of people and percentages from Gig Money Splits.</span>
+              <span>ℹ️ MyStore Money Splits can use a different set of people and percentages from Gig & Collab Money Splits.</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-blue-700">
               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -441,17 +441,17 @@ export function ArtistRoyaltySplitsManager() {
         </CardHeader>
       </Card>
 
-      {/* Gig Money Splits */}
+      {/* Gig & Collab Money Splits */}
       <Card id="artist-royalty-splits" className="scroll-mt-28">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <h4 className="font-semibold text-purple-900">Gig Money Splits</h4>
+            <h4 className="font-semibold text-purple-900">Gig & Collab Money Splits</h4>
             <div className="flex items-center gap-4 text-sm">
               <span className="text-green-700 font-medium">
-                [[{calculateTotalGigRoyalties().toFixed(2)}%]] = Total % Share of Default Artist Gig Money Splits Assigned
+                [[{calculateTotalGigRoyalties().toFixed(2)}%]] = Total % Share of Default Artist Gig & Collab Money Splits Assigned
               </span>
               <span className="text-orange-700 font-medium">
-                [{(100 - calculateTotalGigRoyalties()).toFixed(2)}%] = Total % Share of Default Artist Gig Money Splits Remaining
+                [{(100 - calculateTotalGigRoyalties()).toFixed(2)}%] = Total % Share of Default Artist Gig & Collab Money Splits Remaining
               </span>
             </div>
           </div>
@@ -471,7 +471,7 @@ export function ArtistRoyaltySplitsManager() {
                     </div>
                     <div className="flex items-center gap-3">
                       <Label className="text-sm font-medium text-purple-700">
-                        Default % Share of Gig Money =
+                        Default % Share of Gig & Collab Money =
                       </Label>
                       <div className="flex items-center gap-1">
                         <Input
@@ -508,29 +508,29 @@ export function ArtistRoyaltySplitsManager() {
                 onClick={() => saveMoneySplits('gig')}
                 className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
               >
-                Save Gig Money Splits
+                Save Gig & Collab Money Splits
               </button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Merch Money Splits */}
+      {/* MyStore Money Splits */}
       <Card id="artist-royalty-merch-splits" className="scroll-mt-28">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <h4 className="font-semibold text-purple-900">Merch Money Splits</h4>
+              <h4 className="font-semibold text-purple-900">MyStore Money Splits</h4>
               <p className="mt-1 text-sm text-gray-600">
-                Use this when merch income should be distributed to a different set of people than gig income.
+                Use this when MyStore income should be distributed to a different set of people than gig and collab income.
               </p>
             </div>
             <div className="flex items-center gap-4 text-sm">
               <span className="text-green-700 font-medium">
-                [[{calculateTotalMerchRoyalties().toFixed(2)}%]] = Total % Share of Default Artist Merch Money Splits Assigned
+                [[{calculateTotalMerchRoyalties().toFixed(2)}%]] = Total % Share of Default Artist MyStore Money Splits Assigned
               </span>
               <span className="text-orange-700 font-medium">
-                [{(100 - calculateTotalMerchRoyalties()).toFixed(2)}%] = Total % Share of Default Artist Merch Money Splits Remaining
+                [{(100 - calculateTotalMerchRoyalties()).toFixed(2)}%] = Total % Share of Default Artist MyStore Money Splits Remaining
               </span>
             </div>
           </div>
@@ -550,7 +550,7 @@ export function ArtistRoyaltySplitsManager() {
                     </div>
                     <div className="flex items-center gap-3">
                       <Label className="text-sm font-medium text-purple-700">
-                        Default % Share of Merch Money =
+                        Default % Share of MyStore Money =
                       </Label>
                       <div className="flex items-center gap-1">
                         <Input
@@ -587,7 +587,7 @@ export function ArtistRoyaltySplitsManager() {
                 onClick={() => saveMoneySplits('merch')}
                 className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
               >
-                Save Merch Money Splits
+                Save MyStore Money Splits
               </button>
             </div>
           </CardContent>

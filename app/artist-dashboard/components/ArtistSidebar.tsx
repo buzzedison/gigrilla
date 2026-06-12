@@ -77,6 +77,12 @@ export type ArtistDashboardSection =
   | 'gig-past'
   | 'gig-invites'
   | 'gig-requests'
+  | 'collabability'
+  | 'collab-bookings'
+  | 'collab-reporting'
+  | 'collab-negotiations'
+  | 'collab-planner'
+  | 'collab-statistics'
   | 'bio'
   | 'genres'
   | 'logo'
@@ -132,6 +138,12 @@ function isSectionEnabled(section: ArtistDashboardSection, capabilities: ArtistT
     case 'gig-past':
     case 'gig-invites':
     case 'gig-requests':
+    case 'collabability':
+    case 'collab-bookings':
+    case 'collab-reporting':
+    case 'collab-negotiations':
+    case 'collab-planner':
+    case 'collab-statistics':
       return capabilities.showGigAbility
     case 'music-uploads':
     case 'music-catalogue':
@@ -169,11 +181,10 @@ type SidebarGroup = {
   items: SidebarNode[]
 }
 
-const GROUP_IDS = ['controlPanel', 'artistProfile', 'gigMenu', 'musicMenu', 'merchMenu', 'messageMenu'] as const
+const GROUP_IDS = ['controlPanel', 'artistProfile', 'gigMenu', 'collabMenu', 'musicMenu', 'merchMenu', 'messageMenu'] as const
 const ITEM_IDS = [
   'artist-basics',
   'artist-crew',
-  'artist-money-splits',
   'artist-banking',
   'artist-media',
   'auditions-collabs',
@@ -183,9 +194,16 @@ const ITEM_IDS = [
   'gig-negotiations',
   'gig-planner',
   'gig-statistics',
+  'collab-ability',
+  'collab-bookings',
+  'collab-reporting',
+  'collab-negotiations',
+  'collab-planner',
+  'collab-statistics',
   'music-uploads',
   'music-catalogue',
   'music-statistics',
+  'collab-message-negotiations',
   'message-negotiations',
   'user-messages',
 ] as const
@@ -195,6 +213,7 @@ function buildDefaultGroupState(isDesktop: boolean) {
     controlPanel: isDesktop,
     artistProfile: isDesktop,
     gigMenu: false,
+    collabMenu: false,
     musicMenu: false,
     merchMenu: false,
     messageMenu: false,
@@ -326,7 +345,7 @@ export function ArtistSidebar({
         subSection: 'details',
         children: [
           { id: 'artist-type', label: 'Artist Type', section: 'type', subSection: 'selector' },
-          { id: 'artist-stage-name', label: 'Artist Stage Name', section: 'profile', subSection: 'artist-stage-name' },
+          { id: 'artist-stage-name', label: 'Artist Entity Stage Name', section: 'profile', subSection: 'artist-stage-name' },
           { id: 'artist-entity-isni', label: 'Artist Entity ISNI', section: 'profile', subSection: 'artist-entity-isni' },
           { id: 'artist-formed', label: 'Artist Formed', section: 'profile', subSection: 'artist-formed' },
           { id: 'artist-performers-count', label: 'Number of Performers', section: 'profile', subSection: 'artist-performers-count' },
@@ -334,7 +353,8 @@ export function ArtistSidebar({
           { id: 'artist-contract-status', label: 'Artist Contract Status', section: 'contract', subSection: 'label' },
           { id: 'artist-genres', label: 'Artist Genres', section: 'genres', subSection: 'selector' },
           { id: 'artist-bio', label: 'Artist Bio', section: 'bio', subSection: 'editor' },
-          { id: 'artist-gig-counter', label: 'Public Gigs Performed Without Gigrilla (Adds to System Gig Count)', section: 'profile', subSection: 'artist-gig-counter' },
+          { id: 'artist-gig-counter', label: 'Artist Gig Counter', section: 'profile', subSection: 'artist-gig-counter' },
+          { id: 'artist-collab-counter', label: 'Artist Collab Counter', section: 'profile', subSection: 'artist-collab-counter' },
           { id: 'artist-web-links', label: 'Artist Web Links', section: 'profile', subSection: 'artist-web-links' },
         ]
       },
@@ -345,25 +365,16 @@ export function ArtistSidebar({
         section: 'crew',
         subSection: 'owner',
         children: [
-          { id: 'your-roles-info', label: 'Your Roles & Info', section: 'crew', subSection: 'owner' },
-          { id: 'add-performer', label: '+Add Performer Role', section: 'crew', subSection: 'add-members' },
-          { id: 'add-support-crew', label: '+Add Support Crew Role', section: 'crew', subSection: 'add-members' },
+          { id: 'your-roles-info', label: 'Your Roles & Info Role', section: 'crew', subSection: 'owner' },
+          { id: 'add-performer', label: '+Add Performer', section: 'crew', subSection: 'add-members' },
+          { id: 'add-support-crew', label: '+Add Support Crew', section: 'crew', subSection: 'add-members' },
           { id: 'view-performers', label: 'View Performers', section: 'crew', subSection: 'view-performers' },
           { id: 'view-support-crew', label: 'View Support Crew', section: 'crew', subSection: 'view-support-crew' },
-          { id: 'view-shareholders', label: 'View Shareholders', section: 'crew', subSection: 'view-shareholders' },
           { id: 'manage-admins', label: 'Manage Admins', section: 'crew', subSection: 'manage-admins' },
           { id: 'historic-members', label: 'Historic Members', section: 'crew', subSection: 'historic-members' },
-        ]
-      },
-      {
-        id: 'artist-money-splits',
-        label: 'Money Splits',
-        icon: CircleDollarSign,
-        section: 'royalty',
-        subSection: 'splits',
-        children: [
           { id: 'artist-gig-money-splits', label: 'Gig Money Splits', section: 'royalty', subSection: 'splits' },
-          { id: 'artist-merch-money-splits', label: 'Merch Money Splits', section: 'royalty', subSection: 'merch-splits' },
+          { id: 'artist-collab-money-splits', label: 'Collab Money Splits', section: 'royalty', subSection: 'splits' },
+          { id: 'artist-merch-money-splits', label: 'MyStore Money Splits', section: 'royalty', subSection: 'merch-splits' },
         ]
       },
       {
@@ -394,7 +405,7 @@ export function ArtistSidebar({
       },
       {
         id: 'auditions-collabs',
-        label: 'Auditions & Collabs',
+        label: 'ADS: Auditions & Collabs',
         icon: Megaphone,
         section: 'auditions',
         subSection: 'add',
@@ -456,7 +467,7 @@ export function ArtistSidebar({
           { id: 'add-gig-manually', label: 'Add Gig Manually', section: 'gig-bookings', subSection: 'add-manually' },
           { id: 'draft-gigs', label: 'Draft Gigs', section: 'gig-bookings', subSection: 'drafts', badge: gigBookingCount('draft_gigs') },
           { id: 'upcoming-gigs', label: 'Upcoming Gigs', section: 'gig-bookings', subSection: 'upcoming', badge: gigBookingCount('upcoming_gigs') },
-          { id: 'scheduled-hidden-gigs', label: 'Scheduled/Hidden', section: 'gig-bookings', subSection: 'scheduled-hidden' },
+          { id: 'scheduled-hidden-gigs', label: 'Scheduled/Hidden', section: 'gig-bookings', subSection: 'scheduled-hidden', badge: gigBookingCount('scheduled_hidden_gigs') },
           { id: 'historic-gigs', label: 'Historic Gigs', section: 'gig-bookings', subSection: 'historic' },
         ]
       },
@@ -510,6 +521,95 @@ export function ArtistSidebar({
       },
     ]
 
+    const collabItems: SidebarNode[] = [
+      {
+        id: 'collab-ability',
+        label: 'Collab-Ability',
+        icon: Gauge,
+        section: 'collabability',
+        subSection: 'base',
+        description: 'Collab booking default settings',
+        children: [
+          {
+            id: 'collab-splits',
+            label: 'Collab Money Splits',
+            description: 'Twinned with Artist Crew; changes affect both',
+            section: 'royalty',
+            subSection: 'splits',
+            statusBadge: 'twinned',
+          },
+          { id: 'collab-base-location', label: 'Base Location', section: 'collabability', subSection: 'base' },
+          { id: 'collab-set-lengths', label: 'Set Lengths', section: 'collabability', subSection: 'sets' },
+          { id: 'collab-fees', label: 'Collab Fees', section: 'collabability', subSection: 'fees' },
+          { id: 'collab-local-area', label: 'Local Collab Area', section: 'collabability', subSection: 'local' },
+          { id: 'collab-wider-area', label: 'Wider Collab Area', section: 'collabability', subSection: 'wider' },
+        ]
+      },
+      {
+        id: 'collab-bookings',
+        label: 'Collab Bookings',
+        icon: CalendarDays,
+        section: 'collab-bookings',
+        subSection: 'book-new',
+        children: [
+          { id: 'book-new-collab', label: '+Book a New Collab', section: 'collab-bookings', subSection: 'book-new' },
+          { id: 'add-collab-manually', label: '+Add Collab Manually', section: 'collab-bookings', subSection: 'add-manually' },
+          { id: 'draft-collabs', label: 'Draft Collabs', section: 'collab-bookings', subSection: 'drafts' },
+          { id: 'upcoming-collabs', label: 'Upcoming Collabs', section: 'collab-bookings', subSection: 'upcoming' },
+          { id: 'scheduled-hidden-collabs', label: 'Scheduled/Hidden', section: 'collab-bookings', subSection: 'scheduled-hidden' },
+          { id: 'historic-collabs', label: 'Historic Collabs', section: 'collab-bookings', subSection: 'historic' },
+        ]
+      },
+      {
+        id: 'collab-reporting',
+        label: 'Collab Reporting',
+        icon: ListChecks,
+        section: 'collab-reporting',
+        subSection: 'confirm-collab',
+        children: [
+          { id: 'confirm-a-collab', label: 'Confirm a Collab', section: 'collab-reporting', subSection: 'confirm-collab' },
+          { id: 'report-a-collab', label: 'Report a Collab', section: 'collab-reporting', subSection: 'report-collab' },
+        ]
+      },
+      {
+        id: 'collab-negotiations',
+        label: 'Collab Negotiations',
+        icon: Mail,
+        section: 'collab-negotiations',
+        subSection: 'collab_invites',
+        children: [
+          { id: 'collab-invites', label: 'Collab Invites (from Others)', section: 'collab-negotiations', subSection: 'collab_invites' },
+          { id: 'collab-requests', label: 'Collab Requests (to Others)', section: 'collab-negotiations', subSection: 'collab_requests' },
+          { id: 'collab-confirmations', label: 'Confirmations (Contracts)', section: 'collab-negotiations', subSection: 'confirmations' },
+        ]
+      },
+      {
+        id: 'collab-planner',
+        label: 'Collab Planner',
+        icon: CalendarRange,
+        section: 'collab-planner',
+        subSection: 'calendar',
+        children: [
+          { id: 'collab-view-calendar', label: 'View Calendar', section: 'collab-planner', subSection: 'calendar' },
+          { id: 'collab-unavailability', label: '+Unavailability', section: 'collab-planner', subSection: 'unavailability' },
+        ]
+      },
+      {
+        id: 'collab-statistics',
+        label: 'Collab Statistics',
+        icon: BarChart3,
+        section: 'collab-statistics',
+        subSection: 'completed',
+        children: [
+          { id: 'collabs-completed', label: 'Collabs Completed', section: 'collab-statistics', subSection: 'completed' },
+          { id: 'collab-locations', label: 'Collab Locations', section: 'collab-statistics', subSection: 'locations' },
+          { id: 'collab-artists', label: 'Collab Artists', section: 'collab-statistics', subSection: 'artists' },
+          { id: 'collab-labels', label: 'Collab Labels', section: 'collab-statistics', subSection: 'labels' },
+          { id: 'collab-earnings', label: 'Collab Earnings', section: 'collab-statistics', subSection: 'earnings' },
+        ]
+      },
+    ]
+
     const musicItems: SidebarNode[] = [
       {
         id: 'music-uploads',
@@ -559,7 +659,7 @@ export function ArtistSidebar({
     const merchItems: SidebarNode[] = [
       {
         id: 'merch-money-splits',
-        label: 'Merch Money Splits',
+        label: 'MyStore Money Splits',
         icon: ShoppingBag,
         section: 'royalty',
         subSection: 'merch-splits',
@@ -578,6 +678,18 @@ export function ArtistSidebar({
           { id: 'messages-gig-invites', label: 'Gig Invites (from Others)', section: 'messages', subSection: 'gig_invites', badge: folderCount('gig_invites') },
           { id: 'messages-gig-requests', label: 'Gig Requests (to Others)', section: 'messages', subSection: 'gig_requests', badge: folderCount('gig_requests') },
           { id: 'messages-confirmations', label: 'Confirmations (Contracts)', section: 'messages', subSection: 'confirmations', badge: folderCount('confirmations') },
+        ]
+      },
+      {
+        id: 'collab-message-negotiations',
+        label: 'Collab Negotiations',
+        icon: Mail,
+        section: 'messages',
+        subSection: 'collab_invites',
+        children: [
+          { id: 'messages-collab-invites', label: 'Collab Invites (from Others)', section: 'messages', subSection: 'collab_invites', badge: folderCount('auditions') },
+          { id: 'messages-collab-requests', label: 'Collab Requests (to Others)', section: 'messages', subSection: 'collab_requests', badge: folderCount('auditions') },
+          { id: 'messages-collab-confirmations', label: 'Confirmations (Contracts)', section: 'messages', subSection: 'confirmations', badge: folderCount('confirmations') },
         ]
       },
       {
@@ -611,6 +723,7 @@ export function ArtistSidebar({
       { id: 'controlPanel', label: 'Control Panel Menu', items: controlPanelItems },
       { id: 'artistProfile', label: 'Artist Profile Menu', items: artistProfileItems },
       { id: 'gigMenu', label: 'Gig Menu', badge: gigMenuTotal, statusBadge: 'I1+T3', items: gigItems },
+      { id: 'collabMenu', label: 'Collab Menu', items: collabItems },
       { id: 'musicMenu', label: 'Music Menu', items: musicItems },
       { id: 'merchMenu', label: 'Your Store Menu', items: merchItems },
       { id: 'messageMenu', label: 'Messages Menu', items: messageItems },
@@ -657,6 +770,12 @@ export function ArtistSidebar({
       'gig-past': 'gigMenu',
       'gig-invites': 'gigMenu',
       'gig-requests': 'gigMenu',
+      collabability: 'collabMenu',
+      'collab-bookings': 'collabMenu',
+      'collab-reporting': 'collabMenu',
+      'collab-negotiations': 'collabMenu',
+      'collab-planner': 'collabMenu',
+      'collab-statistics': 'collabMenu',
       'music-uploads': 'musicMenu',
       'music-catalogue': 'musicMenu',
       'music-statistics': 'musicMenu',

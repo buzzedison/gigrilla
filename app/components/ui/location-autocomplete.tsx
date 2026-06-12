@@ -73,6 +73,11 @@ export function LocationAutocompleteInput({
   useEffect(() => {
     const query = (debouncedValue ?? '').trim()
 
+    if (!open || disabled) {
+      setLoading(false)
+      return
+    }
+
     if (query.length < minQueryLength) {
       setSuggestions([])
       setLoading(false)
@@ -103,11 +108,25 @@ export function LocationAutocompleteInput({
       cache: 'no-store'
     })
       .then(async (response) => {
-        if (!response.ok) {
-          const bodyText = await response.text()
-          throw new Error(bodyText || 'Request failed')
+        const bodyText = await response.text()
+        let payload: { suggestions?: LocationSuggestion[]; error?: string } = {}
+
+        if (bodyText) {
+          try {
+            payload = JSON.parse(bodyText) as { suggestions?: LocationSuggestion[]; error?: string }
+          } catch {
+            payload = { error: bodyText }
+          }
         }
-        return response.json() as Promise<{ suggestions?: LocationSuggestion[]; error?: string }>
+
+        if (!response.ok) {
+          return {
+            suggestions: [],
+            error: payload.error || 'Unable to retrieve location suggestions right now.'
+          }
+        }
+
+        return payload
       })
       .then((data) => {
         if (fetchId !== fetchIdRef.current) return
@@ -128,8 +147,10 @@ export function LocationAutocompleteInput({
       })
       .catch((fetchError) => {
         if (abortController.signal.aborted) return
-        console.error('Location autocomplete fetch error', fetchError)
-        setError('Unable to retrieve location suggestions right now.')
+        const message = fetchError instanceof Error && fetchError.message
+          ? fetchError.message
+          : 'Unable to retrieve location suggestions right now.'
+        setError(message)
         setSuggestions([])
       })
       .finally(() => {
@@ -143,7 +164,7 @@ export function LocationAutocompleteInput({
       abortController.abort()
       window.clearTimeout(timeoutId)
     }
-  }, [debouncedValue, minQueryLength])
+  }, [debouncedValue, disabled, minQueryLength, open])
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -192,8 +213,8 @@ export function LocationAutocompleteInput({
           onSelect({ ...suggestion, ...details, formatted: resolvedFormatted })
           return
         }
-      } catch (geocodeError) {
-        console.error('Location geocode error', geocodeError)
+      } catch {
+        // Fall back to the autocomplete suggestion when place details are unavailable.
       } finally {
         setGeocoding(false)
       }

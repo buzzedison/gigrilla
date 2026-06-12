@@ -69,6 +69,64 @@ function formatDateTimeLabel(value: string | null | undefined, timezone?: string
   }
 }
 
+function readMetadataString(metadata: Record<string, unknown> | null | undefined, key: string) {
+  if (!metadata || typeof metadata !== 'object') return ''
+  const raw = metadata[key]
+  return typeof raw === 'string' ? raw.trim() : ''
+}
+
+function isLivestreamGig(gig: ArtistGigRecord) {
+  const eventType = (gig.eventType || '').toLowerCase()
+  const gigType = readMetadataString(gig.metadata, 'gig_type').toLowerCase()
+  return eventType === 'livestream' || gigType === 'streaming'
+}
+
+function getLivestreamDisplayLink(gig: ArtistGigRecord) {
+  const url = readMetadataString(gig.metadata, 'live_stream_url')
+  if (!url) return 'Stream link to be confirmed'
+
+  try {
+    const parsed = new URL(url)
+    return parsed.hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
+}
+
+function getScheduledPublishAt(gig: ArtistGigRecord) {
+  if (gig.gigStatus !== 'draft') return null
+  if (readMetadataString(gig.metadata, 'publish_mode') !== 'scheduled') return null
+  const publishAt = readMetadataString(gig.metadata, 'publish_at')
+  if (!publishAt) return null
+
+  const parsed = new Date(publishAt)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function isDraftOrScheduledHiddenGig(gig: ArtistGigRecord, nowMs: number) {
+  if (gig.gigStatus !== 'draft') return false
+  const publishAt = getScheduledPublishAt(gig)
+  return !publishAt || publishAt.getTime() > nowMs
+}
+
+function isUpcomingGig(gig: ArtistGigRecord, nowMs: number) {
+  if (gig.bookingStatus !== 'confirmed' && gig.bookingStatus !== 'pending') return false
+  if (!gig.startDatetime) return false
+  const start = new Date(gig.startDatetime)
+  return !Number.isNaN(start.getTime()) && start.getTime() >= nowMs
+}
+
+function needsCompletionConfirmation(gig: ArtistGigRecord, nowMs: number) {
+  if (gig.bookingStatus !== 'confirmed') return false
+  if (!gig.startDatetime) return false
+  const start = new Date(gig.startDatetime)
+  return !Number.isNaN(start.getTime()) && start.getTime() < nowMs
+}
+
+function isArtistSubmittedGig(gig: ArtistGigRecord) {
+  return gig.isRequest && (gig.sourceOfTruth || gig.publicDisplay?.sourceOfTruth || 'artist') === 'artist'
+}
+
 function topEntries(map: Map<string, number>, limit = 5) {
   return Array.from(map.entries())
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
@@ -127,23 +185,26 @@ export function ArtistGigStatisticsManager() {
 
   const stats = useMemo(() => {
     const now = Date.now()
-    const completed = gigs.filter((gig) => gig.bookingStatus === 'completed')
-    const confirmed = gigs.filter((gig) => gig.bookingStatus === 'confirmed')
-    const upcoming = gigs.filter((gig) => {
-      if (gig.bookingStatus !== 'confirmed' && gig.bookingStatus !== 'pending') return false
-      if (!gig.startDatetime) return false
-      const start = new Date(gig.startDatetime)
-      return !Number.isNaN(start.getTime()) && start.getTime() >= now
+    const visibleGigs = gigs.filter((gig) => {
+      if (gig.bookingStatus === 'cancelled') return false
+      return !isDraftOrScheduledHiddenGig(gig, now)
     })
-    const inPerson = gigs.filter((gig) => (gig.eventType || '').toLowerCase() !== 'livestream')
-    const livestream = gigs.filter((gig) => (gig.eventType || '').toLowerCase() === 'livestream')
+    const completed = visibleGigs.filter((gig) => gig.bookingStatus === 'completed')
+    const confirmed = visibleGigs.filter((gig) => gig.bookingStatus === 'confirmed')
+    const upcoming = visibleGigs.filter((gig) => isUpcomingGig(gig, now))
+    const needsCompletion = visibleGigs.filter((gig) => needsCompletionConfirmation(gig, now))
+    const inPerson = visibleGigs.filter((gig) => !isLivestreamGig(gig))
+    const livestream = visibleGigs.filter((gig) => isLivestreamGig(gig))
+    const excludedDrafts = gigs.length - visibleGigs.length
 
     const venueCounts = new Map<string, number>()
     const countryCounts = new Map<string, number>()
     const localityCounts = new Map<string, number>()
     const earningsByCurrency = new Map<string, number>()
 
-    gigs.forEach((gig) => {
+    visibleGigs.forEach((gig) => {
+      if (isLivestreamGig(gig)) return
+
       const venueName = (gig.venueName || 'Venue TBD').trim()
       venueCounts.set(venueName, (venueCounts.get(venueName) || 0) + 1)
 
@@ -153,21 +214,28 @@ export function ArtistGigStatisticsManager() {
       const locality = parseVenueLocality(gig.venueAddress)
       if (locality) localityCounts.set(locality, (localityCounts.get(locality) || 0) + 1)
 
-      if (gig.bookingFee && gig.bookingFee > 0 && (gig.bookingStatus === 'confirmed' || gig.bookingStatus === 'completed')) {
-        earningsByCurrency.set(gig.currency, (earningsByCurrency.get(gig.currency) || 0) + gig.bookingFee)
-      }
     })
 
-    const mostRecent = gigs
+    visibleGigs.forEach((gig) => {
+      if (!gig.bookingFee || gig.bookingFee <= 0) return
+      if (gig.bookingStatus !== 'confirmed' && gig.bookingStatus !== 'completed') return
+      if (isArtistSubmittedGig(gig)) return
+
+      earningsByCurrency.set(gig.currency, (earningsByCurrency.get(gig.currency) || 0) + gig.bookingFee)
+    })
+
+    const mostRecent = visibleGigs
       .filter((gig) => gig.startDatetime)
       .sort((a, b) => new Date(b.startDatetime || 0).getTime() - new Date(a.startDatetime || 0).getTime())
       .slice(0, 5)
 
     return {
-      total: gigs.length,
+      total: visibleGigs.length,
       completed: completed.length,
       confirmed: confirmed.length,
       upcoming: upcoming.length,
+      needsCompletion: needsCompletion.length,
+      excludedDrafts,
       inPerson: inPerson.length,
       livestream: livestream.length,
       uniqueVenues: venueCounts.size,
@@ -214,13 +282,16 @@ export function ArtistGigStatisticsManager() {
           </div>
           <div className="rounded-2xl border border-[#edd7f4] bg-white/75 px-4 py-3 text-sm text-[#5f5473] shadow-sm">
             <p className="font-semibold text-[#241a35]">Live dataset</p>
-            <p className="mt-1">{stats.total} bookings analysed</p>
+            <p className="mt-1">{stats.total} public bookings analysed</p>
+            {stats.excludedDrafts > 0 ? (
+              <p className="mt-1 text-xs text-[#746783]">{stats.excludedDrafts} draft/hidden excluded</p>
+            ) : null}
           </div>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={Activity} label="Total Gigs" value={String(stats.total)} helper={`${stats.completed} completed • ${stats.upcoming} upcoming`} />
+        <StatCard icon={Activity} label="Total Gigs" value={String(stats.total)} helper={`${stats.completed} completed • ${stats.upcoming} upcoming • ${stats.needsCompletion} need completion`} />
         <StatCard icon={Building2} label="Venues Played" value={String(stats.uniqueVenues)} helper="Unique venues across your current booking history" />
         <StatCard icon={Globe2} label="Countries Reached" value={String(stats.uniqueCountries)} helper="Based on venue addresses already saved to your gigs" />
         <StatCard icon={CalendarRange} label="Confirmed Bookings" value={String(stats.confirmed)} helper="Confirmed gigs currently on the books" />
@@ -238,7 +309,7 @@ export function ArtistGigStatisticsManager() {
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="rounded-[1.5rem] border border-[#edd7f4] bg-white/80 p-5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#73668a]">In-person gigs</p>
               <p className="mt-3 text-3xl font-semibold text-[#1f1730]">{stats.inPerson}</p>
@@ -254,6 +325,10 @@ export function ArtistGigStatisticsManager() {
             <div className="rounded-[1.5rem] border border-[#edd7f4] bg-white/80 p-5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#73668a]">Upcoming gigs</p>
               <p className="mt-3 text-3xl font-semibold text-[#1f1730]">{stats.upcoming}</p>
+            </div>
+            <div className="rounded-[1.5rem] border border-[#edd7f4] bg-white/80 p-5 sm:col-span-2 xl:col-span-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#73668a]">Need completion</p>
+              <p className="mt-3 text-3xl font-semibold text-[#1f1730]">{stats.needsCompletion}</p>
             </div>
           </div>
         </div>
@@ -397,8 +472,10 @@ export function ArtistGigStatisticsManager() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-base font-semibold text-[#20182f] line-clamp-2">{gig.gigTitle}</p>
-                    <p className="mt-1 text-sm text-[#5f5473]">@ {gig.venueName}</p>
-                    <p className="mt-1 text-sm italic text-[#6a5d82]">{gig.venueAddress}</p>
+                    <p className="mt-1 text-sm text-[#5f5473]">@ {isLivestreamGig(gig) ? 'Live Stream Gig' : gig.venueName}</p>
+                    <p className="mt-1 text-sm italic text-[#6a5d82]">
+                      {isLivestreamGig(gig) ? getLivestreamDisplayLink(gig) : gig.venueAddress}
+                    </p>
                   </div>
                   <span className="rounded-full bg-[#f4eafb] px-3 py-1 text-xs font-semibold capitalize text-[#7139bf]">
                     {gig.bookingStatus}
@@ -406,8 +483,8 @@ export function ArtistGigStatisticsManager() {
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2 text-xs text-[#5f5473]">
                   <span className="rounded-full bg-[#f8f1fb] px-3 py-1">{formatDateTimeLabel(gig.startDatetime, gig.timezone)}</span>
-                  <span className="rounded-full bg-[#f8f1fb] px-3 py-1 capitalize">{gig.eventType.replace(/_/g, ' ')}</span>
-                  {gig.bookingFee ? (
+                  <span className="rounded-full bg-[#f8f1fb] px-3 py-1 capitalize">{isLivestreamGig(gig) ? 'livestream' : gig.eventType.replace(/_/g, ' ')}</span>
+                  {gig.bookingFee && !isArtistSubmittedGig(gig) ? (
                     <span className="rounded-full bg-[#e8f8ee] px-3 py-1 font-medium text-[#27784b]">
                       {formatCurrencyAmount(gig.bookingFee, gig.currency)}
                     </span>

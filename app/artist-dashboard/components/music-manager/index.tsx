@@ -132,6 +132,16 @@ interface ArtistMusicManagerProps {
 
 const MUSIC_MANAGER_INTRO_COLLAPSED_STORAGE_KEY = 'artist-music-manager:intro-collapsed:v1'
 
+const resolvePersistedStep = (value: string | null | undefined): StepId => {
+  const normalizedStep = value === 'guide' || value === 'intro' || value === 'workflow'
+    ? 'registration'
+    : value
+
+  return STEPS.some((step) => step.id === normalizedStep)
+    ? (normalizedStep as StepId)
+    : 'registration'
+}
+
 function SaveStatusModal({
   message,
   onClose,
@@ -474,8 +484,7 @@ export function ArtistMusicManager({
         const draft = result.data[0] as DbRelease
         setReleaseId(draft.id)
         setUploadGuideConfirmed(draft.upload_guide_confirmed)
-        const savedStep = draft.current_step === 'guide' ? 'registration' : draft.current_step
-        setCurrentStep((savedStep as StepId) || 'registration')
+        setCurrentStep(resolvePersistedStep(draft.current_step))
         setReleaseData(prev => ({ ...prev, ...dbToReleaseData(draft) }))
       } else {
         try {
@@ -1086,14 +1095,9 @@ export function ArtistMusicManager({
   }
 
   const applyReleaseToEditor = (release: DbRelease) => {
-    const persistedStep = release.current_step === 'guide' ? 'registration' : release.current_step
-    const nextStep = STEPS.some((step) => step.id === persistedStep)
-      ? (persistedStep as StepId)
-      : 'registration'
-
     setReleaseId(release.id)
     setUploadGuideConfirmed(release.upload_guide_confirmed)
-    setCurrentStep(nextStep)
+    setCurrentStep(resolvePersistedStep(release.current_step))
     setReleaseData({ ...initialReleaseData, ...dbToReleaseData(release) })
     setMusicView('upload')
     if (isEmbeddedDashboardSubPage && (forcedSubSection === 'library' || forcedSubSection === 'drafts')) {
@@ -1127,6 +1131,17 @@ export function ArtistMusicManager({
     } finally {
       setEditingReleaseId(null)
     }
+  }
+
+  const handleContinueDraftUploadFlow = () => {
+    const draftToOpen = draftReleases.find((release) => release.id === releaseId) || draftReleases[0]
+
+    if (draftToOpen) {
+      void handleEditRelease(draftToOpen)
+      return
+    }
+
+    navigateMusicSubSection('workflow')
   }
 
   const formatDate = (value: string | null | undefined) => {
@@ -1551,7 +1566,7 @@ export function ArtistMusicManager({
             {isDraftLibrary && (
               <Button
                 variant="outline"
-                onClick={() => navigateMusicSubSection('workflow')}
+                onClick={handleContinueDraftUploadFlow}
                 className="border-purple-200 text-purple-700 hover:bg-purple-50"
               >
                 Continue Draft Upload Flow

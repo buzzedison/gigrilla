@@ -135,7 +135,7 @@ export function ArtistBookNewGigManager({ onBookVenue, onAddManualGig }: ArtistB
               Book a New Gig
             </CardTitle>
             <p className="max-w-3xl text-base text-slate-600">
-              Gigrilla Booking System - Venue Gigs & Other Member Gigs. Search verified venues, narrow the list with filters,
+              Gigrilla Booking System - Venue Gigs & Other Member Gigs. Search verified venues by name, city, or country, narrow the list with filters,
               then carry your selected venue straight into the gig booking form.
             </p>
           </div>
@@ -161,7 +161,7 @@ export function ArtistBookNewGigManager({ onBookVenue, onAddManualGig }: ArtistB
                   <Input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search by venue name"
+                    placeholder="Search by venue name, city, or country"
                     className="border-emerald-200 bg-white pl-10 focus-visible:ring-emerald-500"
                   />
                 </div>
@@ -308,7 +308,7 @@ export function ArtistBookNewGigManager({ onBookVenue, onAddManualGig }: ArtistB
             <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Filtered results</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">{filteredResults.length}</p>
-              <p className="mt-1 text-sm text-slate-600">Country and city filters apply on top of your venue-name search.</p>
+              <p className="mt-1 text-sm text-slate-600">Country and city filters apply on top of your venue or location search.</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Next step</p>

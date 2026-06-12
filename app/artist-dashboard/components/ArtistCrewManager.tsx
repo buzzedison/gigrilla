@@ -77,6 +77,18 @@ function nonInstrumentRoles(roles: string[]): string[] {
   return roles.filter(r => !r.startsWith('instrument:'))
 }
 
+function toDateInputValue(value?: string | null): string {
+  const trimmed = value?.trim()
+  if (!trimmed) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
+  if (/^\d{4}-\d{2}$/.test(trimmed)) return `${trimmed}-01`
+
+  const parsed = new Date(trimmed)
+  if (Number.isNaN(parsed.getTime())) return ''
+
+  return parsed.toISOString().slice(0, 10)
+}
+
 interface CrewMember {
   id: string
   name: string
@@ -1854,12 +1866,12 @@ export function ArtistCrewManager() {
                     <Label htmlFor="artistMemberSince" className="text-sm font-semibold text-gray-700">Member of Artist Since?</Label>
                     <Input
                       id="artistMemberSince"
-                      type="month"
-                      value={profileOwner.memberSince || ''}
+                      type="date"
+                      value={toDateInputValue(profileOwner.memberSince)}
                       onChange={(e) => updateProfileOwner({ memberSince: e.target.value })}
                       className="border-purple-200 focus:border-purple-400"
                     />
-                    <p className="text-xs text-gray-500">Date joined, month/year.</p>
+                    <p className="text-xs text-gray-500">Date joined.</p>
                   </div>
 
                   <div className="space-y-2 rounded-lg border border-green-200 bg-green-50 p-3">
@@ -2465,12 +2477,12 @@ export function ArtistCrewManager() {
                     {newMemberType === 'performer' ? 'Member of Artist Since?' : 'Crew Since?'}
                   </Label>
                   <Input
-                    type="month"
-                    value={newMember.memberSince || ''}
+                    type="date"
+                    value={toDateInputValue(newMember.memberSince)}
                     onChange={(e) => setNewMember(prev => ({ ...prev, memberSince: e.target.value }))}
                     className="border-purple-200 focus:border-purple-400"
                   />
-                  <p className="text-xs text-gray-500">Date joined, month/year.</p>
+                  <p className="text-xs text-gray-500">Date joined.</p>
                 </div>
 
                 <div className="space-y-2">
@@ -2485,8 +2497,8 @@ export function ArtistCrewManager() {
                       Is Current {newMemberType === 'performer' || Boolean(newMember.isPerformer) ? 'Member' : 'Crew'}
                     </Button>
                     <Input
-                      type="month"
-                      value={newMember.dateLeft || ''}
+                      type="date"
+                      value={toDateInputValue(newMember.dateLeft)}
                       onChange={(e) => setNewMember(prev => ({ ...prev, isCurrentMember: false, dateLeft: e.target.value }))}
                       className="border-purple-200 focus:border-purple-400"
                       placeholder="Date left"
@@ -2967,8 +2979,8 @@ export function ArtistCrewManager() {
                                   Current
                                 </Button>
                                 <Input
-                                  type="month"
-                                  value={editingMemberFields.dateLeft}
+                                  type="date"
+                                  value={toDateInputValue(editingMemberFields.dateLeft)}
                                   onChange={(e) => setEditingMemberFields(prev => ({ ...prev, isCurrentMember: false, dateLeft: e.target.value }))}
                                   className="border-purple-200 text-sm"
                                 />

@@ -1,9 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Check, Globe, Home, MapPin, X } from 'lucide-react'
+import { useMemo } from 'react'
+import { Globe, Home, MapPin, X } from 'lucide-react'
 import { SectionWrapper, InfoBox } from './shared'
 import { ReleaseData, territoryOptions, countryOptions } from './types'
+import { TerritoryMultiSelect } from './TerritoryMultiSelect'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select'
 
 interface GeographicalSectionProps {
@@ -12,8 +13,6 @@ interface GeographicalSectionProps {
 }
 
 export function GeographicalSection({ releaseData, onUpdate }: GeographicalSectionProps) {
-  const [territorySelectKey, setTerritorySelectKey] = useState(0)
-  const [excludedTerritorySelectKey, setExcludedTerritorySelectKey] = useState(0)
   const specificTerritoryOptions = useMemo(
     () => [
       ...territoryOptions,
@@ -190,32 +189,13 @@ export function GeographicalSection({ releaseData, onUpdate }: GeographicalSecti
             <label className="block text-sm font-medium text-gray-800">
               Add Specific Territories
             </label>
-            <Select
-              key={territorySelectKey}
-              onValueChange={(value) => {
-                toggleTerritory(value)
-                setTerritorySelectKey((prev) => prev + 1)
-              }}
-            >
-              <SelectTrigger className="w-full md:w-80">
-                <SelectValue placeholder="Add Specific Territories or Countries" />
-              </SelectTrigger>
-              <SelectContent>
-                {specificTerritoryOptions.map((territory) => {
-                  const isSelected = releaseData.specificTerritories.includes(territory.value)
-                  return (
-                    <SelectItem key={territory.value} value={territory.value}>
-                      <span className="flex items-center gap-2">
-                        {isSelected
-                          ? <Check className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
-                          : <span className="w-3.5 h-3.5 flex-shrink-0" />}
-                        {territory.label}
-                      </span>
-                    </SelectItem>
-                  )
-                })}
-              </SelectContent>
-            </Select>
+            <TerritoryMultiSelect
+              options={specificTerritoryOptions}
+              selectedValues={releaseData.specificTerritories}
+              onToggle={toggleTerritory}
+              placeholder="Add Specific Territories or Countries"
+              selectedTone="purple"
+            />
             <div className="flex flex-wrap gap-2">
               {releaseData.specificTerritories.map((territory) => {
                 const territoryLabel = specificTerritoryOptions.find(t => t.value === territory)?.label || territory
@@ -243,32 +223,13 @@ export function GeographicalSection({ releaseData, onUpdate }: GeographicalSecti
             <label className="block text-sm font-medium text-gray-800">
               Exclude Specific Territories
             </label>
-            <Select
-              key={excludedTerritorySelectKey}
-              onValueChange={(value) => {
-                toggleExcludedTerritory(value)
-                setExcludedTerritorySelectKey((prev) => prev + 1)
-              }}
-            >
-              <SelectTrigger className="w-full md:w-80">
-                <SelectValue placeholder="Exclude Territories or Countries" />
-              </SelectTrigger>
-              <SelectContent>
-                {specificTerritoryOptions.map((territory) => {
-                  const isExcluded = releaseData.excludedTerritories.includes(territory.value)
-                  return (
-                    <SelectItem key={territory.value} value={territory.value}>
-                      <span className="flex items-center gap-2">
-                        {isExcluded
-                          ? <Check className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                          : <span className="w-3.5 h-3.5 flex-shrink-0" />}
-                        {territory.label}
-                      </span>
-                    </SelectItem>
-                  )
-                })}
-              </SelectContent>
-            </Select>
+            <TerritoryMultiSelect
+              options={specificTerritoryOptions}
+              selectedValues={releaseData.excludedTerritories}
+              onToggle={toggleExcludedTerritory}
+              placeholder="Exclude Territories or Countries"
+              selectedTone="amber"
+            />
             <div className="flex flex-wrap gap-2">
               {releaseData.excludedTerritories.map((territory) => {
                 const territoryLabel = specificTerritoryOptions.find(t => t.value === territory)?.label || territory

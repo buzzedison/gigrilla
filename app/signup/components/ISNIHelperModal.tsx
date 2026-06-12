@@ -135,7 +135,7 @@ export function ISNIHelperModal({ trigger, initialTab = 'get' }: ISNIHelperModal
                     <p className="text-sm font-medium text-foreground">Receive your 16-digit ISNI</p>
                     <p className="text-xs text-foreground/60">
                       You'll receive an ISNI in the format: <span className="font-mono font-semibold">0000 0001 2103 2164</span>.
-                      Enter it above and we'll verify it against the ISNI registry for you.
+                      Close this helper and enter it in the ISNI field on the page; we'll verify it against the ISNI registry for you.
                     </p>
                   </div>
                 </div>

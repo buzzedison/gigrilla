@@ -91,9 +91,9 @@ export interface ArtistGigSummaryResponse {
   view: 'all'
   warning?: string
   data: {
-    counts: Record<'gig_invites' | 'gig_requests' | 'confirmations', number>
+    counts: Record<string, number>
     folders?: Array<{
-      id: 'gig_invites' | 'gig_requests' | 'confirmations'
+      id: string
       label: string
       total: number
     }>

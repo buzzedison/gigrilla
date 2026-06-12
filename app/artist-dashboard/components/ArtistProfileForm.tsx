@@ -131,6 +131,12 @@ const sanitizeDisplayPart = (value?: string | null) => {
   return trimmed
 }
 
+const parseCounterValue = (value: string | number | null | undefined) => {
+  const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10)
+  if (!Number.isFinite(parsed) || parsed < 0) return 0
+  return parsed
+}
+
 export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
   const { user } = useAuth()
   const router = useRouter()
@@ -140,6 +146,8 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
   const [artistTypeId, setArtistTypeId] = useState<number | null>(null)
   const [artistSubTypeLabels, setArtistSubTypeLabels] = useState<string[]>([])
   const [existingSocialLinks, setExistingSocialLinks] = useState<Record<string, string | null>>({})
+  const [gigrillaGigCount, setGigrillaGigCount] = useState<number | null>(null)
+  const [gigrillaGigCountLoading, setGigrillaGigCountLoading] = useState(false)
   const [baseLocationCoordinates, setBaseLocationCoordinates] = useState<{ lat: number | null; lon: number | null }>({
     lat: null,
     lon: null
@@ -172,6 +180,39 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
   useEffect(() => {
     if (!user) {
       setInitialLoading(false)
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+
+    let cancelled = false
+
+    const loadGigrillaGigCount = async () => {
+      setGigrillaGigCountLoading(true)
+      try {
+        const response = await fetch('/api/artist-gigs?summary=true', { cache: 'no-store' })
+        const result = await response.json().catch(() => null)
+        const completed = result?.data?.statuses?.completed
+
+        if (!cancelled) {
+          setGigrillaGigCount(typeof completed === 'number' ? completed : 0)
+        }
+      } catch {
+        if (!cancelled) {
+          setGigrillaGigCount(0)
+        }
+      } finally {
+        if (!cancelled) {
+          setGigrillaGigCountLoading(false)
+        }
+      }
+    }
+
+    void loadGigrillaGigCount()
+
+    return () => {
+      cancelled = true
     }
   }, [user])
 
@@ -252,6 +293,10 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
+
+  const manualGigCount = parseCounterValue(formData.gigs_performed)
+  const systemGigCount = gigrillaGigCount ?? 0
+  const totalGigPerformances = manualGigCount + systemGigCount
 
   const applyLocationSuggestion = (suggestion: LocationSuggestion) => {
     const city = suggestion.city?.trim() ?? ''
@@ -544,7 +589,7 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
             <h2 className="text-xl font-semibold text-gray-900">Artist Basics</h2>
 
             <div id="artist-stage-name" className="space-y-2 scroll-mt-28">
-              <label className="block text-sm font-medium text-gray-700">Artist Stage Name</label>
+              <label className="block text-sm font-medium text-gray-700">Artist Entity Stage Name</label>
               <p className="text-xs leading-5 text-gray-500">
                 This is the name of your band/group/collective entity or your performing name if this Artist only has 1 member.
               </p>
@@ -642,10 +687,10 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
             </div>
           </div>
 
-          {/* ── Optional: Public Gigs Performed ───────────────────────── */}
+          {/* ── Optional: Artist Counters ─────────────────────────────── */}
           <div id="artist-gig-counter" className="bg-gray-50 rounded-lg p-4 space-y-4 scroll-mt-28">
-            <h2 className="text-xl font-semibold text-gray-900">Gig & Collaboration Counters</h2>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <h2 className="text-xl font-semibold text-gray-900">Artist Gig Counter</h2>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">Gigs Performed Without Gigrilla (Adds to System Gig Count)</label>
                 <Input
@@ -655,6 +700,24 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                   value={formData.gigs_performed}
                   onChange={(e) => handleInputChange('gigs_performed', e.target.value)}
                   placeholder="It pays to be honest…"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Gigs Performed Through Gigrilla (System Gig Count)</label>
+                <Input
+                  value={gigrillaGigCountLoading ? 'Calculating...' : String(systemGigCount)}
+                  readOnly
+                  aria-readonly="true"
+                  className="bg-gray-100 text-gray-700"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Total Gig Performances (Displayed on Profile)</label>
+                <Input
+                  value={gigrillaGigCountLoading ? 'Calculating...' : String(totalGigPerformances)}
+                  readOnly
+                  aria-readonly="true"
+                  className="border-purple-200 bg-purple-50 text-purple-900 font-semibold"
                 />
               </div>
               {artistCapabilities?.hasSessionGigs && (
@@ -670,19 +733,18 @@ export function ArtistProfileForm({ onProfileSaved }: ArtistProfileFormProps) {
                   />
                 </div>
               )}
-              {artistCapabilities?.hasSongwritingCollaborations && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Collaborations with Other Artists Before Joining Gigrilla</label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={formData.songwriting_collaborations}
-                    onChange={(e) => handleInputChange('songwriting_collaborations', e.target.value)}
-                    placeholder="0"
-                  />
-                </div>
-              )}
+              <div id="artist-collab-counter" className="space-y-2 scroll-mt-28">
+                <label className="text-sm font-medium text-gray-700">Artist Collab Counter</label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formData.songwriting_collaborations}
+                  onChange={(e) => handleInputChange('songwriting_collaborations', e.target.value)}
+                  placeholder="0"
+                />
+                <p className="text-xs text-gray-500">Collaborations with other artists before joining Gigrilla.</p>
+              </div>
             </div>
           </div>
 

@@ -31,9 +31,9 @@ import { formatDateDDMMMyyyy, formatDateTimeDDMMMyyyy } from '@/lib/date-format'
 import { getCurrencySymbol } from '@/lib/currency-options'
 
 interface ArtistGigCalendarManagerProps {
-  defaultView?: 'create' | 'upcoming' | 'past' | 'drafts'
+  defaultView?: 'create' | 'upcoming' | 'past' | 'drafts' | 'scheduled-hidden'
   onNavigateToView?: (view: 'create' | 'upcoming' | 'past') => void
-  onNavigateToGigSubSection?: (subSection: 'book-new' | 'add-manually' | 'drafts') => void
+  onNavigateToGigSubSection?: (subSection: 'book-new' | 'add-manually' | 'drafts' | 'scheduled-hidden') => void
 }
 
 interface FanCommsFormState {
@@ -330,6 +330,37 @@ function formatDateTime(value: string | null) {
   return formatDateTimeDDMMMyyyy(value, 'Not set')
 }
 
+function getScheduledPublishAt(gig: ArtistGigRecord) {
+  const metadata = gig.metadata && typeof gig.metadata === 'object' ? gig.metadata : null
+  const publishMode = readMetadataString(metadata, 'publish_mode')
+  const publishAt = readMetadataString(metadata, 'publish_at')
+  if (publishMode !== 'scheduled' || !publishAt) return null
+
+  const parsed = new Date(publishAt)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed
+}
+
+function isScheduledHiddenGig(gig: ArtistGigRecord, nowMs: number) {
+  if (gig.gigStatus !== 'draft') return false
+  const publishAt = getScheduledPublishAt(gig)
+  return Boolean(publishAt && publishAt.getTime() > nowMs)
+}
+
+function isTrueDraftGig(gig: ArtistGigRecord, nowMs: number) {
+  return gig.gigStatus === 'draft' && !isScheduledHiddenGig(gig, nowMs)
+}
+
+function isPublicUpcomingGig(gig: ArtistGigRecord, nowMs: number) {
+  if (!gig.startDatetime) return false
+  if (gig.bookingStatus === 'cancelled' || gig.bookingStatus === 'completed') return false
+  if (gig.gigStatus === 'draft') return false
+
+  const startDate = new Date(gig.startDatetime)
+  if (Number.isNaN(startDate.getTime())) return false
+  return startDate.getTime() >= nowMs
+}
+
 function toLocalDateInput(value: string | null) {
   if (!value) return ''
   const date = new Date(value)
@@ -502,7 +533,7 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
     load()
   }, [load])
 
-  const now = useMemo(() => new Date(), [])
+  const nowMs = useMemo(() => Date.now(), [])
   const sorted = useMemo(() => {
     return [...gigs].sort((a, b) => {
       const left = a.startDatetime ? new Date(a.startDatetime).getTime() : 0
@@ -512,16 +543,25 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
   }, [gigs])
 
   const upcoming = useMemo(
-    () => sorted.filter((gig) => gig.startDatetime && new Date(gig.startDatetime) >= now),
-    [sorted, now]
+    () => sorted.filter((gig) => isPublicUpcomingGig(gig, nowMs)),
+    [sorted, nowMs]
+  )
+  const scheduledHiddenGigs = useMemo(
+    () => sorted.filter((gig) => isScheduledHiddenGig(gig, nowMs)),
+    [sorted, nowMs]
   )
   const draftGigs = useMemo(
-    () => sorted.filter((gig) => gig.gigStatus === 'draft'),
-    [sorted]
+    () => sorted.filter((gig) => isTrueDraftGig(gig, nowMs)),
+    [sorted, nowMs]
   )
   const past = useMemo(
-    () => sorted.filter((gig) => !gig.startDatetime || new Date(gig.startDatetime) < now),
-    [sorted, now]
+    () => sorted.filter((gig) => {
+      if (!gig.startDatetime) return true
+      const startDate = new Date(gig.startDatetime)
+      if (Number.isNaN(startDate.getTime())) return true
+      return startDate.getTime() < nowMs
+    }),
+    [sorted, nowMs]
   )
 
   const openEditDialog = (gig: ArtistGigRecord) => {
@@ -751,7 +791,7 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
     }
   }
 
-  const navigateGigSubSection = (subSection: 'book-new' | 'add-manually' | 'drafts') => {
+  const navigateGigSubSection = (subSection: 'book-new' | 'add-manually' | 'drafts' | 'scheduled-hidden') => {
     if (onNavigateToGigSubSection) {
       onNavigateToGigSubSection(subSection)
       return
@@ -904,7 +944,7 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
                 Draft Gigs
               </CardTitle>
               <p className="text-sm text-gray-600 mt-1">
-                Resume scheduled or unpublished gig drafts before they become public.
+                Resume unpublished gig drafts before choosing when they become public.
               </p>
             </div>
             <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing}>
@@ -951,7 +991,7 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
               <div className="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center">
                 <CalendarDays className="w-10 h-10 text-gray-300 mx-auto mb-3" />
                 <p className="text-sm text-gray-500">No draft gigs saved yet.</p>
-                <p className="text-xs text-gray-400 mt-1">Scheduled public gigs and saved draft gigs will appear here.</p>
+                <p className="text-xs text-gray-400 mt-1">Scheduled-hidden gigs have their own menu item.</p>
               </div>
             ) : !error ? (
               <div className="grid gap-4 sm:grid-cols-2">
@@ -1018,6 +1058,127 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
     )
   }
 
+  if (defaultView === 'scheduled-hidden') {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarDays className="w-5 h-5 text-purple-700" />
+                Scheduled/Hidden Gigs
+              </CardTitle>
+              <p className="text-sm text-gray-600 mt-1">
+                These gigs are created but hidden from public listings until their scheduled public date.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {editGig && (
+              <div className="mb-6 rounded-xl border border-purple-200 bg-purple-50/40 p-4">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-purple-900">Editing: {editGig.gigTitle}</h3>
+                    <p className="text-sm text-purple-800">Update this scheduled-hidden gig or change when it becomes public.</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setEditGig(null)}>
+                    Back to Scheduled/Hidden
+                  </Button>
+                </div>
+                <CreateGigForm
+                  mode="edit"
+                  bookingId={editGig.id}
+                  initialData={toGigFormInitialData(editGig)}
+                  onCancel={() => setEditGig(null)}
+                  onSuccess={() => {
+                    setEditGig(null)
+                    load(true)
+                  }}
+                />
+              </div>
+            )}
+            {warning && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                {warning}
+              </div>
+            )}
+            {error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" />
+                {error}
+              </div>
+            )}
+            {!error && scheduledHiddenGigs.length === 0 ? (
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center">
+                <CalendarDays className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                <p className="text-sm text-gray-500">No scheduled-hidden gigs.</p>
+                <p className="text-xs text-gray-400 mt-1">Gigs with a future public date will appear here until they go live.</p>
+              </div>
+            ) : !error ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {scheduledHiddenGigs.map((gig) => {
+                  const isPublishing = actioningGigId === gig.id
+                  const performanceStart = gig.artistTile?.performanceStartDatetime || gig.startDatetime
+                  const performanceEnd = gig.artistTile?.performanceEndDatetime || gig.endDatetime
+                  const metadata = gig.metadata && typeof gig.metadata === 'object' ? gig.metadata : null
+                  const isLivestream = (gig.eventType || '').toLowerCase() === 'livestream'
+                  const livestreamUrl = readMetadataString(metadata, 'live_stream_url') || null
+                  const publishAt = readMetadataString(metadata, 'publish_at')
+                  const displayVenueName = isLivestream ? 'Live Stream Gig' : gig.venueName
+                  const displayVenueAddress = isLivestream ? getLivestreamDisplayLink(livestreamUrl) : gig.venueAddress
+
+                  return (
+                    <div key={gig.id} className="rounded-xl border border-purple-200 bg-white p-4 shadow-sm">
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h3 className="font-bold text-gray-900 text-lg leading-tight">{gig.gigTitle}</h3>
+                            <p className="text-sm text-gray-600">@ {displayVenueName}</p>
+                            <p className="text-sm text-gray-500 italic break-all">{displayVenueAddress}</p>
+                          </div>
+                          <Badge variant="secondary">Scheduled / Hidden</Badge>
+                        </div>
+                        <p className="text-sm font-semibold text-purple-700">
+                          Gig Date: {formatDateRange(performanceStart, performanceEnd)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Scheduled public date: {formatDateTimeDDMMMyyyy(publishAt, 'Not set')}
+                        </p>
+                        <div className="grid gap-2 pt-3 border-t sm:grid-cols-2">
+                          <Button variant="outline" size="sm" className="w-full" onClick={() => openEditDialog(gig)}>
+                            <Edit className="w-3 h-3 mr-1" />
+                            Edit Schedule
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="w-full bg-green-600 hover:bg-green-700"
+                            onClick={() => handlePublishNow(gig)}
+                            disabled={isPublishing}
+                          >
+                            {isPublishing ? (
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            ) : (
+                              <Eye className="w-3 h-3 mr-1" />
+                            )}
+                            Make Public Now
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   if (defaultView === 'upcoming') {
     return (
       <div className="space-y-6">
@@ -1029,7 +1190,7 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
                 Amend Upcoming Gigs
               </CardTitle>
               <p className="text-sm text-gray-600 mt-1">
-                Amend your upcoming public and scheduled Gigs here. Changes will take up to 24 hours to take effect across Gigrilla, except for &quot;Make Public Now&quot; which is immediate.
+                Amend your upcoming public Gigs here. Scheduled-hidden gigs stay separate until they become public.
               </p>
             </div>
             <Button variant="outline" size="sm" onClick={() => load(true)} disabled={refreshing}>
@@ -1284,7 +1445,7 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
           </CardContent>
         </Card>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Button
             type="button"
             className="h-12 bg-purple-600 text-white hover:bg-purple-700"
@@ -1310,6 +1471,15 @@ export function ArtistGigCalendarManager({ defaultView = 'create', onNavigateToV
           >
             <CalendarDays className="mr-2 h-4 w-4" />
             Draft Gigs
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 border-purple-200 bg-white text-purple-800 hover:bg-purple-50"
+            onClick={() => navigateGigSubSection('scheduled-hidden')}
+          >
+            <CalendarDays className="mr-2 h-4 w-4" />
+            Scheduled/Hidden
           </Button>
         </div>
 

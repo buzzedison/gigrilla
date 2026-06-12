@@ -955,7 +955,7 @@ export function CreateGigForm({
                 venue_address: isInPerson ? form.venueAddress : undefined,
                 venue_city: undefined,
                 venue_country: undefined,
-                booking_fee: form.ticketPriceOnline ? parseFloat(form.ticketPriceOnline) : null,
+                booking_fee: null,
                 currency: form.ticketCurrency,
                 special_requests: undefined,
                 // Extended metadata
@@ -1205,7 +1205,7 @@ export function CreateGigForm({
                         <h3 className="font-semibold text-gray-900 text-base">Which Venue is hosting this Gig?</h3>
                     </div>
                     <p className="text-sm text-gray-600">
-                        If your Gig Venue is already on Gigrilla they&apos;ll show up as you start to type.
+                        If your Gig Venue is already on Gigrilla they&apos;ll show up as you start to type a venue name, city, or country.
                         If not, just finish typing their full Venue name and add their address below.
                     </p>
 
@@ -1215,7 +1215,7 @@ export function CreateGigForm({
                             <div className="relative mt-1">
                                 <Input
                                     id="venueName"
-                                    placeholder="Start typing Venue name…"
+                                    placeholder="Start typing venue name, city, or country..."
                                     value={form.venueName}
                                     onChange={e => update('venueName', e.target.value)}
                                     onFocus={() => setVenueDropdownOpen(true)}

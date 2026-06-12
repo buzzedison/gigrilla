@@ -1032,10 +1032,10 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
     }
   }
 
-  const saveTrackSilently = async (index: number, overrides?: Partial<TrackData>) => {
+  const saveTrackSilently = async (index: number, overrides?: Partial<TrackData>): Promise<boolean> => {
     const track = tracks[index]
-    if (!releaseId) return
-    if (!track) return
+    if (!releaseId) return false
+    if (!track) return false
 
     const mergedTrack: TrackData = { ...track, ...overrides }
 
@@ -1050,14 +1050,19 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
 
       if (response.ok) {
         const result = await response.json()
-        if (result.success && result.data?.id) {
-          updateTrack(index, 'id', result.data.id)
+        if (result.success) {
+          if (result.data?.id) {
+            updateTrack(index, 'id', result.data.id)
+          }
+          return true
         }
       }
     } catch (error) {
       console.error('Error auto-saving track:', error)
       // Fail silently - user can still manually save later
     }
+
+    return false
   }
 
   const saveTrack = async (index: number) => {
@@ -1126,6 +1131,41 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
     } catch {
       return false
     }
+  }
+
+  const confirmTrackLyrics = async (index: number) => {
+    const track = tracks[index]
+    if (!track) return
+
+    if (!releaseId) {
+      showNotification('Release Not Saved', 'Please save the release first before confirming lyrics.', 'warning')
+      return
+    }
+
+    const hasLyrics = Boolean(track.lyrics.trim() || track.lyricsFileUrl)
+    if (!hasLyrics) {
+      showNotification('Missing Lyrics', 'Paste lyrics or upload a lyrics file before confirming.', 'warning')
+      return
+    }
+
+    setSavingTrackIndex(index)
+    updateTrack(index, 'hasNoLyrics', false)
+    updateTrack(index, 'lyricsConfirmed', true)
+
+    const saved = await saveTrackSilently(index, {
+      hasNoLyrics: false,
+      lyricsConfirmed: true
+    })
+
+    setSavingTrackIndex(null)
+
+    if (saved) {
+      showNotification('Lyrics Confirmed', `Track ${track.trackNumber} lyrics saved.`, 'success')
+      return
+    }
+
+    updateTrack(index, 'lyricsConfirmed', false)
+    showNotification('Save Failed', 'Could not save the lyrics confirmation. Please try again.', 'error')
   }
 
   const confirmVideoLink = async (index: number) => {
@@ -1251,7 +1291,7 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
         title="Upload Tracks"
         subtitle={`Upload audio files and metadata for each track in this ${releaseData.releaseType || 'release'}`}
       >
-        <div className="space-y-6">
+        <div className="space-y-6 pb-24">
           <div className="flex justify-end">
             <Button
               type="button"
@@ -2384,13 +2424,25 @@ export function TrackUploadSection({ releaseData, releaseId, onUpdate, onTracksU
                             </Button>
                             <Button
                               type="button"
-                              variant="outline"
                               size="sm"
-                              onClick={() => updateTrack(index, 'lyricsConfirmed', true)}
-                              disabled={!track.lyrics.trim() && !track.lyricsFileUrl}
+                              onClick={() => void confirmTrackLyrics(index)}
+                              disabled={savingTrackIndex === index || (!track.lyrics.trim() && !track.lyricsFileUrl)}
+                              className={
+                                track.lyricsConfirmed
+                                  ? 'bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-emerald-100 disabled:text-emerald-700'
+                                  : 'border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50 disabled:bg-gray-100 disabled:text-gray-400'
+                              }
                             >
-                              <CheckCircle className="w-4 h-4 mr-2" />
-                              Confirm Track {track.trackNumber} Lyrics
+                              {savingTrackIndex === index ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              ) : (
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                              )}
+                              {savingTrackIndex === index
+                                ? 'Saving Lyrics...'
+                                : track.lyricsConfirmed
+                                  ? `Track ${track.trackNumber} Lyrics Confirmed`
+                                  : `Confirm Track ${track.trackNumber} Lyrics`}
                             </Button>
                           </div>
                         </div>

@@ -211,6 +211,13 @@ export async function GET() {
       .eq('artist_profile_id', profileId)
       .order('joined_at', { ascending: true })
 
+    const { data: invitedLegalMembers } = await supabase
+      .from('artist_member_invitations')
+      .select('id, name, email, roles, status, invited_at, responded_at, metadata')
+      .eq('user_id', user.id)
+      .eq('artist_profile_id', profileId)
+      .order('invited_at', { ascending: true })
+
     const { data: paymentData, error: paymentError } = await supabase
       .from('artist_payment_details')
       .select('*')
@@ -257,10 +264,34 @@ export async function GET() {
       joined_at: artistProfile?.created_at ?? null
     }
 
+    const activeInvitationIds = new Set(
+      (legalMembers || [])
+        .map(member => typeof member.invitation_id === 'string' ? member.invitation_id : null)
+        .filter((invitationId): invitationId is string => Boolean(invitationId))
+    )
+
+    const pendingLegalMembers = (invitedLegalMembers || [])
+      .filter(member => !activeInvitationIds.has(member.id) && member.status !== 'rejected')
+      .map(member => ({
+        id: member.id,
+        invitation_id: member.id,
+        name: member.name,
+        email: member.email,
+        roles: Array.isArray(member.roles) ? member.roles : [],
+        status: member.status,
+        invited_at: member.invited_at,
+        responded_at: member.responded_at,
+        joined_at: member.invited_at,
+        metadata: {
+          ...(isRecord(member.metadata) ? member.metadata : {}),
+          isCurrentMember: getRecordBoolean(member.metadata, 'isCurrentMember', true)
+        }
+      }))
+
     return NextResponse.json({
       data: paymentData || null,
       artistProfile: artistProfile || null,
-      legalMembers: [ownerLegalMember, ...(legalMembers || [])]
+      legalMembers: [ownerLegalMember, ...(legalMembers || []), ...pendingLegalMembers]
     })
 
   } catch (error) {

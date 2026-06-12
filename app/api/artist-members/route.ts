@@ -10,6 +10,24 @@ const asRecord = (value: unknown): Record<string, unknown> => (
   value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 )
 
+const toTrimmedString = (value: unknown) => typeof value === 'string' ? value.trim() : ''
+
+const buildMemberDisplayName = (
+  firstName: unknown,
+  nickname: unknown,
+  lastName: unknown,
+  fallback = ''
+) => {
+  const trimmedFirst = toTrimmedString(firstName)
+  const trimmedNickname = toTrimmedString(nickname)
+  const trimmedLast = toTrimmedString(lastName)
+
+  return [trimmedFirst, trimmedNickname ? `"${trimmedNickname}"` : '', trimmedLast]
+    .filter(Boolean)
+    .join(' ')
+    .trim() || fallback
+}
+
 async function clearOtherMainContacts(
   supabase: SupabaseClient,
   userId: string,
@@ -515,6 +533,7 @@ export async function PUT(request: NextRequest) {
   const body = await request.json()
   const {
     memberId,
+    email,
     gigRoyaltyShare,
     merchRoyaltyShare,
     musicRoyaltyShare,
@@ -528,6 +547,7 @@ export async function PUT(request: NextRequest) {
     performerIsni,
     performerIpn,
     creatorIpiCae,
+    memberType,
     isPerformer,
     isShareholder,
     isMainContact,
@@ -541,6 +561,94 @@ export async function PUT(request: NextRequest) {
   }
 
   try {
+    if (memberId === `${profile.id}-profile-owner`) {
+      const locationDetails = asRecord(profile.location_details)
+      const updatedLocationDetails = { ...locationDetails }
+
+      if (typeof firstName === 'string') updatedLocationDetails.artist_owner_first_name = firstName.trim()
+      if (typeof lastName === 'string') updatedLocationDetails.artist_owner_last_name = lastName.trim()
+      if (typeof nickname === 'string') updatedLocationDetails.artist_owner_nickname = nickname.trim()
+      if (typeof email === 'string') updatedLocationDetails.artist_owner_email = email.trim().toLowerCase()
+      if (typeof phone === 'string') updatedLocationDetails.artist_owner_phone = phone.trim()
+      if (typeof phoneCountryCode === 'string') updatedLocationDetails.artist_owner_phone_country_code = phoneCountryCode.trim()
+      if (typeof performerIpn === 'string') updatedLocationDetails.artist_owner_performer_ipn = performerIpn.trim()
+      if (isPerformer !== undefined) updatedLocationDetails.artist_owner_is_performer = !!isPerformer
+      if (isShareholder !== undefined) updatedLocationDetails.artist_owner_is_shareholder = !!isShareholder
+      if (isMainContact !== undefined) updatedLocationDetails.artist_owner_is_main_contact = !!isMainContact
+      if (typeof memberSince === 'string') updatedLocationDetails.artist_owner_member_since = memberSince.trim()
+      if (isCurrentMember !== undefined) updatedLocationDetails.artist_owner_status = isCurrentMember === false ? 'previous' : 'current'
+      if (typeof dateLeft === 'string') updatedLocationDetails.artist_owner_date_left = dateLeft.trim()
+      updatedLocationDetails.artist_owner_is_admin = true
+
+      const ownerUpdate: Record<string, unknown> = {
+        location_details: updatedLocationDetails,
+        updated_at: new Date().toISOString()
+      }
+
+      if (Array.isArray(roles)) {
+        ownerUpdate.artist_primary_roles = roles.filter((v: unknown): v is string => typeof v === 'string' && v.trim().length > 0)
+      }
+      if (typeof performerIsni === 'string') ownerUpdate.performer_isni = performerIsni.trim()
+      if (typeof creatorIpiCae === 'string') ownerUpdate.creator_ipi_cae = creatorIpiCae.trim()
+
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .update(ownerUpdate)
+        .eq('id', profile.id)
+        .eq('user_id', user.id)
+        .eq('profile_type', 'artist')
+        .select('id, artist_primary_roles, location_details, performer_isni, creator_ipi_cae, created_at')
+        .single()
+
+      if (error) {
+        console.error('Artist members PUT: failed to update profile owner', error)
+        return NextResponse.json({ error: 'Failed to update profile owner details' }, { status: 500 })
+      }
+
+      if (updatedLocationDetails.artist_owner_is_main_contact === true) {
+        try {
+          await clearOtherMainContacts(supabase, user.id, profile.id, `owner:${user.id}`)
+        } catch (mainContactError) {
+          console.error('Artist members PUT: failed to enforce single main contact for profile owner', mainContactError)
+          return NextResponse.json({ error: 'Failed to switch main contact' }, { status: 500 })
+        }
+      }
+
+      const responseLocationDetails = asRecord(data.location_details)
+      const ownerFirstName = toTrimmedString(responseLocationDetails.artist_owner_first_name)
+      const ownerLastName = toTrimmedString(responseLocationDetails.artist_owner_last_name)
+      const ownerNickname = toTrimmedString(responseLocationDetails.artist_owner_nickname)
+      const ownerEmail = toTrimmedString(responseLocationDetails.artist_owner_email) || user.email || ''
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          id: `${profile.id}-profile-owner`,
+          invitation_id: null,
+          name: buildMemberDisplayName(ownerFirstName, ownerNickname, ownerLastName, ownerEmail || 'Profile Owner'),
+          email: ownerEmail,
+          roles: Array.isArray(data.artist_primary_roles) ? data.artist_primary_roles : [],
+          metadata: {
+            firstName: ownerFirstName,
+            lastName: ownerLastName,
+            nickname: ownerNickname,
+            memberType: 'performer',
+            isPerformer: responseLocationDetails.artist_owner_is_performer !== false,
+            performerIsni: data.performer_isni || '',
+            performerIpn: toTrimmedString(responseLocationDetails.artist_owner_performer_ipn),
+            creatorIpiCae: data.creator_ipi_cae || '',
+            isShareholder: responseLocationDetails.artist_owner_is_shareholder === true,
+            isMainContact: responseLocationDetails.artist_owner_is_main_contact === true,
+            memberSince: toTrimmedString(responseLocationDetails.artist_owner_member_since),
+            isCurrentMember: responseLocationDetails.artist_owner_status !== 'previous',
+            dateLeft: toTrimmedString(responseLocationDetails.artist_owner_date_left),
+            isAdmin: true
+          },
+          joined_at: data.created_at ?? null
+        }
+      })
+    }
+
     // First try to update in invitations table
     const { data: invitationData, error: invitationError } = await supabase
       .from('artist_member_invitations')
@@ -592,6 +700,7 @@ export async function PUT(request: NextRequest) {
       if (typeof performerIsni === 'string') updatedMetadata.performerIsni = performerIsni.trim()
       if (typeof performerIpn === 'string') updatedMetadata.performerIpn = performerIpn.trim()
       if (typeof creatorIpiCae === 'string') updatedMetadata.creatorIpiCae = creatorIpiCae.trim()
+      if (memberType === 'performer' || memberType === 'support') updatedMetadata.memberType = memberType
       if (isPerformer !== undefined) updatedMetadata.isPerformer = !!isPerformer
       if (isShareholder !== undefined) updatedMetadata.isShareholder = !!isShareholder
       if (isMainContact !== undefined) updatedMetadata.isMainContact = !!isMainContact
@@ -600,6 +709,10 @@ export async function PUT(request: NextRequest) {
       if (typeof dateLeft === 'string') updatedMetadata.dateLeft = dateLeft.trim()
 
       const invitationUpdate: Record<string, unknown> = { metadata: updatedMetadata }
+      const updatedName = buildMemberDisplayName(updatedMetadata.firstName, updatedMetadata.nickname, updatedMetadata.lastName)
+      const updatedEmail = toTrimmedString(email).toLowerCase()
+      if (updatedName) invitationUpdate.name = updatedName
+      if (updatedEmail) invitationUpdate.email = updatedEmail
       if (Array.isArray(roles)) {
         invitationUpdate.roles = roles.filter((v: unknown): v is string => typeof v === 'string' && v.trim().length > 0)
       }
@@ -680,6 +793,7 @@ export async function PUT(request: NextRequest) {
       if (typeof performerIsni === 'string') updatedMetadata.performerIsni = performerIsni.trim()
       if (typeof performerIpn === 'string') updatedMetadata.performerIpn = performerIpn.trim()
       if (typeof creatorIpiCae === 'string') updatedMetadata.creatorIpiCae = creatorIpiCae.trim()
+      if (memberType === 'performer' || memberType === 'support') updatedMetadata.memberType = memberType
       if (isPerformer !== undefined) updatedMetadata.isPerformer = !!isPerformer
       if (isShareholder !== undefined) updatedMetadata.isShareholder = !!isShareholder
       if (isMainContact !== undefined) updatedMetadata.isMainContact = !!isMainContact
@@ -688,6 +802,10 @@ export async function PUT(request: NextRequest) {
       if (typeof dateLeft === 'string') updatedMetadata.dateLeft = dateLeft.trim()
 
       const activeUpdate: Record<string, unknown> = { metadata: updatedMetadata, updated_at: new Date().toISOString() }
+      const updatedName = buildMemberDisplayName(updatedMetadata.firstName, updatedMetadata.nickname, updatedMetadata.lastName)
+      const updatedEmail = toTrimmedString(email).toLowerCase()
+      if (updatedName) activeUpdate.name = updatedName
+      if (updatedEmail) activeUpdate.email = updatedEmail
       if (Array.isArray(roles)) {
         activeUpdate.roles = roles.filter((v: unknown): v is string => typeof v === 'string' && v.trim().length > 0)
       }

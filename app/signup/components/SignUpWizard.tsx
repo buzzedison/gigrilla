@@ -638,6 +638,7 @@ const DEFAULT_ARTIST_SELECTION = {
 
 const DEFAULT_ARTIST_PROFILE = {
   stageName: "",
+  bio: "",
   formedDate: "",
   performingMembers: 1,
   baseLocation: "",
@@ -809,6 +810,7 @@ type ArtistProfileSnapshot = {
   artist_type_id?: number | null
   artist_sub_types?: unknown
   preferred_genre_ids?: string[] | null
+  bio?: string | null
   stage_name?: string | null
   established_date?: string | null
   performing_members?: number | null
@@ -885,6 +887,12 @@ const toDelimitedString = (value: unknown) => {
 const preferDraftNumber = (draftValue: number, defaultValue: number, persistedValue: number | null | undefined) => {
   if (draftValue !== defaultValue) return draftValue
   return typeof persistedValue === "number" ? persistedValue : defaultValue
+}
+
+const parseCounterValue = (value: string | number | null | undefined) => {
+  const parsed = typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10)
+  if (!Number.isFinite(parsed) || parsed < 0) return 0
+  return parsed
 }
 
 const splitPhoneNumber = (rawValue: string) => {
@@ -1056,8 +1064,13 @@ export function SignUpWizard() {
   const [artistSelection, setArtistSelection] = useState(DEFAULT_ARTIST_SELECTION);
 
   const [artistProfile, setArtistProfile] = useState(DEFAULT_ARTIST_PROFILE);
+  const [artistGigrillaGigCount, setArtistGigrillaGigCount] = useState(0);
+  const [artistGigrillaGigCountLoading, setArtistGigrillaGigCountLoading] = useState(false);
   const [hasRestoredArtistDraft, setHasRestoredArtistDraft] = useState(false);
   const [artistResumeStepKey, setArtistResumeStepKey] = useState<string | null>(null);
+
+  const artistManualGigCount = parseCounterValue(artistProfile.publicGigsPerformed);
+  const artistTotalGigPerformances = artistManualGigCount + artistGigrillaGigCount;
 
   const saveArtistProfilePatch = useCallback(
     async (patch: Record<string, unknown>) => {
@@ -1691,6 +1704,43 @@ export function SignUpWizard() {
     }
   }, [selectedMemberType, accountChoice]);
 
+  useEffect(() => {
+    if (!user || selectedMemberType !== "artist") {
+      setArtistGigrillaGigCount(0);
+      setArtistGigrillaGigCountLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadArtistGigCount = async () => {
+      setArtistGigrillaGigCountLoading(true);
+      try {
+        const response = await fetch("/api/artist-gigs?summary=true", { cache: "no-store" });
+        const result = await response.json().catch(() => null);
+        const completed = result?.data?.statuses?.completed;
+
+        if (!cancelled) {
+          setArtistGigrillaGigCount(typeof completed === "number" ? completed : 0);
+        }
+      } catch {
+        if (!cancelled) {
+          setArtistGigrillaGigCount(0);
+        }
+      } finally {
+        if (!cancelled) {
+          setArtistGigrillaGigCountLoading(false);
+        }
+      }
+    };
+
+    void loadArtistGigCount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMemberType, user]);
+
   const artistDraftStorageKey = user ? `artist-onboarding-draft-${user.id}` : null
 
   useEffect(() => {
@@ -1793,6 +1843,7 @@ export function SignUpWizard() {
         setArtistProfile((prev) => ({
           ...prev,
           stageName: prev.stageName || toTrimmedString(profile.stage_name),
+          bio: prev.bio || toTrimmedString(profile.bio),
           formedDate: prev.formedDate || toTrimmedString(profile.established_date).slice(0, 7),
           performingMembers: preferDraftNumber(prev.performingMembers, DEFAULT_ARTIST_PROFILE.performingMembers, profile.performing_members),
           baseLocation: prev.baseLocation || toTrimmedString(profile.base_location),
@@ -2736,6 +2787,7 @@ export function SignUpWizard() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 stage_name: artistProfile.stageName,
+                bio: artistProfile.bio || null,
                 artist_entity_isni: artistProfile.artistEntityIsni || null,
                 established_date: artistProfile.formedDate ? `${artistProfile.formedDate}-01` : null,
                 performing_members: artistProfile.performingMembers,
@@ -5940,7 +5992,7 @@ export function SignUpWizard() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="stageName" className="block text-sm font-medium text-gray-700">
-                  Artist Stage Name <span className="text-red-500">*</span>
+                  Artist Entity Stage Name <span className="text-red-500">*</span>
                 </Label>
                 <p className="text-xs leading-5 text-gray-500">
                   This is the name of your band/group/collective entity or your performing name if this Artist only has 1 member.
@@ -6022,55 +6074,77 @@ export function SignUpWizard() {
                 />
               </div>
             </div>
-            {(artistCapabilities?.needsGigsPerformed || artistCapabilities?.hasSessionGigs || artistCapabilities?.hasSongwritingCollaborations) && (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {artistCapabilities?.needsGigsPerformed && (
-                  <div className="space-y-2">
-                    <Label htmlFor="publicGigsPerformed" className="block text-sm font-medium text-gray-700">Public Gigs Performed Without Gigrilla (Adds to System Gig Count)</Label>
-                    <p className="text-xs leading-5 text-gray-500">It pays to be honest - used for gig stats</p>
-                    <Input
-                      id="publicGigsPerformed"
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={artistProfile.publicGigsPerformed}
-                      onChange={(e) => setArtistProfile(prev => ({ ...prev, publicGigsPerformed: parseInt(e.target.value) || 0 }))}
-                      className="font-ui h-11"
-                    />
-                  </div>
-                )}
-                {artistCapabilities?.hasSessionGigs && (
-                  <div className="space-y-2">
-                    <Label htmlFor="recordingSessionGigs" className="block text-sm font-medium text-gray-700">Recording Session Gigs</Label>
-                    <p className="text-xs leading-5 text-gray-500">It pays to be honest - used for gig stats</p>
-                    <Input
-                      id="recordingSessionGigs"
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={artistProfile.recordingSessionGigs}
-                      onChange={(e) => setArtistProfile(prev => ({ ...prev, recordingSessionGigs: parseInt(e.target.value) || 0 }))}
-                      className="font-ui h-11"
-                    />
-                  </div>
-                )}
-                {artistCapabilities?.hasSongwritingCollaborations && (
-                  <div className="space-y-2">
-                    <Label htmlFor="songwritingCollaborations" className="block text-sm font-medium text-gray-700">Collaborations with Other Artists Before Joining Gigrilla</Label>
-                    <p className="text-xs leading-5 text-gray-500">It pays to be honest - used for stats</p>
-                    <Input
-                      id="songwritingCollaborations"
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={artistProfile.songwritingCollaborations}
-                      onChange={(e) => setArtistProfile(prev => ({ ...prev, songwritingCollaborations: parseInt(e.target.value) || 0 }))}
-                      className="font-ui h-11"
-                    />
-                  </div>
-                )}
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="space-y-2">
+                <Label htmlFor="publicGigsPerformed" className="block text-sm font-medium text-gray-700">
+                  Gigs Performed Without Gigrilla (Adds to System Gig Count)
+                </Label>
+                <p className="text-xs leading-5 text-gray-500">Manual count for gigs performed outside Gigrilla.</p>
+                <Input
+                  id="publicGigsPerformed"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={artistProfile.publicGigsPerformed}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, publicGigsPerformed: parseInt(e.target.value) || 0 }))}
+                  className="font-ui h-11"
+                />
               </div>
-            )}
+              <div className="space-y-2">
+                <Label htmlFor="gigrillaSystemGigCount" className="block text-sm font-medium text-gray-700">
+                  Gigs Performed Through Gigrilla (System Gig Count)
+                </Label>
+                <p className="text-xs leading-5 text-gray-500">System calculated from completed Gigrilla gigs.</p>
+                <Input
+                  id="gigrillaSystemGigCount"
+                  value={artistGigrillaGigCountLoading ? "Calculating..." : String(artistGigrillaGigCount)}
+                  readOnly
+                  aria-readonly="true"
+                  className="font-ui h-11 bg-gray-100 text-gray-700"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="totalGigPerformances" className="block text-sm font-medium text-gray-700">
+                  Total Gig Performances (Displayed on Profile)
+                </Label>
+                <p className="text-xs leading-5 text-gray-500">Without Gigrilla plus Gigrilla system count.</p>
+                <Input
+                  id="totalGigPerformances"
+                  value={artistGigrillaGigCountLoading ? "Calculating..." : String(artistTotalGigPerformances)}
+                  readOnly
+                  aria-readonly="true"
+                  className="font-ui h-11 border-purple-200 bg-purple-50 font-semibold text-purple-900"
+                />
+              </div>
+              {artistCapabilities?.hasSessionGigs && (
+                <div className="space-y-2">
+                  <Label htmlFor="recordingSessionGigs" className="block text-sm font-medium text-gray-700">Recording Session Gigs</Label>
+                  <p className="text-xs leading-5 text-gray-500">It pays to be honest - used for gig stats</p>
+                  <Input
+                    id="recordingSessionGigs"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={artistProfile.recordingSessionGigs}
+                    onChange={(e) => setArtistProfile(prev => ({ ...prev, recordingSessionGigs: parseInt(e.target.value) || 0 }))}
+                    className="font-ui h-11"
+                  />
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="songwritingCollaborations" className="block text-sm font-medium text-gray-700">Artist Collab Counter</Label>
+                <p className="text-xs leading-5 text-gray-500">Collaborations with other artists before joining Gigrilla.</p>
+                <Input
+                  id="songwritingCollaborations"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={artistProfile.songwritingCollaborations}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, songwritingCollaborations: parseInt(e.target.value) || 0 }))}
+                  className="font-ui h-11"
+                />
+              </div>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="baseLocation" className="block text-sm font-medium text-gray-700">Artist Hometown</Label>
               <LocationAutocompleteInput
@@ -6110,151 +6184,6 @@ export function SignUpWizard() {
                   })()}
                 </span>
               </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Artist Web Links */}
-        <Card className="border-2 border-border/40 shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader className="bg-gradient-to-r from-blue-500/5 to-transparent pb-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">🌐</span>
-              <h4 className="text-lg font-bold text-foreground">Artist Web Links</h4>
-            </div>
-            <p className="text-xs text-foreground/60 mt-1">Connect your website and social profiles.</p>
-          </CardHeader>
-          <CardContent className="space-y-5 pt-6">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="websiteUrl" className="flex items-center gap-2">
-                  <span className="text-blue-600">🌐</span>
-                  Website
-                </Label>
-                <Input
-                  id="websiteUrl"
-                  placeholder="Type or paste URL here"
-                  value={artistProfile.website}
-                  onChange={(e) => setArtistProfile(prev => ({ ...prev, website: e.target.value }))}
-                  className="font-ui h-11 placeholder:text-muted-foreground/50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="facebookUrl" className="flex items-center gap-2">
-                  <span className="text-blue-600">f</span>
-                  Facebook
-                </Label>
-                <Input
-                  id="facebookUrl"
-                  placeholder="Type or paste URL here"
-                  value={artistProfile.facebookUrl}
-                  onChange={(e) => setArtistProfile(prev => ({ ...prev, facebookUrl: e.target.value }))}
-                  className="font-ui h-11 placeholder:text-muted-foreground/50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="instagramUrl" className="flex items-center gap-2">
-                  <span className="text-pink-600">📷</span>
-                  Instagram
-                </Label>
-                <Input
-                  id="instagramUrl"
-                  placeholder="Type or paste URL here"
-                  value={artistProfile.instagramUrl}
-                  onChange={(e) => setArtistProfile(prev => ({ ...prev, instagramUrl: e.target.value }))}
-                  className="font-ui h-11 placeholder:text-muted-foreground/50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="threadsUrl" className="flex items-center gap-2">
-                  <span className="text-gray-800">🧵</span>
-                  Threads
-                </Label>
-                <Input
-                  id="threadsUrl"
-                  placeholder="Type or paste URL here"
-                  value={artistProfile.threadsUrl}
-                  onChange={(e) => setArtistProfile(prev => ({ ...prev, threadsUrl: e.target.value }))}
-                  className="font-ui h-11 placeholder:text-muted-foreground/50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="xUrl" className="flex items-center gap-2">
-                  <span className="text-gray-900">𝕏</span>
-                  X (Twitter)
-                </Label>
-                <Input
-                  id="xUrl"
-                  placeholder="Type or paste URL here"
-                  value={artistProfile.xUrl}
-                  onChange={(e) => setArtistProfile(prev => ({ ...prev, xUrl: e.target.value }))}
-                  className="font-ui h-11 placeholder:text-muted-foreground/50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tiktokUrl" className="flex items-center gap-2">
-                  <span className="text-gray-900">🎵</span>
-                  TikTok
-                </Label>
-                <Input
-                  id="tiktokUrl"
-                  placeholder="Type or paste URL here"
-                  value={artistProfile.tiktokUrl}
-                  onChange={(e) => setArtistProfile(prev => ({ ...prev, tiktokUrl: e.target.value }))}
-                  className="font-ui h-11 placeholder:text-muted-foreground/50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="youtubeUrl" className="flex items-center gap-2">
-                  <span className="text-red-600">▶️</span>
-                  YouTube
-                </Label>
-                <Input
-                  id="youtubeUrl"
-                  placeholder="Type or paste URL here"
-                  value={artistProfile.youtubeUrl}
-                  onChange={(e) => setArtistProfile(prev => ({ ...prev, youtubeUrl: e.target.value }))}
-                  className="font-ui h-11 placeholder:text-muted-foreground/50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="snapchatUrl" className="flex items-center gap-2">
-                  <span className="text-yellow-400">👻</span>
-                  Snapchat
-                </Label>
-                <Input
-                  id="snapchatUrl"
-                  placeholder="Type or paste URL here"
-                  value={artistProfile.snapchatUrl}
-                  onChange={(e) => setArtistProfile(prev => ({ ...prev, snapchatUrl: e.target.value }))}
-                  className="font-ui h-11 placeholder:text-muted-foreground/50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="mastodonUrl" className="flex items-center gap-2">
-                  <span className="text-purple-600">🐘</span>
-                  Mastodon
-                </Label>
-                <Input
-                  id="mastodonUrl"
-                  placeholder="Type or paste URL here"
-                  value={artistProfile.mastodonUrl}
-                  onChange={(e) => setArtistProfile(prev => ({ ...prev, mastodonUrl: e.target.value }))}
-                  className="font-ui h-11 placeholder:text-muted-foreground/50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="blueskyUrl" className="flex items-center gap-2">
-                  <span className="text-sky-500">🦋</span>
-                  Bluesky
-                </Label>
-                <Input
-                  id="blueskyUrl"
-                  placeholder="Type or paste URL here"
-                  value={artistProfile.blueskyUrl}
-                  onChange={(e) => setArtistProfile(prev => ({ ...prev, blueskyUrl: e.target.value }))}
-                  className="font-ui h-11 placeholder:text-muted-foreground/50"
-                />
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -6709,6 +6638,197 @@ export function SignUpWizard() {
           </CardContent>
         </Card>
         )}
+
+        {/* Artist Genres */}
+        <Card className="border-2 border-border/40 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="bg-gradient-to-r from-purple-500/5 to-transparent pb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🎧</span>
+              <h4 className="text-lg font-bold text-foreground">Artist Genres</h4>
+            </div>
+            <p className="text-xs text-foreground/60 mt-1">These start from the music preferences you selected earlier.</p>
+          </CardHeader>
+          <CardContent className="space-y-3 pt-6">
+            {fanPreferredGenreIdsSeed.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {fanPreferredGenreIdsSeed.map((genreId) => (
+                  <Badge key={genreId} variant="secondary" className="bg-purple-50 text-purple-800">
+                    {genreLookup.get(genreId) || genreId}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-foreground/60">Select artist genres from your Artist Dashboard after setup.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Artist Bio */}
+        <Card className="border-2 border-border/40 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="bg-gradient-to-r from-pink-500/5 to-transparent pb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">✍️</span>
+              <h4 className="text-lg font-bold text-foreground">Artist Bio</h4>
+            </div>
+            <p className="text-xs text-foreground/60 mt-1">Add a short biography for your artist profile.</p>
+          </CardHeader>
+          <CardContent className="space-y-2 pt-6">
+            <Label htmlFor="artistBio">Artist Bio</Label>
+            <Textarea
+              id="artistBio"
+              rows={5}
+              value={artistProfile.bio}
+              onChange={(e) => setArtistProfile(prev => ({ ...prev, bio: e.target.value }))}
+              placeholder="Write your Artist Bio section..."
+              className="font-ui"
+            />
+          </CardContent>
+        </Card>
+
+        {/* Artist Web Links */}
+        <Card className="border-2 border-border/40 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="bg-gradient-to-r from-blue-500/5 to-transparent pb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🌐</span>
+              <h4 className="text-lg font-bold text-foreground">Artist Web Links</h4>
+            </div>
+            <p className="text-xs text-foreground/60 mt-1">Connect your website and social profiles.</p>
+          </CardHeader>
+          <CardContent className="space-y-5 pt-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="websiteUrl" className="flex items-center gap-2">
+                  <span className="text-blue-600">🌐</span>
+                  Website
+                </Label>
+                <Input
+                  id="websiteUrl"
+                  placeholder="Type or paste URL here"
+                  value={artistProfile.website}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, website: e.target.value }))}
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="facebookUrl" className="flex items-center gap-2">
+                  <span className="text-blue-600">f</span>
+                  Facebook
+                </Label>
+                <Input
+                  id="facebookUrl"
+                  placeholder="Type or paste URL here"
+                  value={artistProfile.facebookUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, facebookUrl: e.target.value }))}
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="instagramUrl" className="flex items-center gap-2">
+                  <span className="text-pink-600">📷</span>
+                  Instagram
+                </Label>
+                <Input
+                  id="instagramUrl"
+                  placeholder="Type or paste URL here"
+                  value={artistProfile.instagramUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, instagramUrl: e.target.value }))}
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="threadsUrl" className="flex items-center gap-2">
+                  <span className="text-gray-800">🧵</span>
+                  Threads
+                </Label>
+                <Input
+                  id="threadsUrl"
+                  placeholder="Type or paste URL here"
+                  value={artistProfile.threadsUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, threadsUrl: e.target.value }))}
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="xUrl" className="flex items-center gap-2">
+                  <span className="text-gray-900">𝕏</span>
+                  X (Twitter)
+                </Label>
+                <Input
+                  id="xUrl"
+                  placeholder="Type or paste URL here"
+                  value={artistProfile.xUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, xUrl: e.target.value }))}
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tiktokUrl" className="flex items-center gap-2">
+                  <span className="text-gray-900">🎵</span>
+                  TikTok
+                </Label>
+                <Input
+                  id="tiktokUrl"
+                  placeholder="Type or paste URL here"
+                  value={artistProfile.tiktokUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, tiktokUrl: e.target.value }))}
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="youtubeUrl" className="flex items-center gap-2">
+                  <span className="text-red-600">▶️</span>
+                  YouTube
+                </Label>
+                <Input
+                  id="youtubeUrl"
+                  placeholder="Type or paste URL here"
+                  value={artistProfile.youtubeUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, youtubeUrl: e.target.value }))}
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="snapchatUrl" className="flex items-center gap-2">
+                  <span className="text-yellow-400">👻</span>
+                  Snapchat
+                </Label>
+                <Input
+                  id="snapchatUrl"
+                  placeholder="Type or paste URL here"
+                  value={artistProfile.snapchatUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, snapchatUrl: e.target.value }))}
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mastodonUrl" className="flex items-center gap-2">
+                  <span className="text-purple-600">🐘</span>
+                  Mastodon
+                </Label>
+                <Input
+                  id="mastodonUrl"
+                  placeholder="Type or paste URL here"
+                  value={artistProfile.mastodonUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, mastodonUrl: e.target.value }))}
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="blueskyUrl" className="flex items-center gap-2">
+                  <span className="text-sky-500">🦋</span>
+                  Bluesky
+                </Label>
+                <Input
+                  id="blueskyUrl"
+                  placeholder="Type or paste URL here"
+                  value={artistProfile.blueskyUrl}
+                  onChange={(e) => setArtistProfile(prev => ({ ...prev, blueskyUrl: e.target.value }))}
+                  className="font-ui h-11 placeholder:text-muted-foreground/50"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Professional IDs - ISNI and IPI/CAE */}
         {artistCapabilities && (artistCapabilities.requiresISNI || artistCapabilities.requiresIPICAE || artistCapabilities.optionalIPICAE) && (
@@ -7374,6 +7494,7 @@ export function SignUpWizard() {
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
                         stage_name: artistProfile.stageName,
+                        bio: artistProfile.bio || null,
                         artist_entity_isni: artistProfile.artistEntityIsni || null,
                         established_date: artistProfile.formedDate ? `${artistProfile.formedDate}-01` : null,
                         performing_members: artistProfile.performingMembers,

@@ -50,6 +50,8 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
   const [editingCaptionId, setEditingCaptionId] = useState<string | null>(null)
   const [editingCaptionValue, setEditingCaptionValue] = useState('')
   const [uploadingType, setUploadingType] = useState<'logo' | 'header' | 'photo' | null>(null)
+  const [uploadingPhotoIndex, setUploadingPhotoIndex] = useState(0)
+  const [uploadingPhotoTotal, setUploadingPhotoTotal] = useState(0)
   const [dragOverType, setDragOverType] = useState<'logo' | 'header' | 'photo' | null>(null)
   const uploadLockRef = useRef(false)
   const [headerFocusDraft, setHeaderFocusDraft] = useState({ x: 50, y: 50 })
@@ -132,11 +134,29 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
   }
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'header' | 'photo') => {
-    const file = event.target.files?.[0]
-    if (!file) return
+    const files = Array.from(event.target.files || [])
+    if (files.length === 0) return
 
-    await handleSelectedFile(file, type)
+    if (type === 'photo') {
+      await handleSelectedFiles(files, type)
+    } else {
+      await handleSelectedFile(files[0], type)
+    }
     event.target.value = ''
+  }
+
+  const validateImageFile = (file: File) => {
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp']
+    if (!validTypes.includes(file.type)) {
+      return `${file.name || 'Selected file'} must be a .jpg, .png, or .webp file`
+    }
+
+    const maxSize = 5 * 1024 * 1024
+    if (file.size > maxSize) {
+      return `${file.name || 'Selected file'} must be less than 5MB`
+    }
+
+    return null
   }
 
   const handleSelectedFile = async (file: File, type: 'logo' | 'header' | 'photo') => {
@@ -146,19 +166,36 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
       return
     }
 
-    const validTypes = ['image/jpeg', 'image/png', 'image/webp']
-    if (!validTypes.includes(file.type)) {
-      showNotification('error', 'Please upload a .jpg, .png, or .webp file')
-      return
-    }
-
-    const maxSize = 5 * 1024 * 1024
-    if (file.size > maxSize) {
-      showNotification('error', 'File size must be less than 5MB')
+    const validationError = validateImageFile(file)
+    if (validationError) {
+      showNotification('error', validationError)
       return
     }
 
     await uploadPhoto(file, type)
+  }
+
+  const handleSelectedFiles = async (files: File[], type: 'photo') => {
+    const imageFiles = files.filter(file => file && file.type.startsWith('image/'))
+    if (imageFiles.length === 0) return
+
+    if (imageFiles.length === 1) {
+      await handleSelectedFile(imageFiles[0], type)
+      return
+    }
+
+    if (uploadLockRef.current || uploadingType) {
+      showNotification('error', 'Upload already in progress. Please wait before adding more photos.')
+      return
+    }
+
+    const validationError = imageFiles.map(validateImageFile).find(Boolean)
+    if (validationError) {
+      showNotification('error', validationError)
+      return
+    }
+
+    await uploadPhotoBatch(imageFiles)
   }
 
   const handleDrop = async (
@@ -174,10 +211,14 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
       return
     }
 
-    const file = event.dataTransfer.files?.[0]
-    if (!file) return
+    const files = Array.from(event.dataTransfer.files || [])
+    if (files.length === 0) return
 
-    await handleSelectedFile(file, type)
+    if (type === 'photo') {
+      await handleSelectedFiles(files, type)
+    } else {
+      await handleSelectedFile(files[0], type)
+    }
   }
 
   const handleDragOver = (
@@ -207,9 +248,12 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
 
   const renderUploadStatus = (type: 'logo' | 'header' | 'photo') => {
     if (uploadingType === type) {
+      const isBulkPhotoUpload = type === 'photo' && uploadingPhotoTotal > 1
       return (
         <div className="mb-4 rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-900">
-          Uploading 1 image. Please wait for this upload to finish before adding another image.
+          {isBulkPhotoUpload
+            ? `Uploading photo ${uploadingPhotoIndex} of ${uploadingPhotoTotal}. You can add captions after the upload finishes.`
+            : 'Uploading 1 image. Please wait for this upload to finish before adding another image.'}
         </div>
       )
     }
@@ -225,6 +269,64 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
     return null
   }
 
+  const applyUploadedPhoto = (newPhoto: ArtistPhoto, type: 'logo' | 'header' | 'photo') => {
+    if (type === 'logo') {
+      setLogo(newPhoto)
+      setLogoCaption('')
+    } else if (type === 'header') {
+      setHeaderImage(newPhoto)
+      setHeaderCaption('')
+    } else {
+      setProfilePhotos(prev => [...prev, newPhoto])
+    }
+
+    let nextPhotos: ArtistPhoto[] = []
+    setPhotos(prev => {
+      nextPhotos = type === 'photo'
+        ? [...prev, newPhoto]
+        : [...prev.filter(p => p.type !== type), newPhoto]
+      return nextPhotos
+    })
+    onPhotosUpdate?.(nextPhotos)
+  }
+
+  const uploadPhotoRequest = async (
+    file: File,
+    type: 'logo' | 'header' | 'photo',
+    captionOverride?: string
+  ) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('type', type)
+
+    const caption = captionOverride ?? (type === 'logo' ? logoCaption : type === 'header' ? headerCaption : photoCaption)
+    if (caption.trim()) {
+      formData.append('caption', caption.trim())
+    }
+
+    if (type === 'header') {
+      formData.append('focus_x', String(headerFocusDraft.x))
+      formData.append('focus_y', String(headerFocusDraft.y))
+    }
+
+    const response = await fetch('/api/artist-photos', {
+      method: 'POST',
+      body: formData
+    })
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      throw new Error(typeof payload.details === 'string'
+        ? payload.details
+        : typeof payload.error === 'string'
+          ? payload.error
+          : 'Failed to upload photo')
+    }
+
+    const result = await response.json()
+    return result.data as ArtistPhoto
+  }
+
   const uploadPhoto = async (file: File, type: 'logo' | 'header' | 'photo') => {
     if (uploadLockRef.current || uploadingType) {
       showNotification('error', 'Upload already in progress. Please wait before adding another image.')
@@ -236,56 +338,9 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
       setSaving(true)
       setUploadingType(type)
 
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('type', type)
-
-      const caption = type === 'logo' ? logoCaption : type === 'header' ? headerCaption : photoCaption
-      if (caption.trim()) {
-        formData.append('caption', caption.trim())
-      }
-
-      if (type === 'header') {
-        formData.append('focus_x', String(headerFocusDraft.x))
-        formData.append('focus_y', String(headerFocusDraft.y))
-      }
-
-      const response = await fetch('/api/artist-photos', {
-        method: 'POST',
-        body: formData
-      })
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}))
-        throw new Error(typeof payload.details === 'string'
-          ? payload.details
-          : typeof payload.error === 'string'
-            ? payload.error
-            : 'Failed to upload photo')
-      }
-
-      const result = await response.json()
-      const newPhoto = result.data as ArtistPhoto
-
-      if (type === 'logo') {
-        setLogo(newPhoto)
-        setLogoCaption('')
-      } else if (type === 'header') {
-        setHeaderImage(newPhoto)
-        setHeaderCaption('')
-      } else {
-        setProfilePhotos(prev => [...prev, newPhoto])
-        setPhotoCaption('')
-      }
-
-      let nextPhotos: ArtistPhoto[] = []
-      setPhotos(prev => {
-        nextPhotos = type === 'photo'
-          ? [...prev, newPhoto]
-          : [...prev.filter(p => p.type !== type), newPhoto]
-        return nextPhotos
-      })
-      onPhotosUpdate?.(nextPhotos)
+      const newPhoto = await uploadPhotoRequest(file, type)
+      applyUploadedPhoto(newPhoto, type)
+      if (type === 'photo') setPhotoCaption('')
       notifyProfileUpdated()
 
       showNotification('success', `${type === 'logo' ? 'Logo' : type === 'header' ? 'Header image' : 'Photo'} uploaded successfully!`)
@@ -296,6 +351,40 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
       uploadLockRef.current = false
       setSaving(false)
       setUploadingType(null)
+    }
+  }
+
+  const uploadPhotoBatch = async (files: File[]) => {
+    if (uploadLockRef.current || uploadingType) {
+      showNotification('error', 'Upload already in progress. Please wait before adding more photos.')
+      return
+    }
+
+    try {
+      uploadLockRef.current = true
+      setSaving(true)
+      setUploadingType('photo')
+      setUploadingPhotoTotal(files.length)
+      setUploadingPhotoIndex(1)
+
+      for (let index = 0; index < files.length; index += 1) {
+        setUploadingPhotoIndex(index + 1)
+        const newPhoto = await uploadPhotoRequest(files[index], 'photo', '')
+        applyUploadedPhoto(newPhoto, 'photo')
+      }
+
+      setPhotoCaption('')
+      notifyProfileUpdated()
+      showNotification('success', `${files.length} photos uploaded successfully. Add captions with Edit on each photo.`)
+    } catch (error) {
+      console.error('Error uploading photos:', error)
+      showNotification('error', error instanceof Error ? error.message : 'Failed to upload photos')
+    } finally {
+      uploadLockRef.current = false
+      setSaving(false)
+      setUploadingType(null)
+      setUploadingPhotoIndex(0)
+      setUploadingPhotoTotal(0)
     }
   }
 
@@ -860,6 +949,7 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
               <p>• These are the images for your Artist Profile carousel</p>
               <p>• Photos must be .jpg, .png, or .webp</p>
               <p>• Minimum 800x800 pixels, maximum 5MB file size</p>
+              <p>• Upload one photo with the caption below, or bulk upload multiple photos and add captions afterward with Edit.</p>
             </div>
           </CardHeader>
           <CardContent>
@@ -877,24 +967,29 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                 )}
               >
                 <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-sm text-gray-600 mb-4">Drag & drop your photos here or click to browse</p>
+                <p className="text-sm font-medium text-gray-700">Drag & drop one or more photos here</p>
+                <p className="text-xs text-gray-500 mb-4">Click to browse. Select one photo to use the caption box now, or select multiple photos and add captions after upload.</p>
                 <Input
                   ref={fileInputRefs.photo}
                   type="file"
                   accept=".jpg,.jpeg,.png,.webp"
+                  multiple
                   className="hidden"
                   onChange={(e) => handleFileChange(e, 'photo')}
                   disabled={Boolean(uploadingType)}
                 />
                 {renderUploadStatus('photo')}
                 <Textarea
-                  placeholder="Write a caption for your photo..."
+                  placeholder="Optional caption for a single-photo upload. Bulk uploads can be captioned after upload."
                   value={photoCaption}
                   onChange={(e) => setPhotoCaption(e.target.value)}
                   className="mb-4"
                   rows={2}
                   disabled={Boolean(uploadingType)}
                 />
+                <p className="mb-4 text-xs text-gray-500">
+                  Caption before upload applies when you choose one photo. For multiple photos, upload first, then use Edit on each photo card.
+                </p>
                 <Button
                   onClick={() => handleFileSelect('photo')}
                   disabled={Boolean(uploadingType)}
@@ -908,7 +1003,7 @@ export function ArtistPhotosManager({ onPhotosUpdate, mode = 'all' }: ArtistPhot
                   ) : (
                     <>
                       <Plus className="w-4 h-4 mr-2" />
-                      Upload Photo
+                      Select Photo(s) to Upload
                     </>
                   )}
                 </Button>

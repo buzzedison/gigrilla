@@ -136,6 +136,12 @@ type DashboardSection =
   | 'gig-past'
   | 'gig-invites'
   | 'gig-requests'
+  | 'collabability'
+  | 'collab-bookings'
+  | 'collab-reporting'
+  | 'collab-negotiations'
+  | 'collab-planner'
+  | 'collab-statistics'
   | 'bio'
   | 'genres'
   | 'music-uploads'
@@ -175,6 +181,12 @@ const DASHBOARD_SECTIONS: DashboardSection[] = [
   'gig-past',
   'gig-invites',
   'gig-requests',
+  'collabability',
+  'collab-bookings',
+  'collab-reporting',
+  'collab-negotiations',
+  'collab-planner',
+  'collab-statistics',
   'bio',
   'genres',
   'music-uploads',
@@ -193,13 +205,21 @@ const DASHBOARD_SECTIONS: DashboardSection[] = [
 
 const COMPLETION_FLOW_DESTINATIONS: Record<string, DashboardDestination> = {
   stage_name: { section: 'profile', subSection: 'artist-stage-name' },
+  artist_entity_isni: { section: 'profile', subSection: 'artist-entity-isni' },
   artist_type: { section: 'type', subSection: 'selector' },
   artist_sub_types: { section: 'type', subSection: 'selector' },
   established_date: { section: 'profile', subSection: 'artist-formed' },
+  performing_members: { section: 'profile', subSection: 'artist-performers-count' },
+  hometown: { section: 'profile', subSection: 'artist-hometown' },
+  contract_status: { section: 'contract', subSection: 'label' },
   genres: { section: 'genres', subSection: 'selector' },
   payments: { section: 'payments', subSection: 'legal-entity' },
   crew: { section: 'crew', subSection: 'owner' },
+  primary_roles: { section: 'crew', subSection: 'owner' },
   royalty_splits: { section: 'royalty', subSection: 'splits' },
+  artist_gig_money_splits: { section: 'royalty', subSection: 'splits' },
+  artist_collab_money_splits: { section: 'royalty', subSection: 'splits' },
+  merch_money_splits: { section: 'royalty', subSection: 'merch-splits' },
   gig_ability: { section: 'gigability', subSection: 'base' },
   bio: { section: 'bio', subSection: 'editor' },
   record_label: { section: 'contract', subSection: 'label' },
@@ -208,6 +228,25 @@ const COMPLETION_FLOW_DESTINATIONS: Record<string, DashboardDestination> = {
   booking_agent: { section: 'contract', subSection: 'booking' },
   gig_fee: { section: 'gigability', subSection: 'fees' },
   logo_artwork: { section: 'logo', subSection: 'logo' },
+  legal_entity: { section: 'payments', subSection: 'legal-entity' },
+  legal_members: { section: 'payments', subSection: 'legal-members' },
+  money_in: { section: 'payments', subSection: 'in' },
+  money_out: { section: 'payments', subSection: 'out' },
+  logo: { section: 'logo', subSection: 'logo' },
+  header: { section: 'logo', subSection: 'header' },
+  gig_money_splits: { section: 'royalty', subSection: 'splits' },
+  gig_base_location: { section: 'gigability', subSection: 'base' },
+  gig_set_lengths: { section: 'gigability', subSection: 'sets' },
+  gig_fees: { section: 'gigability', subSection: 'fees' },
+  gig_local_area: { section: 'gigability', subSection: 'local' },
+  gig_wider_area: { section: 'gigability', subSection: 'wider' },
+  collab_money_splits: { section: 'royalty', subSection: 'splits' },
+  collab_base_location: { section: 'collabability', subSection: 'base' },
+  collab_set_lengths: { section: 'collabability', subSection: 'sets' },
+  collab_fees: { section: 'collabability', subSection: 'fees' },
+  collab_local_area: { section: 'collabability', subSection: 'local' },
+  collab_wider_area: { section: 'collabability', subSection: 'wider' },
+  upload_guide: { section: 'music-uploads', subSection: 'guide' },
   photos: { section: 'photos', subSection: 'gallery' },
   videos: { section: 'videos', subSection: 'upload' },
 }
@@ -220,6 +259,10 @@ function normalizeDashboardLocation(
   section: string | null,
   subSection: string | null
 ): { section: DashboardSection | null; subSection: string | null } {
+  if (!section && subSection) {
+    return { section: 'profile', subSection }
+  }
+
   switch (section) {
     case 'view':
       return { section: 'profile', subSection: 'details' }
@@ -280,7 +323,8 @@ export default function ArtistDashboard() {
   const deepLinkedMessageFolder = searchParams?.get('folder') || null
   const setupProgress = useMemo(() => {
     const completedItems = completionState.filter((item) => item.completed).length
-    const totalItems = completionState.length || 18
+    const fallbackTotalItems = artistTypeSelection?.artistTypeId === 1 ? 31 : 18
+    const totalItems = completionState.length || fallbackTotalItems
     const completionPercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0
 
     return {
@@ -288,6 +332,11 @@ export default function ArtistDashboard() {
       totalItems,
       completionPercent
     }
+  }, [completionState, artistTypeSelection?.artistTypeId])
+  const nextIncompleteCompletionItem = useMemo(() => {
+    return completionState.find((item) => item.required && !item.completed)
+      ?? completionState.find((item) => !item.completed)
+      ?? null
   }, [completionState])
   const supportedInboxFolders: Record<string, string> = {
     gig_invites: 'gig_invites',
@@ -299,6 +348,8 @@ export default function ArtistDashboard() {
     artists: 'artists',
     venues: 'venues',
     venue_updates: 'venues',
+    collab_invites: 'auditions',
+    collab_requests: 'auditions',
     services: 'services',
     pros: 'pros',
     system: 'system',
@@ -413,12 +464,7 @@ export default function ArtistDashboard() {
   //   }
   // }, [onboardingCompleted, activeSection])
 
-  useEffect(() => {
-    if (!activeSubSectionKey) return
-
-    const [section, subSection] = activeSubSectionKey.split(':')
-    if (!section || !subSection || section !== activeSection) return
-
+  const scrollToDashboardSubSection = useCallback((section: string, subSection: string) => {
     const targetIds = [
       `artist-${section}-${subSection}`,
       subSection,
@@ -452,7 +498,16 @@ export default function ArtistDashboard() {
         clearTimeout(timer)
       }
     }
-  }, [activeSection, activeSubSectionKey])
+  }, [])
+
+  useEffect(() => {
+    if (!activeSubSectionKey) return
+
+    const [section, subSection] = activeSubSectionKey.split(':')
+    if (!section || !subSection || section !== activeSection) return
+
+    return scrollToDashboardSubSection(section, subSection)
+  }, [activeSection, activeSubSectionKey, scrollToDashboardSubSection])
 
   const replaceDashboardQuery = useCallback((
     section: DashboardSection,
@@ -461,9 +516,14 @@ export default function ArtistDashboard() {
     const params = new URLSearchParams(searchParams?.toString() || '')
 
     if (section === 'profile') {
-      params.delete('section')
       params.delete('folder')
-      params.delete('subSection')
+      if (options?.subSection) {
+        params.set('section', 'profile')
+        params.set('subSection', options.subSection)
+      } else {
+        params.delete('section')
+        params.delete('subSection')
+      }
     } else {
       params.set('section', section)
       if (section === 'messages') {
@@ -688,22 +748,12 @@ export default function ArtistDashboard() {
       return
     }
     replaceDashboardQuery(section, { subSection })
-    // Scroll to matching element if it exists (used by profile field sub-links)
-    setTimeout(() => {
-      const targetIds = [
-        `artist-${section}-${subSection}`,
-        subSection,
-        subSection.startsWith('artist-') ? subSection : `artist-${subSection}`,
-      ]
-      const el = targetIds
-        .map((id) => document.getElementById(id))
-        .find((element): element is HTMLElement => Boolean(element))
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 120)
+    scrollToDashboardSubSection(section, subSection)
   }
 
   const navigateToCompletionItem = (item?: CompletionItemState | null) => {
-    const destination = item ? COMPLETION_FLOW_DESTINATIONS[item.id] : undefined
+    const targetItem = item ?? nextIncompleteCompletionItem
+    const destination = targetItem ? COMPLETION_FLOW_DESTINATIONS[targetItem.id] : undefined
 
     if (destination?.subSection) {
       handleSubSectionChange(destination.section, destination.subSection)
@@ -712,6 +762,11 @@ export default function ArtistDashboard() {
 
     if (destination) {
       handleSectionChange(destination.section)
+      return
+    }
+
+    if (targetItem && isDashboardSection(targetItem.section)) {
+      handleSectionChange(targetItem.section)
       return
     }
 
@@ -770,6 +825,12 @@ export default function ArtistDashboard() {
       case 'gig-past':
       case 'gig-invites':
       case 'gig-requests':
+      case 'collabability':
+      case 'collab-bookings':
+      case 'collab-reporting':
+      case 'collab-negotiations':
+      case 'collab-planner':
+      case 'collab-statistics':
         return capabilities.showGigAbility
       case 'music-upload':
       case 'music-uploads':
@@ -811,6 +872,8 @@ export default function ArtistDashboard() {
 
     if (['gigability', 'gig-bookings', 'gig-reporting', 'gig-negotiations', 'gig-planner', 'gig-statistics', 'gig-calendar', 'gig-create', 'gig-upcoming', 'gig-past', 'gig-invites', 'gig-requests'].includes(section)) {
       message = 'Gig Manager is hidden for your current artist type. Change your artist type to enable gig operations.'
+    } else if (['collabability', 'collab-bookings', 'collab-reporting', 'collab-negotiations', 'collab-planner', 'collab-statistics'].includes(section)) {
+      message = 'Collab Manager is hidden for your current artist type. Change your artist type to enable collab operations.'
     } else if (['music-uploads', 'music-catalogue', 'music-statistics', 'music-upload', 'music-manage'].includes(section)) {
       message = 'Music Manager is hidden for your current artist type. Change your artist type to enable music upload and management.'
     }
@@ -829,7 +892,11 @@ export default function ArtistDashboard() {
         {content}
       </div>
       <div className="xl:col-span-1">
-        <ArtistCompletionCard onCompletionStateChange={setCompletionState} refreshKey={completionRefreshKey} />
+        <ArtistCompletionCard
+          onCompletionStateChange={setCompletionState}
+          onNavigateToItem={navigateToCompletionItem}
+          refreshKey={completionRefreshKey}
+        />
       </div>
     </div>
   )
@@ -1106,7 +1173,7 @@ export default function ArtistDashboard() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => navigateToCompletionItem(completionState.find((item) => !item.completed))}
+                      onClick={() => navigateToCompletionItem()}
                       className="rounded-full bg-[#3b1b4d] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#30163f]"
                     >
                       Continue setup
@@ -1123,7 +1190,7 @@ export default function ArtistDashboard() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => navigateToCompletionItem(completionState.find((item) => !item.completed))}
+                        onClick={() => navigateToCompletionItem()}
                         className="rounded-full bg-[#3b1b4d] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#30163f]"
                       >
                         Continue setup
@@ -1486,6 +1553,13 @@ export default function ArtistDashboard() {
                 )
               : currentSubSection === 'drafts'
                 ? renderWithCompletion(<ArtistGigCalendarManager defaultView="drafts" />)
+              : currentSubSection === 'scheduled-hidden'
+                ? renderWithCompletion(
+                    <ArtistGigCalendarManager
+                      defaultView="scheduled-hidden"
+                      onNavigateToGigSubSection={(subSection) => handleSubSectionChange('gig-bookings', subSection)}
+                    />
+                  )
               : currentSubSection === 'historic'
                 ? renderWithCompletion(<ArtistGigCalendarManager defaultView="past" />)
                 : renderScaffoldSection(
@@ -1516,6 +1590,63 @@ export default function ArtistDashboard() {
       case 'gig-statistics':
         return renderGuardedSection('gig-statistics', (
           renderWithCompletion(<ArtistGigStatisticsManager />)
+        ))
+      case 'collabability':
+        return renderGuardedSection('collabability', (
+          renderWithCompletion(<ArtistGigAbilityManager mode="collab" />)
+        ))
+      case 'collab-bookings':
+        return renderGuardedSection('collab-bookings', (
+          renderScaffoldSection(
+            'Collab Bookings',
+            'Collab booking workflows will appear here for new collabs, manual collab entries, drafts, upcoming collabs, scheduled-hidden collabs, and historic collabs.',
+            {
+              status: currentSubSection ? `View: ${currentSubSection.replace(/[-_]/g, ' ')}` : 'Coming soon',
+              nextAction: { label: 'Open ADS: Auditions & Collabs', section: 'auditions', subSection: 'published' }
+            }
+          )
+        ))
+      case 'collab-reporting':
+        return renderGuardedSection('collab-reporting', (
+          renderScaffoldSection(
+            'Collab Reporting',
+            'Collab confirmation and reporting workflows will appear here once collab contracts are connected.',
+            {
+              status: currentSubSection ? `View: ${currentSubSection.replace(/[-_]/g, ' ')}` : 'Coming soon',
+              nextAction: { label: 'Open Collab Messages', section: 'messages', subSection: 'collab_invites' }
+            }
+          )
+        ))
+      case 'collab-negotiations':
+        return renderGuardedSection('collab-negotiations', (
+          renderScaffoldSection(
+            'Collab Negotiations',
+            'Collab invites, requests, and confirmations currently route through advert and collab message folders.',
+            {
+              status: currentSubSection ? `View: ${currentSubSection.replace(/[-_]/g, ' ')}` : 'Coming soon',
+              nextAction: { label: 'Open Collab Messages', section: 'messages', subSection: currentSubSection === 'confirmations' ? 'confirmations' : 'collab_invites' }
+            }
+          )
+        ))
+      case 'collab-planner':
+        return renderGuardedSection('collab-planner', (
+          renderScaffoldSection(
+            'Collab Planner',
+            'Collab calendar and unavailability planning will appear here once collab bookings are connected.',
+            {
+              status: currentSubSection ? `View: ${currentSubSection.replace(/[-_]/g, ' ')}` : 'Coming soon'
+            }
+          )
+        ))
+      case 'collab-statistics':
+        return renderGuardedSection('collab-statistics', (
+          renderScaffoldSection(
+            'Collab Statistics',
+            'Collab completion, location, artist, label, and earnings statistics will appear here once collab analytics are connected.',
+            {
+              status: currentSubSection ? `View: ${currentSubSection.replace(/[-_]/g, ' ')}` : 'Coming soon'
+            }
+          )
         ))
       case 'gig-calendar':
       case 'gig-create':
@@ -1564,7 +1695,7 @@ export default function ArtistDashboard() {
                   forcedSubSection="drafts"
                   onSubSectionNavigate={(subSection) => {
                     if (subSection === 'workflow' || subSection === 'guide' || subSection === 'intro') {
-                      handleSubSectionChange('music-upload', subSection)
+                      handleSubSectionChange('music-uploads', subSection)
                       return
                     }
                     handleSubSectionChange('music-uploads', 'drafts')
@@ -1674,14 +1805,14 @@ export default function ArtistDashboard() {
     home: 'Artist Home',
     profile: 'Artist Basics',
     contract: 'Contract Status',
-    payments: 'Artist Payments',
+    payments: 'Artist Banking',
     crew: 'Artist Crew',
-    auditions: 'Auditions & Collaborations',
+    auditions: 'ADS: Auditions & Collaborations',
     logo: 'Logo/Profile Artwork',
     photos: 'Artist Photos',
     videos: 'Artist Videos',
     type: 'Artist Type & Configuration',
-    royalty: 'Money Splits',
+    royalty: 'Gig, Collab & MyStore Money Splits',
     gigability: 'Artist Gig-Ability',
     'gig-bookings': 'Gig Bookings',
     'gig-reporting': 'Gig Reporting',
@@ -1694,6 +1825,12 @@ export default function ArtistDashboard() {
     'gig-past': 'Past & Unscheduled Gigs',
     'gig-invites': 'Gig Invites (from Others)',
     'gig-requests': 'Gig Requests (to Others)',
+    collabability: 'Collab-Ability',
+    'collab-bookings': 'Collab Bookings',
+    'collab-reporting': 'Collab Reporting',
+    'collab-negotiations': 'Collab Negotiations',
+    'collab-planner': 'Collab Planner',
+    'collab-statistics': 'Collab Statistics',
     bio: 'Artist Biography',
     genres: 'Artist Genres',
     'music-uploads': 'Music Uploads',
@@ -1716,7 +1853,7 @@ export default function ArtistDashboard() {
     photos: 'Upload and manage your artist photos',
     videos: 'Embed and manage your artist videos',
     type: 'Select your official artist type and sub-types',
-    royalty: 'Set default money splits for gigs and merch',
+    royalty: 'Set default money splits for gigs, collabs, and MyStore',
     gigability: 'Set your base location and stage timing preferences',
     'gig-bookings': 'Book/add new Gigs, edit/view upcoming/previous Gigs',
     'gig-reporting': 'Confirm completed gigs, review members, and report gig issues',
@@ -1729,6 +1866,12 @@ export default function ArtistDashboard() {
     'gig-past': 'View past and unscheduled gigs',
     'gig-invites': 'Review and respond to gig invitations from venues and artists',
     'gig-requests': 'Track direct gig booking requests you send to venues and artists',
+    collabability: 'Set your collab base location, timing, fees, and areas',
+    'collab-bookings': 'Book/add new Collabs and view draft, upcoming, scheduled-hidden, and historic Collabs',
+    'collab-reporting': 'Confirm completed collabs and report collab issues',
+    'collab-negotiations': 'Track collab invites, requests, and contract-stage negotiations',
+    'collab-planner': 'Use a dedicated collab calendar and availability planner',
+    'collab-statistics': 'Review collab completion, location, artist, label, and earnings statistics',
     bio: 'Write and manage your artist biography',
     genres: 'Select your music genres and sub-genres',
     'music-uploads': 'Start new uploads, consult the guide, and resume draft release work',
@@ -1739,6 +1882,18 @@ export default function ArtistDashboard() {
     messages: 'Read and manage real direct-message threads',
     settings: 'Open artist-level settings and account administration shortcuts'
   }
+
+  const activeHeaderSubSection = activeSubSectionKey?.startsWith(`${activeSection}:`)
+    ? activeSubSectionKey.split(':')[1]
+    : null
+  const isMusicGuideHeader =
+    (activeSection === 'music-uploads' || activeSection === 'music-upload') && activeHeaderSubSection === 'guide'
+  const activeHeaderTitle = isMusicGuideHeader
+    ? 'Must-Read Music Upload Guide'
+    : headerTitleMap[activeSection]
+  const activeHeaderSubtitle = isMusicGuideHeader
+    ? 'To upload music, first read this guide.'
+    : headerSubtitleMap[activeSection]
 
   return (
     <ProtectedRoute>
@@ -1789,7 +1944,7 @@ export default function ArtistDashboard() {
             />
           </div>
 
-          <div className={`flex-1 overflow-y-auto ${isDesktopSidebarCollapsed ? 'lg:pl-20' : 'lg:pl-80'}`}>
+          <div className={`min-w-0 flex-1 ${isDesktopSidebarCollapsed ? 'lg:pl-20' : 'lg:pl-80'}`}>
             <div className="p-4 sm:p-6">
               <div className="mx-auto max-w-7xl">
                 {activeSection !== 'home' && (
@@ -1806,16 +1961,16 @@ export default function ArtistDashboard() {
                       </button>
                       <div>
                         <h1 className="text-2xl font-bold text-white sm:text-3xl">
-                          {headerTitleMap[activeSection]}
+                          {activeHeaderTitle}
                         </h1>
                         <p className="text-sm text-gray-300 sm:text-base">
-                          {headerSubtitleMap[activeSection]}
+                          {activeHeaderSubtitle}
                         </p>
                       </div>
                     </div>
                     <Badge variant="secondary" className="border-[#ff8fa333] bg-[#ff8fa31a] text-[#ffd4dd]">
                       <Music className="mr-2 h-4 w-4" />
-                      {headerTitleMap[activeSection]}
+                      {activeHeaderTitle}
                     </Badge>
                   </div>
                 </div>

@@ -47,6 +47,24 @@ function formatContact(value: unknown) {
   }
 }
 
+const VENUE_SEARCH_FIELDS = [
+  'name',
+  'address->>line1',
+  'address->>city',
+  'address->>state',
+  'address->>country',
+  'address->>postal_code',
+  'address->>postcode',
+  'address->>zip',
+] as const
+
+type VenueSearchRow = {
+  id?: unknown
+  name?: unknown
+  address?: unknown
+  contact_details?: unknown
+}
+
 async function createSupabaseClient() {
   const cookieStore = await cookies()
   return createServerClient(
@@ -90,25 +108,42 @@ export async function GET(request: NextRequest) {
     const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 20) : 8
 
     const serviceSupabase = createServiceClient()
-    const { data, error } = await serviceSupabase
-      .from('venues')
-      .select('id, name, address, contact_details')
-      .eq('is_verified', true)
-      .eq('is_active', true)
-      .ilike('name', `%${query}%`)
-      .limit(limit)
+    const pattern = `%${query}%`
+    const searchResults = await Promise.all(
+      VENUE_SEARCH_FIELDS.map((field) => (
+        serviceSupabase
+          .from('venues')
+          .select('id, name, address, contact_details')
+          .eq('is_verified', true)
+          .eq('is_active', true)
+          .filter(field, 'ilike', pattern)
+          .limit(limit)
+      ))
+    )
 
-    if (error) {
-      console.error('Venue search failed', error)
+    const failedSearch = searchResults.find((result) => result.error)
+    if (failedSearch?.error) {
+      console.error('Venue search failed', failedSearch.error)
       return NextResponse.json({ error: 'Unable to search venues right now.' }, { status: 500 })
     }
 
-    const suggestions = (data || []).map((row) => {
-      const address = formatAddress((row as { address?: unknown }).address)
-      const contact = formatContact((row as { contact_details?: unknown }).contact_details)
+    const rowsById = new Map<string, VenueSearchRow>()
+    searchResults.forEach((result) => {
+      const rows = result.data || []
+      rows.forEach((row) => {
+        const id = toTrimmedString((row as VenueSearchRow).id)
+        if (id && !rowsById.has(id)) {
+          rowsById.set(id, row as VenueSearchRow)
+        }
+      })
+    })
+
+    const suggestions = Array.from(rowsById.values()).slice(0, limit).map((row) => {
+      const address = formatAddress(row.address)
+      const contact = formatContact(row.contact_details)
       return {
-        id: toTrimmedString((row as { id?: unknown }).id),
-        name: toTrimmedString((row as { name?: unknown }).name),
+        id: toTrimmedString(row.id),
+        name: toTrimmedString(row.name),
         address: address.formatted || '',
         city: address.city,
         state: address.state,
